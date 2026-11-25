@@ -1230,4 +1230,32 @@ static int EnmPlacementFlagsOk(int need, int needSet, int forbid, int forbidSet)
     if (need < 0 || need >= ENM_STORY_FLAGS_N || forbid < 0 || forbid >= ENM_STORY_FLAGS_N) return -1;
     return (need == 0 || needSet) && (forbid == 0 || !forbidSet);
 }
+
+// ---------------------------------------------------------------- v3.49 EF349: Enemies Follow's values
+// The row's values in gameplay.inc kGpName[GP_FOLLOW] order (the ini keeps the name, so the order is free): Off, Monsters,
+// Victims Only (the user, 2026-11-25: only victim ghosts follow you through doors, monsters stay in their rooms),
+// Monsters + Victims. "Victims" = the ghosts' path (the victims and, FollowStoryGhosts, the four story ghosts) with their
+// copies; "monsters" = the follow monster types (EnmFollowMonster: 03 07 08 0A 11, the Twin Victims and the Patient too)
+// with their copies.
+enum { ENM_FOLLOW_OFF, ENM_FOLLOW_MONSTERS, ENM_FOLLOW_VICTIMS, ENM_FOLLOW_BOTH, ENM_FOLLOW_N };  // v3.49 EF349
+static int EnmFollowValueOn(int m) { return m > ENM_FOLLOW_OFF && m < ENM_FOLLOW_N; }  // v3.49 EF349
+static int EnmFollowTakesMonsters(int m) { return m == ENM_FOLLOW_MONSTERS || m == ENM_FOLLOW_BOTH; }  // v3.49 EF349
+static int EnmFollowTakesVictims(int m) { return m == ENM_FOLLOW_VICTIMS || m == ENM_FOLLOW_BOTH; }  // v3.49 EF349
+// v3.49 EF349: who may pursue by the value: as EnmPursuerWhy3, and without "monsters" (Victims Only) everything that does
+// not take the ghosts' path (a ghost type with its ghost id, or a ghost's copy) is of no following kind
+static int EnmPursuerWhy4(int monsters, int copy, int ghostId, int victims, int story, int type, int variant, unsigned modeWord,
+                          int released, int aiState, int scriptId, int killIdx)
+{
+    if (!monsters && !(EnmGhostType(type) && (copy || ghostId))) return ENM_PUR_OTHER;
+    return EnmPursuerWhy3(copy, ghostId, victims, story, type, variant, modeWord, released, aiState, scriptId, killIdx);
+}
+// v3.49 EF349: Victims Only at a room load: the monsters' copies that followed you leave the copies' ledger (each is made
+// in its own room again, as with Follow Off); the ghost copies stay where they are. Returns how many left.
+static int EnmCwDropMonsters(EnmCwLedger *l)
+{
+    int i, n = 0;
+    for (i = 0; i < ENM_CW_N; ++i)
+        if (l->e[i].used && !EnmGhostType(l->e[i].type)) l->e[i].used = 0, ++n;
+    return n;
+}
 #endif

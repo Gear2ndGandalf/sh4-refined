@@ -8,6 +8,12 @@
 // sound; with no standing enemy in range she warps GtFwdKey units the way she faces (GtFwdCand, shortened step by step).
 // The target spot rules (behind the nearest standing enemy, the room's edges, fail closed) are v3.43's.
 // Then a cooldown (default GT_COOL_DEF). A refused or failed warp waits GT_FAIL_COOL.
+//
+// v3.49 GT349 (the user's v3.48 QA; staging/v349_feedback/w2_teleport/PLAN.md, CRASH_ANALYSIS.md): no cooldown by
+// default (GT_COOL_DEF 0: the next warp as soon as she has faded back in); holding Run + Action keeps warping
+// (GtHold*); a warp never crosses or ends in a walk-in event's trigger zone the game would still fire (GtZoneHit:
+// v3.48 jumped over the Subway 2:2 cut-scene box, Cynthia's companion task then came back in 2:3 without her files and
+// the game crashed at 0x43E775).
 #ifndef TELEPORT_SIM_H
 #define TELEPORT_SIM_H
 #include <float.h>
@@ -16,8 +22,8 @@
 #define GT_RANGE_DEF   2500.0f  // [Gameplay] GhostTeleportRange (hidden): enemies within this (xz) of her
 #define GT_RANGE_MIN   500.0f
 #define GT_RANGE_MAX   6000.0f
-#define GT_COOL_DEF    3.0f     // [Gameplay] GhostTeleportCooldown (hidden): seconds after a warp
-#define GT_COOL_MIN    0.5f
+#define GT_COOL_DEF    0.0f     // [Gameplay] GhostTeleportCooldown (hidden): seconds after a warp (v3.49 GT349: 0, was 3)
+#define GT_COOL_MIN    0.5f     //   (a positive value in the ini: clamped to MIN .. MAX)
 #define GT_COOL_MAX    30.0f
 #define GT_FAIL_COOL   0.5f     // after a refused or failed warp (the spot search is not run every tick)
 #define GT_DY_MAX      600.0f   // an enemy this far above / below her feet is on another floor: not taken
@@ -53,7 +59,7 @@ static int GtHeldOk(float d, float t) { return _finite(d) && d <= GT_HELD_D + GT
 // GTC_RUN_LAST: Run went down last (Action's press reached the game on an earlier tick).
 #define GT_CHORD_S     0.08f
 #define GT_AGE_NONE    1e9f     // not held, or its press already used
-enum { GTC_NONE = 0, GTC_ACT_LAST = 1, GTC_RUN_LAST = 2 };
+enum { GTC_NONE = 0, GTC_ACT_LAST = 1, GTC_RUN_LAST = 2, GTC_HELD = 3 };  // v3.49 GT349: + the hold's next warp
 typedef struct { float runAge, actAge; int run, act; } GtChord;
 static void GtChordReset(GtChord *c) { c->runAge = c->actAge = GT_AGE_NONE, c->run = c->act = 1; }  // (as if held)
 static float GtAge(float age, int held, int fresh, float dt)
@@ -313,5 +319,176 @@ static int GtBoundsVerdict(int roomOk, int nExits, int nValid, int boxOk, int he
 static int GtInBox(const float lo[3], const float hi[3], const float s[3])
 {
     return s[0] >= lo[0] && s[0] <= hi[0] && s[2] >= lo[2] && s[2] <= hi[2];
+}
+
+// ---------------------------------------------------------------- v3.49 GT349: hold Run + Action = keep warping
+// A chord (a fresh press of both) starts a hold; it ends the tick either button is let go, or outside gameplay. While
+// it holds, the next warp starts once the fade is over (she has fully faded back in) and the cooldown (0 by default)
+// has run out; after a refusal it waits GT_FAIL_COOL before the next try. One press = one warp: a press let go
+// before the fade has ended starts nothing more.
+enum { GTH_NONE = 0, GTH_GO = 1, GTH_END = 2 };
+typedef struct { int on, warps, refused; float wait; } GtHold;
+static void GtHoldReset(GtHold *h) { h->on = 0, h->warps = h->refused = 0, h->wait = 0.0f; }
+static void GtHoldStart(GtHold *h) { h->on = 1, h->warps = h->refused = 0, h->wait = 0.0f; }
+static void GtHoldRefused(GtHold *h)  // a try of the hold was refused: count it, wait before the next
+{
+    if (!h->on) return;
+    ++h->refused;
+    h->wait = GT_FAIL_COOL;
+}
+// One tick. run / act: held now; live: a gameplay tick with the option on; idle: no fade runs; cool: cooldown left.
+static int GtHoldStep(GtHold *h, int run, int act, int live, int idle, float cool, float dt)
+{
+    if (!h->on) return GTH_NONE;
+    if (!run || !act || !live) {
+        h->on = 0;
+        return GTH_END;
+    }
+    if (!(dt > 0.0f) || dt > 0.25f) dt = 0.0f;
+    if (h->wait > 0.0f) {
+        h->wait -= dt;
+        return GTH_NONE;
+    }
+    return idle && !(cool > 0.0f) ? GTH_GO : GTH_NONE;
+}
+
+// ---------------------------------------------------------------- v3.49 GT349: the room's walk-in event zones
+// An event object's zone (ActorZone, task + 0x424; the game's tests 0x52B8D0 .. 0x52C410): shape 1 = an upright
+// cylinder of radius sx and height sy hanging up from y (y grows downwards: the zone spans y - sy .. y), 2 = a box sx x
+// sz (full sizes, centred on x / z, turned by heading about y) of height sy the same way, 3 = a sphere of radius sx. The
+// player counts from her feet y to y - GT_PLAYER_H (PLAYER_HEIGHT 400). A warp from a to b (her feet) is refused when
+// the straight path touches the zone (grown by pad) from outside, or ends in it: the game tests the zone every tick,
+// so walking from a to b would fire it on the way. A turned box (heading not a multiple of 90 degrees) is taken as its
+// enclosing circle (more refused, never less). A zone with a value that is not a number: refused (fail closed).
+// v3.49 GT349-001 (Codex inspection 1): standing INSIDE a zone of the list is refused too (GtZoneInside): the list holds
+// only zones whose event is not running (GtZoneArmed), so she may have run into it during the fade-out and its event
+// has not started yet; a warp out would skip it (the v3.48 crash's class). A zone whose event runs is not in the list:
+// standing in it, she may warp.
+#define GT_PLAYER_H    400.0f
+#define GT_ZONE_PAD    20.0f
+typedef struct { float x, y, z; int shape; float heading, sx, sy, sz; } GtZone;
+// a segment (xz) against the rectangle |x| <= hx, |z| <= hz (Liang-Barsky); 1 = it touches it
+static int GtSegRect(float ax, float az, float bx, float bz, float hx, float hz)
+{
+    const float dx = bx - ax, dz = bz - az;
+    const float p[4] = { -dx, dx, -dz, dz }, q[4] = { ax + hx, hx - ax, az + hz, hz - az };
+    float t0 = 0.0f, t1 = 1.0f;
+    int i;
+    for (i = 0; i < 4; ++i) {
+        if (p[i] == 0.0f) {
+            if (q[i] < 0.0f) return 0;
+        } else {
+            const float t = q[i] / p[i];
+            if (p[i] < 0.0f) {
+                if (t > t1) return 0;
+                if (t > t0) t0 = t;
+            } else {
+                if (t < t0) return 0;
+                if (t < t1) t1 = t;
+            }
+        }
+    }
+    return t0 <= t1;
+}
+// the nearest distance (xz) from (cx, cz) to the segment a -> b
+static float GtSegDist(float ax, float az, float bx, float bz, float cx, float cz)
+{
+    const float dx = bx - ax, dz = bz - az, l2 = dx * dx + dz * dz;
+    float t = l2 > 1e-6f ? ((cx - ax) * dx + (cz - az) * dz) / l2 : 0.0f, ex, ez;
+    t = t < 0.0f ? 0.0f : t > 1.0f ? 1.0f : t;
+    ex = ax + dx * t - cx, ez = az + dz * t - cz;
+    return sqrtf(ex * ex + ez * ez);
+}
+static int GtZoneOk(const GtZone *z)  // every value a number (sizes may be 0)
+{
+    return _finite(z->x) && _finite(z->y) && _finite(z->z) && _finite(z->heading) && _finite(z->sx) && _finite(z->sy) &&
+           _finite(z->sz);
+}
+// the zone's footprint in the xz plane, in its own frame: 1 = a rectangle (*hx, *hz), 0 = a circle (*hx = radius)
+static int GtZoneShapeXZ(const GtZone *z, float pad, float *hx, float *hz)
+{
+    *hz = 0.0f;
+    if (z->shape == 2) {
+        const float s = sinf(z->heading), c = cosf(z->heading);
+        const float bx = 0.5f * fabsf(z->sx), bz = 0.5f * fabsf(z->sz);
+        if (fabsf(s) < 1e-3f) {
+            *hx = bx + pad, *hz = bz + pad;
+            return 1;
+        }
+        if (fabsf(c) < 1e-3f) {
+            *hx = bz + pad, *hz = bx + pad;
+            return 1;
+        }
+        *hx = sqrtf(bx * bx + bz * bz) + pad;
+        return 0;
+    }
+    *hx = fabsf(z->sx) + pad;
+    return 0;
+}
+static int GtZoneInXZ(const GtZone *z, float pad, float px, float pz)
+{
+    float hx, hz;
+    const float dx = px - z->x, dz = pz - z->z;
+    if (GtZoneShapeXZ(z, pad, &hx, &hz)) return fabsf(dx) <= hx && fabsf(dz) <= hz;
+    return dx * dx + dz * dz <= hx * hx;
+}
+static int GtZoneSegXZ(const GtZone *z, float pad, const float a[3], const float b[3])
+{
+    float hx, hz;
+    if (GtZoneShapeXZ(z, pad, &hx, &hz))
+        return GtSegRect(a[0] - z->x, a[2] - z->z, b[0] - z->x, b[2] - z->z, hx, hz);
+    return GtSegDist(a[0], a[2], b[0], b[2], z->x, z->z) <= hx;
+}
+// her height span over the path (min(a, b) - GT_PLAYER_H .. max(a, b)) meets the zone's?
+static int GtZoneMeetsY(const GtZone *z, float ay, float by)
+{
+    const float lo = (ay < by ? ay : by) - GT_PLAYER_H, hi = ay < by ? by : ay;
+    float zlo, zhi;
+    if (z->shape == 3) zlo = z->y - fabsf(z->sx), zhi = z->y + fabsf(z->sx);
+    else zlo = z->y - fabsf(z->sy), zhi = z->y;
+    return hi >= zlo && lo <= zhi;
+}
+// v3.49 GT349-001: is she (her feet a) inside the zone now? (a value that is not a number: yes, fail closed)
+static int GtZoneInside(const GtZone *z, const float a[3])
+{
+    if (z->shape < 1 || z->shape > 3) return 0;
+    if (!GtZoneOk(z) || !_finite(a[0]) || !_finite(a[1]) || !_finite(a[2])) return 1;
+    return GtZoneInXZ(z, 0.0f, a[0], a[2]) && GtZoneMeetsY(z, a[1], a[1]);
+}
+// 1 = a warp from a to b (her feet) skips or lands in the zone, or starts inside it (GT349-001: its event not running yet)
+static int GtZoneHit(const GtZone *z, const float a[3], const float b[3])
+{
+    if (z->shape < 1 || z->shape > 3) return 0;
+    if (!GtZoneOk(z) || !_finite(a[0]) || !_finite(a[1]) || !_finite(a[2]) || !_finite(b[0]) || !_finite(b[1]) || !_finite(b[2]))
+        return 1;
+    if (GtZoneInside(z, a)) return 1;  // GT349-001: inside a zone that has not fired: it fires first, no warp out
+    if (!GtZoneMeetsY(z, a[1], b[1])) return 0;
+    return GtZoneSegXZ(z, GtZoneInXZ(z, GT_ZONE_PAD, a[0], a[2]) ? 0.0f : GT_ZONE_PAD, a, b);
+}
+// v3.49 GT349-001: the first of n zones she stands inside (its index), else -1
+static int GtZonesInside(const GtZone *z, int n, const float a[3])
+{
+    int i;
+    for (i = 0; i < n; ++i)
+        if (GtZoneInside(&z[i], a)) return i;
+    return -1;
+}
+// v3.49 GT349-001: which event objects' zones go into the list (teleport.inc GtZonesRead; EventObjectsTick 0x4D00F0's own
+// test): no use-item, its record not running, enabled by the game's last test, actor type 7 or 9, zone shape 1 .. 3
+// without flag 4 (a press) or 0x10 (inverted). 1 = armed (in the list), 0 = not, -1 = a zone of another shape / flags
+// (counted as "needs a press or a look").
+static int GtZoneArmed(int useItem, int running, int enabled, int type, int shape, int flags)
+{
+    if (useItem || running || !enabled || (type != 7 && type != 9)) return 0;
+    if (shape < 1 || shape > 3 || (flags & 0x14)) return -1;
+    return 1;
+}
+// the first of n zones a warp a -> b would skip or land in (its index), else -1
+static int GtZonesHit(const GtZone *z, int n, const float a[3], const float b[3])
+{
+    int i;
+    for (i = 0; i < n; ++i)
+        if (GtZoneHit(&z[i], a, b)) return i;
+    return -1;
 }
 #endif

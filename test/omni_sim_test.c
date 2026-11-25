@@ -3,6 +3,9 @@
 // classification, the per-frame agreement rule and the self-check's verdicts, windows and re-checks.
 // v3.48 OM348: Omni-Directional Movement, Off / On (On = v3.47's Analog; Direction removed): the reader's new and old
 // spellings, the map and the export with two modes.
+// v3.49 LK349: the analog look (OmniLook's text, where it acts, the look bindings, the look map, the latch / 8-way-band
+// diagnostics, the look self-check) against a model of the game's AxisEvent / BuildStickAxes / 0x553D20 / Room302Look,
+// and Room 302's X-turns rule for the left stick's x.
 #include <stdio.h>
 #include <math.h>
 #include <string.h>  // v3.48 OM348: strcmp
@@ -463,6 +466,197 @@ static void TestFail(void)
     CHECK(r == OMF_BG_START && OmFailRecentBg(&e, 0x00000100ul), "across the GetTickCount wrap (0x200 ms after the focus loss)");
 }
 
+// ---------------------------------------------------------------- v3.49 LK349: the analog look
+// A model of the game's look path (SH4Decomp src/input/dinput_4062b0.cpp AxisEvent 0x406F50 / BuildStickAxes 0x4067C0,
+// src/system/sys_553d20.c STICK, src/player/pl_52d480.c Room302Look 0x52DBD0) for one axis pair: the stock AxisEvent
+// (no release on a direct reversal: the latch) or Playable Eileen's PadAxis (the old side released first).
+typedef struct { unsigned bits; long last[2]; } LookModel;
+static void ModelAxis(LookModel *m, long v, int a, int pe)  // a 0 = x (bits 0 / 1: + / -), 1 = y (bits 2 / 3: - (up) / +)
+{
+    const unsigned plus = a ? 8u : 1u, minus = a ? 4u : 2u;  // the bit of a code 3 (> 300) and of a code 1 (< -300)
+    long nv = v;
+    int dir = 0;
+    if (v > -300 && v < 300) nv = 0;
+    else if (v < -300) dir = 1;
+    else if (v > 300) dir = 3;
+    if (m->last[a] == nv) return;
+    if (dir) {
+        if (pe && m->last[a] != 0 && (m->last[a] < 0) != (nv < 0)) m->bits &= ~(plus | minus);
+        m->bits |= dir == 3 ? plus : minus;
+        m->last[a] = nv;
+    } else if (m->last[a] != 0) {
+        m->last[a] = 0;
+        m->bits &= ~(plus | minus);
+    }
+}
+static float ModelFloat(unsigned bits, int a)  // stick[1].x / y from the bits (BuildStickAxes + STICK, one axis)
+{
+    // x: bit 0 +0x7FFF, bit 1 -0x8000; y: the short from bit 2 (+0x7FFF) / bit 3 (-0x8000), negated by STICK
+    int sh = 0;
+    if (!a) sh += (bits & 1) ? 0x7FFF : 0, sh += (bits & 2) ? -0x8000 : 0;
+    else sh += (bits & 4) ? 0x7FFF : 0, sh += (bits & 8) ? -0x8000 : 0;
+    if (sh < 10 && sh > -10) sh = 0;
+    if (!sh) return 0.0f;
+    return a ? ((float)sh + 0.5f) * -3.0518044e-05f : ((float)sh + 0.5f) * 3.0518044e-05f;
+}
+static void TestLookParse(void)
+{
+    static const struct { const char *s; int v, known; } kCases[] = {
+        { "Off", OML_OFF, 1 }, { "off", OML_OFF, 1 }, { "Room302", OML_ROOM302, 1 }, { "room302", OML_ROOM302, 1 },
+        { "ROOM 302", OML_ROOM302, 1 }, { "All", OML_ALL, 1 }, { "aLL", OML_ALL, 1 }, { "0", OML_OFF, 1 }, { "1", OML_ROOM302, 1 },
+        { "2", OML_ALL, 1 }, { " All\r\n", OML_ALL, 1 }, { "\tOff ", OML_OFF, 1 }, { "", OML_ROOM302, 1 }, { "  ", OML_ROOM302, 1 },
+        { "3", OML_ROOM302, 0 }, { "On", OML_ROOM302, 0 }, { "Room", OML_ROOM302, 0 }, { "Room3020", OML_ROOM302, 0 },
+        { "Alll", OML_ROOM302, 0 }, { "-1", OML_ROOM302, 0 }, { "Room  302", OML_ROOM302, 0 },
+    };
+    int i, k;
+    for (i = 0; i < (int)(sizeof kCases / sizeof kCases[0]); ++i) {
+        const int v = OmLookParse(kCases[i].s, &k);
+        CHECK(v == kCases[i].v && k == kCases[i].known, "OmniLook \"%s\": %d known %d (want %d %d)", kCases[i].s, v, k,
+              kCases[i].v, kCases[i].known);
+    }
+    CHECK(OmLookParse(NULL, NULL) == OML_ROOM302, "NULL: the default Room302");
+    for (i = 0; i < OML_MODES; ++i) CHECK(OmLookParse(kOmLookName[i], &k) == i && k, "\"%s\" written reads as itself", kOmLookName[i]);
+    CHECK(OmLookWhere(OML_ROOM302, 1) && !OmLookWhere(OML_ROOM302, 10) && !OmLookWhere(OML_ROOM302, 2) &&
+          !OmLookWhere(OML_ROOM302, 0), "Room302: stage 1 only (stage 10 is Room 302's third-person visit)");
+    CHECK(OmLookWhere(OML_ALL, 1) && OmLookWhere(OML_ALL, 2) && OmLookWhere(OML_ALL, 10) && !OmLookWhere(OML_OFF, 1) &&
+          !OmLookWhere(OML_OFF, 2) && !OmLookWhere(7, 1), "All: every stage; Off / unknown: none");
+}
+static void TestLookBindings(void)
+{
+    const unsigned stock[4] = { 0x1403, 0x1401, 0x0801, 0x0803 }, swap[4] = { 0x0003, 0x0001, 0x0401, 0x0403 };
+    const unsigned hi[4] = { 0xAB1403, 0x771401, 0x10801, 0xFF0803 }, keys[4] = { 0, 0, 0, 0 };
+    const unsigned inv[4] = { 0x1403, 0x1401, 0x0803, 0x0801 }, mix[4] = { 0x1403, 0x1401, 0x0401, 0x0403 };
+    const unsigned btn[4] = { 0x3180, 0x3280, 0x3380, 0x3480 };
+    CHECK(OmLookBindings(stock) == OMLB_RIGHT, "the stock table: the right stick (lRx / lRy)");
+    CHECK(OmLookBindings(hi) == OMLB_RIGHT, "only the low 16 bits count (as 0x406C50)");
+    CHECK(OmLookBindings(swap) == OMLB_LEFT, "swapped sticks: the left stick's axes");
+    CHECK(OmLookBindings(keys) == OMLB_OTHER && OmLookBindings(inv) == OMLB_OTHER && OmLookBindings(mix) == OMLB_OTHER &&
+          OmLookBindings(btn) == OMLB_OTHER, "keys only, an inverted Y, a mixed layout, buttons: not a stick");
+}
+static void TestLookMap(void)
+{
+    float x = 9, y = 9, px = -1;
+    int a, bad = 0, badAng = 0, mono = 1;
+    long m;
+    CHECK(!OmLookMap(0, 0, OM_LOOK_DZ, &x, &y) && x == 9 && y == 9, "centred: nothing written");
+    CHECK(!OmLookMap(200, 0, OM_LOOK_DZ, &x, &y) && !OmLookMap(140, 140, OM_LOOK_DZ, &x, &y), "inside 0.20 (radial): nothing");
+    CHECK(OmLookMap(150, 150, OM_LOOK_DZ, &x, &y) && x > 0 && y > 0 && sqrtf(x * x + y * y) < 0.02f,
+          "a diagonal just past 0.20: a tiny push (continuous from 0)");
+    CHECK(OmLookMap(1000, 0, OM_LOOK_DZ, &x, &y) && fabs(x - 1.0f) < 1e-6 && fabs(y) < 1e-6, "full right: x +1");
+    CHECK(OmLookMap(0, -1000, OM_LOOK_DZ, &x, &y) && fabs(y + 1.0f) < 1e-6 && fabs(x) < 1e-6, "full up: y -1 (the game's)");
+    CHECK(OmLookMap(0, 1000, OM_LOOK_DZ, &x, &y) && fabs(y - 1.0f) < 1e-6, "full down: y +1");
+    CHECK(OmLookMap(1000, 1000, OM_LOOK_DZ, &x, &y) && fabs(sqrtf(x * x + y * y) - 1.0f) < 1e-5 && fabs(x - y) < 1e-6,
+          "a full diagonal: length 1 at 45 degrees (the game's 0.707 / 0.816 is longer and skewed)");
+    CHECK(OmLookMap(600, 0, OM_LOOK_DZ, &x, &y) && fabs(x - 0.5f) < 1e-5, "a 0.6 push: 0.5 (rescaled from the dead zone)");
+    CHECK(!OmLookMap(1200, 0, OM_LOOK_DZ, &x, &y) && !OmLookMap(0, -40000, OM_LOOK_DZ, &x, &y), "out of the game's range: nothing");
+    CHECK(OmLookMap(400, 0, -1.0f, &x, &y) && fabs(x - 0.25f) < 1e-5, "a bad dead zone is the default 0.20");
+    for (a = 0; a < 3600; ++a) {  // every tenth of a degree at a 0.8 push: length 0.75, the stick's own angle
+        const double t = a * PI / 1800.0;
+        const long rx = (long)floor(800.0 * cos(t) + 0.5), ry = (long)floor(800.0 * sin(t) + 0.5);
+        const double want = (sqrt((double)rx * rx + (double)ry * ry) / 1000.0 - 0.2) / 0.8;
+        if (!OmLookMap(rx, ry, OM_LOOK_DZ, &x, &y) || fabs(sqrt(x * x + y * y) - want) > 1e-4) ++bad;
+        else if (fabs(atan2(y, x) - atan2((double)ry, (double)rx)) > 1e-4 && fabs(fabs(atan2(y, x) - atan2((double)ry, (double)rx)) - 2 * PI) > 1e-4) ++badAng;
+    }
+    CHECK(bad == 0 && badAng == 0, "every angle: the rescaled length and the stick's own angle (%d bad, %d off)", bad, badAng);
+    for (m = 201; m <= 1100; ++m) {
+        if (!OmLookMap(m, 0, OM_LOOK_DZ, &x, &y) || x < px || x > 1.0f) mono = 0;
+        px = x;
+    }
+    CHECK(mono, "monotone from the dead zone to a full push, never past 1");
+}
+static void TestLookLatch(void)
+{
+    LookModel st, pe;
+    float x, y;
+    int i, latched = 0, peStuck = 0, analogTurns = 0, frames = 0;
+    // a direct flick: full right, then in one poll full left (no poll in the middle), held left for 30 polls
+    memset(&st, 0, sizeof st);
+    memset(&pe, 0, sizeof pe);
+    ModelAxis(&st, 800, 0, 0);
+    ModelAxis(&pe, 800, 0, 1);
+    CHECK(ModelFloat(st.bits, 0) > 0.99f && ModelFloat(pe.bits, 0) > 0.99f && !OmLatch(st.bits), "full right: +1 in both");
+    for (i = 0; i < 30; ++i) {
+        ModelAxis(&st, -800, 0, 0);
+        ModelAxis(&pe, -800, 0, 1);
+        ++frames;
+        latched += ModelFloat(st.bits, 0) == 0.0f && OmLatch(st.bits) == 1;
+        peStuck += ModelFloat(pe.bits, 0) > -0.99f;
+        analogTurns += OmLookMap(-800, 0, OM_LOOK_DZ, &x, &y) && x < -0.7f;
+    }
+    CHECK(latched == frames, "the stock latch: held left after a direct flick reads centred every frame (%d of %d), and "
+          "OmLatch sees it", latched, frames);
+    CHECK(peStuck == 0, "Playable Eileen's PadAxis: no latch (%d)", peStuck);
+    CHECK(analogTurns == frames, "the analog look turns left through the latch (from the raw axes, %d of %d)", analogTurns, frames);
+    ModelAxis(&st, 0, 0, 0);
+    CHECK(st.bits == 0 && !OmLatch(st.bits), "let go: the latch clears (both released on the neutral path)");
+    // y: up then down directly
+    memset(&st, 0, sizeof st);
+    ModelAxis(&st, -900, 1, 0);
+    CHECK(ModelFloat(st.bits, 1) < -0.99f, "full up: y -1");
+    ModelAxis(&st, 900, 1, 0);
+    CHECK(ModelFloat(st.bits, 1) == 0.0f && OmLatch(st.bits) == 2, "the y latch: centred, OmLatch 2");
+    CHECK(OmLatch(0x3) == 1 && OmLatch(0xC) == 2 && OmLatch(0xF) == 3 && OmLatch(0x5) == 0 && OmLatch(0xA) == 0 && !OmLatch(0),
+          "OmLatch: both bits of an axis");
+    // the game's 8-way band: a push under 0.30 does nothing in the game; the analog look turns
+    memset(&st, 0, sizeof st);
+    ModelAxis(&st, 280, 0, 0);
+    CHECK(st.bits == 0 && OmBandMiss(280, 0, OM_LOOK_DZ) && OmLookMap(280, 0, OM_LOOK_DZ, &x, &y) && x > 0.09f,
+          "a 0.28 push: the game turns nothing (no bit), the band miss is counted, the analog look turns");
+    CHECK(!OmBandMiss(310, 0, OM_LOOK_DZ) && !OmBandMiss(150, 0, OM_LOOK_DZ) && OmBandMiss(150, 150, OM_LOOK_DZ) &&
+          !OmBandMiss(0, -301, OM_LOOK_DZ) && !OmBandMiss(5000, 0, OM_LOOK_DZ), "OmBandMiss: outside the dead zone, inside the game's band");
+}
+static void TestLookCheck(void)
+{
+    OmCheck c;
+    int i, r = OMC_NOTHING;
+    OmLookCheckInit(&c);
+    CHECK(c.verdict == OMS_PENDING && c.rejected[1] && !c.rejected[0], "the look check: GetDeviceState only (no call sites)");
+    for (i = 0; i < OM_CHECK_N && r == OMC_NOTHING; ++i) r = OmCheckFeed(&c, OmEval(800, 0, 1, 0), OME_SKIP);
+    CHECK(r == OMC_VERDICT && c.verdict == OMS_DEVICE && i == OM_CHECK_N && c.lastOk[0] == OM_CHECK_N,
+          "40 agreeing frames: GetDeviceState (%d %d)", r, c.verdict);
+    CHECK(OmEval(-800, 0, 3, 0) == OME_AGREE && OmEval(0, 800, 0xC, 0) == OME_AGREE,
+          "a latched axis (both bits) still agrees with a raw push past the band");
+    OmLookCheckInit(&c);
+    for (i = 0, r = OMC_NOTHING; i < OM_CHECK_N && r == OMC_NOTHING; ++i) r = OmCheckFeed(&c, OmEval(0, 0, 1, 0), OME_SKIP);
+    CHECK(r == OMC_VERDICT && c.verdict == OMS_NONE, "a stale / blank read (centred while the game sees a push): none");
+    OmLookCheckInit(&c);
+    for (i = 0; i < 200; ++i) r = OmCheckFeed(&c, OmEval(800, 0, 1, 1), OME_SKIP);
+    CHECK(c.verdict == OMS_PENDING && c.n[0] == 0, "a look key held: no verdict at all");
+    OmLookCheckInit(&c);
+    for (i = 0; i < OM_CHECK_N; ++i) OmCheckFeed(&c, OME_AGREE, OME_SKIP);
+    for (i = 0, r = OMC_NOTHING; i < OM_WIN && r == OMC_NOTHING; ++i) r = OmCheckFeed(&c, i % 5 ? OME_AGREE : OME_DISAGREE, OME_SKIP);
+    CHECK(r == OMC_RECHECK && c.verdict == OMS_NONE, "a window with 20 %% disagreement: rejected, no other source: none");
+}
+// Room 302's turn rule: the right stick's yaw only while the left stick's x is 0 (X turns; 0x52DC5E), modelled
+static int ModelYawLive(float stickX, int xTurns) { return !(xTurns && !(0.01f >= stickX && -0.01f <= stickX)); }
+static void TestRoomTurnX(void)
+{
+    float fx, fy;
+    int blocked = 0, live = 0;
+    long ang;
+    // a forward walk a few degrees off the axis: v3.48 wrote a small x, which silenced the right stick's turn
+    for (ang = -15; ang <= 15; ++ang) {
+        const double t = (ang - 90) * PI / 180.0;
+        const long rx = (long)floor(900.0 * cos(t) + 0.5), ry = (long)floor(900.0 * sin(t) + 0.5);
+        if (!OmMap(rx, ry, OM_ON, 0.30f, &fx, &fy)) continue;
+        blocked += !ModelYawLive(fx, 1);
+        OmRoomTurnX(1, 1, 0.0f, &fx);  // the game's own x is 0 (|rx| <= 300: no turn bit)
+        live += ModelYawLive(fx, 1);
+    }
+    CHECK(blocked >= 28 && live == 31, "a forward walk within 15 degrees: v3.48 silenced the right stick's turn in %d of 31 "
+          "pushes; with the rule it turns in %d of 31", blocked, live);
+    fx = 0.05f;
+    CHECK(OmRoomTurnX(1, 1, 0.0f, &fx) == 1 && fx == 0.0f, "Room 302, X turns, the game's x 0: x 0");
+    fx = 0.6f;
+    CHECK(OmRoomTurnX(1, 1, 1.0f, &fx) == 0 && fx == 0.6f, "the game's own x turns (past +-300 or a key): the analog x stays");
+    fx = 0.05f;
+    CHECK(OmRoomTurnX(1, 0, 0.0f, &fx) == 0 && fx == 0.05f, "X strafes (byte 0x1091AE7 != 0): the x stays (no yaw rule there)");
+    fx = 0.05f;
+    CHECK(OmRoomTurnX(0, 1, 0.0f, &fx) == 0 && fx == 0.05f, "not Room 302's first-person view: the x stays");
+    fx = 0.0f;
+    CHECK(OmRoomTurnX(1, 1, 0.0f, &fx) == 0, "x already 0: nothing to do");
+}
+
 int main(void)
 {
     TestControlTable();
@@ -477,6 +671,12 @@ int main(void)
     TestBindings();
     TestEval();
     TestCheck();
+    TestLookParse();     // v3.49 LK349
+    TestLookBindings();  // v3.49 LK349
+    TestLookMap();       // v3.49 LK349
+    TestLookLatch();     // v3.49 LK349
+    TestLookCheck();     // v3.49 LK349
+    TestRoomTurnX();     // v3.49 LK349
     printf("omni_sim_test: %d checks, %d failed\n", g_n, g_fail);
     return g_fail ? 1 : 0;
 }

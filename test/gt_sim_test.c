@@ -430,7 +430,181 @@ static void Keys(void)
     Check(GtRangeKey(1, 100.0f) == GT_RANGE_MIN && GtRangeKey(1, 9000.0f) == GT_RANGE_MAX && GtRangeKey(1, 1800.0f) == 1800.0f,
           "range: clamped 500 .. 6000");
     Check(GtCoolKey(0, 0.0f) == GT_COOL_DEF && GtCoolKey(1, 0.1f) == GT_COOL_MIN && GtCoolKey(1, 99.0f) == GT_COOL_MAX &&
-          GtCoolKey(1, 5.0f) == 5.0f, "cooldown: 3 by default, clamped 0.5 .. 30");
+          GtCoolKey(1, 5.0f) == 5.0f, "cooldown: the default, clamped 0.5 .. 30");
+    // v3.49 GT349: no cooldown unless the ini asks for one; an old explicit value still reads
+    Check(GT_COOL_DEF == 0.0f && GtCoolKey(0, 0.0f) == 0.0f && GtCoolKey(1, 0.0f) == 0.0f && GtCoolKey(1, -2.0f) == 0.0f &&
+          GtCoolKey(1, 3.0f) == 3.0f, "v3.49: cooldown 0 by default (missing, 0 or negative); GhostTeleportCooldown=3 still 3");
+}
+
+// ---------------------------------------------------------------- v3.49 GT349: hold Run + Action = keep warping
+// A simulated session at hz: a chord, then both held for `hold` seconds; every warp is Richard's fade (0.5 s out, the
+// warp, 0.5 s in); a refusal waits GT_FAIL_COOL. Returns the warps made; *gapMin = the shortest time from one warp's
+// fade-in end to the next warp's start.
+static int HoldRun(int hz, float hold, float cool, int refuseEvery, float *gapMin, int *refusals)
+{
+    const float dt = 1.0f / (float)hz;
+    GtHold h;
+    GtFade f;
+    float t, coolLeft = 0.0f, idleAt = -1.0f;
+    int warps = 0, tries = 0;
+    GtHoldReset(&h);
+    GtFadeReset(&f);
+    *gapMin = 1e9f, *refusals = 0;
+    GtHoldStart(&h);  // the chord's tick: its own warp starts at once
+    GtFadeStart(&f);
+    ++tries;
+    for (t = dt; t < hold + 3.0f; t += dt) {
+        const int held = t < hold;
+        int r;
+        coolLeft = coolLeft > dt ? coolLeft - dt : 0.0f;
+        r = GtHoldStep(&h, held, held, 1, f.phase == GTF_IDLE, coolLeft, dt);
+        if (r == GTH_GO) {
+            ++tries;
+            if (refuseEvery && tries % refuseEvery == 0) {
+                GtHoldRefused(&h);
+                ++*refusals;
+            } else {
+                if (idleAt >= 0.0f && t - idleAt < *gapMin) *gapMin = t - idleAt;
+                GtFadeStart(&f);
+            }
+        }
+        if (f.phase != GTF_IDLE) {
+            if (GtFadeStep(&f, dt)) ++warps, coolLeft = cool;
+            if (f.phase == GTF_IDLE) idleAt = t;
+        }
+    }
+    return warps;
+}
+static void Hold(void)
+{
+    static const int kHz[4] = { 30, 60, 120, 144 };
+    int i, n, refused;
+    float gap;
+    for (i = 0; i < 4; ++i) {
+        char what[160];
+        n = HoldRun(kHz[i], 5.0f, 0.0f, 0, &gap, &refused);
+        sprintf_s(what, sizeof what, "hold %d Hz: 5 s held = 5 warps (a warp a second: 0.5 s out + 0.5 s in), the next one "
+                  "a tick after the fade-in (%d warps, gap %.3f s)", kHz[i], n, gap);
+        Check(n == 5 && gap <= 1.5f / (float)kHz[i], what);
+        n = HoldRun(kHz[i], 0.2f, 0.0f, 0, &gap, &refused);
+        sprintf_s(what, sizeof what, "hold %d Hz: one press (let go after 0.2 s) = one warp (%d)", kHz[i], n);
+        Check(n == 1, what);
+        n = HoldRun(kHz[i], 5.0f, 2.0f, 0, &gap, &refused);
+        sprintf_s(what, sizeof what, "hold %d Hz: an ini cooldown of 2 s (from the warp) still spaces the held warps: 1.5 s "
+                  "after the fade-in (%d warps, gap %.2f s)", kHz[i], n, gap);
+        Check(n == 2 && gap >= 1.49f && gap <= 1.5f + 1.5f / (float)kHz[i], what);
+        n = HoldRun(kHz[i], 5.0f, 0.0f, 2, &gap, &refused);
+        sprintf_s(what, sizeof what, "hold %d Hz: refused tries wait %.1f s, the hold goes on (%d warps, %d refused)", kHz[i],
+                  GT_FAIL_COOL, n, refused);
+        Check(n >= 3 && n <= 4 && refused >= 2, what);
+    }
+    {   // the hold ends with either button or outside gameplay, and only then
+        GtHold h;
+        GtHoldReset(&h);
+        Check(GtHoldStep(&h, 1, 1, 1, 1, 0.0f, 0.016f) == GTH_NONE, "hold: no hold without a chord");
+        GtHoldStart(&h);
+        Check(GtHoldStep(&h, 1, 1, 1, 0, 0.0f, 0.016f) == GTH_NONE, "hold: nothing while a fade runs");
+        Check(GtHoldStep(&h, 1, 1, 1, 1, 0.3f, 0.016f) == GTH_NONE, "hold: nothing while a cooldown runs");
+        Check(GtHoldStep(&h, 1, 1, 1, 1, 0.0f, 0.016f) == GTH_GO && h.on, "hold: idle and no cooldown = the next warp");
+        Check(GtHoldStep(&h, 1, 0, 1, 1, 0.0f, 0.016f) == GTH_END && !h.on, "hold: Action let go = the end");
+        GtHoldStart(&h);
+        Check(GtHoldStep(&h, 0, 1, 1, 1, 0.0f, 0.016f) == GTH_END, "hold: Run let go = the end");
+        GtHoldStart(&h);
+        Check(GtHoldStep(&h, 1, 1, 0, 1, 0.0f, 0.016f) == GTH_END, "hold: a menu, a scene or a load = the end");
+        Check(GtHoldStep(&h, 1, 1, 1, 1, 0.0f, 0.016f) == GTH_NONE, "hold: ended stays ended (a new press needed)");
+        GtHoldStart(&h);
+        GtHoldRefused(&h);
+        Check(h.refused == 1 && h.wait == GT_FAIL_COOL && GtHoldStep(&h, 1, 1, 1, 1, 0.0f, 0.2f) == GTH_NONE &&
+              GtHoldStep(&h, 1, 1, 1, 1, 0.0f, 0.2f) == GTH_NONE && GtHoldStep(&h, 1, 1, 1, 1, 0.0f, 0.2f) == GTH_NONE &&
+              GtHoldStep(&h, 1, 1, 1, 1, 0.0f, 0.016f) == GTH_GO, "hold: a refusal waits 0.5 s");
+        GtHoldRefused(&h);
+        Check(GtHoldStep(&h, 1, 1, 1, 1, 0.0f, 1.0f) == GTH_NONE && h.wait == GT_FAIL_COOL,
+              "hold: a stalled tick (over 0.25 s) does not use up the wait");
+        GtHoldReset(&h);
+        GtHoldRefused(&h);
+        Check(h.refused == 0, "hold: a refusal without a hold counts nothing");
+    }
+}
+
+// ---------------------------------------------------------------- v3.49 GT349: walk-in event zones
+static void Zones(void)
+{
+    // Subway room 2:2, event 00A (record 0x62A6D0, "Creatures I"): box at (9.5, 0, -2147), 1050 x 100 x 447, heading 0
+    const GtZone ev00A = { 9.5f, 0.0f, -2147.0f, 2, 0.0f, 1050.0f, 100.0f, 447.0f };
+    const float w15a[3] = { -11.0f, 0.0f, -2867.0f }, w15b[3] = { -131.0f, 0.0f, -1805.0f };  // v3.48's warp 15
+    const float w14a[3] = { -31.0f, 0.0f, -6024.0f }, w14b[3] = { 46.0f, 0.0f, -5228.0f };    // warp 14
+    const float near[3] = { -11.0f, 0.0f, -2500.0f }, inBox[3] = { 0.0f, 0.0f, -2100.0f }, past[3] = { 0.0f, 0.0f, -1600.0f };
+    const float edge[3] = { -11.0f, 0.0f, -2385.0f }, upstairs[3] = { -131.0f, -900.0f, -1805.0f }, upFrom[3] = { -11.0f, -900.0f, -2867.0f };
+    const float nanP[3] = { NAN, 0.0f, 0.0f };
+    GtZone z;
+    Check(GtZoneHit(&ev00A, w15a, w15b), "zones: v3.48's crash warp 15 (z -2867 -> -1805) jumps over event 00A's box: refused");
+    Check(!GtZoneHit(&ev00A, w14a, w14b), "zones: warp 14 (south of the box) still goes");
+    Check(!GtZoneHit(&ev00A, w15a, near), "zones: a spot short of the box still goes");
+    Check(GtZoneHit(&ev00A, w15a, inBox), "zones: a spot inside the box is refused (the event would fire under her)");
+    Check(GtZoneHit(&ev00A, w15a, edge), "zones: a spot just outside the box's edge (within the pad) is refused");
+    // v3.49 GT349-001 (Codex inspection 1): inside a listed zone (its event not running yet) = no warp out of it
+    Check(GtZoneHit(&ev00A, inBox, past) && GtZoneInside(&ev00A, inBox) && GtZonesInside(&ev00A, 1, inBox) == 0,
+          "GT349-001: standing inside a zone whose event has not started: no warp out (it fires first)");
+    {   // she runs into the box during the 0.5 s fade-out (from the press at w15a's z -2500 to z -2100), then the warp
+        const float press[3] = { -11.0f, 0.0f, -2500.0f }, atWarp[3] = { -11.0f, 0.0f, -2100.0f };
+        const float ahead[3] = { -11.0f, 0.0f, -1300.0f }, back[3] = { -11.0f, 0.0f, -2900.0f };
+        Check(!GtZoneHit(&ev00A, press, near) && GtZonesInside(&ev00A, 1, press) < 0,
+              "GT349-001: at the press (short of the box) a spot short of it still goes");
+        Check(GtZonesInside(&ev00A, 1, atWarp) == 0 && GtZoneHit(&ev00A, atWarp, ahead) && GtZoneHit(&ev00A, atWarp, back),
+              "GT349-001: entered during the fade-out: the warp at its end is refused, ahead or back");
+    }
+    // the list's filter (EventObjectsTick's test): a running event's zone is not listed, so standing in it she may warp
+    Check(GtZoneArmed(0, 0, 1, 9, 2, 0) == 1 && GtZoneArmed(0, 1, 1, 9, 2, 0) == 0 && GtZoneArmed(0, 0, 0, 9, 2, 0) == 0 &&
+          GtZoneArmed(1, 0, 1, 9, 2, 0) == 0 && GtZoneArmed(0, 0, 1, 4, 2, 0) == 0 && GtZoneArmed(0, 0, 1, 8, 2, 0) == 0 &&
+          GtZoneArmed(0, 0, 1, 7, 1, 0) == 1 && GtZoneArmed(0, 0, 1, 9, 5, 0) == -1 && GtZoneArmed(0, 0, 1, 9, 2, 4) == -1 &&
+          GtZoneArmed(0, 0, 1, 9, 3, 0x10) == -1, "GT349-001: listed = enabled, not running, no use-item, type 7 / 9, shape 1..3, no press / inverted");
+    {
+        GtZone listed[1];
+        int n = 0;
+        if (GtZoneArmed(0, 1, 1, 9, 2, 0) > 0) listed[n++] = ev00A;  // event 00A running (its scene started)
+        Check(n == 0 && GtZonesInside(listed, n, inBox) < 0 && GtZonesHit(listed, n, inBox, past) < 0,
+              "GT349-001: inside a zone whose event runs: not listed, the warp goes");
+    }
+    Check(!GtZoneHit(&ev00A, edge, w15a), "zones: from its edge, away from it: allowed");
+    Check(GtZoneHit(&ev00A, edge, past), "zones: from its edge, across it: refused");
+    Check(!GtZoneHit(&ev00A, upFrom, upstairs), "zones: the same path a floor up (900 u) does not meet its height");
+    Check(GtZoneHit(&ev00A, w15a, nanP), "zones: a spot that is not a number: refused (fail closed)");
+    z = ev00A, z.sx = NAN;
+    Check(GtZoneHit(&z, w14a, w14b), "zones: a zone value that is not a number: refused (fail closed)");
+    z = ev00A, z.shape = 5;
+    Check(!GtZoneHit(&z, w15a, w15b), "zones: shape 5 (always) / others are not walk-in boxes: not tested here");
+    z = ev00A, z.heading = 1.5707963f;  // turned 90 degrees: 447 wide in x, 1050 deep in z
+    {
+        const float a[3] = { -300.0f, 0.0f, -2867.0f }, b[3] = { -300.0f, 0.0f, -1805.0f };
+        Check(!GtZoneHit(&z, a, b), "zones: a box turned 90 degrees swaps its sizes (x -214 .. 233 now: x -300 passes)");
+        Check(GtZoneHit(&ev00A, a, b), "zones: the same path meets the unturned box");
+    }
+    z = ev00A, z.heading = 0.7853982f;  // turned 45 degrees: the enclosing circle (r = 571 + pad)
+    {
+        const float a[3] = { 9.5f + 580.0f, 0.0f, -3000.0f }, b[3] = { 9.5f + 580.0f, 0.0f, -1000.0f };
+        const float c[3] = { 9.5f + 600.0f, 0.0f, -3000.0f }, d[3] = { 9.5f + 600.0f, 0.0f, -1000.0f };
+        Check(GtZoneHit(&z, a, b) && !GtZoneHit(&z, c, d), "zones: a box turned 45 degrees = its enclosing circle (more refused)");
+    }
+    {   // a cylinder (radius 200, height 300) and a sphere (radius 150)
+        const GtZone cyl = { 1000.0f, 0.0f, 0.0f, 1, 0.0f, 200.0f, 300.0f, 0.0f }, sph = { 0.0f, -100.0f, 1000.0f, 3, 0.0f, 150.0f, 0.0f, 0.0f };
+        const float a[3] = { 0.0f, 0.0f, 0.0f }, b[3] = { 2000.0f, 0.0f, 0.0f }, b2[3] = { 2000.0f, 0.0f, 300.0f };
+        const float s1[3] = { 0.0f, 0.0f, 2000.0f }, s2[3] = { 300.0f, 0.0f, 2000.0f };
+        Check(GtZoneHit(&cyl, a, b) && GtZoneHit(&cyl, a, b2), "zones: a cylinder on the path (through it, or 150 u off its "
+              "centre): refused");
+        Check(!GtZoneHit(&cyl, b2, (const float[3]){ 2000.0f, 0.0f, 1000.0f }), "zones: a cylinder off the path: allowed");
+        Check(GtZoneHit(&sph, a, s1) && !GtZoneHit(&sph, s2, (const float[3]){ 300.0f, 0.0f, 0.0f }), "zones: a sphere on / off the path");
+    }
+    {   // the list: the first zone hit, -1 for none
+        GtZone zs[3];
+        zs[0] = ev00A, zs[0].x = 5000.0f, zs[1] = ev00A, zs[2] = ev00A;
+        Check(GtZonesHit(zs, 3, w15a, w15b) == 1 && GtZonesHit(zs, 1, w15a, w15b) == -1 && GtZonesHit(zs, 0, w15a, w15b) == -1,
+              "zones: the first zone in the list that the path meets");
+    }
+    {   // the rectangle test itself: touching, parallel, a point
+        Check(GtSegRect(-10.0f, 5.0f, 10.0f, 5.0f, 2.0f, 5.0f) && !GtSegRect(-10.0f, 5.1f, 10.0f, 5.1f, 2.0f, 5.0f) &&
+              GtSegRect(0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f) && !GtSegRect(3.0f, 3.0f, 3.0f, 3.0f, 1.0f, 1.0f) &&
+              !GtSegRect(-10.0f, 0.0f, -5.0f, 0.0f, 2.0f, 2.0f), "zones: the segment / rectangle test (edges, points, short of it)");
+    }
 }
 
 int main(int argc, char **argv)
@@ -447,6 +621,8 @@ int main(int argc, char **argv)
     Spots();
     Rooms();  // GT343-001
     Keys();
+    Hold();   // v3.49 GT349
+    Zones();
     printf("%s: %d of %d checks passed\n", g_fail ? "FAILED" : "PASSED", g_n - g_fail, g_n);
     return g_fail ? 1 : 0;
 }

@@ -1217,8 +1217,83 @@ static void TestGhostCopy341(void)
           EnmPlacementFlagsOk(ENM_STORY_FLAGS_N - 1, 1, 0, 0) == 1,
           "341: flags: a number outside gStoryFlags (0x140 bytes) is not judged");
 }
+// v3.49 EF349: Enemies Follow's four values, Victims Only's pursuer rule, the ledger's monster copies
+static void TestFollowValues349(void)
+{
+    static const int kTypes[] = { 0x02, 0x03, 0x06, 0x07, 0x08, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11 };
+    static const unsigned kModes[] = { 0x000, 0x004, 0x003, 0x100, 0x104, 0x006 };
+    static EnmCwLedger l;
+    static unsigned char rec[ENM_REC_SIZE];
+    int m, ti, mi, copy, gid, vic, story, variant, scr, kill, bad = 0, badOn = 0, monYes = 0, ghostYes = 0;
+    // the values (gameplay.inc kGpName[GP_FOLLOW]: Off, Monsters, Victims Only, Monsters + Victims)
+    Check(ENM_FOLLOW_OFF == 0 && ENM_FOLLOW_MONSTERS == 1 && ENM_FOLLOW_VICTIMS == 2 && ENM_FOLLOW_BOTH == 3 && ENM_FOLLOW_N == 4,
+          "349: the four values in the row's order");
+    Check(!EnmFollowValueOn(ENM_FOLLOW_OFF) && EnmFollowValueOn(ENM_FOLLOW_MONSTERS) && EnmFollowValueOn(ENM_FOLLOW_VICTIMS) &&
+          EnmFollowValueOn(ENM_FOLLOW_BOTH) && !EnmFollowValueOn(-1) && !EnmFollowValueOn(4),
+          "349: Follow is live for Monsters, Victims Only, Monsters + Victims (never Off or a value outside 0..3)");
+    Check(!EnmFollowTakesMonsters(0) && EnmFollowTakesMonsters(1) && !EnmFollowTakesMonsters(2) && EnmFollowTakesMonsters(3) &&
+          !EnmFollowTakesMonsters(4) && !EnmFollowTakesMonsters(-1),
+          "349: monsters follow with Monsters and Monsters + Victims only");
+    Check(!EnmFollowTakesVictims(0) && !EnmFollowTakesVictims(1) && EnmFollowTakesVictims(2) && EnmFollowTakesVictims(3) &&
+          !EnmFollowTakesVictims(4) && !EnmFollowTakesVictims(-1),
+          "349: the victims' ghosts follow with Victims Only and Monsters + Victims only");
+    // EnmPursuerWhy4: with monsters it is EnmPursuerWhy3; without, only the ghosts' path is left (and it is EnmPursuerWhy3's)
+    for (ti = 0; ti < (int)(sizeof kTypes / sizeof kTypes[0]); ++ti)
+        for (mi = 0; mi < (int)(sizeof kModes / sizeof kModes[0]); ++mi)
+            for (copy = 0; copy < 2; ++copy)
+                for (gid = 0; gid < 2; ++gid)
+                    for (vic = 0; vic < 2; ++vic)
+                        for (story = 0; story < 2; ++story)
+                            for (variant = 0; variant < 2; ++variant)
+                                for (scr = 0; scr < 2; ++scr)
+                                    for (kill = 0; kill < 2; ++kill) {
+                                        const int t = kTypes[ti];
+                                        const unsigned mw = kModes[mi] | (unsigned)variant << 8;
+                                        const int w3 = EnmPursuerWhy3(copy, gid, vic, story, t, variant, mw, 1, 0, scr, kill ? 4 : 0);
+                                        const int on = EnmPursuerWhy4(1, copy, gid, vic, story, t, variant, mw, 1, 0, scr, kill ? 4 : 0);
+                                        const int vo = EnmPursuerWhy4(0, copy, gid, vic, story, t, variant, mw, 1, 0, scr, kill ? 4 : 0);
+                                        const int ghostPath = EnmGhostType(t) && (copy || gid);
+                                        if (on != w3) ++badOn;
+                                        if (vo != (ghostPath ? w3 : ENM_PUR_OTHER)) ++bad;
+                                        if (!ghostPath && w3 == ENM_PUR_YES) ++monYes;
+                                        if (ghostPath && vo == ENM_PUR_YES) ++ghostYes;
+                                    }
+    Check(!badOn, "349: with monsters (Monsters, Monsters + Victims) the rule is v3.48's EnmPursuerWhy3 in every case");
+    Check(!bad, "349: Victims Only: every monster and monster copy is of no following kind; every ghost case as v3.48");
+    Check(monYes > 0 && ghostYes > 0, "349: the sweep has monsters v3.48 lets follow and ghosts Victims Only lets follow");
+    Check(EnmPursuerWhy4(0, 0, 0, 1, 1, 0x03, 0, 0x000, 1, 0, 1, 4) == ENM_PUR_OTHER &&
+          EnmPursuerWhy4(1, 0, 0, 1, 1, 0x03, 0, 0x000, 1, 0, 1, 4) == EnmPursuerWhy3(0, 0, 1, 1, 0x03, 0, 0x000, 1, 0, 1, 4),
+          "349: a Straggler (03) with its script id and kill index: stays with Victims Only, as v3.48 otherwise");
+    Check(EnmPursuerWhy4(0, 0, 1, 1, 1, 0x0B, 0, 0x000, 0, 0, 1, 0) == ENM_PUR_YES &&
+          EnmPursuerWhy4(0, 0, 1, 1, 1, 0x0B, 0, 0x004, 0, 0, 1, 0) == ENM_PUR_YES &&
+          EnmPursuerWhy4(0, 1, 0, 1, 1, 0x0B, 0, 0x000, 0, 0, 0, 0) == ENM_PUR_YES,
+          "349: Victims Only: a victim (0B, placed or arrived) and a victim's copy follow");
+    Check(EnmPursuerWhy4(0, 0, 1, 0, 1, 0x0B, 0, 0x000, 0, 0, 1, 0) == ENM_PUR_OTHER,
+          "349: Victims Only without the ghosts' site (victims 0): nobody follows");
+    Check(EnmPursuerWhy4(0, 0, 0, 1, 1, 0x08, 0, 0x000, 1, 0, 1, 4) == ENM_PUR_OTHER &&
+          EnmPursuerWhy4(0, 0, 0, 1, 1, 0x11, 0, 0x000, 1, 0, 1, 4) == ENM_PUR_OTHER,
+          "349: Victims Only: the Twin Victims (08) and the Patient (11) are monsters: they stay");
+    Check(EnmPursuerWhy4(0, 0, 1, 1, 1, 0x0E, 0, 0x000, 0, 0, 1, 0) == ENM_PUR_YES &&
+          EnmPursuerWhy4(0, 0, 1, 1, 0, 0x0E, 0, 0x000, 0, 0, 1, 0) == ENM_PUR_OTHER,
+          "349: Victims Only: a story ghost (Andrew 0E) follows as with Monsters + Victims (FollowStoryGhosts)");
+    // EnmCwDropMonsters: the monsters' copies leave the ledger, the ghost copies stay
+    EnmCwClear(&l);
+    memset(rec, 0, sizeof rec);
+    for (m = 0; m < 6; ++m) {
+        static const int kT[6] = { 0x03, 0x0B, 0x07, 0x0C, 0x0A, 0x0E };
+        EnmCwPut(&l, 0x100u + (unsigned)m, 0x1E000000u | (unsigned)m << 2 | 1u, 5, kT[m], 0, rec);
+    }
+    Check(EnmCwCount(&l) == 6, "349: the ledger holds 3 monster copies and 3 ghost copies");
+    Check(EnmCwDropMonsters(&l) == 3 && EnmCwCount(&l) == 3 && EnmCwFind(&l, 0x101u) && EnmCwFind(&l, 0x103u) &&
+          EnmCwFind(&l, 0x105u) && !EnmCwFind(&l, 0x100u) && !EnmCwFind(&l, 0x102u) && !EnmCwFind(&l, 0x104u),
+          "349: Victims Only at a room load: the 3 monster copies go home, the 3 ghost copies stay");
+    Check(EnmCwDropMonsters(&l) == 0 && EnmCwCount(&l) == 3, "349: a second room load drops nothing more");
+    EnmCwClear(&l);
+    Check(EnmCwDropMonsters(&l) == 0, "349: an empty ledger: nothing");
+}
 int main(void)
 {
+    TestFollowValues349();  // v3.49 EF349
     TestGhostCopy341();  // v3.41 EN341
     TestFollow338();  // v3.38 EN338
     TestRev338_3();  // v3.38 REV338 (inspection 3)

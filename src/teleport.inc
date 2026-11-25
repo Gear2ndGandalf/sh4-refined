@@ -44,6 +44,23 @@
 // Never during events, cut-scenes, menus, movies, door moves, peeps, grabs, hits, falls, a raised weapon, any mode but
 // the free one, or in Room 302 (stages 1 and 0x0A); no valid spot = no warp (a LogV line). Henry and Playable Eileen
 // alike (both are gPlayer[0]; her body record is the player's model record either way).
+//
+// v3.49 GT349 (the user's v3.48 QA: a crash after two warps in Subway room 2:2, and "keep holding the combo to teleport
+// continuously, no 3 s cooldown"; staging/v349_feedback/w2_teleport/PLAN.md and CRASH_ANALYSIS.md):
+// (a) The crash: warp 15 jumped over the walk-in box of the stock cut-scene event 00A (record 0x62A6D0, story flag 0x130
+//     "Creatures I"), which the stock game cannot skip; Cynthia's companion task stayed alive, the door to 2:3 brought
+//     it back in a room without her files and EileenAnimIkUpdate 0x43E670 read a NULL clip (0x43E775). Now every spot is
+//     also tested against the room's walk-in event zones the game would still fire (GtZonesRead: the event objects
+//     0x13D8200 that EventObjectsTick 0x4D00F0 tests, of actor type 7 / 9, enabled, not running, no use-item, shape
+//     cylinder / box / sphere without the action-button or inverted flag): a straight path from her place that crosses
+//     one, or a spot in one, is refused like a wall (GTS_EVENT; teleport_sim.h GtZoneHit). Nearer spots still go.
+// (b) More gates (GtCanGo: before the warp, through its fade-out and at the warp): a door in use (gGame.exit 0xFD5C3C), a
+//     room change requested (gGame.nextStage / nextRoom 0xFD5AA0 / AA4), the player update held by a script (0x10A1E98),
+//     an interaction event (0xFD5C28), the screen fading (0x137F98C / 0x137F990: a door, a cut-scene's start).
+// (c) No cooldown by default ([Gameplay] GhostTeleportCooldown, hidden, now 0; a value in the ini still applies).
+//     Holding Run + Action keeps warping: the next warp starts once she has faded back in (GtHold); a refused try waits
+//     GT_FAIL_COOL. The hold's warps after the first GT_HOLD_LOGN are logged per tick only (LogT); its end logs one
+//     summary line. A press let go before the fade ends starts nothing more (one press = one warp).
 
 #include "teleport_sim.h"
 
@@ -68,14 +85,25 @@ static struct { int on; float t, spot[3]; } g_gtHeld;  // the check after a move
 static int g_gtWarps, g_gtRefused, g_gtMaskSaid;
 static float g_gtFrom[3];           // v3.44 GT344: where the fade started (the log)
 static volatile LONG g_gtQGo, g_gtQNo, g_gtQCool, g_gtQAn, g_gtQStart, g_gtQOff, g_gtQDraw;
+// v3.49 GT349: the hold (Run + Action kept down) and the room's walk-in event zones
+#define GT_HOLD_LOGN 3              // a hold's first warps get their LogV lines, the rest LogT (its summary says how many)
+#define GT_ZONE_MAX 64
+static GtHold g_gtHold;
+static volatile LONG g_gtQHold, g_gtQZone;
+static GtZone g_gtZone[GT_ZONE_MAX];
+static int g_gtZoneKey[GT_ZONE_MAX];  // each zone's event key (the log)
+static int g_gtZoneN, g_gtZoneSkipped;
+static DWORD g_gtZoneSaid = 0xFFFFFFFFu;  // the room key the zones were last logged for
+static float g_gtHerAt[3];          // her feet at this search (the start of every warp path)
 
 typedef struct { const BYTE *t, *w; float pos[3], rad, floorY; int type; } GtFoe;
 enum { GTS_OK, GTS_ENEMY, GTS_SIGHT, GTS_WALL, GTS_RAY, GTS_FLOOR, GTS_LEDGE, GTS_ROOM, GTS_AREA,
-       GTS_BOX, GTS_DOOR_NEAR, GTS_DOOR_BEYOND, GTS_DOOR_CROSS, GTS_FOE_DOOR, GTS_N };  // GT343-001: + the room's edges
+       GTS_BOX, GTS_DOOR_NEAR, GTS_DOOR_BEYOND, GTS_DOOR_CROSS, GTS_FOE_DOOR, GTS_EVENT, GTS_N };  // GT343-001: + the room's edges
 static const char *const kGtWhy[GTS_N] = { "", "near an enemy", "a wall between", "in a wall", "no free floor ray",
                                            "no floor", "another level", "no room to stand", "another area",
                                            "outside the room's box", "at a door line", "beyond a door line (the next room)",
-                                           "through a doorway", "the enemy beyond a door line" };
+                                           "through a doorway", "the enemy beyond a door line",
+                                           "an event's trigger zone on the way" };  // v3.49 GT349: + GTS_EVENT
 // GT343-001: this room's edges, read once an attempt (GtRoomRead): its door lines and its collision box
 static GtExit g_gtExit[GT_EXIT_MAX];
 static int g_gtExitN, g_gtBoxOk, g_gtAreaHer, g_gtExitAsked;  // GT343-001c: + ExitGetNum's own count
@@ -109,6 +137,8 @@ static int GtArea(const float p[3])  // 0x46F5A0: the sub-area (stages 2 and 5),
     a[3] = 1.0f;
     return ((int(__cdecl *)(float *))0x46F5A0)(a);
 }
+// v3.49 GT349: does the warp from her feet (g_gtHerAt) to p skip or land in a walk-in event zone?
+static int GtZoneBlocks(const float p[3]) { return GtZonesHit(g_gtZone, g_gtZoneN, g_gtHerAt, p) >= 0; }
 // Spot candidate c (xz; y = the anchor's floor) seen from the anchor `from` (x, its floor y, z: the enemy, or v3.44
 // GT344 her own place for the warp ahead; areaFrom = its sub-area): GTS_OK (out = the floor point) or why not
 static int GtSpotTest(const float from[3], int areaFrom, const float c[3], const float (*others)[3], int nOthers, float out[3])
@@ -120,6 +150,7 @@ static int GtSpotTest(const float from[3], int areaFrom, const float c[3], const
     if (g_gtBoxOk && !GtInBox(g_gtBoxLo, g_gtBoxHi, c)) return GTS_BOX;  // GT343-001: the room's own edges first
     r = GtExitTest(g_gtExit, g_gtExitN, from, c);
     if (r != GTX_OK) return r == GTX_NEAR ? GTS_DOOR_NEAR : r == GTX_BEYOND ? GTS_DOOR_BEYOND : GTS_DOOR_CROSS;
+    if (GtZoneBlocks(c)) return GTS_EVENT;  // v3.49 GT349: her path from where she stands, not the anchor's
     ec[0] = from[0], ec[1] = from[1] - ECHO_CHEST_DY, ec[2] = from[2];
     sc[0] = c[0], sc[1] = from[1] - ECHO_CHEST_DY, sc[2] = c[2];
     if (!EchoClear(ec, sc)) return GTS_SIGHT;  // the spot is on the anchor's side of every wall
@@ -134,8 +165,71 @@ static int GtSpotTest(const float from[3], int areaFrom, const float c[3], const
     if (g_gtBoxOk && !GtInBox(g_gtBoxLo, g_gtBoxHi, hp)) return GTS_BOX;  // (the floor point itself, again)
     r = GtExitTest(g_gtExit, g_gtExitN, from, hp);
     if (r != GTX_OK) return r == GTX_NEAR ? GTS_DOOR_NEAR : r == GTX_BEYOND ? GTS_DOOR_BEYOND : GTS_DOOR_CROSS;
+    if (GtZoneBlocks(hp)) return GTS_EVENT;  // v3.49 GT349: (the floor point itself, again)
     out[0] = hp[0], out[1] = hp[1], out[2] = hp[2];
     return GTS_OK;
+}
+// v3.49 GT349: this room's walk-in event zones that the game would still fire, read like EventObjectsTick 0x4D00F0
+// reads them (gEventObjList 0x13D8200: +0 record, +4 task, +0x0C next): no use-item (0x4CF090), its record not running
+// (EventIsRecordRunning 0x4CFFC0), enabled by the game's last test (ActorIsEnabled 0x52B1C0), actor type 7 (examine)
+// or 9 (trigger) (ActorGetType 0x52B230), its zone (task + 0x424: +0 pos, +0x10 shape, +0x14 flags, +0x18 heading,
+// +0x20 size) a cylinder, box or sphere without flag 4 (needs the action button) or 0x10 (inverted). Read-only; the
+// calls are the ones the game makes every tick. 0 = complete; else the list could not be read whole (no warp).
+static int GtZonesRead(void)
+{
+    typedef int(__cdecl * GtFn1)(const void *);
+    const BYTE *o = *(const BYTE *const volatile *)0x13D8200;
+    int guard = 0;
+    g_gtZoneN = 0, g_gtZoneSkipped = 0;
+    for (; o; o = *(const BYTE *const *)(o + 0x0C)) {
+        const BYTE *task, *rec, *z;
+        int type, shape, flags, armed;
+        if ((ULONG_PTR)o < 0x10000 || ++guard > 512) return 1;  // a broken list
+        task = *(const BYTE *const *)(o + 4), rec = *(const BYTE *const *)o;
+        if ((ULONG_PTR)task < 0x10000 || !TaskSlotOk(task)) continue;
+        z = *(const BYTE *const *)(task + 0x424);
+        if ((ULONG_PTR)z < 0x10000) continue;                       // no zone: nothing a walk fires
+        type = ((GtFn1)0x52B230)(task);
+        shape = *(const int *)(z + 0x10), flags = *(const int *)(z + 0x14);
+        // v3.49 GT349-001: the filter is teleport_sim.h GtZoneArmed (use-item, running, enabled: the game's own calls)
+        if ((armed = GtZoneArmed(((GtFn1)0x4CF090)(task) != 0, ((GtFn1)0x4CFFC0)(rec) != 0, ((GtFn1)0x52B1C0)(task) != 0,
+                                 type, shape, flags)) <= 0) {
+            if (armed < 0) ++g_gtZoneSkipped;                       // view / always / door zones, a press, inverted
+            continue;
+        }
+        if (g_gtZoneN >= GT_ZONE_MAX) return 2;                     // more than can be checked
+        {
+            GtZone *g = &g_gtZone[g_gtZoneN];
+            const ULONG_PTR rp = (ULONG_PTR)rec & 0x4FFFFFFFu;  // EVENT_PTR
+            g->x = *(const float *)(z + 0x00), g->y = *(const float *)(z + 0x04), g->z = *(const float *)(z + 0x08);
+            g->shape = shape, g->heading = *(const float *)(z + 0x18);
+            g->sx = *(const float *)(z + 0x20), g->sy = *(const float *)(z + 0x24), g->sz = *(const float *)(z + 0x28);
+            g_gtZoneKey[g_gtZoneN] = rp >= 0x400000u && rp < 0x13E0000u ? (int)(*(const DWORD *)rp & 0xFFF) : -1;
+            ++g_gtZoneN;
+        }
+    }
+    return 0;
+}
+static void GtZonesSay(void)  // once a room (and again when the count changes): the zones a warp may not cross
+{
+    const DWORD key = *(volatile DWORD *)0xFD5A90 << 16 | (*(volatile DWORD *)0xFD5A94 & 0xFFFF) | (DWORD)g_gtZoneN << 24;
+    char list[200];
+    int k, o = 0;
+    if (key == g_gtZoneSaid || !LogQuota(&g_gtQZone, 60)) return;
+    g_gtZoneSaid = key;
+    list[0] = 0;
+    for (k = 0; k < g_gtZoneN && k < 4 && o < (int)sizeof list - 60; ++k) {
+        const GtZone *z = &g_gtZone[k];
+        if (z->shape == 2)
+            o += sprintf_s(list + o, sizeof list - (size_t)o, "%skey %03X box at (%.0f, %.0f) %.0f x %.0f", o ? "; " : "",
+                           g_gtZoneKey[k] & 0xFFF, z->x, z->z, z->sx, z->sz);
+        else
+            o += sprintf_s(list + o, sizeof list - (size_t)o, "%skey %03X %s at (%.0f, %.0f) r %.0f", o ? "; " : "",
+                           g_gtZoneKey[k] & 0xFFF, z->shape == 1 ? "cylinder" : "sphere", z->x, z->z, z->sx);
+    }
+    LogV("ghost teleport: room %d:%d: %d walk-in event zone(s) the game would still fire: no warp across or into them%s%s%s "
+         "(%d other zone(s) need a press or a look)", *(volatile int *)0xFD5A90, *(volatile int *)0xFD5A94, g_gtZoneN,
+         g_gtZoneN ? " (" : "", list, g_gtZoneN > 4 ? ", ...)" : g_gtZoneN ? ")" : "", g_gtZoneSkipped);
 }
 // GT343-001: this room's door lines (ExitGetNum 0x4FA040 / ExitGet 0x4FA070 with gGame.room, as the game's own exit
 // checks 0x4F06D0 / 0x46FB50 ask them; Exit: +0 x0, +8 z0, +0x10 x1, +0x14 y, +0x18 z1, +0x20 pos on the room's side)
@@ -275,7 +369,10 @@ static void GtDrawOff(void)  // (also from the fault handler)
 static void GtFadeBegin(void) { g_gtDrawn[0] = g_gtDrawn[1] = 0, g_gtBusySaid[0] = g_gtBusySaid[1] = 0; }
 static void GtFadeEnded(void)  // the fade is over: how often it was drawn (an anomaly if never)
 {
-    LogV("ghost teleport: Richard's fade ended (drawn see-through on %d body and %d weapon draw(s))", g_gtDrawn[0], g_gtDrawn[1]);
+    if (g_gtHold.on && g_gtHold.warps > GT_HOLD_LOGN)  // v3.49 GT349: a long hold: per tick only
+        LogT("ghost teleport: Richard's fade ended (drawn see-through on %d body and %d weapon draw(s))", g_gtDrawn[0], g_gtDrawn[1]);
+    else
+        LogV("ghost teleport: Richard's fade ended (drawn see-through on %d body and %d weapon draw(s))", g_gtDrawn[0], g_gtDrawn[1]);
     if (g_gtFadeOk && !g_gtDrawn[0] && LogQuota(&g_gtQAn, 10))
         LogAnomaly("ghost teleport", "the fade ran but her body was never drawn see-through (record %p)", (void *)GtRecOf(0));
 }
@@ -300,6 +397,15 @@ static int GtCanGo(const float pp[3], float *floorY, char *why, size_t nw)
     if (*(void *volatile *)0xFD5BA0 != (void *)P) return sprintf_s(why, nw, "the game is not running the player's own update"), 0;
     if (*(volatile int *)0x10A1914 || *(volatile int *)0xFD5BB0 || *(volatile int *)0x10835D8)
         return sprintf_s(why, nw, "the game holds the controls (an event, a door, a look)"), 0;
+    // v3.49 GT349: never across a door transition or a cut-scene's start (CRASH_ANALYSIS.md)
+    if (*(void *volatile *)0xFD5C3C) return sprintf_s(why, nw, "a door is in use"), 0;  // gGame.exit
+    if (*(volatile int *)0xFD5AA0 || *(volatile int *)0xFD5AA4)
+        return sprintf_s(why, nw, "a room change is pending (room %d:%d asked)", *(volatile int *)0xFD5AA0, *(volatile int *)0xFD5AA4), 0;
+    if (*(volatile int *)0x10A1E98) return sprintf_s(why, nw, "a script holds the player's update"), 0;
+    if (*(volatile int *)0xFD5C28) return sprintf_s(why, nw, "an interaction event runs"), 0;
+    if (*(volatile int *)0x137F98C || *(volatile int *)0x137F990)
+        return sprintf_s(why, nw, "the screen is fading (a door or a scene; level %d, to %d)", *(volatile int *)0x137F98C,
+                         *(volatile int *)0x137F990), 0;
     // v3.43 REV343 GT343-002: [0xFD6C78] gRoomModels.drawn is NONZERO in ordinary play (0 = the room is not drawn: a
     // peep / look / load); the old test refused every attempt in play
     if (!*(volatile int *)0xFD6C78 || *(volatile int *)0xFD5BE8 || *(volatile int *)0x10A12FC)
@@ -371,6 +477,17 @@ static int GtFind(const float pp[3], float herFloor, GtPlan *pl, char *why, size
     if ((k = GtRoomRead(pp)) != GTB_OK)  // GT343-001: the room's door lines and box; GT343-001c: complete, else no warp
         return sprintf_s(why, nw, "the room's edges are not known (%s; room %d, %d of %d exit(s) read): no same-room check, "
                          "no warp", kGtBoundsWhy[k], *(volatile const int *)0xFD5A94, g_gtExitN, g_gtExitAsked), 0;
+    // v3.49 GT349: the walk-in event zones (fail closed: a list that cannot be read whole = no warp)
+    memcpy(g_gtHerAt, pp, sizeof g_gtHerAt);
+    if ((k = GtZonesRead()) != 0)
+        return sprintf_s(why, nw, "the room's event zones are not known (%s): no warp", k == 1 ? "the event object list is "
+                         "broken or longer than 512" : "more than 64 walk-in zones"), 0;
+    GtZonesSay();
+    // v3.49 GT349-001: she stands inside a walk-in zone whose event has not started (she may have run in during the
+    // fade-out): it fires first; no warp out of it (at the press and again at the end of the fade-out)
+    if ((k = GtZonesInside(g_gtZone, g_gtZoneN, pp)) >= 0)
+        return sprintf_s(why, nw, "inside an event's trigger zone (key %03X, not fired yet): no warp out of it",
+                         g_gtZoneKey[k] & 0xFFF), 0;
     if (!np) {  // v3.44 GT344 (c): no standing enemy in range: the way she faces, shortened step by step
         const float yaw = *(volatile const float *)0x10A0FC4;  // gPlayer[0].rot.y
         const float from[3] = { pp[0], herFloor, pp[2] };
@@ -442,6 +559,10 @@ static void GtMove(const float pp[3], const GtPlan *pl)  // the warp itself (the
     memcpy(g_gtHeld.spot, pl->at, sizeof g_gtHeld.spot);
     ++g_gtWarps;
     g_gtCool = g_gtCoolS;
+    if (g_gtHold.on && ++g_gtHold.warps > GT_HOLD_LOGN) {  // v3.49 GT349: a long hold: per tick only (its summary counts)
+        LogT("ghost teleport: held, warp %d in a row: to (%.0f, %.0f)", g_gtHold.warps, pl->at[0], pl->at[2]);
+        return;
+    }
     if (!LogQuota(&g_gtQGo, 300)) return;
     if (pl->kind == 1)
         LogV("ghost teleport: ahead %.0f u the way she faces (no standing enemy within %.0f u; try %d of %d, floor %+.0f u of hers): "
@@ -470,6 +591,20 @@ static int GtTakeBackAction(void)
 // the press to the game. Once the fade begins the press is the warp's: a later call-off (GtCallOff, a room change, a
 // cut-scene, the end-of-fade GtFind refusal) does not give it back (a press 0.5 s old replayed would act late, out of
 // the player's hands), and the log line says so.
+// v3.49 GT349: a refusal while Run + Action are held: counted on the hold (its next try waits GT_FAIL_COOL); only the
+// hold's first refusal gets a LogV line (the rest LogT; the hold's summary counts them). 1 = log it with LogV.
+static int GtSayNo(void)
+{
+    const int first = !g_gtHold.on || g_gtHold.refused == 0;
+    GtHoldRefused(&g_gtHold);
+    return first && LogQuota(&g_gtQNo, 300);
+}
+static const char *GtChordWhat(int c, int back)  // the chord line's first words (logcheck GT_CHORD)
+{
+    if (c == GTC_HELD) return "held: the next warp";  // v3.49 GT349
+    if (c == GTC_ACT_LAST) return back ? "Action last: its own use taken back" : "Action last: NOT taken back";
+    return "Action first: its press reached the game";
+}
 static void GtOnChord(int c, const float pp[3])
 {
     const int maskRun = *(volatile const int *)(0x107A1A0 + 4 * 0x10), maskAct = *(volatile const int *)0x107A1A0;
@@ -479,15 +614,17 @@ static void GtOnChord(int c, const float pp[3])
     int back = 0;
     if (!GtMasksOk(maskRun, maskAct)) {  // (InputActionHeld never sees a zero mask held; a shared bit = every press a chord)
         if (!g_gtMaskSaid++) LogV("ghost teleport: Run and Action share a button (masks %08X / %08X): no chord", maskRun, maskAct);
+        GtHoldReset(&g_gtHold);  // v3.49 GT349: no chord, no hold
         return;
     }
     if (!GtCanGo(pp, &fl, why, sizeof why)) {  // Action stays the game's: nothing taken back
         ++g_gtRefused;
-        if (LogQuota(&g_gtQNo, 300)) LogV("ghost teleport: not now: %s", why);
+        if (GtSayNo()) LogV("ghost teleport: not now: %s", why);
+        else LogT("ghost teleport: not now (held): %s", why);
         return;
     }
-    if (g_gtFade.phase != GTF_IDLE) {  // Action stays the game's
-        LogT("ghost teleport: Run + Action during the fade: nothing more (Action left to the game)");
+    if (g_gtFade.phase != GTF_IDLE) {  // Action stays the game's (v3.49 GT349: still held when the fade ends = the next warp)
+        LogT("ghost teleport: Run + Action during the fade: nothing more now (Action left to the game)");
         return;
     }
     if (g_gtCool > 0.0f) {  // Action stays the game's
@@ -498,7 +635,8 @@ static void GtOnChord(int c, const float pp[3])
     if (!GtFind(pp, fl, &pl, why, sizeof why)) {  // Action stays the game's
         ++g_gtRefused;
         g_gtCool = GT_FAIL_COOL;
-        if (LogQuota(&g_gtQNo, 300)) LogV("ghost teleport: not now: %s (Action left to the game)", why);
+        if (GtSayNo()) LogV("ghost teleport: not now: %s (Action left to the game)", why);
+        else LogT("ghost teleport: not now (held): %s", why);
         return;
     }
     // GT344-INPUT-1: the warp is on: only now is an Action-last press taken back (and a press the pad reports a tick late)
@@ -511,24 +649,33 @@ static void GtOnChord(int c, const float pp[3])
     memcpy(g_gtFrom, pp, sizeof g_gtFrom);
     GtFadeStart(&g_gtFade);
     GtFadeBegin();
-    if (LogQuota(&g_gtQStart, 300)) {
+    if (c == GTC_HELD && g_gtHold.warps >= GT_HOLD_LOGN) {  // v3.49 GT349: a long hold: per tick only
+        LogT("ghost teleport: Run + Action (held: the next warp, %d so far)", g_gtHold.warps);
+    } else if (LogQuota(&g_gtQStart, 300)) {
         if (pl.kind == 1)
             LogV("ghost teleport: Run + Action (%s; a later call-off keeps it): Richard's fade out (0.5 s), then %.0f u ahead the way "
-                 "she faces", c == GTC_ACT_LAST ?
-                 (back ? "Action last: its own use taken back" : "Action last: NOT taken back") : "Action first: its press reached the game", pl.d);
+                 "she faces", GtChordWhat(c, back), pl.d);
         else
             LogV("ghost teleport: Run + Action (%s; a later call-off keeps it): Richard's fade out (0.5 s), then behind type %02X "
-                 "%.0f u away", c == GTC_ACT_LAST ?
-                 (back ? "Action last: its own use taken back" : "Action last: NOT taken back") : "Action first: its press reached the game",
-                 pl.type, pl.d);
+                 "%.0f u away", GtChordWhat(c, back), pl.type, pl.d);
     }
 }
 static void GtCallOff(const char *why)  // the fade-out stops: she fades back in where she stands
 {
     GtFadeBack(&g_gtFade);
     g_gtCool = GT_FAIL_COOL;
+    GtHoldRefused(&g_gtHold);  // v3.49 GT349: (counted on a hold; the cooldown above makes it wait)
     if (LogQuota(&g_gtQOff, 100)) LogV("ghost teleport: called off during the fade: %s (she fades back in)", why);
     if (g_gtFade.phase == GTF_IDLE) GtFadeEnded();
+}
+// v3.49 GT349: a hold ended (let go, a menu / scene / load, a room change, the option off): one summary line when it
+// did more than one try
+static void GtHoldSay(const char *how)
+{
+    if (g_gtHold.warps + g_gtHold.refused > 1 && LogQuota(&g_gtQHold, 200))
+        LogV("ghost teleport: Run + Action %s after %d warp(s) in a row (%d try(ies) refused or called off while held)", how,
+             g_gtHold.warps, g_gtHold.refused);
+    GtHoldReset(&g_gtHold);
 }
 static void GtTickC(void)
 {
@@ -536,7 +683,7 @@ static void GtTickC(void)
     const int on = (int)g_gtSet == 1;
     const int play = *(volatile int *)0xFD5C20 == 0 && *(volatile int *)0xECB1B4 == 0 && *(void *volatile *)0xFD5BA0 != NULL;
     float dt, pp[3];
-    int c;
+    int c, run, act;
     DWORD roomKey;
     if (rate < 1 || rate > 1000) return;
     dt = 1.0f / (float)rate;
@@ -552,6 +699,7 @@ static void GtTickC(void)
             GtFadeReset(&g_gtFade);
         }
         g_gtHeld.on = 0;
+        if (g_gtHold.on) GtHoldSay("held over a room change: stopped");  // v3.49 GT349: a new room = a new press
     }
     if (g_gtFade.phase != GTF_IDLE && (*(volatile int *)0xFD5C20 != 0 || *(volatile int *)0xECB1B4 != 0 ||
                                         *(void *volatile *)0xFD5BA0 == NULL)) {
@@ -567,11 +715,13 @@ static void GtTickC(void)
     }
     // the chord's buttons are followed in every phase and setting (a press held over a menu, a load or the row's
     // change is no new press)
-    c = GtChordStep(&g_gtChord, GtHeld(0x10), GtHeld(0), dt, play);  // GT344-CHORD-1: not play = every press used
+    run = GtHeld(0x10), act = GtHeld(0);
+    c = GtChordStep(&g_gtChord, run, act, dt, play);  // GT344-CHORD-1: not play = every press used
     if (!on) {
         if (g_gtFade.phase != GTF_IDLE) GtFadeReset(&g_gtFade);
         GtDrawSync(0.0f);
         g_gtHeld.on = 0;
+        if (g_gtHold.on) GtHoldSay("stopped: the option was turned off");  // v3.49 GT349
         return;
     }
     memcpy(pp, (const void *)0x10A0F60, sizeof pp);
@@ -599,7 +749,15 @@ static void GtTickC(void)
             g_gtEat -= dt;
         }
     }
-    if (c != GTC_NONE && play && on) GtOnChord(c, pp);
+    if (c != GTC_NONE && play && on) {  // v3.49 GT349: a fresh chord starts a hold (one press = one warp unless kept down)
+        if (g_gtHold.on) GtHoldSay("let go");
+        GtHoldStart(&g_gtHold);
+        GtOnChord(c, pp);
+    } else {
+        const int h = GtHoldStep(&g_gtHold, run, act, play && on, g_gtFade.phase == GTF_IDLE, g_gtCool, dt);
+        if (h == GTH_GO) GtOnChord(GTC_HELD, pp);
+        else if (h == GTH_END) GtHoldSay(play ? "let go" : "stopped by a menu, a scene or a load");
+    }
     if (g_gtFade.phase != GTF_IDLE && play) {
         char why[320];
         float fl;
@@ -612,7 +770,8 @@ static void GtTickC(void)
             } else {
                 ++g_gtRefused;
                 g_gtCool = GT_FAIL_COOL;
-                if (LogQuota(&g_gtQNo, 300)) LogV("ghost teleport: not now: at the end of the fade-out: %s (she fades back in where she is)", why);
+                if (GtSayNo()) LogV("ghost teleport: not now: at the end of the fade-out: %s (she fades back in where she is)", why);
+                else LogT("ghost teleport: not now (held): at the end of the fade-out: %s", why);
             }
         } else if (g_gtFade.phase == GTF_IDLE) {
             GtFadeEnded();
@@ -676,7 +835,10 @@ static const BYTE *GtText(int id)
 static void GtTextOn(void)  // the On line carries the cooldown in force
 {
     char d[64];
-    sprintf_s(d, sizeof d, "On: Run + Action together warps you (%g s cooldown).", (double)g_gtCoolS);  // v3.44 GT344
+    if (g_gtCoolS > 0.0f)  // v3.49 GT349: hold to keep warping; no cooldown unless the ini asks for one
+        sprintf_s(d, sizeof d, "On: Run + Action warps you (%g s apart); hold to repeat.", (double)g_gtCoolS);
+    else
+        sprintf_s(d, sizeof d, "On: Run + Action warps you; hold both to keep warping.");
     Encode(g_txtGt[GTM_D1], 64, d);
 }
 static void GtTexts(void)
@@ -755,7 +917,13 @@ static void GtInstall(void)  // GameplayInstall (after the ini read): no exe pat
         { 0x454000, { 0x55, 0x8B, 0xEC, 0x83, 0xE4, 0xF0, 0x83, 0xEC }, 8 },  // a line test
         { 0x4FA040, { 0x55, 0x8B, 0xEC, 0xA1, 0x90, 0x5A, 0xFD, 0x00 }, 8 },  // GT343-001: ExitGetNum
         { 0x4FA070, { 0x55, 0x8B, 0xEC, 0xA1, 0x90, 0x5A, 0xFD, 0x00 }, 8 },  // GT343-001: ExitGet
-        { 0x561A70, { 0x8B, 0x15, 0x74, 0x6D, 0x2F, 0x01, 0x85, 0xD2 }, 8 } };  // GT343-001: the room's collision box
+        { 0x561A70, { 0x8B, 0x15, 0x74, 0x6D, 0x2F, 0x01, 0x85, 0xD2 }, 8 },  // GT343-001: the room's collision box
+        // v3.49 GT349: the event objects' tests (GtZonesRead; the same bytes pickup.inc checks)
+        { 0x4CF090, { 0x8B, 0x44, 0x24, 0x04, 0x50, 0xE8 }, 6 },                          // the object's use-item
+        { 0x4CFFC0, { 0x56, 0x8B, 0x74, 0x24, 0x08 }, 5 },                                // EventIsRecordRunning
+        { 0x52B1C0, { 0x8B, 0x44, 0x24, 0x04, 0x85, 0xC0, 0x75, 0x04 }, 8 },              // ActorIsEnabled
+        { 0x52B230, { 0x8B, 0x44, 0x24, 0x04, 0x85, 0xC0, 0x74, 0x0A }, 8 },              // ActorGetType
+        { 0x4D00F0, { 0x55, 0x56, 0x8B, 0x35, 0x00, 0x82, 0x3D, 0x01 }, 8 } };            // EventObjectsTick (the list 0x13D8200)
     // v3.44 GT344: Richard's fade on her model: the ghost's pre-draw calls, his post-draw, the draw loop's two calls
     static const Site kFade[] = {
         { 0x404B80, { 0x8B, 0x44, 0x24, 0x04, 0x83, 0xF8, 0x08, 0xA3, 0x40, 0x56, 0x5D, 0x00 }, 12 },  // RenderSetPixelShader
@@ -778,10 +946,12 @@ static void GtInstall(void)  // GameplayInstall (after the ini read): no exe pat
         }
     GtChordReset(&g_gtChord);
     GtFadeReset(&g_gtFade);
+    GtHoldReset(&g_gtHold);  // v3.49 GT349
     g_gtFadeOk = fade;
     g_gtReady = ok;
     Log("ghost teleport: %s (no exe patch; %d game functions checked), [Gameplay] GhostTeleport %s; Run + Action together "
         "(within %.0f ms): behind the nearest standing enemy within %.0f u, else %.0f u ahead the way she faces, cooldown %.1f s; "
+        "held: the next warp once she has faded in; never across or into a walk-in event zone; "  // v3.49 GT349
         "Richard's transition: his warp sound 0xEC86 %s, his see-through fade (%.1f s out, %.1f s in) on her model %s",
         ok ? "in" : "OFF", (int)(sizeof kFn / sizeof kFn[0] + sizeof kFade / sizeof kFade[0]), kGtName[g_gtSet ? 1 : 0],
         GT_CHORD_S * 1000.0f, g_gtRange, g_gtFwd, g_gtCoolS, g_gtSound ? "on" : "off", GT_FADE_S, GT_FADE_S, fade ? "in" : "OFF");

@@ -14,6 +14,8 @@
 // v3.48 OM348 (USER_FEEDBACK_v347.md A; the user: "Rename Stick Movement to Omni-Directional Movement. Parameters should be
 // Off/On. On = Analog ... So remove Direction please."): two modes, Off / On; On = v3.46 / v3.47's Analog in every respect
 // (the map, the dead zone, the 0.6 floor, SH4R_StickAmount). Direction is gone; an old Direction / Analog / 2 reads as On.
+// v3.49 LK349 (USER_FEEDBACK_v348.md E, w7_look302): the analog look ([Input] OmniLook: the right stick into stick[1]),
+// the reversal-latch / 8-way-band diagnostics, Room 302's X-turns rule for the left stick's x (at the end of this file).
 #ifndef OMNI_SIM_H
 #define OMNI_SIM_H
 
@@ -386,6 +388,118 @@ static int OmFailFeed(OmFail *e, int read, int front, unsigned long now)
 static int OmFailRecentBg(const OmFail *e, unsigned long now)
 {
     return e->haveBg && now - e->lastBg <= OM_FG_GRACE;
+}
+
+// ---------------------------------------------------------------- v3.49 LK349: the analog look (the right stick)
+// The user (v3.48 QA): "Room 302 sometimes the right stick does not turn the 1st person camera and can get sticky. It's
+// worse for Henry than Eileen". The game reads the right stick 8-way like the left one: AxisEvent 0x406F50 presses a look
+// bit ([InputDI+0x38] bits 4 lRx+, 5 lRx-, 6 lRy- (up), 7 lRy+) beyond +-300 of +-1000 and nothing below it; 0x553D20
+// makes gPad.stick[1] 0x1236C54 / 0x1236C58 = 0, +-1 (0.707 / 0.816 on a diagonal) from the bits, and Room302Look
+// 0x52DBD0 turns yaw = look_y x 0.0667, pitch = look_x^2 x 0.1 a tick: full speed or nothing, a push near 30 % chatters.
+// The stock reversal latch (AxisEvent presses the new side of a direct flick without releasing the old one: both bits,
+// the short sums to -1, cut to 0 at 0x406810) reads the stick centred until it passes the middle; Playable Eileen's PadAxis
+// fixes it, but v1.24.2 gates that hook stock while PE is Off (vanilla Henry): "worse for Henry".
+// [Input] OmniLook (hidden): Off / Room302 (the default) / All. While Omni-Directional Movement is On, in gameplay, with
+// the look on a stick and GetDeviceState the confirmed source, Refined writes the raw stick vector (its own radial dead
+// zone OM_LOOK_DZ, rescaled to 0..1, at most length 1) into stick[1].x / y: Room302 = Room 302's first-person view (stage
+// 1) only, All = every stage. Strength / angle are never written; a look key held = the game's own floats.
+enum { OML_OFF, OML_ROOM302, OML_ALL, OML_MODES };
+static const char *const kOmLookName[OML_MODES] = { "Off", "Room302", "All" };
+#define OM_LOOK_DZ 0.20f  // the analog look's radial dead zone (of a full push)
+#define OM_LOOK_STAGE_FP 1  // gGame.stage 0xFD5A90 of Room 302's first-person view (stage 10 is its third-person visit)
+
+// [Input] OmniLook's text: Off / Room302 / All (any case; "Room 302" too), 0 / 1 / 2; spaces / tabs / CR / LF around it.
+// Empty or anything else = the default Room302 with *known = 0 for a non-empty text (the caller logs it once).
+static int OmLookParse(const char *s, int *known)
+{
+    int n;
+    if (known) *known = 1;
+    if (!s) s = "";
+    while (*s == ' ' || *s == '\t') ++s;
+    for (n = 0; s[n]; ++n) {}
+    while (n > 0 && (s[n - 1] == ' ' || s[n - 1] == '\t' || s[n - 1] == '\r' || s[n - 1] == '\n')) --n;
+    if (n == 1 && s[0] >= '0' && s[0] <= '2') return s[0] - '0';
+    if (OmWordIs(s, n, "off")) return OML_OFF;
+    if (OmWordIs(s, n, "room302") || OmWordIs(s, n, "room 302")) return OML_ROOM302;
+    if (OmWordIs(s, n, "all")) return OML_ALL;
+    if (known && n) *known = 0;
+    return OML_ROOM302;
+}
+
+// Where the analog look acts: Room302 = Room 302's first-person view only, All = everywhere (the gate is the caller's).
+static int OmLookWhere(int look, int stage)
+{
+    return look == OML_ALL || (look == OML_ROOM302 && stage == OM_LOOK_STAGE_FP);
+}
+
+// gInputButtonPads 25..28 (0x5FF3BC: LookRight bit 4, LookLeft bit 5, LookUp bit 6, LookDown bit 7; low 16 bits as
+// 0x406C50): the stock right stick (lRx 0x14, lRy 8) or, with the sticks swapped, the left stick's axes (lX 0, lY 4).
+// Anything else (keys only, buttons, an inverted or mixed layout) = OMLB_OTHER: the game's own look.
+enum { OMLB_RIGHT, OMLB_LEFT, OMLB_OTHER };
+static const char *const kOmLookBindName[3] = { "the right stick (stock)", "the left stick's axes (swapped sticks)", "not a stick" };
+static int OmLookBindings(const unsigned pads[4])
+{
+    static const unsigned kRight[4] = { 0x1403, 0x1401, 0x0801, 0x0803 }, kLeft[4] = { 0x0003, 0x0001, 0x0401, 0x0403 };
+    int i, r = 1, l = 1;
+    for (i = 0; i < 4; ++i) {
+        r &= (pads[i] & 0xFFFF) == kRight[i];
+        l &= (pads[i] & 0xFFFF) == kLeft[i];
+    }
+    return r ? OMLB_RIGHT : l ? OMLB_LEFT : OMLB_OTHER;
+}
+
+// The look vector for raw axes (rx, ry) in +-1000 (stick[1] = (+rx, +ry) / 1000 as the game's: up = y -1). 1 and the
+// floats outside the radial dead zone dz: the push rescaled from dz .. 1 to 0 .. 1 along its own angle (continuous from 0
+// at the edge, length 1 at a full push or beyond); 0 inside it or with the raw axes out of range (the game's floats stay).
+static int OmLookMap(long rx, long ry, float dz, float *ox, float *oy)
+{
+    float x, y, m, mm, out;
+    if (!OmRawOk(rx, ry)) return 0;
+    if (!(dz >= 0.0f && dz < 0.9f)) dz = OM_LOOK_DZ;
+    x = (float)rx / 1000.0f;
+    y = (float)ry / 1000.0f;
+    m = sqrtf(x * x + y * y);
+    if (!(m > dz)) return 0;
+    mm = m > 1.0f ? 1.0f : m;
+    out = (mm - dz) / (1.0f - dz);
+    *ox = x / m * out;
+    *oy = y / m * out;
+    return 1;
+}
+
+// The game's reversal latch in the look bits (bits 4..7 of [InputDI+0x38] shifted down to 0..3): 1 = x (both bits 0 / 1),
+// 2 = y (both bits 2 / 3), 3 = both. While latched the game reads that axis as centred.
+static int OmLatch(unsigned bits4)
+{
+    return ((bits4 & 3) == 3 ? 1 : 0) | ((bits4 & 0xC) == 0xC ? 2 : 0);
+}
+
+// The game's own 8-way look misses a push: the raw stick is outside the analog dead zone but neither axis is past the
+// game's +-300 (no look bit), so the game turns nothing.
+static int OmBandMiss(long rx, long ry, float dz)
+{
+    return OmPushed(rx, ry, dz) && rx >= -300 && rx <= 300 && ry >= -300 && ry <= 300;
+}
+
+// The look's self-check (an OmCheck with the call sites rejected from the start: there are no look captures, only
+// GetDeviceState's lRx / lRy, judged by OmEval against the look bits).
+static void OmLookCheckInit(OmCheck *c)
+{
+    OmCheckInit(c);
+    c->rejected[1] = 1;
+}
+
+// Room 302's turn rule (Room302BuildInput 0x52E0B0 / Room302Look 0x52DBD0): with First Person Movement = X turns
+// (Options byte 0x1091AE7 == 0) the left stick's x (x 0.6, kept when |x| > 0.01) is the turn, and while it is not 0 the
+// right stick's yaw is ignored (0x52DC5E: fld 0; fcomp [in+4]; jp -> yaw 0). The stock 8-way stick gives x = 0 unless the
+// stick is past +-300 sideways; Omni-Directional Movement's analog vector had a small x on almost every forward push, so
+// walking froze the right stick's turn. In Room 302 with X turns, x is written only when the game's own x is not 0 (the
+// stick past the game's band, or a turn key): returns 1 when it set *fx to 0.
+static int OmRoomTurnX(int room302, int xTurns, float stockX, float *fx)
+{
+    if (!room302 || !xTurns || stockX != 0.0f || *fx == 0.0f) return 0;
+    *fx = 0.0f;
+    return 1;
 }
 
 #endif

@@ -84,6 +84,14 @@
 // 3BF; hidden FollowStoryGhosts=0 = v3.37); a tagged ghost is admitted by the game's arrival one a tick while the room has
 // space; no Wheelchair in Copies or Follow (a v3.37 stray's record is deleted at the room load); DownKeep defaults to 0
 // (the game's own down countdown).
+//
+// v3.49 EF349 (staging/v349_feedback/w5_follow/PLAN.md; the user, 2026-11-25: "For enemy's follow allow a Victims Only
+// parameter"): Enemies Follow is Off / Monsters / Victims Only / Monsters + Victims (enemies_sim.h ENM_FOLLOW_*; the ini
+// keeps the name, the old three read as before). Victims Only = the ghosts' path of Monsters + Victims (the victims, the
+// story ghosts, their copies) and none of the monsters' (EnmPursuerWhy4): the monsters' and their copies' pursuits end at
+// once (EnmPursueDropMonsters), and at the next room load the monsters left in other rooms go home and the monsters'
+// copies leave the copies' ledger (EnmMonstersHomeAtLoad, as Follow Off does for them). Each change of the value is logged
+// once with what follows.
 #include "enemies_sim.h"
 
 #define ENM_LIST_MAX 40      // at most 40 enemies in the room list (Death Presence tracks 64)
@@ -92,7 +100,7 @@
 #define ENM_ORIG_MAX 40
 #define ENM_WANDER_MAX 32    // v3.38 EN338: was 8 (followers stay for the whole world visit)
 
-static volatile LONG g_enmCopies, g_enmFollow;  // the rows (gameplay.inc GpApply): 0 Off / 1 x2 / 2 x3 / 3 x4; 0 / 1 / 2
+static volatile LONG g_enmCopies, g_enmFollow;  // the rows (gameplay.inc GpApply): 0 Off / 1 x2 / 2 x3 / 3 x4; ENM_FOLLOW_* (v3.49 EF349: 0 Off / 1 Monsters / 2 Victims Only / 3 Monsters + Victims)
 static int g_enmInstalled;                     // the core set (0x4F0AF8, 0x450DB0, 0x419830) is in
 static int g_enmGhostOn;                       // 0x486199 is in (the victims' value)
 static volatile int g_enmFail;                 // fail-closed: a fault turns both features off for the session
@@ -247,6 +255,25 @@ static void EnmPursueDropGhosts(void)
     if (n && LogQuota(&g_enmQuotaPursue, 300))
         LogV("enemies: %d ghost(s) stop pursuing you: Enemies Follow takes no ghosts now (Monsters)", n);
 }
+// v3.49 EF349: Enemies Follow = Victims Only: the monsters' and their copies' pursuits end (the ghosts' and the ghost copies'
+// go on); a monster copy on its way goes home (its ledger entry), a queued monster's record stays where it is (it goes home
+// at the next room load: EnmMonstersHomeAtLoad)
+static void EnmPursueDropMonsters(void)
+{
+    int i, n = 0;
+    for (i = 0; i < ENM_PURSUERS_N; ++i)
+        if (g_enmPursue.e[i].used && !g_enmPursue.e[i].ghost) {
+            g_enmPursue.e[i].used = 0, ++n;
+            if (g_enmPursue.e[i].copy) EnmTransitHome(g_enmPursue.e[i].id, g_enmPursue.e[i].stage);
+        }
+    for (i = 0; i < g_enmQN && i < ENM_FOLLOW_MAX; ++i)  // the monsters and copies already on their way into this room
+        if (!g_enmQ[i].done && !g_enmQ[i].ghost) {
+            g_enmQ[i].done = 1, ++n;
+            if (g_enmQ[i].copy) EnmTransitHome(g_enmQ[i].id, g_enmQStage);
+        }
+    if (n && LogQuota(&g_enmQuotaPursue, 300))
+        LogV("enemies: %d monster(s) and monster cop(ies) stop pursuing you: Enemies Follow takes no monsters now (Victims Only)", n);
+}
 
 static int EnmFaultNote(EXCEPTION_POINTERS *e)
 {
@@ -269,7 +296,7 @@ static void EnmFailNow(const char *where)
         "loads, the kill count and the record clean-up stay stock-safe)", where, g_enmFaultCode, g_enmFaultAt);
 }
 static int EnmCopiesLive(void) { return g_enmInstalled && !g_enmFail && g_enmCopies > 0 && g_enmCopies <= ENM_COPY_MAXK; }
-static int EnmFollowLive(void) { return g_enmInstalled && !g_enmFail && g_enmFollow > 0 && g_enmFollow <= 2; }
+static int EnmFollowLive(void) { return g_enmInstalled && !g_enmFail && EnmFollowValueOn(g_enmFollow); }  // v3.49 EF349: (was 1..2)
 static int EnmReviveLive(void) { return g_enmInstalled && !g_enmFail && g_enmRevive == 1; }  // v3.30 EN330
 
 // ---------------------------------------------------------------- game calls (all cdecl, matched in SH4Decomp)
@@ -466,6 +493,7 @@ static int EnmWalkC(int room, EnmWalkFn fn, void *ctx)
     while (*p != 0xF0F0F0F0u && (*p & 0xFFFF) != 0 && guard++ < 8192) {
         w = *p;
         if ((w & 0xFFFF) == 1) {
+            RmDescFix(room, n, desc);  // v3.49 RZ349: a randomized placement is rebuilt as the type it lives as (rzmon.inc)
             stop = fn(ctx, n++, desc);
             memcpy(desc, clear, 0x94);
             *ttype = 0;
@@ -474,6 +502,7 @@ static int EnmWalkC(int room, EnmWalkFn fn, void *ctx)
         EnmCmd((int)(w & 0xFFFF), p + 1);
         p += (w >> 16) + 1;
     }
+    RmDescFix(room, n, desc);  // v3.49 RZ349
     fn(ctx, n, desc);
     return n + 1;
 }
@@ -690,6 +719,27 @@ static int EnmSendWanderersHome(int *keptDead)
             ++n;
         }
     return n;
+}
+// v3.49 EF349: a room load while Enemies Follow takes no monsters (Off, or Victims Only): the monsters left in other rooms
+// go home; Off: every copy that followed you is made in its own room again (v3.34 EN334), Victims Only: the monsters' copies
+// (the ghost copies stay where they are). (v3.30 - v3.48: inline in EnmWrap, Off only; the Off lines are unchanged.)
+static void EnmMonstersHomeAtLoad(void)
+{
+    const int off = g_enmFollow == ENM_FOLLOW_OFF;
+    const char *const what = off ? "off" : "Victims Only";
+    int n, dead = 0;
+    if ((n = EnmSendWanderersHome(&dead)) != 0)
+        Log("enemies: Enemies Follow is %s: %d monster(s) left in other rooms went home (%d of them killed there: they stay "
+            "dead)", what, n, dead);
+    if (off) {
+        if ((n = EnmCwCount(&g_enmCw)) != 0) {  // v3.34 EN334
+            EnmCwClear(&g_enmCw);
+            Log("enemies: Enemies Follow is off: %d cop%s that followed you are made in their own rooms again", n, n == 1 ? "y" : "ies");
+        }
+    } else if ((n = EnmCwDropMonsters(&g_enmCw)) != 0) {
+        Log("enemies: Enemies Follow is Victims Only: %d monster %s that followed you %s again (ghost copies stay)", n,
+            n == 1 ? "copy" : "copies", n == 1 ? "is made in its own room" : "are made in their own rooms");
+    }
 }
 // v3.38 EN338: a real Wheelchair that followed in v3.37 (its record in a foreign room, also out of a save) goes home: its
 // record is deleted (killed there: its kill bit is set, it stays dead; a Wheelchair is no Revive type). Every room load
@@ -1287,7 +1337,8 @@ static void EnmTakePursuers(const float *pp)
     EnmPurStats st;
     int idx[ENM_PUR_MAX], n = 0, m, i, guard = 0;
     const BYTE *t = NULL;
-    const int victims = g_enmFollow == 2 && g_enmGhostOn;
+    const int mode = g_enmFollow;  // v3.49 EF349: read once
+    const int victims = EnmFollowTakesVictims(mode) && g_enmGhostOn, monsters = EnmFollowTakesMonsters(mode);  // v3.49 EF349 (was == 2)
     const float r2 = g_enmFollowRange * g_enmFollowRange;
     if (g_enmSeen.serial != g_enmDoorSerial) EnmSeenReset(&g_enmSeen, g_enmDoorSerial);
     // an empty enemy list in the room the list was taken in is the room's exit teardown (0x462A20 clears the list
@@ -1328,8 +1379,8 @@ static void EnmTakePursuers(const float *pp)
             ++st.down;
             continue;
         }
-        why = EnmPursuerWhy3(copy, EnmIsGhostId(id), victims, g_enmStoryFollow, type, variant, mw, ENM_DOGS_AWAKE, ENM_AISTATE(t),
-                             EnmIsScriptId(id), copy || gkind ? 0 : ENM_KILLIDX(t));
+        why = EnmPursuerWhy4(monsters, copy, EnmIsGhostId(id), victims, g_enmStoryFollow, type, variant, mw, ENM_DOGS_AWAKE,  // v3.49 EF349: Why4
+                             ENM_AISTATE(t), EnmIsScriptId(id), copy || gkind ? 0 : ENM_KILLIDX(t));
         if (why == ENM_PUR_OTHER) {
             ++st.other;
             continue;
@@ -2173,7 +2224,7 @@ static int EnmGhostTagged(const BYTE *rec)  // v3.35 GH335: the tag's index + 1 
 {
     unsigned id;
     int i;
-    if (!g_enmGhostTagN || g_enmFollow != 2 || g_enmFail) return 0;
+    if (!g_enmGhostTagN || !EnmFollowTakesVictims(g_enmFollow) || g_enmFail) return 0;  // v3.49 EF349: + Victims Only (was != 2)
     id = *(const unsigned *)(rec + 0x20);
     if (*(const signed char *)(rec + 0x36) != g_enmGhostTagStage || g_enmGhostTagStage != ENM_STAGE) return 0;
     for (i = 0; i < g_enmGhostTagN; ++i)
@@ -2698,17 +2749,7 @@ static void __cdecl EnmWrap(int room)
                     g_enmHomeN = 0;                       // v3.35 GH335: the victims' placements of another world
                     g_enmLastStage = stage;
                 }
-                if (g_enmFollow == 0) {
-                    int dead = 0;
-                    if ((n = EnmSendWanderersHome(&dead)) != 0)
-                        Log("enemies: Enemies Follow is off: %d monster(s) left in other rooms went home (%d of them killed "
-                            "there: they stay dead)", n, dead);
-                    if ((n = EnmCwCount(&g_enmCw)) != 0) {  // v3.34 EN334
-                        EnmCwClear(&g_enmCw);
-                        Log("enemies: Enemies Follow is off: %d cop%s that followed you are made in their own rooms again", n,
-                            n == 1 ? "y" : "ies");
-                    }
-                }
+                if (!EnmFollowTakesMonsters(g_enmFollow)) EnmMonstersHomeAtLoad();  // v3.49 EF349: Off or Victims Only (was == 0, inline)
                 if (stage >= 2 && stage <= 8) EnmWheelchairHome();  // v3.38 EN338: v3.37's strays go home (any setting)
                 if (g_enmCopies > 0 || g_enmFollow > 0 || g_enmRevive > 0) EnmProbeTable();
                 g_enmExtraN = 0, g_enmExtraStage = stage, g_enmExtraRoom = room;  // v3.33 EN333: every room load parks the last room's extra files
@@ -2884,6 +2925,30 @@ static void __cdecl EnmBoneReset(void)
     }
 }
 
+// v3.49 EF349: what Enemies Follow takes, one line per change of the value (the first tick says the start value)
+static int g_enmFollowSaid = -1;
+static volatile LONG g_enmQuotaMode;
+static void EnmFollowSay(void)
+{
+    const int m = g_enmFollow;
+    if (m == g_enmFollowSaid) return;
+    g_enmFollowSaid = m;
+    if (!LogQuota(&g_enmQuotaMode, 100)) return;
+    if (m < 0 || m >= ENM_FOLLOW_N) {
+        LogAnomaly("enemies", "Enemies Follow has the value %d (0..%d): nobody follows", m, ENM_FOLLOW_N - 1);
+        return;
+    }
+    Log("enemies: Enemies Follow %s: %s%s%s%s", kGpName[GP_FOLLOW][m],
+        m == ENM_FOLLOW_OFF ? "nobody follows you through doors" :
+        m == ENM_FOLLOW_MONSTERS ? "monsters and their copies follow you through doors; the ghosts do not" :
+        m == ENM_FOLLOW_VICTIMS ? "only the victims' ghosts follow you through doors" : "monsters and the victims' ghosts follow you through doors",
+        EnmFollowTakesVictims(m) ? (g_enmStoryFollow ? " (the story ghosts too" : " (not the story ghosts") : "",
+        EnmFollowTakesVictims(m) ? (g_enmFollowCopies ? ", and their copies)" : "; no copies)") : "",
+        m == ENM_FOLLOW_VICTIMS ? (g_enmGhostOn ? "; monsters and their copies stay in their rooms (any left in other rooms go home at "
+                                                  "the next room load)"
+                                                : "; but 00486199 is not in: no ghost can follow, so nobody does")
+                                : EnmFollowTakesVictims(m) && !g_enmGhostOn ? "; 00486199 is not in: the ghosts cannot follow" : "");
+}
 // ---------------------------------------------------------------- the tick (QsTick, 0x4EF982, game thread)
 static void EnmTickC(void)
 {
@@ -2911,8 +2976,13 @@ static void EnmTickC(void)
         if (play && g_enmCdKeepOn) EnmCdWatch();
         if (play && g_enmLate.on) EnmLateTick();
     }
+    EnmFollowSay();  // v3.49 EF349: each change of the value, once
     if (!EnmFollowLive()) EnmPursueDrop("Enemies Follow is off");  // v3.35 GH335
-    else if (g_enmFollow != 2) EnmPursueDropGhosts();               // v3.38 EN338: Monsters: the ghosts' pursuits end
+    else {  // v3.49 EF349: by the value (was: != 2 -> the ghosts' pursuits end)
+        const int mode = g_enmFollow;
+        if (!EnmFollowTakesVictims(mode)) EnmPursueDropGhosts();     // v3.38 EN338: Monsters: the ghosts' pursuits end
+        if (!EnmFollowTakesMonsters(mode)) EnmPursueDropMonsters();  // v3.49 EF349: Victims Only: the monsters' pursuits end
+    }
     if (!EnmFollowLive()) {
         if (g_enmQN) {  // v3.38 REV338 R3: the queued copies not in yet go home before the queue is dropped
             const int n = EnmQueueHome();

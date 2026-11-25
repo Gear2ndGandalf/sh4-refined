@@ -16,12 +16,36 @@
 // [Randomizer] Items Off / Shuffle / Random, KeepSpecials On / Off, Room302 In / Out, PerVisit On / Off, Seed (decimal;
 // missing or 0 = rolled once and written). Later rounds (the folder has room for their rows): Monsters, Ghosts, Looks.
 #include "rando_sim.h"
+#include "rzmon_sim.h"  // v3.49 RZ349: the Monsters' pure part (rzmon.inc, included after enemies.inc / hitpool.inc)
+// v3.49 RZ349L: the looks rows Eileen Outfit and Ghosts (rzlooks.inc, included after enemies.inc: it needs the outfit
+// engine of eileenoutfit.inc and enemies.inc's spot test)
+static void RzlTexts(void);
+static void RzlReadIni(void);
+static void RzlIniReread(void);
+static void RzlSnapshot(void);
+static int RzlChanged(void);
+static void RzlDiscard(void);
+static int RzlBuildRows(DWORD *t, int n);
+static int RzlRowChanged(int row);
+static void RzlGhostsBefore(int room, int d);
+static void RzlOutfitWorld(void);
+static void RzlOutfitRoom(void);
+static void RzlSessionLine(void);
 
 static int g_enmInstalled;  // enemies.inc (a tentative definition: the same object): its room-load hook 0x4F0AF8 is in
-enum { RZS_ITEMS, RZS_KEEP, RZS_R302, RZS_SEED, RZS_PERVISIT, RZS_N };  // the settings (g_rzSet, g_rzSnap)
+enum { RZS_ITEMS, RZS_KEEP, RZS_R302, RZS_SEED, RZS_PERVISIT, RZS_MON, RZS_N };  // the settings (g_rzSet, g_rzSnap)  // v3.49 RZ349: + RZS_MON
 static volatile LONG g_rzItems = RZ_ITEMS_DEFAULT, g_rzKeep = RZ_KEEP_DEFAULT, g_rzR302 = RZ_R302_DEFAULT;
 static volatile LONG g_rzSeed;  // (an unsigned seed; never 0 once read)
 static volatile LONG g_rzPerVisit = RZ_PERVISIT_DEFAULT;  // round 2: Change Each Visit
+static volatile LONG g_rzMon = RM_MON_DEFAULT;  // v3.49 RZ349: [Randomizer] Monsters (rzmon.inc)
+// v3.49 RZ349: the Monsters (rzmon.inc, included later): the row, the room load, rebuilt placements, start and end
+static void RmRow(DWORD *r);
+static const BYTE *RmText(int id);
+static void __cdecl RmBeforeScript(int room);
+static void __cdecl RmAfterScript(void);
+static void RmDescFix(int room, int n, BYTE *desc);  // (enemies.inc EnmWalkC)
+static void RmInit(void);
+static void RmSessionLine(void);
 static LONG g_rzSnap[RZS_N];    // as Options opened
 static int g_rzUnsaved;         // the menu's value could not be written (the poll leaves the file's value alone)
 static int g_rzFail;            // faulted: off for this session
@@ -54,11 +78,12 @@ static volatile LONG g_rzQuotaAnom, g_rzQuotaRoom;
 enum { RZM_T, RZM_R, RZM_DF, RZM_LI, RZM_VI0, RZM_DI0 = RZM_VI0 + RZI_N, RZM_LK = RZM_DI0 + RZI_N, RZM_VK0, RZM_DK0 = RZM_VK0 + 2,
        RZM_LR = RZM_DK0 + 2, RZM_VR0, RZM_DR0 = RZM_VR0 + 2, RZM_LS = RZM_DR0 + 2, RZM_DS, RZM_LN, RZM_DN, RZM_NA,
        RZM_LP, RZM_DP0, RZM_N = RZM_DP0 + 2 };  // round 2: + Change Each Visit's label and its two lines
-typedef char RzTextsFit[RZM_N <= MSG_END - MSG_RZ0 ? 1 : -1];  // the MSG_RZ0 block (32 ids; 28 used)
+typedef char RzTextsFit[RZM_N <= 28 && RZM_N <= MSG_RZ1 - MSG_RZ0 ? 1 : -1];  // the MSG_RZ0 block (32 ids; 28 used)  // v3.49 MERGE: bounded by the next block MSG_RZ1 (was MSG_END) and below RZ349's RZ0 + 28 .. 29
 static BYTE g_txtRz[RZM_N][64];
 static DWORD g_rzIdsItems[RZI_N], g_rzIdsKeep[2], g_rzIdsR302[2];
 static const BYTE *RzText(int id)
 {
+    if ((id >= MSG_RZ0 + 28 && id < MSG_RZ0 + 30) || (id >= MSG_RZ1 && id < MSG_RZ1 + 16)) return RmText(id);  // v3.49 RZ349
     return id >= MSG_RZ0 && id < MSG_RZ0 + RZM_N ? g_txtRz[id - MSG_RZ0] : g_txtRz[RZM_NA];
 }
 static void RzSeedLabel(void)
@@ -72,7 +97,7 @@ static void RzTexts(void)
     int k;
     Encode(g_txtRz[RZM_T], 64, "Gameplay: Randomizer");
     Encode(g_txtRz[RZM_R], 64, "Randomizer");
-    Encode(g_txtRz[RZM_DF], 64, "Randomize the item and weapon pickups.");
+    Encode(g_txtRz[RZM_DF], 64, "Randomize pickups, weapons and monsters.");  // v3.49 RZ349: + monsters
     Encode(g_txtRz[RZM_LI], 64, "Items");
     for (k = 0; k < RZI_N; ++k) {
         Encode(g_txtRz[RZM_VI0 + k], 64, kRzItemsName[k]);
@@ -100,7 +125,8 @@ static void RzTexts(void)
     Encode(g_txtRz[RZM_NA], 64, "Not available in this game (see SH4Refined.log).");
     Encode(g_txtRz[RZM_LP], 64, "Change Each Visit");
     Encode(g_txtRz[RZM_DP0], 64, "Off: a room keeps its items for this seed.");
-    Encode(g_txtRz[RZM_DP0 + 1], 64, "On: new items at every visit. Next door.");
+    Encode(g_txtRz[RZM_DP0 + 1], 64, "On: a new draw at every visit. Next door.");  // v3.49 RZ349: items and monsters
+    RzlTexts();  // v3.49 RZ349L
 }
 
 // ---------------------------------------------------------------- [Randomizer]
@@ -112,10 +138,11 @@ static volatile LONG *RzSetting(int which)
     case RZS_KEEP: return &g_rzKeep;
     case RZS_R302: return &g_rzR302;
     case RZS_SEED: return &g_rzSeed;
+    case RZS_MON: return &g_rzMon;  // v3.49 RZ349
     }
     return &g_rzPerVisit;
 }
-static const char *const kRzKey[RZS_N] = { "Items", "KeepSpecials", "Room302", "Seed", "PerVisit" };
+static const char *const kRzKey[RZS_N] = { "Items", "KeepSpecials", "Room302", "Seed", "PerVisit", "Monsters" };  // v3.49 RZ349: + Monsters
 static const char *RzSeedStr(unsigned s, char *b, size_t n)
 {
     sprintf_s(b, n, "%lu", (unsigned long)s);
@@ -126,6 +153,7 @@ static const char *RzValName(int which, LONG v, char *b, size_t n)
     if (which == RZS_ITEMS) return v >= 0 && v < RZI_N ? kRzItemsName[v] : "?";
     if (which == RZS_R302) return kRzR302Name[v ? 1 : 0];
     if (which == RZS_SEED) return RzSeedStr((unsigned)v, b, n);
+    if (which == RZS_MON) return v >= 0 && v < RMM_N ? kRmMonName[v] : "?";  // v3.49 RZ349
     return kRzKeepName[v ? 1 : 0];
 }
 static int RzWrite(const char *key, const char *val)  // 1 = written
@@ -164,6 +192,7 @@ static void RzReadIni(void)
     g_rzKeep = RzReadKey("KeepSpecials", RzOnOffOfText, RZ_KEEP_DEFAULT, kRzKeepName, "On / Off");
     g_rzR302 = RzReadKey("Room302", RzR302OfText, RZ_R302_DEFAULT, kRzR302Name, "In / Out");
     g_rzPerVisit = RzReadKey("PerVisit", RzOnOffOfText, RZ_PERVISIT_DEFAULT, kRzKeepName, "On / Off");  // round 2
+    g_rzMon = RzReadKey("Monsters", RmMonOfText, RM_MON_DEFAULT, kRmMonName, "Off / This Room / This World");  // v3.49 RZ349
     IniStr("Randomizer", "Seed", b, sizeof b);
     seed = RzSeedOfText(b);
     if (!seed) {
@@ -175,6 +204,7 @@ static void RzReadIni(void)
     }
     g_rzSeed = (LONG)seed;
     RzSeedLabel();
+    RzlReadIni();  // v3.49 RZ349L: EileenOutfit, Ghosts
 }
 static void RzSetLocked(int which, LONG v, const char *why)  // which: RZS_* (GpLock held)
 {
@@ -193,13 +223,14 @@ static void RzSetLocked(int which, LONG v, const char *why)  // which: RZS_* (Gp
 }
 static void RzIniReread(void)  // under GpLock (gameplay.inc GpIniReread)
 {
-    static const int kWhich[4] = { RZS_ITEMS, RZS_KEEP, RZS_R302, RZS_PERVISIT };
-    int (*const parse[4])(const char *) = { RzItemsOfText, RzOnOffOfText, RzR302OfText, RzOnOffOfText };
+    static const int kWhich[5] = { RZS_ITEMS, RZS_KEEP, RZS_R302, RZS_PERVISIT, RZS_MON };  // v3.49 RZ349: + RZS_MON
+    int (*const parse[5])(const char *) = { RzItemsOfText, RzOnOffOfText, RzR302OfText, RzOnOffOfText, RmMonOfText };
     char b[64], s[16];
     int k, v;
     unsigned seed;
+    RzlIniReread();  // v3.49 RZ349L (its own unsaved flag)
     if (g_iniFallback || g_rzUnsaved) return;
-    for (k = 0; k < 4; ++k) {
+    for (k = 0; k < 5; ++k) {  // v3.49 RZ349: 4 -> 5
         volatile LONG *const t = RzSetting(kWhich[k]);
         GetPrivateProfileStringA("Randomizer", kRzKey[kWhich[k]], "", b, sizeof b, g_iniPath);
         v = parse[k](b);
@@ -222,23 +253,25 @@ static void RzSnapshot(void)
 {
     int k;
     for (k = 0; k < RZS_N; ++k) g_rzSnap[k] = *RzSetting(k);
+    RzlSnapshot();  // v3.49 RZ349L
 }
 static int RzChanged(void)
 {
     int k;
     for (k = 0; k < RZS_N; ++k)
         if (*RzSetting(k) != g_rzSnap[k]) return 1;
-    return 0;
+    return RzlChanged();  // v3.49 RZ349L (was 0)
 }
 static void RzDiscard(void)  // under GpLock (gameplay.inc GpDiscard): "No" at the exit puts the snapshot back
 {
     int k;
     for (k = 0; k < RZS_N; ++k)
         if (*RzSetting(k) != g_rzSnap[k]) RzSetLocked(k, g_rzSnap[k], "Seed back to");
+    RzlDiscard();  // v3.49 RZ349L
 }
 
 // ---------------------------------------------------------------- the page (LP_RANDO)
-static int g_rzRow[RZS_N] = { -1, -1, -1, -1, -1 }, g_rzRowNew = -1, g_rzRowsN;
+static int g_rzRow[RZS_N] = { -1, -1, -1, -1, -1, -1 }, g_rzRowNew = -1, g_rzRowsN;  // v3.49 RZ349: 6 entries
 static int RzStep(int which, int count)
 {
     int v;
@@ -291,7 +324,7 @@ static int __cdecl RzDescNew(void) { return MSG_RZ0 + (!RzAvail() ? RZM_NA : RZM
 static int __cdecl RzDescFolder(void) { return MSG_RZ0 + RZM_DF; }
 static int __cdecl RzFolderIn(BYTE *cfg, int count) { (void)cfg; (void)count; return GpOpen(LP_RANDO); }
 // Option 5's folder row (gameplay.inc GpBuildPages, under Special) and the page: Items, Keep Specials, Room 302, Change
-// Each Visit, Seed, New Seed, Back. bcRow = Option 2's Button Config record (value-less rows: the Seed shows its number in
+// Each Visit, (v3.49 MERGE: Monsters, Eileen Outfit, Ghosts,) Seed, New Seed, Back. bcRow = Option 2's Button Config record (value-less rows: the Seed shows its number in
 // the label).
 static void RzFolderRow(DWORD *r, const DWORD *bcRow) { GpFolderRow(r, bcRow, RzFolderIn, MSG_RZ0 + RZM_R, RzDescFolder); }
 static void RzBuildPage(const DWORD *stockRows, const DWORD *bcRow, DWORD *t, int parentRow)
@@ -305,6 +338,9 @@ static void RzBuildPage(const DWORD *stockRows, const DWORD *bcRow, DWORD *t, in
     FillRow(t + 7 * n++, RzInR302, RzGetR302, g_rzIdsR302, 2, MSG_RZ0 + RZM_LR, RzDescR302);
     g_rzRow[RZS_PERVISIT] = n;  // round 2
     FillRow(t + 7 * n++, RzInPerVisit, RzGetPerVisit, g_rzIdsKeep, 2, MSG_RZ0 + RZM_LP, RzDescPerVisit);
+    g_rzRow[RZS_MON] = n;  // v3.49 RZ349: Monsters (rzmon.inc), under the Items' rows and Change Each Visit
+    RmRow(t + 7 * n++);
+    n = RzlBuildRows(t, n);  // v3.49 RZ349L: Eileen Outfit, Ghosts (v3.49 MERGE: moved here, right after w3's Monsters row)
     g_rzRow[RZS_SEED] = n;
     GpFolderRow(t + 7 * n++, bcRow, RzInSeed, MSG_RZ0 + RZM_LS, RzDescSeed);
     g_rzRowNew = n;
@@ -323,7 +359,7 @@ static int RzRowChanged(int row)  // the yellow mark (gameplay.inc GpRowChanged,
     if (!g_snapOn || row < 0) return 0;
     for (k = 0; k < RZS_N; ++k)
         if (row == g_rzRow[k]) return *RzSetting(k) != g_rzSnap[k];
-    return 0;
+    return RzlRowChanged(row);  // v3.49 RZ349L (was 0)
 }
 
 // ---------------------------------------------------------------- the scan and the plan (game thread, the room load)
@@ -511,11 +547,15 @@ static int __cdecl RzBeforeScript(int room)
     if (d >= RZ_DEPTH) {
         if (LogQuota(&g_rzQuotaAnom, 20))
             LogAnomaly("randomizer", "room %d: a room build %d deep inside other room builds: nothing randomized in it", room, d + 1);
+        RmBeforeScript(room);  // v3.49 RZ349: (its level too: RmAfterScript pops it; nothing written that deep)
         return d;
     }
     if (d > 0 && LogQuota(&g_rzQuotaAnom, 20))
         LogAnomaly("randomizer", "room %d: a room build inside another room build (level %d): its own word list", room, d + 1);
-    if (g_rzFail) return d;
+    if (g_rzFail) {
+        RmBeforeScript(room);  // v3.49 RZ349: the monsters' words (rzmon.inc: their own list, their own fault flag)
+        return d;
+    }
     __try {
         RzBeforeScriptC(room, d);
     } __except (EXCEPTION_EXECUTE_HANDLER) {
@@ -528,11 +568,14 @@ static int __cdecl RzBeforeScript(int room)
         LogAnomaly("randomizer", "faulted at a room load (code %08lX; %d word(s) not restored): off for this session",
                    GetExceptionCode(), left);
     }
+    RmBeforeScript(room);  // v3.49 RZ349: after the Items (the room's visit count is counted there)
+    RzlGhostsBefore(room, d);  // v3.49 RZ349L: Ghosts Spots (rzlooks.inc; its own __try, this run's level d)
     return d;
 }
 static void __cdecl RzAfterScript(int d)
 {
     int other = 0;
+    RmAfterScript();  // v3.49 RZ349: the monsters' words of this run first (pushed last)
     __try {
         other = RzStackPop(&g_rzStack, d);
     } __except (EXCEPTION_EXECUTE_HANDLER) {
@@ -589,6 +632,7 @@ static void RzInit(void)  // gameplay.inc GameplayInstall (before the Options ta
         g_rzFail ? ": the scan FAULTED, the Randomizer is off" :
         g_rzSelfBad ? ": some scripts are not the stock ones (their pickups are left alone)" : ": the stock scripts", wn,
         g_rzOwnedOk ? "" : " (ItemIsObtained 004F69C0 is not the stock code: Random may draw weapons you own; they do not show)");
+    RmInit();  // v3.49 RZ349: the Monsters' texts, self-check and save filter
 }
 static void RzSessionLine(void)  // loghealth.inc LhSessionEndC (the session summary)
 {
@@ -597,4 +641,6 @@ static void RzSessionLine(void)  // loghealth.inc LhSessionEndC (the session sum
         kRzItemsName[g_rzItems >= 0 && g_rzItems < RZI_N ? g_rzItems : 0], (unsigned long)(unsigned)g_rzSeed,
         kRzKeepName[g_rzKeep ? 1 : 0], kRzR302Name[g_rzR302 ? 1 : 0], kRzKeepName[g_rzPerVisit ? 1 : 0], g_rzLoads, g_rzRoomsPooled,
         g_rzChanged, g_rzWeapons, g_rzPlans, g_rzLeft, g_rzFail ? "; FAULTED (off)" : !g_enmInstalled ? "; no room-load hook (off)" : "");
+    RmSessionLine();  // v3.49 RZ349
+    RzlSessionLine();  // v3.49 RZ349L
 }

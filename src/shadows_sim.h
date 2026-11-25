@@ -512,6 +512,27 @@ static float ShLightThrough(float c1) { return c1 < 0.0f ? 1.0f : c1 > 1.0f ? 0.
 static unsigned ShC1Key(int tfAlpha, int pct) { return (unsigned)(tfAlpha & 0xFF) << 16 | (unsigned)(pct & 0xFFFF); }
 static int ShC1Due(unsigned key, unsigned lastKey, unsigned n) { return key != lastKey || (n % SH_C1_EVERY) == 0; }
 
+// v3.49 SH349 (USER_FEEDBACK_v348 E: "for soft shadows ... include the whole game"): the one shadow the game draws outside
+// the stencil mask that ShDrawBody softens is the Tremer's (enemy type 9, the leech) wall shadow: a textured ribbon
+// (EffectDrawRibbonShadow 0x45F480 -> EffectDrawRibbonFaded 0x45F1E0, its colour in eax) drawn with the PS2 blend 0x42
+// = Cd - Cs x As (subtractive: (0 - Cs) As + Cd), As = the colour's alpha byte (stock 0x30, 0x30 - fade x 48 while it
+// fades) x the depth fade. Its darkening is linear in As, so the Darkness keeps pct % of it by scaling the alpha byte:
+// the same share as the stencil shadows' inside (ShCompC1 / ShStockDarkByte). 100 % = the byte untouched. Its edge is
+// its texture's (no mask to blur): Soft does not change it.
+static unsigned ShRibbonAlpha(unsigned a8, int pct)
+{
+    if (a8 > 255u) a8 = 255u;
+    if (pct >= 100) return a8;
+    if (pct <= 0) return 0u;
+    return (a8 * (unsigned)pct + 50u) / 100u;
+}
+static unsigned ShRibbonColour(unsigned c, int pct) { return ShRibbonAlpha(c >> 24, pct) << 24 | (c & 0xFFFFFFu); }
+// the darkening the ribbon's inside gives at the colour's alpha byte (rgb 0x80 = 1.0 on the PS2 scale, x the texture):
+// As / 128 of the colour subtracted, for the log and the tests
+static float ShRibbonDark(unsigned a8) { return (float)(a8 > 255u ? 255u : a8) / 128.0f; }
+// a key per (alpha byte, percent) for the once-per-value line
+static unsigned ShRibbonKey(unsigned a8, int pct) { return (a8 & 0xFFu) << 16 | ((unsigned)pct & 0xFFFFu); }
+
 // v3.44 CS344 (USER_FEEDBACK_v343 item 1: the Darkness "does not work in preview or game"; post_sim.h's note): v3.41's
 // composite core curve `mad r1, r0, 1-r0, r0` used the `1-x` source modifier, which GOG's translator drops silently: the
 // draw ran as if no shader were set (FxBase's stage 0: alpha = the coverage texture's, colour black), so the inside was

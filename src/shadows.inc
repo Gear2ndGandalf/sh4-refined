@@ -1036,6 +1036,101 @@ static HRESULT __stdcall ShDrawHook(void *dev, DWORD type, UINT start, UINT coun
     return hr;
 }
 
+// ---------------------------------------------------------------- v3.49 SH349: the Tremer's wall shadow at the Darkness
+// USER_FEEDBACK_v348 E ("for soft shadows ... include the whole game not just player, allies, and enemies"). What the
+// stock game draws as a shadow (BUILD_NOTES.md of staging/v349_feedback/w6_shadows has the evidence):
+//   1. every real-time shadow: z-fail stencil volumes (ModelDrawShadow 0x55C860 -> 0x424E80 -> 0x425700) of every model
+//      that has a shadow file (ModelSetShadowData 0x55C830): the player (Henry / Playable Eileen) and the weapon in hand
+//      (the Sword of Obedience held and pinned too), the final boss room's spears (0x541FB0, stage 9 room 2),
+//      Eileen and Cynthia as companions, every enemy type with a shadow file (Thermal skips the ghosts' at 0x52AF95),
+//      ghosts, Room 302's hauntings (0x549C40, with their own shadow light 0x549B70), the Water Prison's turning prison
+//      (0x4E99C0), event and in-engine cut-scene figures (actor passes 0x52AF60 / 0x52AFC0, and inline after one model in
+//      five event scenes: 0x4DE412 0x4DEFE3 0x4DF323 0x4E1452 0x4EE3A2). They all end in ONE mask per composite
+//      (ShadowCompositeDraw 0x55F660, the only reader of the stencil count) and so in ShDrawHook: Soft and the Darkness
+//      have covered all of them since v3.40 / v3.42 (the room lines: "N composites ..., N soft");
+//   2. the Tremer's wall shadow: a subtractive textured ribbon (shadows_sim.h ShRibbonAlpha), not in the mask: the
+//      Darkness now applies to it (this hook); Soft cannot (its edge is its texture's, nothing to blur);
+//   3. baked shadows: the rooms are drawn unlit, their shadows (furniture, doors, Room 302, props, items) are painted
+//      into the textures and vertex colours; items and doors have no shadow file at all: not a draw Refined can soften
+//      (texture work: SH4 HD Textures). Movies (FMV) are pictures. Echo Doubles' ground shadow is Refined's own soft disc.
+// The site: 0x45F4CA `call 45F1E0` (E8 11 FD FF FF) in EffectDrawRibbonShadow 0x45F480, whose only callers are the
+// Tremer's 0x48A6C4 / 0x48AA4C; eax = the colour there (`mov eax, [esp+2Ch]` at 0x45F4C3; 0x45F1E0 reads it at 0x45F1F9).
+// -> `call hkShRibbon`: the alpha byte scaled, then a jump to 0x45F1E0. Not a Playable Eileen hook, not in a cheat-table
+// span (ct_conflicts --span 0x45F4C3-0x45F4D0: none); Refined's other site in this effect is the flush's return 0x45F3FA
+// (Menus43's world list: only read). [Shadows] TremerShadows=0: not installed (the game's own wall shadow).
+static int g_shRibOn;                   // the hook is in
+static DWORD g_shRibRoomKey = 0xFFFFFFFFu;  // the room the counts belong to (logged when it changes: ShFrameEnd)
+static unsigned g_shRibRoomN, g_shRibRoomDark, g_shRibLastKey[2] = { 0xFFFFFFFFu, 0xFFFFFFFFu };
+static DWORD g_shRibA8Min = 255u, g_shRibA8Max;  // the alpha bytes seen this room (asked)
+static const DWORD g_shRibFn = 0x45F1E0;
+static DWORD ShRoomKeyNow(void) { return (DWORD)*(volatile int *)0xFD5A90 << 16 | ((DWORD)*(volatile int *)0xFD5A94 & 0xFFFF); }
+// the counted room's line (only a room with a Tremer's wall shadow has counts), then the counts reset
+static void ShRibbonRoomLog(void)
+{
+    if (g_shRibRoomKey != 0xFFFFFFFFu && g_shRibRoomN)
+        LogV("shadows: room %lX:%02lX: %u Tremer wall shadow draw(s), %u at the Darkness (%d %%; alpha %02lX..%02lX asked)",
+             g_shRibRoomKey >> 16, g_shRibRoomKey & 0xFFFF, g_shRibRoomN, g_shRibRoomDark, (int)g_shDark, g_shRibA8Min, g_shRibA8Max);
+    g_shRibRoomKey = 0xFFFFFFFFu;
+    g_shRibRoomN = g_shRibRoomDark = 0;
+    g_shRibA8Min = 255u, g_shRibA8Max = 0u;
+}
+static DWORD __cdecl ShRibbonC(DWORD c)
+{
+    __try {
+        const int pct = (int)g_shDark;
+        const unsigned a8 = c >> 24;
+        const DWORD key = ShRoomKeyNow();
+        const int slot = a8 == 0x30;  // the once-per-Darkness line: the stock 0x30 (slot 1), and a fading one (slot 0, any alpha)
+        const unsigned lk = ShRibbonKey(slot ? a8 : 0u, pct);
+        DWORD out = c;
+        if (key != g_shRibRoomKey) ShRibbonRoomLog(), g_shRibRoomKey = key;  // the last room's line first (a room change before ShFrameEnd saw it)
+        ++g_shRibRoomN;
+        if (a8 < g_shRibA8Min) g_shRibA8Min = a8;
+        if (a8 > g_shRibA8Max) g_shRibA8Max = a8;
+        if (pct < 100) {
+            out = (DWORD)ShRibbonColour(c, pct);
+            ++g_shRibRoomDark;
+        }
+        if (lk != g_shRibLastKey[slot]) {
+            static volatile LONG s_q;
+            g_shRibLastKey[slot] = lk;
+            if (LogQuota(&s_q, 20))
+                LogV("shadows: a Tremer's wall shadow drawn at Darkness %d %%: its alpha %02X -> %02X (%.0f %% of the game's darkening; "
+                     "subtractive ribbon 0x45F1E0, its edge is its texture's)", pct, a8, (unsigned)(out >> 24),
+                     a8 ? 100.0f * ShRibbonDark(out >> 24) / ShRibbonDark(a8) : 100.0f);
+        }
+        return out;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        return c;
+    }
+}
+#include "shadows_rib.h"  // hkShRibbon: 0x45F4CA, was `call 45F1E0` (eax = the colour; args on the stack); test\shribbon_test.c
+// ShFrameEnd: a room's line once it is left (only for rooms with a Tremer's wall shadow)
+static void ShRibbonRoomEnd(void)
+{
+    if (!g_shRibOn || g_shRibRoomKey == 0xFFFFFFFFu || ShRoomKeyNow() == g_shRibRoomKey) return;
+    ShRibbonRoomLog();
+}
+static void ShRibbonInstall(void)
+{
+    static const Site kRib = { 0x45F4C3, { 0x8B, 0x44, 0x24, 0x2C, 0x52, 0x57, 0x56, 0xE8, 0x11, 0xFD, 0xFF, 0xFF, 0x83, 0xC4, 0x0C }, 15 };
+    static const Site kRibUse = { 0x45F1F9, { 0x8B, 0xD8, 0xC1, 0xE8, 0x18 }, 5 };  // 45F1E0: mov ebx, eax; shr eax, 18h (the colour)
+    if (!IniInt("Shadows", "TremerShadows")) {  // kIniKeys: default 1 (a missing key is added)
+        Log("shadows: [Shadows] TremerShadows=0: the Tremers' wall shadows stay the game's own (the Darkness does not apply to them)");
+        return;
+    }
+    if (!SiteOk(&kRib) || !SiteOk(&kRibUse)) {
+        Log("shadows: the Tremer's wall shadow draw %s is not stock (another mod?): the Darkness does not apply to it",
+            !SiteOk(&kRib) ? "0045F4C3" : "0045F1F9");
+        return;
+    }
+    if (!PokeBranch(0x45F4CA, 0xE8, (const void *)hkShRibbon, 5)) {
+        Log("shadows: 0045F4CA could not be written: the Tremers' wall shadows stay the game's own");
+        return;
+    }
+    g_shRibOn = 1;
+}
+
 // ---------------------------------------------------------------- the Shadows page's preview (Options frames)
 static int ShMode(int *why)
 {
@@ -1202,6 +1297,7 @@ static void ShFrameEnd(void)
     k.pauseFrame = (int)g_shPauseFrame;
     shown = ShPageShown();
     __try {
+        ShRibbonRoomEnd();  // v3.49 SH349
         const int paused = k.gameplay && (k.phase == 2 || k.capture != 0);
         if (!shown && ShCopiesFree(&k, &why)) ShDropCopies();  // v3.41 SH341: the contents end, the targets stay (was freed)
         if (!shown && g_shCardOn) ShDropCopies();
@@ -1325,4 +1421,11 @@ static void ShadowsInstall(void)
     Log("shadows: hooks in place (the composite's draw 0055FE43, the device reset 00402E0D); Edge %s; Soft %.1f px at 720 lines, "
         "scaled with the height (down, blur and up in 2x steps); preview %s", kShEdgeName[v], g_shSoftPx,
         !g_shPrevOn ? "off ([Shadows] Preview=0)" : g_fxPrevHook ? "on (the page backdrop 0x526A53)" : "off (no page backdrop hook)");
+    ShRibbonInstall();  // v3.49 SH349: after the composite's hooks (on its own: a failure here leaves them in)
+    Log("shadows: the edge and the Darkness cover every shadow the game draws: the real-time shadows of every caster in one stencil "
+        "mask a composite (the player and the weapon in hand, Eileen, Cynthia, enemies, ghosts, Room 302's hauntings, the boss room's "
+        "spears, event and cut-scene "
+        "figures), Edge and Darkness; the Tremers' wall shadows: %s; the shadows baked into the room textures (furniture, doors, "
+        "items, Room 302) are not drawn as shadows (left as painted)",
+        g_shRibOn ? "the Darkness (hook 0045F4CA; their edge is their texture's)" : "the game's own (no hook)");  // v3.49 SH349
 }

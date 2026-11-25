@@ -760,8 +760,47 @@ static void TestPx347(void)
     CHECK(ShPxVerdictT(cx.k, g, tr, a, &off) == SHX_COVER, "ShPxVerdictT on the coverage asked = ShPxVerdict (COVER)");
 }
 
+// v3.49 SH349: the Tremer's wall shadow (a subtractive ribbon, Cd - Cs x As) at the Darkness: the alpha byte scaled
+static void TestRibbon349(void)
+{
+    int k, a8, pct, worst = 0;
+    unsigned c;
+    // 100 % (and above): the game's colour untouched, every alpha
+    for (a8 = 0; a8 <= 255; ++a8) {
+        c = (unsigned)a8 << 24 | 0x808080u;
+        CHECK(ShRibbonColour(c, 100) == c && ShRibbonColour(c, 150) == c, "100 %%: untouched %08X", c);
+        CHECK(ShRibbonColour(c, 0) == 0x808080u && ShRibbonColour(c, -5) == 0x808080u, "0 %%: no darkening %08X", c);
+    }
+    // the stock 0x30 at the row's values: the share kept within half a byte, rgb never touched
+    for (k = 0; k < SH_DARK_N; ++k) {
+        const unsigned out = ShRibbonColour(0x30808080u, kShDarkPct[k]);
+        const float share = ShRibbonDark(out >> 24) / ShRibbonDark(0x30u), want = ShDarkD(kShDarkPct[k]);
+        CHECK((out & 0xFFFFFFu) == 0x808080u, "rgb kept at %d %%", kShDarkPct[k]);
+        CHECK(fabsf(share - want) <= 0.5f / 48.0f + 1e-6f, "0x30 at %d %%: share %.3f (want %.3f)", kShDarkPct[k], share, want);
+    }
+    CHECK(ShRibbonAlpha(0x30u, 85) == 0x29u && ShRibbonAlpha(0x30u, 70) == 0x22u && ShRibbonAlpha(0x30u, 55) == 0x1Au &&
+          ShRibbonAlpha(0x30u, 25) == 0x0Cu, "0x30: 85 %% 29, 70 %% 22, 55 %% 1A, 25 %% 0C (%02X %02X %02X %02X)", ShRibbonAlpha(0x30u, 85),
+          ShRibbonAlpha(0x30u, 70), ShRibbonAlpha(0x30u, 55), ShRibbonAlpha(0x30u, 25));
+    // monotonic in both the alpha and the percent; never darker than the game's; the fade (0x30 - i, i = 0..47) keeps order
+    for (pct = 0; pct <= 100; ++pct)
+        for (a8 = 0; a8 <= 255; ++a8) {
+            const unsigned o = ShRibbonAlpha((unsigned)a8, pct);
+            const int err = abs((int)o * 100 - a8 * pct);
+            CHECK(o <= (unsigned)a8, "never darker: a8 %d at %d %%", a8, pct);
+            if (a8) CHECK(ShRibbonAlpha((unsigned)a8 - 1u, pct) <= o, "monotonic in alpha %d at %d %%", a8, pct);
+            if (pct) CHECK(ShRibbonAlpha((unsigned)a8, pct - 1) <= o, "monotonic in percent %d at a8 %d", pct, a8);
+            CHECK(err <= 50, "rounding: a8 %d at %d %% -> %u", a8, pct, o);
+            if (err > worst) worst = err;
+        }
+    CHECK(ShRibbonAlpha(300u, 100) == 255u, "a byte above 255 clamped");
+    CHECK(ShRibbonKey(0x30u, 85) != ShRibbonKey(0x30u, 70) && ShRibbonKey(0x30u, 85) != ShRibbonKey(0u, 85), "the log key per value");
+    printf("tremer wall shadow (v3.49): 0x30 -> %02X at 85 %%, %02X at 25 %%; rounding within %.2f of a byte\n", ShRibbonAlpha(0x30u, 85),
+           ShRibbonAlpha(0x30u, 25), (float)worst / 100.0f);
+}
+
 int main(void)
 {
+    TestRibbon349();  // v3.49 SH349
     TestPx347();  // v3.47 PX347
     TestParse();
     TestFilter1D();

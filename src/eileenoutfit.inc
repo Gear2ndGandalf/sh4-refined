@@ -421,6 +421,7 @@ static int __cdecl eo_stage_c(const DWORD *entry, int r)
 {
     __try {
         if (*entry != EO_ID_EIL) return r;
+        RzlOutfitWorld();  // v3.49 RZ349L: Randomizer > Eileen Outfit Random draws this world visit's outfit (rzlooks.inc)
         if (eo_outfit >= 0) {
             eo_world = 3;                              // this world loads both models
             return EO_CALL1(0x573470, EO_ID_EIL + 1);  // request eol.bin too
@@ -439,6 +440,7 @@ static void __cdecl eo_room_c(DWORD ret)
     DWORD l;
     if (ret == 0x4F3826) return;  // the neighbour preload task's call: leave it alone
     __try {
+        RzlOutfitRoom();  // v3.49 RZ349L: Randomizer > Eileen Outfit (a draw switched on mid-visit; Off / no Eileen: set outfit back)
         if (!(eo_scan() & 0x33)) eo_world = 0;  // no Eileen model in this world
         if (eo_apply) {                         // a pending swap is done by this room's spawn instead
             eo_apply = 0;

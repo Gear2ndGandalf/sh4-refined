@@ -346,7 +346,7 @@ static void BloodInstall(void)
 }
 
 // ---------------------------------------------------------------- Option 5 pages: settings
-static const int kGpCount[GP_N] = { 4, 4, 4, 2, 3, 4, 3, 3, 4, 3, 4, 2 };  // v3.38 DR338: Supply Drops 3 -> 4 (+ Rare)  // v3.30 MERGE: AS330 After Shock 2 -> 4; ECHO330 Echo 4 -> 3, + Echo Count 3; EN330 + Revive 2  // the values a press steps through (v3.29 AFTERIMAGE: + 2; v3.30 ECHO: + 4)  // v3.31 ENEMIES: + 4, 3  // SUPPLY DROPS: + 3
+static const int kGpCount[GP_N] = { 4, 4, 4, 2, 3, 4, 3, 3, 4, 4, 4, 2 };  // v3.49 EF349: Enemies Follow 3 -> 4 (+ Victims Only)  // v3.38 DR338: Supply Drops 3 -> 4 (+ Rare)  // v3.30 MERGE: AS330 After Shock 2 -> 4; ECHO330 Echo 4 -> 3, + Echo Count 3; EN330 + Revive 2  // the values a press steps through (v3.29 AFTERIMAGE: + 2; v3.30 ECHO: + 4)  // v3.31 ENEMIES: + 4, 3  // SUPPLY DROPS: + 3
 static const char *const kGpIniKey[GP_N] = { "MoveSpeed", "MedallionDurability", NULL, "OneHitKill", "DeathPresence",
                                              "AfterImage",  // v3.29 AFTERIMAGE
                                              "Echo",  // v3.30 ECHO: + Echo
@@ -364,7 +364,7 @@ static const char *const kGpName[GP_N][GP_VMAX] = {
     { "Off", "Shadow Copy", "Shadow Cast" },  // v3.30 ECHO330 (echo_sim.h ECHO_*; v3.29's Shadow / Twin / Mirror read as Shadow Copy)
     { "1", "2", "3" },  // v3.30 ECHO330: Echo Count
     { "Off", "x2", "x3", "x4" },                  // v3.31 ENEMIES: Enemy Copies
-    { "Off", "Monsters", "Monsters + Victims" },  // v3.31 ENEMIES: Enemies Follow (a long value: GpLongValW)
+    { "Off", "Monsters", "Victims Only", "Monsters + Victims" },  // v3.31 ENEMIES: Enemies Follow (a long value: GpLongValW)  // v3.49 EF349: + Victims Only (enemies_sim.h ENM_FOLLOW_*, the same order)
     { "Off", "Rare", "Normal", "Abundant" },  // SUPPLY DROPS (v3.38 DR338: + Rare, Generous -> Abundant; drops.inc kDropLevelName, same order)
     { "Off", "On" },  // v3.30 EN330: Revive Enemies
 };
@@ -945,7 +945,7 @@ typedef char GpPlayerRowsFit[1 + 3 + PC_COUNT <= GP_N + PC_COUNT ? 1 : -1];  // 
 typedef char GpEnemyFits[6 * 7 + 1 <= sizeof g_rowsEnemy / sizeof g_rowsEnemy[0] ? 1 : -1];
 typedef char GpSpecialFits[6 * 7 + 1 <= sizeof g_rowsSpecial / sizeof g_rowsSpecial[0] ? 1 : -1];  // v3.43 GT343: 5 -> 6 (+ Ghost Teleport)
 typedef char GpPlayFits[GPT_N * 7 + 1 <= sizeof g_rowsPlay / sizeof g_rowsPlay[0] ? 1 : -1];  // v3.48 RZ348: 10 rows
-typedef char GpRandoFits[(6 + 1) * 7 + 1 <= sizeof g_rowsRando / sizeof g_rowsRando[0] ? 1 : -1];  // v3.48 RZ348: 6 rows + Back (r2: + Change Each Visit)
+typedef char GpRandoFits[(9 + 1) * 7 + 1 <= sizeof g_rowsRando / sizeof g_rowsRando[0] ? 1 : -1];  // v3.48 RZ348: 6 rows + Back (r2: + Change Each Visit)  // v3.49 RZ349: 7 rows (+ Monsters)  // v3.49 MERGE: 9 rows (+ RZ349L Eileen Outfit, Ghosts) + Back = 10 of 11
 // a folder row on Option 5: a copy of the Button Config record (no value) with our input / label / description
 static void GpFolderRow(DWORD *r, const DWORD *bcRow, const void *input, int label, const void *desc)
 {

@@ -1,6 +1,6 @@
 # SH4 Refined
 
-**Current version: v3.48.0 (tested by the author)**
+**Current version: v3.49.0 (new, not yet tested in game; the last tested version is v3.48.0, see Versions below)**
 
 SH4 Refined is a fan-made enhancement mod for the PC version of **Silent Hill 4: The Room** sold by GOG. It is a
 single `winmm.dll` that the game loads from its own folder: no loader, no installer and no changes to the game's exe
@@ -30,7 +30,8 @@ randomizer, all switched from new pages in the game's own Options menu and saved
 - Depth of field, bloom, colour grading and an Otherworld lens; ten blood colours.
 
 **Shadows**
-- A Shadows page with soft shadow edges, shadow darkness and a split-view preview.
+- A Shadows page with soft shadow edges, shadow darkness and a split-view preview, for every real-time shadow the game
+  draws (characters, enemies, ghosts, hauntings, figures in cut-scenes); Darkness also on the Tremers' wall shadows.
 
 **Menus and fonts**
 - HD menu font: EB Garamond, Cormorant Garamond or Crimson Text (or the game's own).
@@ -39,20 +40,25 @@ randomizer, all switched from new pages in the game's own Options menu and saved
 
 **Controls**
 - **Omni-Directional Movement**: the left stick walks at any angle, and a lighter push walks slower (Off = the game's
-  own 8 directions).
+  own 8 directions); in Room 302 the right stick turns the first-person view smoothly (analog).
 - Vibration strength (Off / Low / Medium / High).
 
 **Gameplay options** (all Off by default)
 - Player: Movement Speed, Medallion Durability, Regeneration, Ammo Saver, Dark Pact, Grab Breaker, Quick Charge,
   Life Steal, Curse Meter.
-- Enemies: One-Hit Kill, Enemy Copies, Enemies Follow, Enemy Health Bars, Supply Drops, Revive Enemies.
+- Enemies: One-Hit Kill, Enemy Copies, Enemies Follow (Monsters, Victims Only or both), Enemy Health Bars, Supply
+  Drops, Revive Enemies.
 - Special: Death Presence (a draining fog around you), After Shock (electric after-images), Echo Doubles (shadow
-  copies that fight with you), Ghost Teleport.
+  copies that fight with you), Ghost Teleport (hold the chord to keep warping; never past a cut-scene trigger).
 - Also on the Gameplay page: No Clip, Extended Toolbelt (20 items on two pages), Stackable Items.
 
 **Randomizer**
 - Item and weapon pickups: Shuffle or Random, Keep Specials, Room 302 in or out, new items each visit, a seed you can
-  replay. Nothing is written into your saves.
+  replay.
+- Monsters (v3.49): each enemy rolls its own type from this room's or this world's monsters; story and boss spawns
+  never change.
+- Eileen's outfit (the companion; only outfits your save has unlocked) and victim ghosts' starting spots (v3.49).
+- Nothing randomized is written into your saves.
 
 **Quality of life**
 - Quick Save (F5) / Quick Load (F9), kept after a restart; Save Banks (up to 99 banks of save slots).
@@ -108,7 +114,10 @@ Python tools need Python 3 (some previews use NumPy, Pillow and SciPy). Build no
 ## Versions
 
 The current version is named at the top of this page. Every release, newest changes included, is described in the
-history of [docs/FULL_README.md](docs/FULL_README.md#history).
+history of [docs/FULL_README.md](docs/FULL_README.md#history). v3.49.0 adds the monster, outfit and ghost randomizer,
+Victims Only, continuous Ghost Teleport with a crash fix, the blue highlight bar in the save lists and Room 302's
+analog look; it has passed its tests and code review but not yet a play test. To stay on the tested v3.48.0, take
+the repository as of the commit "SH4 Refined v3.48.0" (the Install folder there).
 
 ## Credits
 

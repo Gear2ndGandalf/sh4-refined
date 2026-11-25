@@ -17,6 +17,7 @@
 #define SAVEBANKS_SIM_H
 
 #include <stdio.h>
+#include <string.h>  // v3.49 SB349: SbBarParse
 
 #define SB_ROW_CX 256     // the row's centre x (the list's middle)
 #define SB_ROW_Y 0x24     // the row's top / text y (as v3.8 .. v3.46)
@@ -215,6 +216,72 @@ static int SbSettleLine(const SbSettle *s, int to, const char *list, char *out, 
                     s->from, to, list ? list : "?", s->steps, s->steps == 1 ? "" : "s", s->src[SB_SRC_KEYS],
                     s->src[SB_SRC_PAD], s->src[SB_SRC_MOUSE], s->by10);
     return k > 0 ? k : -1;
+}
+
+// ---------------------------------------------------------------- v3.49 SB349: the list's highlight bar (blue)
+// USER_FEEDBACK_v348.md item 2 / A: the save / load list's cursor bar (56FDA0 MenuDrawListCursorBar) is the game's yellow
+// (colour 0x80 | g << 8 | r = a, a quad over the red background); the user wants the game's blue menu bar, the one the
+// stock game draws behind a selected game-mode / difficulty row (56FCC0 MenuDrawModeRowBar style 0) and Refined's Bank
+// row (sb_bar) draws. Both bars share the pulse (13D1A08), the quad call (563D20) and the batch flags (564210 0x48, 0x46,
+// 0x31003): only the colour word differs. Colours are the game's 0xAABBGGRR. The patch rewrites the colour's three
+// instructions at 56FDCF into 56FCC0's (11 bytes, same length; no jump lands inside them):
+//   stock  81 CE 00 00 80 FF  or esi, 0FF800000h / C1 E6 08 shl esi, 8  / 0B F0 or esi, eax  -> 0x8000aaaa (yellow)
+//   blue   81 CE 00 80 FF FF  or esi, 0FFFF8000h / C1 E6 10 shl esi, 10h / 90 90 (nops)       -> 0x80aa0000 (blue)
+// esi = eax = the pulse a (movzx) on entry; the list's unfocused a = 0x60 (13D1A6C = 0) is kept.
+enum { SB_BAR_YELLOW, SB_BAR_BLUE };
+#define SB_BAR_VA 0x56FDCF
+#define SB_BAR_LEN 11
+static const unsigned char kSbBarStock[SB_BAR_LEN] = { 0x81, 0xCE, 0x00, 0x00, 0x80, 0xFF, 0xC1, 0xE6, 0x08, 0x0B, 0xF0 };
+static const unsigned char kSbBarBlue[SB_BAR_LEN] = { 0x81, 0xCE, 0x00, 0x80, 0xFF, 0xFF, 0xC1, 0xE6, 0x10, 0x90, 0x90 };
+
+// [SaveBanks] ListBar: Blue (default) / Yellow, also 1 / 0 (case does not matter). *known = 0: anything else (Blue).
+static int SbBarParse(const char *s, int *known)
+{
+    int k = 1, r = SB_BAR_BLUE;
+    if (!s || !*s || !_stricmp(s, "Blue") || !strcmp(s, "1")) r = SB_BAR_BLUE;
+    else if (!_stricmp(s, "Yellow") || !strcmp(s, "0")) r = SB_BAR_YELLOW;
+    else k = 0;
+    if (known) *known = k;
+    return r;
+}
+
+// The menus' pulse (MENU_PULSE of 56FA50 / 56FCC0 / 56FDA0) from the frame counter's low byte: 0x40 .. 0x80.
+static unsigned SbPulse(unsigned char c)
+{
+    return c & 0x20 ? (unsigned)(unsigned char)(((c & 0x1F) + 0x20) << 1) : (unsigned)(unsigned char)((0x40 - (c & 0x1F)) << 1);
+}
+
+// The list bar's colour as 56FDA0 draws it: focused = [13D1A6C] != 0 (else a = 0x60); blue = the patch.
+static unsigned SbListBarColour(unsigned char frame, int focused, int blue)
+{
+    const unsigned a = focused ? SbPulse(frame) : 0x60u;
+    return blue ? 0x80000000u | a << 16 : 0x80000000u | a << 8 | a;
+}
+
+// A model of the byte runs above (the native test runs both): esi = eax = a on entry; returns esi, 0xFFFFFFFF = an
+// opcode the model does not know.
+static unsigned SbBarExec(const unsigned char *c, int len, unsigned a)
+{
+    unsigned esi = a, imm;
+    int i = 0;
+    while (i < len) {
+        if (c[i] == 0x81 && i + 6 <= len && c[i + 1] == 0xCE) {  // or esi, imm32
+            imm = c[i + 2] | c[i + 3] << 8 | c[i + 4] << 16 | (unsigned)c[i + 5] << 24;
+            esi |= imm;
+            i += 6;
+        } else if (c[i] == 0xC1 && i + 3 <= len && c[i + 1] == 0xE6) {  // shl esi, imm8
+            esi <<= c[i + 2] & 31;
+            i += 3;
+        } else if (c[i] == 0x0B && i + 2 <= len && c[i + 1] == 0xF0) {  // or esi, eax
+            esi |= a;
+            i += 2;
+        } else if (c[i] == 0x90) {
+            ++i;
+        } else {
+            return 0xFFFFFFFFu;
+        }
+    }
+    return esi;
 }
 
 #endif

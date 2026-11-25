@@ -432,6 +432,30 @@ V348F = V333_END + """10:00:00.050 omni: [Input] OmniMove=2 (v3.46 / v3.47) is O
 10:00:04.000 omni: faulted (code C0000005): Omni-Directional Movement is off for this session
 10:00:04.001 ANOMALY: omni: the stick hook faulted: Omni-Directional Movement is off for this session
 """
+# v3.49 LK349: the analog look ([Input] OmniLook; omni.inc OmInstall / OmReadLook / OmIniReread / OmLookBindNow /
+# OmLookCheckLog / OmLookFlush), in the formats the dll writes
+OL_START = ("omni: look: [Input] OmniLook %s (the analog look in Room 302's first-person view; while Omni-Directional Movement is "
+            "On, with GetDeviceState the confirmed source and the look on a stick: the raw stick into stick[1] 01236C54 / "
+            "01236C58, dead zone 0.20); Room 302's X-turns rule for the left stick's x: on")
+OL_COUNT = ("[v] omni: look: %s, %d s (%s): the look stick pushed %d frame(s): %d analog (OmniLook Room302), the game's own %d "
+            "(OmniLook not here %d, a look key %d, no pad read %d, look self-check %s %d, look not on a stick %d); the game's "
+            "reversal latch %d frame(s) (x %d, y %d); a push the game's 8-way look missed %d frame(s); the right stick's turn "
+            "kept from a small sideways push %d frame(s) (X turns)")
+V349L = V333_END + "10:00:00.100 " + OM_INSTALL % ('in', 'On', '0.30') + """
+10:00:00.101 """ + OL_START % 'Room302' + """
+10:00:05.000 omni: look bindings: LookRight 1403, LookLeft 1401, LookUp 0801, LookDown 0803 = the right stick (stock)
+10:00:06.000 omni: look self-check: GetDeviceState 40 of 40 agree with the game's look bits: the analog look is on (OmniLook Room302)
+10:05:00.000 """ + OL_COUNT % ('Room 302', 294, 'left', 5000, 4900, 100, 0, 60, 30, 'GetDeviceState', 10, 0, 120, 80, 40, 700, 2000) + """
+10:06:00.000 omni: [Input] OmniLook read again: All (was Room302)
+10:07:00.000 """ + OL_COUNT % ('stage 2', 60, 'Omni-Directional Movement Off', 300, 0, 300, 300, 0, 0, 'pending', 0, 0, 5, 5, 0, 20, 0) + """
+10:08:00.000 omni: [Input] OmniLook=Sometimes is not Off, Room302 or All (0, 1, 2): Room302
+"""
+V349LN = V333_END + "10:00:00.100 " + OM_INSTALL % ('in', 'On', '0.30') + """
+10:00:00.101 """ + OL_START % 'Room302' + """
+10:00:05.000 omni: look bindings: LookRight 3180, LookLeft 3280, LookUp 3380, LookDown 3480 = not a stick: the game's own look (no analog look)
+10:00:06.000 omni: look self-check: GetDeviceState 3 of 40 agree with the game's look bits: the game's own 8-way look stays this session
+10:00:06.001 ANOMALY: omni: the look stick's GetDeviceState axes agreed with the game's look bits in only 3 of 40 frames: no analog look this session
+"""
 V348W = V333_END + """10:00:00.050 omni: [Input] OmniMove=Direction (v3.46 / v3.47) is On now (Omni-Directional Movement: Off / On; On = v3.47's Analog): not written (SH4Refined.ini could not be made this start: nothing is written)
 10:00:00.100 """ + OM_INSTALL % ('in', 'On', '0.30') + """
 10:00:00.200 omni: Option 2's table is not the stock one (10001234, 9 rows): no Omni-Directional Movement row; [Input] OmniMove still applies
@@ -463,10 +487,85 @@ V348RZ = V333_END + """10:00:00.040 randomizer: [Randomizer] Seed was "0" (missi
 10:02:30.000 randomizer: stage 3 visit 1: Random, 12 of 18 pickup(s) in the pool (1 weapon spot(s)), 9 changed (seed 777, Keep Specials On, Room 302 In, Change Each Visit Off, world visit 0); Holy Candle 0 (stock 0), Saint Medallion 0 (stock 0), Sword of Obedience 0 (stock 1), weapons 1 (stock 1); fewer Swords of Obedience than the stock (no guarantee)
 10:09:00.000 randomizer: session: Items Shuffle (seed 777, Keep Specials On, Room 302 In, Change Each Visit Off): 40 room load(s), 3 with pickups in the pool, 4 pickup(s) changed, 2 weapon(s) placed, 3 plan(s), 1 word(s) left as found
 """
+# v3.49 EF349: Enemies Follow's value: the install line, the value's own lines, a change to Victims Only and back, the
+# monsters sent home (enemies.inc EnmFollowSay / EnmPursueDropMonsters / EnmMonstersHomeAtLoad)
+V349F = V333_END + """10:00:00.200 enemies: in (room load 004F0AF8, kill count 00450DB0, bone pool 00419830, victims 00486199, room change 004F0A5A, save 00465438); EnemyCopies x2, EnemyFollow Monsters + Victims, EnemyRevive Off, BonePool -1 (-1 Auto = 4096 while Copies or Follow is on), FollowMax 32, FollowDelay 3.0 s, FollowRange 800, CopyStoryGhosts 1, ReviveEventDogs 1, FollowCopies 1, FollowRangeVictims 1500 (v3.38: every ghost in the room follows), FollowKeepDoors -1 (-1 = Always: the whole world visit), LateCopies 1, DownKeep 0 (the game's own down countdown), FollowStoryGhosts 1
+10:00:01.000 enemies: Enemies Follow Monsters + Victims: monsters and the victims' ghosts follow you through doors (the story ghosts too, and their copies)
+10:00:05.000 gameplay: EnemyFollow Victims Only
+10:00:05.100 enemies: Enemies Follow Victims Only: only the victims' ghosts follow you through doors (the story ghosts too, and their copies); monsters and their copies stay in their rooms (any left in other rooms go home at the next room load)
+10:00:05.101 [v] enemies: 2 monster(s) and monster cop(ies) stop pursuing you: Enemies Follow takes no monsters now (Victims Only)
+10:00:09.000 enemies: Enemies Follow is Victims Only: 2 monster(s) left in other rooms went home (0 of them killed there: they stay dead)
+10:00:09.001 enemies: Enemies Follow is Victims Only: 1 monster copy that followed you is made in its own room again (ghost copies stay)
+10:00:12.000 enemies: through door 7 from room 4 to 5: 1 follow (0 monster(s), 0 of them copies, 1 ghost(s); 1 from that room, 0 pursuing from other rooms or on their way): FFFF0007 ghost 0B; 0 wait for a later door (0 FollowMax 32 full, 0 files, 0 story rule, 0 down in their room), 0 already here, 0 stopped, 0 in that room had not spotted you
+10:01:00.000 gameplay: [Gameplay] EnemyFollow read again: Monsters + Victims
+10:01:00.100 enemies: Enemies Follow Monsters + Victims: monsters and the victims' ghosts follow you through doors (the story ghosts too, and their copies)
+"""
+# v3.49 EF349: Victims Only from the start, a menu value that could not be saved, Off with the copies' ledger cleared
+V349F2 = V333_END + """10:00:00.200 enemies: in (room load 004F0AF8, kill count 00450DB0, bone pool 00419830); EnemyCopies Off, EnemyFollow Victims Only, EnemyRevive Off, BonePool -1 (-1 Auto = 4096 while Copies or Follow is on), FollowMax 32
+10:00:01.000 enemies: Enemies Follow Victims Only: only the victims' ghosts follow you through doors (the story ghosts too, and their copies); but 00486199 is not in: no ghost can follow, so nobody does
+10:00:30.000 gameplay: EnemyFollow Off applies now but could not be saved in SH4Refined.ini (error 5): it is lost at the next start
+10:00:40.000 enemies: Enemies Follow is off: 3 copies that followed you are made in their own rooms again
+"""
+# v3.49 EF349: Off all along: no setting line
+V349F3 = V333_END + """10:00:00.200 enemies: in (room load 004F0AF8, kill count 00450DB0, bone pool 00419830); EnemyCopies Off, EnemyFollow Off, EnemyRevive Off, BonePool -1
+10:00:01.000 enemies: Enemies Follow Off: nobody follows you through doors
+"""
 V348RZB = V333_END + """10:00:00.040 randomizer: [Randomizer] Items "Randomize" is not Off / Shuffle / Random: Random (the default)
 10:00:00.041 """ + RZ_INSTALL % ('Random', 136, ': some scripts are not the stock ones (their pickups are left alone)') + """
 10:00:06.000 ANOMALY: randomizer: stage 2 visit 1: the script at 00683AA0 is not the stock one (17 plain pickup(s), 7 weapon spot(s)): its pickups are left alone
 10:00:07.000 randomizer: stage 5 visit 1: Shuffle, 25 of 25 pickup(s) in the pool (5 weapon spot(s)), 20 changed (seed 1, Keep Specials Off, Room 302 In, Change Each Visit On, world visit 3); Holy Candle 4 (stock 4), Saint Medallion 1 (stock 1), Sword of Obedience 1 (stock 1), weapons 5 (stock 5); SOME ITEMS COULD NOT BE PLACED (they keep their spots)
+"""
+# v3.49 RZ349: the Randomizer's Monsters (rzmon.inc)
+RZM_INSTALL = ('randomizer: [Randomizer] Monsters %s; self-check: %d source placement(s) of 783 enemy placement(s) in 17 script(s) (stock '
+               '235 / 783)%s; targets Whitestool, Hummer, Gum Head, Gum Head (v1), Twin Victim, Twin Victim (v1), Tremer, Sniffer Dog, '
+               'Sniffer Dog (v1) (Gum Heads only with a crash guard); applied at each room load through 004F0AF8 (patch-and-restore of '
+               'the type / mode / y words); save filter 00465468 %s')
+V349RZM = V333_END + """10:00:00.041 """ + RZ_INSTALL % ('Random', 137, ': the stock scripts') + """
+10:00:00.042 """ + RZM_INSTALL % ('This World', 235, ': the stock scripts', 'in') + """
+10:00:05.000 randomizer: monsters: Gum Heads may be rolled (Playable Eileen's crash guard of the Gum Head's group call: 0049B70A in, 0045C3C0 in)
+10:00:05.001 randomizer: monsters: the first room with source placements (stage 2 room 4): Monsters This World
+10:00:05.002 randomizer: monsters: Twin Victim is no monster of stage 2's scripts: its sounds may be missing there (allowed)
+10:00:05.003 randomizer: monsters: room 2:4 (visit 0, #1): 1 of 1 placement(s) changed (This World): Tremer 1; 0 kept their record's type, 0 record(s) deleted; kept as placed: 0 for the bone budget, 0 for files, 0 without a floor; files loaded for 1 type(s) (612 KB)
+10:00:05.004 [v] randomizer: monsters: room 2:4: n1 Sniffer Dog v0 -> Tremer v0
+10:00:30.000 randomizer: monsters: room 2:5 (visit 0, #2): 1 of 3 placement(s) changed (This World): Gum Head 1, Sniffer Dog 2; 1 kept their record's type, 1 record(s) deleted; kept as placed: 1 for the bone budget, 0 for files, 0 without a floor; some words were not the stock value: left as found; files loaded for 0 type(s) (0 KB)
+10:00:30.001 ANOMALY: randomizer: monsters: room 2:5: 1 placement word(s) did not hold the stock value (another mod?): left as found
+10:01:00.000 randomizer: Monsters This Room (was This World; applies at the next room load)
+10:01:10.000 randomizer: monsters: room 3:5: Twin Victim's files could not be loaded (16 extra files in this room already): its placements stay as placed
+10:01:20.000 randomizer: monsters: the cheat table's Enemy Randomizer (entry 7700: 0052CAA9 / 0052CB2B) is on: Refined's Monsters stay off while it is (it retypes the placements itself)
+10:01:40.000 randomizer: monsters: the cheat table's Enemy Randomizer (entry 7700: 0052CAA9 / 0052CB2B) is off again: Refined's Monsters apply again
+10:02:00.000 randomizer: Monsters Off (was This Room; applies at the next room load)
+10:02:10.000 randomizer: monsters: room 4:11: 2 record(s) of monsters made as another type before are deleted (they come back as placed)
+10:02:20.000 randomizer: [Randomizer] Monsters read again: This World (applies at the next room load)
+10:03:00.000 randomizer: monsters: a save: 1 record(s) of monsters made as another type are left out of it (they come back as placed after a load)
+10:03:00.001 [v] randomizer: monsters: a save: 02050003 (made as Gum Head v0, placed as another type) is left out of it
+10:09:00.000 randomizer: session: Items Random (seed 123456, Keep Specials Off, Room 302 In, Change Each Visit On): 40 room load(s), 0 with pickups in the pool, 0 pickup(s) changed, 0 weapon(s) placed, 1 plan(s), 0 word(s) left as found
+10:09:00.001 randomizer: monsters session: This World (seed 123456, Change Each Visit On): 40 room load(s), 2 with source placements randomized, 2 placement(s) changed, 1 kept their record's type, 1 record(s) deleted (+2 with Monsters off); kept as placed: 1 for the bone budget, 1 for files, 0 without a floor; files loaded 1 time(s) (612 KB); 1 room load(s) with the cheat table's Enemy Randomizer on; 1 save(s), 1 record(s) left out; 1 word(s) left as found
+"""
+V349RZMB = V333_END + """10:00:00.040 randomizer: [Randomizer] Monsters "Everywhere" is not Off / This Room / This World: This World (the default)
+10:00:00.042 """ + RZM_INSTALL % ('This World', 230, ': some scripts are not the stock ones (their monsters are left alone)',
+                                   'NOT in (unexpected bytes: a save may hold randomized monsters)') + """
+10:00:05.000 randomizer: monsters: Gum Heads are never rolled (Playable Eileen's crash guard of the Gum Head's group call: 0049B70A not in, 0045C3C0 not in)
+10:00:05.001 randomizer: monsters: the hit-shape pool is the stock 100 ([Gameplay] HitPool): Monsters stay as placed (a new type may need more shapes than the room's own)
+10:00:06.000 ANOMALY: randomizer: monsters: stage 2 visit 1: the script at 00683AA0 is not the stock one (20 source placement(s) of 53): its monsters are left alone
+"""
+# v3.49 RZ349L: the Randomizer's looks (rzlooks.inc), in the formats the dll writes
+V349RZL = V333_END + """10:00:00.040 randomizer: [Randomizer] Ghosts "Rooms" is not Off / Spots: Spots (the default)
+10:00:00.041 randomizer: looks: [Randomizer] EileenOutfit Random, Ghosts Spots (companion Eileen's outfit once per world visit among the unlocked ones; victim ghosts at another spot of their room: patch-and-restore of their position words, no exe patch)
+10:00:04.000 randomizer: outfit: world visit 1 (stage 7, half 1, at her world's file list): Nurse (seed 123456, Change Each Visit On; unlocked: Dress, Nurse; the set outfit Default)
+10:00:05.000 randomizer: looks: the first room load (stage 7 room 1): Eileen Outfit Random, the companion only: Playable Eileen dresses the player ([Variant] in SH4PlayableEileen.ini); Ghosts Spots, victim ghosts, never the story ghosts
+10:00:20.000 randomizer: outfit: Dress chosen in the Extra Menu: kept until the next world visit
+10:01:00.000 randomizer: outfit: back to the set outfit Default (a world without her)
+10:02:00.000 randomizer: outfit: world visit 3 (stage 5, half 2, at a room load): only the Dress is unlocked in this save: her outfit stays Default
+10:02:05.000 randomizer: ghosts: room 5:13 (#1): 2 of 2 victim(s) moved (seed 123456, Change Each Visit On): FFFF0006 0B v1 -1200 0 -1100 -> -400 0 -600 (12 of 30 fit); FFFF0001 0B v2 -3400 0 1900 -> -2600 0 1500 (9 of 27 fit)
+10:02:40.000 randomizer: ghosts: room 5:13 (#2): 1 of 2 victim(s) moved (seed 123456, Change Each Visit On): FFFF0006 0B v1 -1200 0 -1100 -> -700 0 -300 (11 of 30 fit); FFFF0001 0B v2 -3400 0 1900 kept (no spot fits, 0 of 25)
+10:02:50.000 ANOMALY: randomizer: ghosts: room 5:16: 1 victim(s) whose position words did not hold the stock value (another mod?): left as found
+10:03:00.000 randomizer: Ghosts Off (was Spots; applies at the next room load)
+10:03:01.000 randomizer: [Randomizer] EileenOutfit read again: Off (applies at the next room load)
+10:03:02.000 randomizer: outfit: back to the set outfit Default (Eileen Outfit Off)
+10:09:00.000 randomizer: looks session: Eileen Outfit Off: 3 world visit(s), 1 draw(s) (Dress 0, Nurse 1), 1 with only the Dress unlocked, 2 back to the set outfit, 1 chosen in the Extra Menu; Ghosts Off: 2 room load(s) with victims, 4 victim(s), 3 moved, 1 kept, 1 left as found
+"""
+V349RZLB = V333_END + """10:00:05.000 randomizer: looks: the first room load (stage 2 room 1): Eileen Outfit Random, NOT available: the outfit engine is off ([EileenOutfit] Enabled 0, or its sites are not stock); Ghosts Spots, the cheat table's Enemy Randomizer is on: ghosts left alone
+10:00:05.001 randomizer: ghosts: the cheat table's Enemy Randomizer (0052CAA9 / 0052CB2B) is on: the ghosts start where the game puts them
 """
 RG_WHO_PE = "Playable Eileen's own regeneration (Refined's row grey, Off)"
 V347R = V333_END + """10:00:00.050 settings: [Gameplay] Regen was missing, added as "x1" (from Playable Eileen's [Defense] Regen 1 / RegenRate 15, as the v3.46 row showed it)
@@ -510,6 +609,20 @@ V340S = V333_END + """10:00:00.100 shadows: hooks in place (the composite's draw
 10:05:00.000 shadows: off for this session: a render target could not be set (hr 80004005, the soft composite): the game's own shadow edge from now on
 """
 
+# v3.49 SH349: the coverage line and the Tremers' wall shadows at the Darkness (hook 0x45F4CA); then the switch off
+V349S = V333_END + """10:00:00.100 shadows: Darkness 85 % (of the game's inside darkness, after Playable Eileen's ShadowDarkness; Stock and Soft)
+10:00:00.101 shadows: hooks in place (the composite's draw 0055FE43, the device reset 00402E0D); Edge Soft; Soft 12.0 px at 720 lines, scaled with the height (down, blur and up in 2x steps); preview on (the page backdrop 0x526A53)
+10:00:00.102 shadows: the edge and the Darkness cover every shadow the game draws: the real-time shadows of every caster in one stencil mask a composite (the player and the weapon in hand, Eileen, Cynthia, enemies, ghosts, Room 302's hauntings, the boss room's spears, event and cut-scene figures), Edge and Darkness; the Tremers' wall shadows: the Darkness (hook 0045F4CA; their edge is their texture's); the shadows baked into the room textures (furniture, doors, items, Room 302) are not drawn as shadows (left as painted)
+10:01:00.000 [v] shadows: a Tremer's wall shadow drawn at Darkness 85 %: its alpha 30 -> 29 (85 % of the game's darkening; subtractive ribbon 0x45F1E0, its edge is its texture's)
+10:01:05.000 [v] shadows: a Tremer's wall shadow drawn at Darkness 85 %: its alpha 1A -> 16 (85 % of the game's darkening; subtractive ribbon 0x45F1E0, its edge is its texture's)
+10:02:00.000 [v] shadows: room 4:0C: 640 Tremer wall shadow draw(s), 600 at the Darkness (85 %; alpha 08..30 asked)
+10:02:00.001 [v] shadows: room 4:0C: 1200 composites over 1200 frames (at most 1 in a frame), 1200 soft; ours 0.050 ms a composite on average, 0.300 at most; edge Soft; render targets 4.8 MB; darkness 85 %
+"""
+V349SOFF = V333_END + """10:00:00.101 shadows: hooks in place (the composite's draw 0055FE43, the device reset 00402E0D); Edge Stock; Soft 12.0 px at 720 lines, scaled with the height (down, blur and up in 2x steps); preview on (the page backdrop 0x526A53)
+10:00:00.102 shadows: [Shadows] TremerShadows=0: the Tremers' wall shadows stay the game's own (the Darkness does not apply to them)
+10:00:00.103 shadows: the edge and the Darkness cover every shadow the game draws: the real-time shadows of every caster in one stencil mask a composite (the player and the weapon in hand, Eileen, Cynthia, enemies, ghosts, Room 302's hauntings, the boss room's spears, event and cut-scene figures), Edge and Darkness; the Tremers' wall shadows: the game's own (no hook); the shadows baked into the room textures (furniture, doors, items, Room 302) are not drawn as shadows (left as painted)
+"""
+
 
 
 V344G = V333_END + """10:00:00.200 ghost teleport: in (no exe patch; 24 game functions checked), [Gameplay] GhostTeleport On; Run + Action together (within 80 ms): behind the nearest standing enemy within 2500 u, else 800 u ahead the way she faces, cooldown 3.0 s; Richard's transition: his warp sound 0xEC86 on, his see-through fade (0.5 s out, 0.5 s in) on her model in
@@ -525,6 +638,23 @@ V344G = V333_END + """10:00:00.200 ghost teleport: in (no exe patch; 24 game fun
 10:01:20.400 [v] ghost teleport: Richard's fade ended (drawn see-through on 12 body and 0 weapon draw(s))
 10:01:30.000 [v] ghost teleport: not now: no free floor ahead of her in this room (no standing enemy within 2500 u; 7 tries from 800 down to 200 u, 2 door line(s): a wall between 7)
 10:01:40.000 [v] ghost teleport: not now: Room 302
+"""
+
+# v3.49 GT349: v3.48's chord lines (with "; a later call-off keeps it"), a hold, the room's event zones, a refusal for one
+V349G = V333_END + """10:00:00.200 ghost teleport: in (no exe patch; 29 game functions checked), [Gameplay] GhostTeleport On; Run + Action together (within 80 ms): behind the nearest standing enemy within 2500 u, else 800 u ahead the way she faces, cooldown 0.0 s; held: the next warp once she has faded in; never across or into a walk-in event zone; Richard's transition: his warp sound 0xEC86 on, his see-through fade (0.5 s out, 0.5 s in) on her model in
+10:01:00.000 [v] ghost teleport: room 2:2: 1 walk-in event zone(s) the game would still fire: no warp across or into them (key 00A box at (10, -2147) 1050 x 447) (0 other zone(s) need a press or a look)
+10:01:00.001 [v] ghost teleport: Run + Action (Action last: its own use taken back; a later call-off keeps it): Richard's fade out (0.5 s), then 800 u ahead the way she faces
+10:01:00.500 [v] ghost teleport: ahead 800 u the way she faces (no standing enemy within 2500 u; try 1 of 7, floor +0 u of hers): from (-31, -6024) to (46, -5228) (the fade began at (-57, -6322)); cooldown 0.0 s (warp 1; same room: 6 door line(s), box in)
+10:01:01.000 [v] ghost teleport: Richard's fade ended (drawn see-through on 30 body and 30 weapon draw(s))
+10:01:01.020 [v] ghost teleport: Run + Action (held: the next warp; a later call-off keeps it): Richard's fade out (0.5 s), then 800 u ahead the way she faces
+10:01:01.520 [v] ghost teleport: ahead 800 u the way she faces (no standing enemy within 2500 u; try 1 of 7, floor +0 u of hers): from (46, -5228) to (46, -4428) (the fade began at (46, -5228)); cooldown 0.0 s (warp 2; same room: 6 door line(s), box in)
+10:01:02.020 [v] ghost teleport: Richard's fade ended (drawn see-through on 30 body and 30 weapon draw(s))
+10:01:02.040 [v] ghost teleport: not now: no free floor behind the nearest 3 enemy(ies) in this room (type 0A 1366 u first; 63 spots, 6 door line(s): an event's trigger zone on the way 63) (Action left to the game)
+10:01:03.000 [v] ghost teleport: Run + Action let go after 2 warp(s) in a row (3 try(ies) refused or called off while held)
+10:01:04.000 [v] ghost teleport: not now: a door is in use
+10:01:05.000 [v] ghost teleport: not now: the screen is fading (a door or a scene; level 128, to 0)
+10:01:05.500 [v] ghost teleport: not now: at the end of the fade-out: inside an event's trigger zone (key 00A, not fired yet): no warp out of it (she fades back in where she is)
+10:01:06.000 [v] ghost teleport: room 2:3: 0 walk-in event zone(s) the game would still fire: no warp across or into them (5 other zone(s) need a press or a look)
 """
 
 V343G = V333_END + """10:00:00.200 ghost teleport: in (no exe patch; 13 game functions checked), [Gameplay] GhostTeleport On; hold Run 0.4 s standing still: behind the nearest standing enemy within 2500 u, cooldown 3.0 s, Richard's warp sound 0xEC86 on, Echo Doubles' teleport smoke
@@ -574,6 +704,15 @@ V348SB = V333_END + r'''10:00:00.050 save banks: load list on bank 3
 10:00:03.500 save banks: bank 3 -> 25 in the load list (4 steps: keys 1, pad 1, mouse 2; by 10: 2)
 10:00:09.000 save banks: bank 25 -> 24 in the load list (1 step: keys 1, pad 0, mouse 0; by 10: 0)
 10:01:00.000 save banks: bank 7
+'''
+# v3.49 SB349: the lists' highlight bar (savebanks.inc SbListBarInstall)
+V349SB = V333_END + r'''10:00:00.010 save banks: list highlight bar: blue (the game's blue menu bar, 56FCC0's colour; 56FDCF)
+10:00:00.050 save banks: load list on bank 3
+'''
+V349SBY = V333_END + r'''10:00:00.010 save banks: list highlight bar: yellow (the game's own list bar; [SaveBanks] ListBar=Yellow)
+'''
+V349SBX = V333_END + r'''10:00:00.010 save banks: 0056FDCF is not stock: expected 81 CE 00 00 80 FF C1 E6 08 0B F0 
+10:00:00.010 save banks: list highlight bar: yellow (56FDCF is not stock: nothing written)
 '''
 
 
@@ -879,6 +1018,16 @@ def main():
           'room x1, Room 302 x1; 1 press(es) waited for the cooldown; 3 chord(s): Action last 2 (taken back 2), Action first 1; '
           "Richard's fade 3 time(s), 1 NEVER DRAWN on her body; called off 1: she is hit or held x1" in r,
           'v3.44: the ghost teleport summary line (chords, fades, called off)')
+    s, r = run(V349G)  # v3.49 GT349
+    print(r)
+    check(s.gt == ('in', 'On') and s.gt_warps['ahead'] == 2 and s.gt_chord['taken back'] == 1 and s.gt_chord['held'] == 1 and
+          s.gt_holds == [(2, 3)] and s.gt_zones == {'2:2': 1, '2:3': 0} and s.gt_zone_no == 2 and
+          s.gt_no['a door is in use'] == 1 and s.gt_no['the screen is fading'] == 1 and
+          s.gt_no['no free floor behind the nearest 3 enemy(ies) in this room'] == 1, 'v3.49: the ghost teleport v3.49 lines read')
+    check('1 chord(s): Action last 1 (taken back 1), Action first 0, 1 held warp start(s)' in r and
+          '1 hold(s) of Run + Action: 2 warp(s), the longest 2 in a row, 3 try(ies) refused while held' in r and
+          'walk-in event zones kept out of: room 2:2 x1 (2 refusal(s) had spots inside or past one)' in r,
+          'v3.49: the ghost teleport summary (v3.48 chord lines counted, the hold, the zones)')
     s, r = run(V337I)  # v3.37 INV337
     print(r)
     check(s.inv == ('on', 'off', 'in') and s.inv_sw['extended toolbelt stays on'] == 1 and s.inv_sw['extended toolbelt off'] == 1,
@@ -992,6 +1141,17 @@ def main():
           'frame; ours 0.300 ms at most (room 1:02, 0.050 on average); render targets at most 33.0 MB; preview: 2 pause copy(ies), page '
           'shown the scene 1 / the figure 0 time(s) (targets made 1 time(s), kept 1; the slowest copy 0.31 ms); pause picture: 2 on the '
           'GPU (target made 1, kept 1; at most 0.42 ms), 1 read back from the GPU (worst 31.5 ms)' in r, 'v3.41: the Shadow Edge summary line')
+    s, r = run(V349S)  # v3.49 SH349
+    print(r)
+    check(s.sh_rib_state == 'the Darkness' and s.sh['rib'] == 640 and s.sh['rib_dark'] == 600 and s.sh['rib_rooms'] == 1 and
+          s.sh['composites'] == 1200 and s.sh['rooms'] == 1 and list(s.sh_rib_vals) == ['30 -> 29 at 85 %', '1A -> 16 at 85 %'],
+          'v3.49 SH349: the coverage and Tremer lines read (%r %r %r)' % (s.sh_rib_state, dict(s.sh), s.sh_rib_vals))
+    check('; Tremer wall shadows: the Darkness, 640 draw(s) in 1 room line(s), 600 at the Darkness (alpha 30 -> 29 at 85 %: 85 %, '
+          '1A -> 16 at 85 %: 85 %)' in r, 'v3.49 SH349: the Tremer part of the shadows summary')
+    s, r = run(V349SOFF)
+    print(r)
+    check(s.sh_rib_state == "the game's own (TremerShadows=0)" and not s.sh['rib'] and
+          "; Tremer wall shadows: the game's own (TremerShadows=0)" in r, 'v3.49 SH349: TremerShadows=0 (%r)' % s.sh_rib_state)
     s, r = run(V341W)  # v3.41 VW341
     print(r)
     check(s.vw.startswith("Room 302's window views keep the 4:3 view") and len(s.vw_views) == 2 and len(s.edges) == 2 and
@@ -1156,6 +1316,25 @@ def main():
     check(s.om_old == [('10:00:00', 'Direction', 'NOT written (no ini)')] and
           s.om_row == "NONE (Option 2's table is not the stock one)" and 'old value(s): Direction NOT written (no ini) [10:00:00]' in r,
           'v3.48: the ini fallback (nothing written) and a non-stock Option 2 table (%r %r)' % (s.om_old, s.om_row))
+    s, r = run(V349L)  # v3.49 LK349
+    print(r)
+    check(s.ol == 'Room302' and s.ol_sets == [('10:06:00', 'All', 'Room302')] and s.ol_bad == ['Sometimes'] and
+          s.ol_bind == ('10:00:05', 'the right stick (stock)', '1403 1401 0801 0803') and s.ol_check == ('10:00:06', 40, 40, 'on'),
+          'v3.49: the look start, read again, unknown value, bindings and self-check lines parse (%r %r %r %r %r)' % (
+              s.ol, s.ol_sets, s.ol_bad, s.ol_bind, s.ol_check))
+    check(s.ol_places == 2 and s.ol_n == [5300, 4900, 400, 300, 60, 30, 10, 0, 125, 85, 40, 720, 2000] and s.ol_room == [1, 120],
+          'v3.49: the per-place count lines are summed (%r %r)' % (s.ol_n, s.ol_room))
+    check("; look: OmniLook Room302, read again All [10:06:00], UNKNOWN value(s) Sometimes, self-check on (40/40) [10:00:06], 2 "
+          "place line(s): pushed 5300 frame(s), 4900 analog, 400 the game's own (not here 300, key 60, no read 30, check 10, not a "
+          "stick 0); reversal latch 125 frame(s) (x 85, y 40; Room 302 120); 8-way misses 720; turn kept 2000" in r,
+          'v3.49: the look is summarised on the omni-directional movement line')
+    check(any('is not Off, Room302 or All' in k for k in s.kinds), 'v3.49: the unknown OmniLook value is kept as its own line kind')
+    s, r = run(V349LN)
+    check(s.ol_bind[1] == 'not a stick' and s.ol_check[3] == 'none' and s.om_anom == 1 and
+          ', bindings NOT A STICK (3180 3280 3380 3480), self-check NONE (3/40) [10:00:06]' in r,
+          'v3.49: the look not on a stick, a rejected look self-check and its anomaly (%r %r)' % (s.ol_bind, s.ol_check))
+    s, r = run(V346O)
+    check(s.ol is None and '; look:' not in r, 'v3.49: a log without the look lines has no look part')
     s, r = run(V347SB)  # v3.47 SB347
     check(s.sb_row == ('Bank 2', 'EB Garamond', 58) and s.sb_clicks == {'left arrow': 2, 'right arrow': 1} and s.sb_stuck == 1,
           'v3.47: the Bank row draw and mouse click lines parse (%r %r)' % (s.sb_row, s.sb_clicks))
@@ -1176,6 +1355,18 @@ def main():
           'line(s) at the normal level (Option 6, or a v3.47 or older list: one a step); 4 verbose per-step line(s)' in r and
           'pad (' not in r.split('bank row:')[1].split('\n')[0], 'v3.48: the Bank row summary line')
     check(not any('save banks' in g[3] for g in s.warnings.values()), 'v3.48: no save banks line lands among the warnings')
+    check(s.sb_bar is None and 'list bar' not in r, 'v3.49: a v3.48 log has no list bar line')
+    s, r = run(V349SB)  # v3.49 SB349
+    check(s.sb_bar == ('blue', "the game's blue menu bar, 56FCC0's colour; 56FDCF") and
+          "bank row: (no draw line); list bar blue (the game's blue menu bar, 56FCC0's colour; 56FDCF)" in r,
+          'v3.49: the blue list bar parses and is summarised (%r)' % (s.sb_bar,))
+    s, r = run(V349SBY)
+    check(s.sb_bar == ('yellow', "the game's own list bar; [SaveBanks] ListBar=Yellow") and
+          'list bar yellow (the game' in r and 'NOT PATCHED' not in r, 'v3.49: ListBar=Yellow is no failure (%r)' % (s.sb_bar,))
+    s, r = run(V349SBX)
+    check(s.sb_bar == ('yellow', '56FDCF is not stock: nothing written') and
+          'list bar YELLOW: NOT PATCHED (56FDCF is not stock: nothing written)' in r,
+          'v3.49: a refused bar patch is summarised in capitals (%r)' % (s.sb_bar,))
     s, r = run(V347R)  # v3.47 RG347
     print(r)
     check(s.rg == ('in', 'x1', 15.0, 10, RG_WHO_PE) and s.rg_pe == 'with' and [w[1] for w in s.rg_who] ==
@@ -1235,8 +1426,96 @@ def main():
           'unknown ini values: Items "Randomize" -> Random' in r and 'self-check 136 of 137' in r and 'NOT the stock' not in r and
           '1 plan(s) COULD NOT PLACE every item' in r and s.rz_plans[0][17],
           'v3.48: an unknown ini value, a script that is not the stock one, an unplaced plan (%r %r)' % (s.rz_bad, s.rz))
+    s, r = run(V349RZL)  # v3.49 RZ349L
+    check(s.rzl == ('Random', 'Spots') and s.rzl_bad == [('Ghosts', 'Rooms', 'Spots')] and s.rzl_first[1:4] == (7, 1, 'Random') and
+          s.rz is None and not s.rz_sets and s.rz_anom == 0 and s.rzl_anom == 1,  # v3.49 MERGE: rz_anom 0 (the looks' ANOMALY counted apart)
+          'v3.49: the looks start, the unknown value, the first room load parse, not as Items lines (%r %r %r)' % (
+              s.rzl, s.rzl_bad, s.rzl_first))
+    check([k for _, k, _ in s.rzl_out] == ['draw', 'takeover', 'back', 'single', 'back'] and
+          s.rzl_gh == {'rooms': 2, 'moved': 3, 'victims': 4, 'revisits': 1} and
+          [x[1:] for x in s.rzl_sets] == [('Ghosts', 'Off', 'Spots'), ('EileenOutfit', 'Off', '[Randomizer] read again')] and
+          s.rzl_sess[1:9] == ('3', '1', '0', '1', '1', '2', '1', '') and s.rzl_sess[13:15] == ('1', '1'),
+          'v3.49: the outfit events, the ghost rooms, the changes and the session parse (%r %r %r %r)' % (
+              s.rzl_out, s.rzl_gh, s.rzl_sets, s.rzl_sess))
+    check('randomizer looks: Eileen Outfit Random, Ghosts Spots at the start; unknown ini values: Ghosts "Rooms" -> Spots; first '
+          'room load 7:1: outfit Random (the companion only: Playable Eileen dresses the player ([Variant] in '
+          'SH4PlayableEileen.ini)), ghosts Spots (victim ghosts, never the story ghosts) [10:00:05]' in r and
+          '; outfit: 1 draw(s), 1 with one outfit, 2 back to the set one, 1 Extra Menu choice(s); last: Default back (a world without '
+          'her) [10:01:00], only the Dress unlocked (visit 3, stage 5) [10:02:00], Default back (Eileen Outfit Off) [10:03:02]' in r and
+          '; ghosts: 2 room load(s) with victims (1 of them a room visited again), 3 of 4 victim(s) moved' in r and
+          '; 2 change(s): Ghosts Off (Spots) [10:03:00], EileenOutfit Off ([Randomizer] read again) [10:03:01]' in r and
+          '; session: outfit 3 world visit(s), 1 draw(s) (Dress 0, Nurse 1), 2 back, 1 chosen; ghosts 2 room load(s), 4 victim(s), 3 '
+          'moved, 1 kept, 1 left as found; 1 ANOMALY line(s)' in r, 'v3.49: the looks summary line')
+    s, r = run(V349RZLB)
+    check(s.rzl_gh['ct'] == 1 and 'NOT available' in s.rzl_first[4] and
+          "ghosts left alone: the cheat table's Enemy Randomizer is on" in r and 'randomizer looks: (no start line)' in r,
+          'v3.49: the outfit engine off, the cheat table\'s Enemy Randomizer on (%r)' % (s.rzl_first,))
     s, r = run(V333_END)
     check(s.rz is None and 'randomizer:' not in r, 'v3.48: no Randomizer lines, no summary line')
+    s, r = run(V349F)  # v3.49 EF349
+    print(r)
+    check(s.fol_mode == 'Monsters + Victims' and s.fol_modes == [('10:00:05', 'Victims Only'), ('10:01:00', 'Monsters + Victims')] and
+          s.fol_home == [2, 1] and s.fol['stops'] == 1 and s.fol['doors'] == 1,
+          'v3.49: the Enemies Follow value lines read (%r %r %r %r)' % (s.fol_mode, s.fol_modes, s.fol_home, dict(s.fol)))
+    check('enemies follow setting: Monsters + Victims at the start; 2 change(s): Victims Only [10:00:05], Monsters + Victims '
+          '[10:01:00]; with no monsters following (Off / Victims Only): 2 monster(s) sent home from other rooms, 1 cop(ies) made in '
+          'their own rooms again' in r, 'v3.49: the Enemies Follow setting line')
+    check('enemies follow: 1 door(s), 1 follower(s) in all' in r, 'v3.49: the Enemies Follow summary line still reads')
+    s, r = run(V349F2)
+    print(r)
+    check(s.fol_mode == 'Victims Only' and s.fol_modes == [('10:00:30', 'Off')] and s.fol_home == [0, 3],
+          'v3.49: Victims Only at the start, an unsaved change, Off clearing the ledger (%r %r %r)' % (s.fol_mode, s.fol_modes, s.fol_home))
+    check('enemies follow setting: Victims Only at the start; 1 change(s): Off [10:00:30]; with no monsters following (Off / Victims '
+          'Only): 0 monster(s) sent home from other rooms, 3 cop(ies) made in their own rooms again' in r,
+          'v3.49: the setting line for Victims Only at the start')
+    s, r = run(V349F3)
+    check(s.fol_mode == 'Off' and not s.fol_modes and 'enemies follow setting' not in r, 'v3.49: Off all along: no setting line')
+    s, r = run(V333_END)
+    check(s.fol_mode is None and 'enemies follow setting' not in r, 'v3.49: no enemies lines: no setting line')
+    s, r = run(V349RZM)  # v3.49 RZ349: the Monsters
+    print(r)
+    check(s.rzm == ('This World', 235, 783, 17, 235, 783, 'the stock scripts', 'Whitestool, Hummer, Gum Head, Gum Head (v1), Twin '
+                    'Victim, Twin Victim (v1), Tremer, Sniffer Dog, Sniffer Dog (v1)', 'in') and s.rzm_gum == 'may be rolled' and
+          s.rzm_first == ('10:00:05', 2, 4, 'This World'), 'v3.49: the Monsters start, Gum Heads, first room parse (%r %r)' % (s.rzm, s.rzm_first))
+    check(s.rzm_rooms == {'rooms': 2, 'revisits': 1, 'changed': 2, 'slots': 4, 'sticky': 1, 'drops': 1, 'bones': 1, 'files': 0,
+                          'floor': 0, 'other': 1, 'types': 1, 'kb': 612} and s.rzm_by == {'Tremer': 1, 'Gum Head': 1, 'Sniffer Dog': 2}
+          and s.rzm_lists == 1, 'v3.49: the Monsters room loads parse (%r %r)' % (s.rzm_rooms, s.rzm_by))
+    check(s.rzm_anom == 1 and s.rz_anom == 0, 'v3.49: a Monsters ANOMALY counts as the Monsters\' (%d / %d)' % (s.rzm_anom, s.rz_anom))
+    check([x[1:] for x in s.rzm_sets] == [('This Room', 'This World'), ('Off', 'This Room'), ('This World', '[Randomizer] read again')]
+          and [c[1] for c in s.rzm_ct] == ['on', 'off again'] and s.rzm_silent == [('Twin Victim', 2)] and
+          s.rzm_misc['files'] == 1 and s.rzm_misc['offdrop'] == 1 and s.rzm_misc['save'] == 1 and s.rzm_misc['saved_out'] == 1 and
+          s.rzm_misc['savev'] == 1, 'v3.49: the Monsters changes, the cheat table, silent types, files, saves parse (%r %r %r)' % (
+              s.rzm_sets, s.rzm_ct, s.rzm_misc))
+    check(s.rzm_sess and s.rzm_sess[:6] == ('This World', '123456', 'On', '40', '2', '2') and s.rzm_sess[14:18] == ('1', '1', '1', '1'),
+          'v3.49: the Monsters session line parses (%r)' % (s.rzm_sess,))
+    check("randomizer monsters: This World at the start; self-check 235 of 235 source placements (783 enemy placements) in 17 scripts "
+          "(the stock scripts); save filter in; Gum Heads may be rolled; the cheat table's Enemy Randomizer: on [10:01:20], off again "
+          "[10:01:40]; first room 2:4 with Monsters This World [10:00:05]; 2 room load(s) randomized (1 of them a room visited again), "
+          "2 of 4 placement(s) changed (made as: Sniffer Dog 2, Tremer 1, Gum Head 1), 1 kept their record's type, 1 record(s) "
+          "deleted; kept as placed: 1 bones, 0 files, 0 no floor; files loaded for 1 type(s) (612 KB), 1 room(s) with words NOT the "
+          "stock value (1 verbose list(s)); 1 file load(s) refused; 1 room(s) with records of earlier randomized monsters deleted; "
+          "may be silent: Twin Victim in stage 2; 1 save(s) left 1 randomized record(s) out; 3 change(s): Monsters This Room (This "
+          "World) [10:01:00], Monsters Off (This Room) [10:02:00], Monsters This World ([Randomizer] read again) [10:02:20]; session: "
+          "40 room load(s), 2 randomized, 2 changed, 1 by record, 1 record(s) deleted (+2 off), kept 1 / 1 / 0, 1 save(s) 1 out, 1 "
+          "left as found; 1 ANOMALY line(s)" in r, 'v3.49: the Monsters summary line')
+    check('randomizer: Items Random' in r and '; 1 ANOMALY' not in r.split('randomizer monsters:')[0].split('randomizer: Items')[1],
+          'v3.49: the Items line keeps its own ANOMALY count')
+    s, r = run(V349RZMB)
+    check(s.rzm_bad == ('Everywhere', 'This World') and s.rzm[1] == 230 and s.rzm[8].startswith('NOT in') and s.rzm_gum ==
+          'are never rolled' and s.rzm_misc['hit'] == 1 and s.rzm_anom == 1 and 'unknown ini value: Monsters "Everywhere" -> This World'
+          in r and 'self-check 230 of 235' in r and 'save filter NOT in' in r and 'the STOCK hit-shape pool' in r,
+          'v3.49: an unknown Monsters value, scripts not the stock ones, no save filter, no Gum Heads, the stock hit pool (%r)' % (s.rzm,))
+    check(not [v for v in s.warnings.values() if 'monsters' in v[3].lower() and 'Everywhere' not in v[3] and 'NOT in' not in v[3]],
+          'v3.49: no other Monsters line lands in the warnings (%r)' % (list(s.warnings.values()),))
+    s, r = run(V333_END)
+    check(s.rzm is None and 'randomizer monsters:' not in r, 'v3.49: no Monsters lines, no summary line')
+    s, r = run(V349RZM + '''10:09:10.000 randomizer: monsters: room 5:3: 2 record(s) of another type that Refined did not make (another writer): those placements stay as placed, the records are kept
+10:09:10.001 randomizer: monsters session: 2 placement(s) left as placed for a record Refined did not make (another writer); 40 placement(s) of Refined's (0 full)
+''')  # v3.49 fix2 RZ349-SAVE-001
+    check(s.rzm_misc['other'] == 1 and s.rzm_misc['other_n'] == 2 and s.rzm_misc['sess_other'] == 2 and
+          '; 1 room(s) with 2 record(s) another writer retyped, left alone' in r and 'FULL' not in r,
+          'v3.49 fix2: records of another writer parse and are summarised (%r)' % (s.rzm_misc,))
+    check(s.rzl is None and 'randomizer looks:' not in r, 'v3.49: no looks lines, no looks summary line')
     test_compare()  # v3.40 LG340
     print('%d failure(s)' % len(FAILS))
     return 1 if FAILS else 0

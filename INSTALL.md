@@ -7,7 +7,7 @@ GOG Galaxy installs it to `C:\Program Files (x86)\GOG Galaxy\Games\Silent Hill 4
 
 | File | What it is | Needed? |
 |---|---|---|
-| `winmm.dll` | SH4 Refined v3.48.0 (md5 `8CF8CD92BB2BE0EA147BE43530907E20`) | yes |
+| `winmm.dll` | SH4 Refined v3.49.0 (md5 `5D6E6A53780FB0C595A4EAF0EB476883`; not yet play-tested) | yes |
 | `fonts\` | the HD menu font sheets (EB Garamond, Cormorant Garamond, Crimson Text) and their OFL licences | for the Menu Font row |
 | `d3d9.dll` | dgVoodoo2 2.87.6 by Dege, its `MS\x86\D3D9.dll`, unchanged (md5 `CAA75C55D9B3121D17433BD3B38C7BB2`) | optional renderer |
 | `dgVoodoo.conf` | dgVoodoo2 settings for SH4 ("Direct3D 11", the default) | with `d3d9.dll` |

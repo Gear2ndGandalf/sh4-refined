@@ -133,7 +133,12 @@ GT_COOL = re.compile(r'^ghost teleport: (?:Run held, waiting for the cooldown|Ru
 # v3.44 GT344: the warp ahead (no enemy near), the chord (which press came last), the fade's end, a fade called off
 GT_AHEAD = re.compile(r'^ghost teleport: ahead (\d+) u the way she faces')
 GT_CHORD = re.compile(r'^ghost teleport: Run \+ Action \((Action last: its own use taken back|Action last: NOT taken back|'
-                      r'Action first: its press reached the game)\)')
+                      r'Action first: its press reached the game|held: the next warp)(?:[;,][^)]*)?\)')  # v3.49 GT349: + held; the
+# "; a later call-off keeps it" tail of v3.44's later lines (the old pattern missed every live chord line)
+GT_HOLD = re.compile(r'^ghost teleport: Run \+ Action (.+?) after (\d+) warp\(s\) in a row \((\d+) try')  # v3.49 GT349: a hold's end
+GT_ZONES = re.compile(r'^ghost teleport: room (\d+):(\d+): (\d+) walk-in event zone\(s\) the game would still fire')  # v3.49 GT349
+GT_ZONE_NO = "an event's trigger zone on the way"  # v3.49 GT349: in a refusal's spot list
+GT_ZONE_IN = "inside an event's trigger zone"  # v3.49 GT349-001: a refusal while she stands in a zone not fired yet
 GT_FADE = re.compile(r"^ghost teleport: Richard's fade ended \(drawn see-through on (\d+) body and (\d+) weapon draw")
 GT_OFF = re.compile(r'^ghost teleport: called off during the fade: (.+?)(?: \(.*)?$')
 # v3.46 OM346: Stick Movement (omni.inc): the install line, the mode changes, the bindings, the self-check, the counts
@@ -163,6 +168,20 @@ OM_PE = re.compile(r'^omni: Playable Eileen (follows (?:Analog|the stick).s push
                    r'does not read SH4R_StickAmount)')
 OM_BG = re.compile(r'^omni: GetDeviceState on the game.s pad failed \(hr ([0-9A-F]{8})\) (while the game window is not in front|'
                    r'for (\d+) frame\(s\) around a focus loss)')
+# v3.49 LK349: the analog look ([Input] OmniLook): its start line, a read again, an unknown value, the look bindings, the
+# look self-check, and the per-place count line (verbose)
+OL_IN = re.compile(r'^omni: look: \[Input\] OmniLook (Off|Room302|All) \(')
+OL_REREAD = re.compile(r'^omni: \[Input\] OmniLook read again: (Off|Room302|All) \(was (Off|Room302|All)\)')
+OL_BAD = re.compile(r'^omni: \[Input\] OmniLook=(.*?) is not Off, Room302 or All')
+OL_BIND = re.compile(r'^omni: look bindings: LookRight ([0-9A-F]{4}), LookLeft ([0-9A-F]{4}), LookUp ([0-9A-F]{4}), '
+                     r'LookDown ([0-9A-F]{4}) = (the right stick \(stock\)|the left stick.s axes \(swapped sticks\)|not a stick)')
+OL_CHECK = re.compile(r'^omni: look self-check: GetDeviceState (\d+) of (\d+) agree with the game.s look bits: (the analog look is on|'
+                      r'the game.s own 8-way look stays)')
+OL_COUNT = re.compile(r'^omni: look: (Room 302|stage -?\d+), (\d+) s \((.+?)\): the look stick pushed (\d+) frame\(s\): (\d+) analog '
+                      r'\(OmniLook (?:Off|Room302|All)\), the game.s own (\d+) \(OmniLook not here (\d+), a look key (\d+), no pad '
+                      r'read (\d+), look self-check \w[\w ]*? (\d+), look not on a stick (\d+)\); the game.s reversal latch (\d+) '
+                      r'frame\(s\) \(x (\d+), y (\d+)\); a push the game.s 8-way look missed (\d+) frame\(s\); the right stick.s '
+                      r'turn kept from a small sideways push (\d+) frame\(s\)')
 OM_AGAIN = re.compile(r'^omni: GetDeviceState reads the game.s pad again after (\d+) failed frame\(s\)( \(the game window was not in front\))?')
 # v3.47 RG347: Refined's own Regeneration (regen.inc): the install line, Playable Eileen's exports, who heals, the value
 # changes, the healing runs (start / stop), Life Steal's heal route, the first start's seed from Playable Eileen's ini
@@ -199,6 +218,61 @@ RZ_REREAD = re.compile(r'^randomizer: \[Randomizer\] (Items|KeepSpecials|Room302
 RZ_SESS = re.compile(r'^randomizer: session: Items (\w+) \(seed (\d+), Keep Specials (On|Off), Room 302 (In|Out), Change Each Visit '
                      r'(On|Off)\): (\d+) room load\(s\), (\d+) with pickups in the pool, (\d+) pickup\(s\) changed, (\d+) weapon\(s\) '
                      r'placed, (\d+) plan\(s\), (\d+) word\(s\) left as found(.*)$')
+# v3.49 RZ349: the Randomizer's Monsters (rzmon.inc)
+RZM_VAL = r'(Off|This Room|This World)'
+RZM_IN = re.compile(r'^randomizer: \[Randomizer\] Monsters ' + RZM_VAL + r'; self-check: (-?\d+) source placement\(s\) of (\d+) enemy '
+                    r'placement\(s\) in (\d+) script\(s\) \(stock (\d+) / (\d+)\): (.+?); targets (.+?) \(Gum Heads only with a crash '
+                    r'guard\); applied at each room load through 004F0AF8 \(patch-and-restore of the type / mode / y words\); save '
+                    r'filter 00465468 (.+)$')
+RZM_BADKEY = re.compile(r'^randomizer: \[Randomizer\] Monsters "([^"]*)" is not .+?: ' + RZM_VAL + r' \(the default\)$')
+RZM_SET = re.compile(r'^randomizer: Monsters ' + RZM_VAL + r' \(was ' + RZM_VAL + r'; applies at the next room load\)$')
+RZM_REREAD = re.compile(r'^randomizer: \[Randomizer\] Monsters read again: ' + RZM_VAL)
+RZM_GUM = re.compile(r"^randomizer: monsters: Gum Heads (may be rolled|are never rolled) \(Playable Eileen's crash guard of the Gum "
+                     r"Head's group call: 0049B70A (in|not in), 0045C3C0 (in|not in)\)$")
+RZM_CT = re.compile(r"^randomizer: monsters: the cheat table's Enemy Randomizer \(entry 7700: 0052CAA9 / 0052CB2B\) is (on|off again): "
+                    r"Refined's Monsters ")
+RZM_HIT = re.compile(r'^randomizer: monsters: the hit-shape pool is the stock 100')
+RZM_FIRST = re.compile(r'^randomizer: monsters: the first room with source placements \(stage (\d+) room (\d+)\): Monsters ' + RZM_VAL + '$')
+RZM_OFFDROP = re.compile(r'^randomizer: monsters: room (\d+):(\d+): (\d+) record\(s\) of monsters made as another type before are deleted')
+RZM_LEFT = re.compile(r'^randomizer: monsters: room (\d+):(\d+) left as placed \((.+)\)$')
+RZM_FILES = re.compile(r"^randomizer: monsters: room (\d+):(\d+): (.+?)'s files could not be loaded \((.*)\): its placements stay as placed$")
+RZM_SILENT = re.compile(r"^randomizer: monsters: (.+?) is no monster of stage (\d+)'s scripts: its sounds may be missing there \(allowed\)$")
+RZM_ROOM = re.compile(r"^randomizer: monsters: room (\d+):(\d+) \(visit (\d), #(\d+)\): (\d+) of (\d+) placement\(s\) changed \((This Room|"
+                      r"This World)\): (.*?); (\d+) kept their record's type, (\d+) record\(s\) deleted; kept as placed: (\d+) for the "
+                      r"bone budget, (\d+) for files, (\d+) without a floor(; some words[^;]*)?; files loaded for (\d+) type\(s\) \((\d+) KB\)$")
+RZM_LIST = re.compile(r'^randomizer: monsters: room (\d+):(\d+): (n\d+ .+)$')
+RZM_SAVE = re.compile(r'^randomizer: monsters: a save: (\d+) record\(s\) of monsters made as another type are left out of it')
+RZM_SAVEV = re.compile(r'^randomizer: monsters: a save: [0-9A-F]{8} \(made as ')
+# v3.49 fix2 RZ349-SAVE-001: records Refined did not make, left alone
+RZM_OTHER = re.compile(r"^randomizer: monsters: room (\d+):(\d+): (\d+) record\(s\) of another type that Refined did not make "
+                       r"\(another writer\): those placements stay as placed, the records are kept$")
+RZM_SESS2 = re.compile(r"^randomizer: monsters session: (\d+) placement\(s\) left as placed for a record Refined did not make "
+                       r"\(another writer\); (\d+) placement\(s\) of Refined's \((\d+) full\)$")
+RZM_SESS = re.compile(r"^randomizer: monsters session: " + RZM_VAL + r" \(seed (\d+), Change Each Visit (On|Off)\): (\d+) room load\(s\), "
+                      r"(\d+) with source placements randomized, (\d+) placement\(s\) changed, (\d+) kept their record's type, (\d+) "
+                      r"record\(s\) deleted \(\+(\d+) with Monsters off\); kept as placed: (\d+) for the bone budget, (\d+) for files, "
+                      r"(\d+) without a floor; files loaded (\d+) time\(s\) \((\d+) KB\); (\d+) room load\(s\) with the cheat table's "
+                      r"Enemy Randomizer on; (\d+) save\(s\), (\d+) record\(s\) left out; (\d+) word\(s\) left as found(.*)$")
+# v3.49 RZ349L: the Randomizer's looks (rzlooks.inc): Eileen Outfit Off / Random, Ghosts Off / Spots
+RZL_IN = re.compile(r'^randomizer: looks: \[Randomizer\] EileenOutfit (Off|Random), Ghosts (Off|Spots) ')
+RZL_BADKEY = re.compile(r'^randomizer: \[Randomizer\] (EileenOutfit|Ghosts) "([^"]*)" is not .+?: (\w+) \(the default\)$')
+RZL_FIRST = re.compile(r'^randomizer: looks: the first room load \(stage (\d+) room (\d+)\): Eileen Outfit (Off|Random), ([^;]*); '
+                       r'Ghosts (Off|Spots), (.*)$')
+RZL_DRAW = re.compile(r'^randomizer: outfit: world visit (\d+) \(stage (\d+), half (\d), at ([^)]*)\): (Dress|Nurse) \(seed (\d+), '
+                      r'Change Each Visit (On|Off); unlocked: Dress, Nurse; the set outfit (\w+)\)$')
+RZL_SINGLE = re.compile(r'^randomizer: outfit: world visit (\d+) \(stage (\d+), half (\d), at ([^)]*)\): only the Dress is unlocked '
+                        r'in this save: her outfit stays (\w+)$')
+RZL_BACK = re.compile(r'^randomizer: outfit: back to the set outfit (\w+) \((Eileen Outfit Off|a world without her)\)$')
+RZL_TAKE = re.compile(r'^randomizer: outfit: (\w+) chosen in the Extra Menu: kept until the next world visit$')
+RZL_GROOM = re.compile(r'^randomizer: ghosts: room (\d+):(\d+) \(#(\d+)\): (\d+) of (\d+) victim\(s\) moved \(seed (\d+), Change '
+                       r'Each Visit (On|Off)\): (.*)$')
+RZL_CT = re.compile(r"^randomizer: ghosts: the cheat table's Enemy Randomizer \(0052CAA9 / 0052CB2B\) is on")
+RZL_SET = re.compile(r'^randomizer: (EileenOutfit|Ghosts) (\w+) \(was (\w+); applies at the next room load\)$')
+RZL_REREAD = re.compile(r'^randomizer: \[Randomizer\] (EileenOutfit|Ghosts) read again: (\w+)')
+RZL_SESS = re.compile(r'^randomizer: looks session: Eileen Outfit (\w+): (\d+) world visit\(s\), (\d+) draw\(s\) \(Dress (\d+), Nurse '
+                      r'(\d+)\), (\d+) with only the Dress unlocked, (\d+) back to the set outfit, (\d+) chosen in the Extra Menu(.*?); '
+                      r'Ghosts (\w+): (\d+) room load\(s\) with victims, (\d+) victim\(s\), (\d+) moved, (\d+) kept, (\d+) left as '
+                      r'found(.*)$')
 LS_ROUTE = re.compile(r"^life steal: (heals through the game's heal|heals go to 0052D1D0 directly)")
 INV_COUNTS = re.compile(r'^inventory: toolbelt flips (\d+), overflows to page 2 (\d+), page-2 story removals (\d+), re-equips from '
                         r'page 2 (\d+), rounds fired from page 2 (\d+), cross-page reloads (\d+), broken page-2 medallions (\d+); '
@@ -213,6 +287,15 @@ FOL_STOP = re.compile(r'^enemies: .*? stops? pursuing you(?! at the door)')
 FOL_WAIT = re.compile(r'^enemies: .*? (?:waits in front of room|waits outside room) \d+: (.+?) \(it comes')
 FOL_STORY = re.compile(r'^enemies: .*? does not come from room -?\d+ into room \d+: (.+?) \(it keeps pursuing you\)')
 FOL_WHEEL = re.compile(r'^enemies: Wheelchair [0-9A-F]{8} \(home room \d+\) was recorded in room')
+# v3.49 EF349: Enemies Follow's value (Off / Monsters / Victims Only / Monsters + Victims): at the start (the enemies install
+# line), each change (the menu, the ini read again), what it takes (enemies.inc EnmFollowSay), the monsters sent home
+FOL_VALUES = r'(Off|Monsters|Victims Only|Monsters \+ Victims)'
+FOL_MODE_IN = re.compile(r'^enemies: in \(.*?\); EnemyCopies [^,]+, EnemyFollow ' + FOL_VALUES + ', ')
+FOL_MODE_SET = re.compile(r'^gameplay: (?:\[Gameplay\] )?EnemyFollow (?:read again: )?' + FOL_VALUES + r'(?: applies now|$)')
+FOL_MODE_SAY = re.compile(r'^enemies: Enemies Follow ' + FOL_VALUES + ': ')
+FOL_HOME = re.compile(r'^enemies: Enemies Follow is (off|Victims Only): (\d+) monster\(s\) left in other rooms went home')
+FOL_HOME_CW = re.compile(r'^enemies: Enemies Follow is (?:off: (\d+) cop(?:y|ies) that|Victims Only: (\d+) monster cop(?:y|ies) that)'
+                         r' followed you (?:are made in their own rooms|is made in its own room) again')
 # v3.41 EN341: a ghost copy made in another room without its record (the way the game's own ghosts arrive)
 FOL_FRESH = re.compile(r"^enemies: ghost copy [0-9A-F]{8} \(type [0-9A-F]{2} v\d+\) (?:came into|is back in) room \d+ as the "
                        r"game's own ghosts arrive")
@@ -249,6 +332,12 @@ SH_PLAN = re.compile(r'^shadows: (Soft|Softer) at (\d+)x(\d+): (\d) pass\(es\) d
 SH_ROOM = re.compile(r'^shadows: room ([0-9A-F]+):([0-9A-F]+): (\d+) composites over (\d+) frames \(at most (\d+) in a frame\), (\d+) soft; '
                      r'ours ([\d.]+) ms a composite on average, ([\d.]+) at most')
 SH_OFF = re.compile(r'^shadows: off for this session: (.*?) \(hr ([0-9A-F]+), (.*?)\)')
+# v3.49 SH349: what the edge and the Darkness cover (every real-time shadow) and the Tremers' wall shadows at the Darkness
+SH_COVER = re.compile(r'^shadows: the edge and the Darkness cover every shadow the game draws: .*?; the Tremers\' wall shadows: '
+                      r'(the Darkness|the game\'s own)')
+SH_RIB = re.compile(r'^shadows: a Tremer\'s wall shadow drawn at Darkness (\d+) %: its alpha ([0-9A-F]{2}) -> ([0-9A-F]{2}) \((\d+) % of')
+SH_RIB_ROOM = re.compile(r'^shadows: room ([0-9A-F]+):([0-9A-F]+): (\d+) Tremer wall shadow draw\(s\), (\d+) at the Darkness \((\d+) %')
+SH_RIB_NOT = re.compile(r'^shadows: (\[Shadows\] TremerShadows=0|the Tremer\'s wall shadow draw \S+ is not stock|0045F4CA could not be written)')
 SH_KEPT = re.compile(r'^shadows: the paused scene kept for the Shadows page: (\d+)x(\d+) picture \+ mask \([\d.]+ MB'
                      r'(?:; (targets made|targets kept from an earlier pause:) ([\d.]+) ms, copied ([\d.]+) ms)?')  # v3.41 SH341: timed
 # v3.41 SH341: the new Soft's plan, v3.40's Softer read as Soft, the pause's kept targets, the Screen Effects page's
@@ -303,6 +392,8 @@ SB_CLICK = re.compile(r'^save banks: mouse click on the (left arrow|right arrow|
 SB_STEP = re.compile(r'^save banks: bank (\d+)$')
 SB_SETTLE = re.compile(r'^save banks: bank (\d+) -> (\d+) in the (save|load|save / load) list \((\d+) steps?: keys (\d+), '
                        r'pad (\d+), mouse (\d+); by 10: (\d+)\)$')
+# v3.49 SB349: the lists' highlight bar at the start (savebanks.inc SbListBarInstall)
+SB_BAR = re.compile(r'^save banks: list highlight bar: (blue|yellow) \((.+)\)$')
 SH_RT = re.compile(r'^shadows: render target made: .*?ours now ([\d.]+) MB')
 # v3.41 VW341: Room 302's window views at 4:3 and the Borderless edge-cover check (sh4windowmod.c)
 VW_VIEW = re.compile(r"^window views: Room 302's window view: black sides (\d+) \| (\d+) px beside the 4:3 view \((\d+)x(\d+)\)")
@@ -411,6 +502,9 @@ class Session:
         self.gt_chord = Counter()  # v3.44 GT344: chords by which press came last ('taken back', 'NOT taken back', 'Action first')
         self.gt_fades = [0, 0]    # v3.44 GT344: fades ended, of them never drawn see-through on her body
         self.gt_off = Counter()   # v3.44 GT344: fades called off, by reason
+        self.gt_holds = []        # v3.49 GT349: (warps, refused) of every hold that tried more than once
+        self.gt_zones = {}        # v3.49 GT349: 'stage:room' -> walk-in event zones the warp kept out of
+        self.gt_zone_no = 0       # v3.49 GT349: refusals with spots refused for an event's zone
         self.om = None            # v3.46 OM346: (in / OFF, mode, dead zone) from the install line
         self.om_not = None        # v3.46 OM346: the site that was not stock
         self.om_sets = []         # v3.46 OM346: (ts, new, old, from)
@@ -427,6 +521,15 @@ class Session:
         self.om_bg = [0, 0]       # v3.47 CT347: focus-loss episodes, their failed frames (the lines that give a count)
         self.om_again = [0, 0]    # v3.47 CT347: failures in front that ended: episodes, failed frames
         self.om_old = []          # v3.48 OM348: (ts, the old OmniMove text, written as On / read as On / not written)
+        self.ol = None            # v3.49 LK349: [Input] OmniLook at the start
+        self.ol_sets = []         # v3.49 LK349: (ts, new, old) read again
+        self.ol_bad = []          # v3.49 LK349: unknown OmniLook texts
+        self.ol_bind = None       # v3.49 LK349: (ts, verdict, codes) the last look bindings line
+        self.ol_check = None      # v3.49 LK349: (ts, ok, n, 'on' / 'none') the last look self-check
+        self.ol_places = 0        # v3.49 LK349: count lines
+        # v3.49 LK349: summed counts: pushed, analog, own, not here, key, no read, check, bind, latch, latch x, latch y, band, turn kept
+        self.ol_n = [0] * 13
+        self.ol_room = [0, 0]     # v3.49 LK349: Room 302 count lines, their latch frames
         self.rz = None            # v3.48 RZ348: (Items, KeepSpecials, Room302, seed, found, scripts, stock, verdict) at the start
         self.rz_roll = None       # v3.48 RZ348: (was, seed, written?) the first start's roll
         self.rz_bad = []          # v3.48 RZ348: (key, text, default) unknown ini values
@@ -437,6 +540,27 @@ class Session:
         self.rz_sets = []         # v3.48 RZ348: (ts, key, new, old / from)
         self.rz_sess = None       # v3.48 RZ348: the session line's groups
         self.rz_anom = 0          # v3.48 RZ348: its ANOMALY lines
+        self.rzm = None           # v3.49 RZ349: the Monsters' start line (mode, found, kind-2, scripts, stock, stock kind-2, verdict, targets, save filter)
+        self.rzm_bad = None       # v3.49 RZ349: (text, default) an unknown [Randomizer] Monsters value
+        self.rzm_gum = None       # v3.49 RZ349: 'may be rolled' / 'are never rolled'
+        self.rzm_ct = []          # v3.49 RZ349: (ts, on / off again) the cheat table's Enemy Randomizer
+        self.rzm_first = None     # v3.49 RZ349: (ts, stage, room, mode)
+        self.rzm_rooms = Counter()  # v3.49 RZ349: 'rooms', 'changed', 'slots', 'sticky', 'drops', 'bones', 'files', 'floor', 'types', 'kb', 'other', 'revisits'
+        self.rzm_by = Counter()   # v3.49 RZ349: placements by the type they became
+        self.rzm_lists = 0        # v3.49 RZ349: verbose placement lists
+        self.rzm_misc = Counter()  # v3.49 RZ349: 'hit', 'offdrop', 'left', 'files', 'save', 'savev'
+        self.rzm_silent = []      # v3.49 RZ349: (type, stage) types that may be silent
+        self.rzm_sets = []        # v3.49 RZ349: (ts, new, old / from)
+        self.rzm_sess = None      # v3.49 RZ349: the session line's groups
+        self.rzm_anom = 0         # v3.49 RZ349: its ANOMALY lines (not counted in rz_anom)
+        self.rzl = None           # v3.49 RZ349L: (EileenOutfit, Ghosts) at the start
+        self.rzl_bad = []         # v3.49 RZ349L: (key, text, default) unknown ini values
+        self.rzl_first = None     # v3.49 RZ349L: (ts, stage, room, outfit, its state, ghosts, their state)
+        self.rzl_out = []         # v3.49 RZ349L: (ts, kind, detail): draw / single / back / takeover
+        self.rzl_gh = Counter()   # v3.49 RZ349L: 'rooms', 'victims', 'moved', 'revisits'; 'ct' the cheat table's randomizer
+        self.rzl_sets = []        # v3.49 RZ349L: (ts, key, new, old / from)
+        self.rzl_sess = None      # v3.49 RZ349L: the looks session line's groups
+        self.rzl_anom = 0         # v3.49 RZ349L: its ANOMALY lines (outfit: / ghosts:)
         self.rg = None            # v3.47 RG347: (in / OFF, Regen, rate, delay, who) from the install line
         self.rg_not = []          # v3.47 RG347: why it is not installed
         self.rg_pe = None         # v3.47 RG347: 'with' / 'without' SH4PE_RegenActive
@@ -477,6 +601,9 @@ class Session:
         self.perf_place = OrderedDict()  # v3.38 HB338: 'WxH' -> (where, of what, ts)
         self.fol = Counter()      # v3.38 EN338: doors, follow, most, wait, stopped, came, spotted, stops, story, wheelchairs
         self.fol_wait = Counter()  # v3.38 EN338: the space reasons of the waits
+        self.fol_mode = None      # v3.49 EF349: Enemies Follow's value at the start (the enemies install line)
+        self.fol_modes = []       # v3.49 EF349: (ts, value) each change (menu / ini read again)
+        self.fol_home = [0, 0]    # v3.49 EF349: monsters sent home from other rooms, copies made in their own rooms again
         self.sh = Counter()       # v3.40 SH340: composites, soft, frames, kept, scene / figure previews, rooms
         self.sh_edge = []         # v3.40 SH340: (ts, edge) at the start and each change
         self.sh_plans = OrderedDict()  # 'Soft 2560x1440' -> (passes, low size, taps, px)
@@ -484,6 +611,8 @@ class Session:
         self.sh_off = None        # (ts, why, where)
         self.sh_not = None
         self.sh_vram = 0.0
+        self.sh_rib_state = ''    # v3.49 SH349: the Tremers' wall shadows: 'the Darkness' / "the game's own (why)"
+        self.sh_rib_vals = OrderedDict()  # v3.49 SH349: 'AA -> BB at P %' -> the share of the game's darkening kept (%)
         self.sh_copy = [0, 0, 0.0]  # v3.41 SH341: pause copies with their targets made / kept, the slowest copy (ms)
         self.sh_old = None        # v3.41 SH341: v3.40's Edge value read as Soft
         self.dof = Counter()      # v3.43 DF343: drawn frames, asked frames, room lines, pause copies
@@ -525,6 +654,18 @@ class Session:
         self.cur_lv = 'n'  # v3.48 SB348: the level of the line parse() sees ('n', 'v', 't')
         self.sb_steps = Counter()  # v3.48 SB348: 'save banks: bank N' lines by level ('n' = v3.47's noise, or Option 6)
         self.sb_changes = []  # v3.48 SB348: (ts, from, to, list, steps, keys, pad, mouse, by10) settled changes
+        self.sb_bar = None  # v3.49 SB349: ('blue' / 'yellow', why) of the lists' highlight bar
+
+    def fol_mode_line(self):  # v3.49 EF349: Enemies Follow's value (None while it is Off all along, or not in the log)
+        if not self.fol_modes and self.fol_mode in (None, 'Off') and not any(self.fol_home):
+            return None
+        line = 'enemies follow setting: %s at the start' % (self.fol_mode or 'not in the log')
+        if self.fol_modes:
+            line += '; %d change(s): %s' % (len(self.fol_modes), ', '.join('%s [%s]' % (v, ts) for ts, v in self.fol_modes))
+        if self.fol_home[0] or self.fol_home[1]:
+            line += ('; with no monsters following (Off / Victims Only): %d monster(s) sent home from other rooms, %d cop(ies) '
+                     'made in their own rooms again' % tuple(self.fol_home))
+        return line
 
     def drop_level_line(self):  # v3.38 DR338
         def name(lv):
@@ -660,6 +801,35 @@ class Session:
             if m.group(3):
                 self.om_bg[1] += int(m.group(3))
             return True
+        m = OL_IN.match(msg)  # v3.49 LK349
+        if m:
+            self.ol = m.group(1)
+            return True
+        m = OL_REREAD.match(msg)
+        if m:
+            self.ol_sets.append((ts, m.group(1), m.group(2)))
+            return True
+        m = OL_BAD.match(msg)
+        if m:
+            self.ol_bad.append(m.group(1))
+            return True
+        m = OL_BIND.match(msg)
+        if m:
+            self.ol_bind = (ts, m.group(5), ' '.join(m.group(1, 2, 3, 4)))
+            return True
+        m = OL_CHECK.match(msg)
+        if m:
+            self.ol_check = (ts, int(m.group(1)), int(m.group(2)), 'on' if m.group(3).startswith('the analog') else 'none')
+            return True
+        m = OL_COUNT.match(msg)
+        if m:
+            self.ol_places += 1
+            for i in range(13):
+                self.ol_n[i] += int(m.group(4 + i))
+            if m.group(1) == 'Room 302':
+                self.ol_room[0] += 1
+                self.ol_room[1] += int(m.group(12))
+            return True
         m = OM_AGAIN.match(msg)
         if m:
             k = self.om_bg if m.group(2) else self.om_again
@@ -672,7 +842,7 @@ class Session:
     def omni_line(self):
         """v3.46 OM346: the Stick Movement summary line (None without any of its lines). v3.48 OM348: "omni-directional movement"."""
         if not (self.om or self.om_not or self.om_sets or self.om_bind or self.om_checks or self.om_anom or self.om_row or
-                self.om_bg[0] or self.om_again[0] or self.om_old):  # v3.47 CT347: + the row, the focus losses  # v3.48 OM348: + old values
+                self.om_bg[0] or self.om_again[0] or self.om_old or self.ol or self.ol_places):  # v3.47 CT347: + the row, the focus losses  # v3.48 OM348: + old values  # v3.49 LK349: + the look
             return None
         line = '  omni-directional movement: '
         if self.om:
@@ -715,6 +885,23 @@ class Session:
                 self.om_bg[0], ', %d frame(s)' % self.om_bg[1] if self.om_bg[1] else '')
         if self.om_again[0]:
             line += '; the pad failed with the game in front %d time(s) (%d frame(s)), then read again' % tuple(self.om_again)
+        if self.ol or self.ol_sets or self.ol_places or self.ol_check:  # v3.49 LK349: the analog look
+            line += '; look: OmniLook %s' % (self.ol or '(no start line)')
+            if self.ol_sets:
+                line += ', read again %s [%s]' % (self.ol_sets[-1][1], self.ol_sets[-1][0])
+            if self.ol_bad:
+                line += ', UNKNOWN value(s) %s' % ', '.join(self.ol_bad[-3:])
+            if self.ol_bind and self.ol_bind[1] == 'not a stick':
+                line += ', bindings NOT A STICK (%s)' % self.ol_bind[2]
+            if self.ol_check:
+                line += ', self-check %s (%d/%d) [%s]' % ('on' if self.ol_check[3] == 'on' else 'NONE', self.ol_check[1],
+                                                       self.ol_check[2], self.ol_check[0])
+            if self.ol_places:
+                n = self.ol_n
+                line += (', %d place line(s): pushed %d frame(s), %d analog, %d the game\'s own (not here %d, key %d, no read %d, '
+                         'check %d, not a stick %d); reversal latch %d frame(s) (x %d, y %d; Room 302 %d); 8-way misses %d; turn '
+                         'kept %d' % (self.ol_places, n[0], n[1], n[2], n[3], n[4], n[5], n[6], n[7], n[8], n[9], n[10],
+                                      self.ol_room[1], n[11], n[12]))
         if self.om_anom:
             line += '; %d ANOMALY line(s)' % self.om_anom
         return line
@@ -778,8 +965,156 @@ class Session:
             return True
         return False
 
+    def parse_monsters(self, ts, msg):
+        """v3.49 RZ349: one line of the Randomizer's Monsters; None = not one of them, else True when it was ours (no warning)."""
+        m = RZM_IN.match(msg)
+        if m:
+            g = m.groups()
+            self.rzm = (g[0], int(g[1]), int(g[2]), int(g[3]), int(g[4]), int(g[5]), g[6], g[7], g[8])
+            return 'FAULTED' not in g[6] and 'not the stock' not in g[6] and not g[8].startswith('NOT')
+        m = RZM_BADKEY.match(msg)
+        if m:
+            self.rzm_bad = m.groups()
+            return False
+        m = RZM_SET.match(msg)
+        if m:
+            self.rzm_sets.append((ts, m.group(1), m.group(2)))
+            return True
+        m = RZM_REREAD.match(msg)
+        if m:
+            self.rzm_sets.append((ts, m.group(1), '[Randomizer] read again'))
+            return True
+        m = RZM_GUM.match(msg)
+        if m:
+            self.rzm_gum = m.group(1)
+            return True
+        m = RZM_CT.match(msg)
+        if m:
+            self.rzm_ct.append((ts, m.group(1)))
+            return True
+        m = RZM_FIRST.match(msg)
+        if m:
+            self.rzm_first = (ts, int(m.group(1)), int(m.group(2)), m.group(3))
+            return True
+        m = RZM_ROOM.match(msg)
+        if m:
+            g = m.groups()
+            r = self.rzm_rooms
+            r['rooms'] += 1
+            r['revisits'] += int(g[3]) > 1
+            r['changed'] += int(g[4])
+            r['slots'] += int(g[5])
+            r['sticky'] += int(g[8])
+            r['drops'] += int(g[9])
+            r['bones'] += int(g[10])
+            r['files'] += int(g[11])
+            r['floor'] += int(g[12])
+            r['other'] += bool(g[13])
+            r['types'] += int(g[14])
+            r['kb'] += int(g[15])
+            for part in g[7].split(', '):
+                name, _, n = part.rpartition(' ')
+                if name and n.isdigit():
+                    self.rzm_by[name] += int(n)
+            return True
+        if RZM_LIST.match(msg):
+            self.rzm_lists += 1
+            return True
+        m = RZM_OTHER.match(msg)  # v3.49 fix2
+        if m:
+            self.rzm_misc['other'] += 1
+            self.rzm_misc['other_n'] += int(m.group(3))
+            return True
+        m = RZM_SESS2.match(msg)
+        if m:
+            self.rzm_misc['sess_other'] = int(m.group(1))
+            self.rzm_misc['prov_full'] = int(m.group(3))
+            return True
+        for key, rx in (('hit', RZM_HIT), ('offdrop', RZM_OFFDROP), ('left', RZM_LEFT), ('savev', RZM_SAVEV)):
+            if rx.match(msg):
+                self.rzm_misc[key] += 1
+                return True
+        m = RZM_SAVE.match(msg)
+        if m:
+            self.rzm_misc['save'] += 1
+            self.rzm_misc['saved_out'] += int(m.group(1))
+            return True
+        m = RZM_FILES.match(msg)
+        if m:
+            self.rzm_misc['files'] += 1
+            return True
+        m = RZM_SILENT.match(msg)
+        if m:
+            self.rzm_silent.append((m.group(1), int(m.group(2))))
+            return True
+        m = RZM_SESS.match(msg)
+        if m:
+            self.rzm_sess = m.groups()
+            return True
+        return None
+
+    def monsters_line(self):
+        """v3.49 RZ349: the Monsters summary line (None without any of its lines)."""
+        if not (self.rzm or self.rzm_first or self.rzm_rooms or self.rzm_sets or self.rzm_sess or self.rzm_anom or self.rzm_ct):
+            return None
+        line = '  randomizer monsters: '
+        if self.rzm:
+            r = self.rzm
+            line += '%s at the start; self-check %d of %d source placements (%d enemy placements) in %d scripts (%s); save filter %s' % (
+                r[0], r[1], r[4], r[2], r[3], r[6], r[8])
+        else:
+            line += '(no start line)'
+        if self.rzm_bad:
+            line += '; unknown ini value: Monsters "%s" -> %s' % self.rzm_bad
+        if self.rzm_gum:
+            line += '; Gum Heads %s' % self.rzm_gum
+        if self.rzm_misc['hit']:
+            line += '; the STOCK hit-shape pool: Monsters stayed as placed'
+        if self.rzm_ct:
+            line += '; the cheat table\'s Enemy Randomizer: %s' % ', '.join('%s [%s]' % (w, ts) for ts, w in self.rzm_ct[-4:])
+        if self.rzm_first:
+            line += '; first room %d:%d with Monsters %s [%s]' % (self.rzm_first[1], self.rzm_first[2], self.rzm_first[3], self.rzm_first[0])
+        if self.rzm_rooms:
+            r = self.rzm_rooms
+            line += ('; %d room load(s) randomized (%d of them a room visited again), %d of %d placement(s) changed (made as: %s), %d kept their '
+                     'record\'s type, %d record(s) deleted; kept as placed: %d bones, %d files, %d no floor; files loaded for %d type(s) '
+                     '(%d KB)' % (r['rooms'], r['revisits'], r['changed'], r['slots'],
+                                  ', '.join('%s %d' % kv for kv in sorted(self.rzm_by.items(), key=lambda kv: -kv[1])) or 'none',
+                                  r['sticky'], r['drops'], r['bones'], r['files'], r['floor'], r['types'], r['kb']))
+            if r['other']:
+                line += ', %d room(s) with words NOT the stock value' % r['other']
+        if self.rzm_lists:
+            line += ' (%d verbose list(s))' % self.rzm_lists
+        if self.rzm_misc['files']:
+            line += '; %d file load(s) refused' % self.rzm_misc['files']
+        if self.rzm_misc['other']:  # v3.49 fix2
+            line += "; %d room(s) with %d record(s) another writer retyped, left alone" % (self.rzm_misc['other'],
+                                                                                         self.rzm_misc['other_n'])
+        if self.rzm_misc['prov_full']:
+            line += '; the provenance table was FULL %d time(s)' % self.rzm_misc['prov_full']
+        if self.rzm_misc['offdrop']:
+            line += '; %d room(s) with records of earlier randomized monsters deleted' % self.rzm_misc['offdrop']
+        if self.rzm_silent:
+            line += '; may be silent: ' + ', '.join('%s in stage %d' % s for s in self.rzm_silent)
+        if self.rzm_misc['save']:
+            line += '; %d save(s) left %d randomized record(s) out' % (self.rzm_misc['save'], self.rzm_misc['saved_out'])
+        if self.rzm_sets:
+            line += '; %d change(s): %s' % (len(self.rzm_sets), ', '.join('Monsters %s (%s) [%s]' % (new, frm, ts) for ts, new, frm
+                                                                         in self.rzm_sets[-4:]))
+        if self.rzm_sess:
+            s = self.rzm_sess
+            line += ('; session: %s room load(s), %s randomized, %s changed, %s by record, %s record(s) deleted (+%s off), kept %s / %s / '
+                     '%s, %s save(s) %s out, %s left as found%s' % (s[3], s[4], s[5], s[6], s[7], s[8], s[9], s[10], s[11], s[15],
+                                                                   s[16], s[17], s[18]))
+        if self.rzm_anom:
+            line += '; %d ANOMALY line(s)' % self.rzm_anom
+        return line
+
     def parse_rando(self, ts, msg):
         """v3.48 RZ348: one Randomizer line; True when it was ours."""
+        r = self.parse_monsters(ts, msg)  # v3.49 RZ349
+        if r is not None:
+            return r
         m = RZ_IN.match(msg)
         if m:
             g = m.groups()  # v3.48 RZ348 r2: + PerVisit, weapon spots, the weapons that may move
@@ -835,6 +1170,96 @@ class Session:
             self.rz_sess = m.groups()
             return True
         return False
+
+    def parse_rzl(self, ts, msg):
+        """v3.49 RZ349L: one Randomizer looks line: True (ours), False (ours, kept for the warnings), None (not ours)."""
+        m = RZL_IN.match(msg)
+        if m:
+            self.rzl = m.groups()
+            return True
+        m = RZL_BADKEY.match(msg)
+        if m:
+            self.rzl_bad.append(m.groups())
+            return False
+        m = RZL_FIRST.match(msg)
+        if m:
+            g = m.groups()
+            self.rzl_first = (ts, int(g[0]), int(g[1]), g[2], g[3], g[4], g[5])
+            return 'NOT available' not in g[3] and 'NOT available' not in g[5]
+        m = RZL_DRAW.match(msg)
+        if m:
+            g = m.groups()
+            self.rzl_out.append((ts, 'draw', '%s (visit %s, stage %s)' % (g[4], g[0], g[1])))
+            return True
+        m = RZL_SINGLE.match(msg)
+        if m:
+            self.rzl_out.append((ts, 'single', 'only the Dress unlocked (visit %s, stage %s)' % (m.group(1), m.group(2))))
+            return True
+        m = RZL_BACK.match(msg)
+        if m:
+            self.rzl_out.append((ts, 'back', '%s back (%s)' % m.groups()))
+            return True
+        m = RZL_TAKE.match(msg)
+        if m:
+            self.rzl_out.append((ts, 'takeover', '%s chosen in the Extra Menu' % m.group(1)))
+            return True
+        m = RZL_GROOM.match(msg)
+        if m:
+            self.rzl_gh['rooms'] += 1
+            self.rzl_gh['moved'] += int(m.group(4))
+            self.rzl_gh['victims'] += int(m.group(5))
+            self.rzl_gh['revisits'] += int(m.group(3)) > 1
+            return True
+        if RZL_CT.match(msg):
+            self.rzl_gh['ct'] += 1
+            return True
+        m = RZL_SET.match(msg)
+        if m:
+            self.rzl_sets.append((ts, m.group(1), m.group(2), m.group(3)))
+            return True
+        m = RZL_REREAD.match(msg)
+        if m:
+            self.rzl_sets.append((ts, m.group(1), m.group(2), '[Randomizer] read again'))
+            return True
+        m = RZL_SESS.match(msg)
+        if m:
+            self.rzl_sess = m.groups()
+            return 'FAULTED' not in m.group(9) and 'FAULTED' not in m.group(16)
+        return None
+
+    def rzl_line(self):
+        """v3.49 RZ349L: the Randomizer looks summary line (None without any of its lines)."""
+        if not (self.rzl or self.rzl_bad or self.rzl_first or self.rzl_out or self.rzl_gh or self.rzl_sets or self.rzl_sess or
+                self.rzl_anom):
+            return None
+        line = '  randomizer looks: '
+        line += ('Eileen Outfit %s, Ghosts %s at the start' % self.rzl) if self.rzl else '(no start line)'
+        if self.rzl_bad:
+            line += '; unknown ini values: ' + ', '.join('%s "%s" -> %s' % b for b in self.rzl_bad)
+        if self.rzl_first:
+            f = self.rzl_first
+            line += '; first room load %d:%d: outfit %s (%s), ghosts %s (%s) [%s]' % (f[1], f[2], f[3], f[4], f[5], f[6], f[0])
+        if self.rzl_out:
+            n = Counter(k for _, k, _ in self.rzl_out)
+            line += '; outfit: %d draw(s), %d with one outfit, %d back to the set one, %d Extra Menu choice(s); last: %s' % (
+                n['draw'], n['single'], n['back'], n['takeover'], ', '.join('%s [%s]' % (d, t) for t, _, d in self.rzl_out[-3:]))
+        if self.rzl_gh['rooms']:
+            g = self.rzl_gh
+            line += '; ghosts: %d room load(s) with victims (%d of them a room visited again), %d of %d victim(s) moved' % (
+                g['rooms'], g['revisits'], g['moved'], g['victims'])
+        if self.rzl_gh['ct']:
+            line += "; ghosts left alone: the cheat table's Enemy Randomizer is on"
+        if self.rzl_sets:
+            line += '; %d change(s): %s' % (len(self.rzl_sets), ', '.join('%s %s (%s) [%s]' % (k, new, frm, ts) for ts, k, new, frm
+                                                                         in self.rzl_sets[-4:]))
+        if self.rzl_sess:
+            s = self.rzl_sess
+            line += ('; session: outfit %s world visit(s), %s draw(s) (Dress %s, Nurse %s), %s back, %s chosen%s; ghosts %s room '
+                     'load(s), %s victim(s), %s moved, %s kept, %s left as found%s' % (
+                         s[1], s[2], s[3], s[4], s[6], s[7], s[8], s[10], s[11], s[12], s[13], s[14], s[15]))
+        if self.rzl_anom:
+            line += '; %d ANOMALY line(s)' % self.rzl_anom
+        return line
 
     def rando_line(self):
         """v3.48 RZ348: the Randomizer summary line (None without any of its lines)."""
@@ -928,7 +1353,11 @@ class Session:
             self.add_group(self.anomalies, norm(body), ts, body)
             if body.startswith('regeneration: '):  # v3.47 RG347
                 self.rg_anom += 1
-            if body.startswith('randomizer: '):  # v3.48 RZ348
+            if body.startswith('randomizer: monsters'):  # v3.49 RZ349
+                self.rzm_anom += 1
+            elif body.startswith(('randomizer: outfit: ', 'randomizer: ghosts: ')):  # v3.49 RZ349L  # v3.49 MERGE: counted apart, as the Monsters' (not in rz_anom: the Items line keeps its own count)
+                self.rzl_anom += 1
+            elif body.startswith('randomizer: '):  # v3.48 RZ348
                 self.rz_anom += 1
             if body.startswith('omni: '):  # v3.46 OM346
                 self.om_anom += 1
@@ -1000,6 +1429,9 @@ class Session:
                 self.drop_changes.append((ts, m.group(1)))
             elif DROP_LEVEL_ALIAS.match(msg):
                 self.drop_alias += 1
+            m = FOL_MODE_SET.match(msg)  # v3.49 EF349
+            if m and (not self.fol_modes or self.fol_modes[-1][1] != m.group(1)):
+                self.fol_modes.append((ts, m.group(1)))
         if msg.startswith('supply drops: '):  # v3.37 MN337
             m = DROP_LEVEL_IN.match(msg)  # v3.38 DR338
             if m:
@@ -1146,6 +1578,10 @@ class Session:
                 return
             if SB_STEP.match(msg):  # v3.48 SB348
                 self.sb_steps[self.cur_lv] += 1
+                return
+            m = SB_BAR.match(msg)  # v3.49 SB349
+            if m:
+                self.sb_bar = (m.group(1), m.group(2))
                 return
             m = SB_SETTLE.match(msg)  # v3.48 SB348
             if m:
@@ -1319,6 +1755,25 @@ class Session:
                 self.sh_c1[('play' if m.group(1).startswith('in play') else 'page', '%s %s %%' % (m.group(2), m.group(3)))] = (
                     float(m.group(4)), int(m.group(6)), m.group(5) == 'read back', ts)
                 return
+            m = SH_COVER.match(msg)  # v3.49 SH349
+            if m:
+                self.sh_rib_state = 'the Darkness' if m.group(1) == 'the Darkness' else self.sh_rib_state or "the game's own"
+                return
+            m = SH_RIB.match(msg)
+            if m:
+                self.sh_rib_vals['%s -> %s at %s %%' % (m.group(2), m.group(3), m.group(1))] = int(m.group(4))
+                return
+            m = SH_RIB_ROOM.match(msg)
+            if m:
+                self.sh['rib_rooms'] += 1
+                self.sh['rib'] += int(m.group(3))
+                self.sh['rib_dark'] += int(m.group(4))
+                return
+            m = SH_RIB_NOT.match(msg)
+            if m:
+                self.sh_rib_state = ("the game's own (%s)" % ('TremerShadows=0' if m.group(1).startswith('[') else
+                                                              'not stock' if 'not stock' in m.group(1) else 'not written'))
+                return
             m = SH_ROOM.match(msg)
             if m:
                 n, soft = int(m.group(3)), int(m.group(6))
@@ -1430,6 +1885,19 @@ class Session:
                                     int(g[6]) if g[6] else None, int(g[7]) if g[7] else None, int(g[8]) if g[8] else None,
                                     int(g[9]), int(g[10])))
             return
+        m = FOL_MODE_IN.match(msg)  # v3.49 EF349 (no return: the install line is read by others too)
+        if m and self.fol_mode is None:
+            self.fol_mode = m.group(1)
+        if FOL_MODE_SAY.match(msg):  # v3.49 EF349: the value's own line (the menu / ini lines give the changes)
+            return
+        m = FOL_HOME.match(msg)  # v3.49 EF349
+        if m:
+            self.fol_home[0] += int(m.group(2))
+            return
+        m = FOL_HOME_CW.match(msg)
+        if m:
+            self.fol_home[1] += int(m.group(1) or m.group(2))
+            return
         m = FOL_DOOR.match(msg)  # v3.38 EN338
         if m:
             n = int(m.group(1))
@@ -1476,8 +1944,12 @@ class Session:
         if msg.startswith(('regeneration: ', 'life steal: ', 'settings: [Gameplay] Regen')):  # v3.47 RG347
             if self.parse_regen(ts, msg):
                 return
-        if msg.startswith('randomizer: '):  # v3.48 RZ348
-            if self.parse_rando(ts, msg):
+        if msg.startswith('randomizer: '):  # v3.49 RZ349L: the looks lines first (their own patterns)
+            r = self.parse_rzl(ts, msg)
+            if r is not None:
+                if r:
+                    return
+            elif self.parse_rando(ts, msg):  # v3.48 RZ348
                 return
         m = GT_INSTALL.match(msg)  # v3.43 GT343
         if m:
@@ -1490,6 +1962,15 @@ class Session:
         m = GT_NO.match(msg)
         if m:
             self.gt_no[m.group(1)] += 1
+            self.gt_zone_no += GT_ZONE_NO in msg or GT_ZONE_IN in msg  # v3.49 GT349 (GT349-001: + inside one)
+            return
+        m = GT_HOLD.match(msg)  # v3.49 GT349
+        if m:
+            self.gt_holds.append((int(m.group(2)), int(m.group(3))))
+            return
+        m = GT_ZONES.match(msg)
+        if m:
+            self.gt_zones['%s:%s' % (m.group(1), m.group(2))] = int(m.group(3))
             return
         if GT_COOL.match(msg):
             self.gt_cool += 1
@@ -1501,7 +1982,8 @@ class Session:
         m = GT_CHORD.match(msg)
         if m:
             g = m.group(1)
-            self.gt_chord['NOT taken back' if 'NOT' in g else 'taken back' if 'taken back' in g else 'Action first'] += 1
+            self.gt_chord['held' if g.startswith('held') else 'NOT taken back' if 'NOT' in g else 'taken back' if 'taken back' in g
+                          else 'Action first'] += 1  # v3.49 GT349: + held
             return
         m = GT_FADE.match(msg)
         if m:
@@ -1809,7 +2291,8 @@ class Session:
                          'stacks: merges %d, take-outs %d, stacked breaks %d, dropped %d' % (c[0], c[1], c[4], c[5], c[3], c[7], c[8], c[9], c[10]))
             say(head)
         # v3.43 GT343: Ghost Teleport
-        if self.gt or self.gt_warps or self.gt_no or self.gt_cool or self.gt_chord or self.gt_fades[0] or self.gt_off:
+        if (self.gt or self.gt_warps or self.gt_no or self.gt_cool or self.gt_chord or self.gt_fades[0] or self.gt_off or
+                self.gt_holds or self.gt_zones):
             line = '  ghost teleport: '
             if self.gt:
                 line += '%s at the start (%s); ' % (self.gt[0], self.gt[1])
@@ -1821,14 +2304,23 @@ class Session:
                 line += '; %d press(es) waited for the cooldown' % self.gt_cool
             if self.gt_chord:  # v3.44 GT344
                 ch = self.gt_chord
-                line += '; %d chord(s): Action last %d (taken back %d%s), Action first %d' % (
-                    sum(ch.values()), ch['taken back'] + ch['NOT taken back'], ch['taken back'],
-                    ', NOT taken back %d' % ch['NOT taken back'] if ch['NOT taken back'] else '', ch['Action first'])
+                line += '; %d chord(s): Action last %d (taken back %d%s), Action first %d%s' % (
+                    sum(ch.values()) - ch['held'], ch['taken back'] + ch['NOT taken back'], ch['taken back'],
+                    ', NOT taken back %d' % ch['NOT taken back'] if ch['NOT taken back'] else '', ch['Action first'],
+                    ', %d held warp start(s)' % ch['held'] if ch['held'] else '')
             if self.gt_fades[0]:
                 line += "; Richard's fade %d time(s)%s" % (self.gt_fades[0], ', %d NEVER DRAWN on her body' % self.gt_fades[1]
                                                           if self.gt_fades[1] else ', drawn each time')
             if self.gt_off:
                 line += '; called off %d: %s' % (sum(self.gt_off.values()), ', '.join('%s x%d' % (k, v) for k, v in self.gt_off.most_common(4)))
+            if self.gt_holds:  # v3.49 GT349
+                line += '; %d hold(s) of Run + Action: %d warp(s), the longest %d in a row, %d try(ies) refused while held' % (
+                    len(self.gt_holds), sum(w for w, _ in self.gt_holds), max(w for w, _ in self.gt_holds),
+                    sum(r for _, r in self.gt_holds))
+            if self.gt_zones or self.gt_zone_no:
+                line += '; walk-in event zones kept out of: %s%s' % (
+                    ', '.join('room %s x%d' % (k, v) for k, v in sorted(self.gt_zones.items()) if v) or 'none armed',
+                    ' (%d refusal(s) had spots inside or past one)' % self.gt_zone_no if self.gt_zone_no else '')
             say(line)
         # v3.46 OM346: Stick Movement (v3.48 OM348: Omni-Directional Movement)
         line = self.omni_line()
@@ -1840,6 +2332,12 @@ class Session:
             say(line)
         # v3.48 RZ348: the Randomizer
         line = self.rando_line()
+        if line:
+            say(line)
+        line = self.monsters_line()  # v3.49 RZ349: its Monsters
+        if line:
+            say(line)
+        line = self.rzl_line()  # v3.49 RZ349L: its looks
         if line:
             say(line)
         # v3.38 EN338: Enemies Follow
@@ -1856,6 +2354,9 @@ class Session:
             if f['fresh']:  # v3.41 EN341
                 line += "; %d ghost copy(ies) made in another room without their record (the ghosts' way)" % f['fresh']
             say(line)
+        line = self.fol_mode_line()  # v3.49 EF349
+        if line:
+            say('  ' + line)
         # v3.43 FN343: the HD menu font (nothing when MenuFont = Stock)
         fn = self.fn
         if fn['set'] or fn['stock'] or fn['switches']:  # v3.44 FN344: + the live switches
@@ -1878,7 +2379,7 @@ class Session:
                 line += '; switched live in Options %d time(s), last: %s' % (len(fn['switches']), fn['switches'][-1])
             say(line)
         # v3.47 SB347: the save list's Bank row (its first draw, the mouse's clicks)
-        if self.sb_row or self.sb_clicks or self.sb_changes or self.sb_steps:  # v3.48 SB348: + the changes
+        if self.sb_row or self.sb_clicks or self.sb_changes or self.sb_steps or self.sb_bar:  # v3.48 SB348: + the changes  # v3.49 SB349: + the bar
             line = '  bank row: '
             line += ('"%s" in Menu Font %s, %d units wide' % self.sb_row) if self.sb_row else '(no draw line)'
             if self.sb_clicks:
@@ -1898,6 +2399,10 @@ class Session:
                          'step)' % self.sb_steps['n'])
             if self.sb_steps['v']:
                 line += '; %d verbose per-step line(s)' % self.sb_steps['v']
+            if self.sb_bar:  # v3.49 SB349: the lists' highlight bar; a refused patch in capitals
+                c, why = self.sb_bar
+                bad = c == 'yellow' and ('not stock' in why or 'could not' in why)
+                line += '; list bar %s (%s)' % ('YELLOW: NOT PATCHED' if bad else c, why)
             say(line)
         # v3.40 SH340: Shadow Edge
         if self.sh_edge or self.sh_not or self.sh['composites'] or self.sh_px:  # v3.44 CS344: + the pixel checks
@@ -1942,6 +2447,12 @@ class Session:
             if p[0] or p[1] or p[3]:  # v3.41 SH341: the pause hitch's source
                 line += '; pause picture: %d on the GPU (target made %d, kept %d; at most %.2f ms), %d read back from the GPU (worst %.1f ms)' % (
                     p[0] + p[1], p[0], p[1], p[2], p[3], p[4])
+            if self.sh_rib_state or h['rib']:  # v3.49 SH349
+                line += '; Tremer wall shadows: %s' % (self.sh_rib_state or 'the Darkness')
+                if h['rib']:
+                    line += ', %d draw(s) in %d room line(s), %d at the Darkness' % (h['rib'], h['rib_rooms'], h['rib_dark'])
+                if self.sh_rib_vals:
+                    line += ' (alpha ' + ', '.join('%s: %d %%' % kv for kv in list(self.sh_rib_vals.items())[:4]) + ')'
             if self.sh_off:
                 line += '; OFF from %s: %s (%s)' % self.sh_off
             say(line)

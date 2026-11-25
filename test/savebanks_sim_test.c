@@ -357,6 +357,52 @@ static void TestSettle(void)
     CHECK(s.from == 9 && s.steps == 1 && s.src[2] == 0, "a new change starts from zero");
 }
 
+// v3.49 SB349: the lists' highlight bar. The model runs the stock bytes and the patch: the stock run gives 56FDA0's yellow,
+// the patch 56FCC0 style 0's blue (MenuDrawModeRowBar: (a | 0FFFF8000h) << 16), for every pulse and both focus states.
+static void TestListBar(void)
+{
+    int f, k, focus, bad = 0, badBlue = 0, badPulse = 0, known;
+    unsigned lo = 0xFFFFFFFFu, hi = 0;
+    for (f = 0; f < 256; ++f)
+        for (focus = 0; focus < 2; ++focus) {
+            const unsigned a = focus ? SbPulse((unsigned char)f) : 0x60u;
+            const unsigned y = SbListBarColour((unsigned char)f, focus, 0), b = SbListBarColour((unsigned char)f, focus, 1);
+            unsigned mode;
+            bad += SbBarExec(kSbBarStock, SB_BAR_LEN, a) != y || y != (0x80000000u | a << 8 | a);
+            mode = (a | 0xFFFF8000u) << 16;  // 56FCC0 style 0 (and savebanks.inc sb_bar)
+            badBlue += SbBarExec(kSbBarBlue, SB_BAR_LEN, a) != b || b != mode;
+            badBlue += (b & 0x0000FFFFu) != 0 || (b >> 24) != 0x80u;  // no red, no green: blue only, alpha 0x80
+            if (focus) {
+                lo = a < lo ? a : lo;
+                hi = a > hi ? a : hi;
+            }
+        }
+    CHECK(!bad, "the stock bytes model 56FDA0's yellow 0x8000aaaa (%d bad)", bad);
+    CHECK(!badBlue, "the patch gives 56FCC0's blue 0x80aa0000 (%d bad)", badBlue);
+    CHECK(lo == 0x40 && hi == 0x80, "the pulse runs 0x40 .. 0x80 (%X .. %X)", lo, hi);
+    for (f = 0; f < 256; ++f) {  // the pulse as 56FDA0's bytes compute it (byte arithmetic)
+        unsigned char al = (unsigned char)f, cl;
+        if (al & 0x20) cl = (unsigned char)((unsigned char)((al & 0x1F) + 0x20) << 1);
+        else cl = (unsigned char)((unsigned char)(0x40 - (al & 0x1F)) << 1);
+        badPulse += SbPulse((unsigned char)f) != cl;
+    }
+    CHECK(!badPulse, "SbPulse = 56FDA0's al / cl steps (%d bad)", badPulse);
+    CHECK(SbListBarColour(0, 0, 1) == 0x80600000u && SbListBarColour(0, 0, 0) == 0x80006060u, "unfocused: a = 0x60");
+    CHECK(SbBarExec((const unsigned char *)"\xCC", 1, 1) == 0xFFFFFFFFu, "an unknown opcode is reported");
+    for (k = 0; k < SB_BAR_LEN && kSbBarStock[k] == kSbBarBlue[k]; ++k) {}
+    CHECK(k == 3 && sizeof kSbBarStock == sizeof kSbBarBlue && SB_BAR_LEN == 11, "same length, the first change at byte 3");
+    CHECK(SbBarParse("Blue", &known) == SB_BAR_BLUE && known, "Blue");
+    CHECK(SbBarParse("blue", &known) == SB_BAR_BLUE && known, "blue (case)");
+    CHECK(SbBarParse("1", &known) == SB_BAR_BLUE && known, "1");
+    CHECK(SbBarParse("Yellow", &known) == SB_BAR_YELLOW && known, "Yellow");
+    CHECK(SbBarParse("YELLOW", &known) == SB_BAR_YELLOW && known, "YELLOW");
+    CHECK(SbBarParse("0", &known) == SB_BAR_YELLOW && known, "0");
+    CHECK(SbBarParse("", &known) == SB_BAR_BLUE && known, "empty: the default Blue");
+    CHECK(SbBarParse(NULL, NULL) == SB_BAR_BLUE, "NULL: Blue");
+    CHECK(SbBarParse("Red", &known) == SB_BAR_BLUE && !known, "unknown: Blue, flagged");
+    CHECK(SbBarParse("2", &known) == SB_BAR_BLUE && !known, "2: Blue, flagged");
+}
+
 int main(void)
 {
     TestLayout();
@@ -371,6 +417,7 @@ int main(void)
     TestMouseHold();
     TestBatchHold();
     TestSettle();
+    TestListBar();  // v3.49 SB349
     printf("savebanks_sim_test: %d check(s), %d failure(s)\n", g_n, g_fail);
     return g_fail ? 1 : 0;
 }

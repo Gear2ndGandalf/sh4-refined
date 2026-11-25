@@ -28,6 +28,13 @@
 // Holding the left mouse button on a blue arrow repeats the same way (SbMhFrame). The list's own input (570F30: Left /
 // Right page it by 10 slots) is skipped while the row has the input, as before. The per-step "save banks: bank N" is
 // verbose (sh4windowmod.c SbSetBank, g_sbListStep); one normal line per settled change (SbSettle). No new patch site.
+// v3.49 SB349 (USER_FEEDBACK_v348.md item 2, section A; staging\v349_feedback\w1_list\PLAN.md): (1) the lists' highlight bar
+// is the game's blue menu bar (56FCC0 style 0's colour) instead of its yellow: 11 bytes at 56FDCF, byte-checked, behind
+// [SaveBanks] ListBar = Blue (default) / Yellow (SbListBarInstall; savebanks_sim.h kSbBarBlue). The Bank row's own bar was
+// blue already (sb_bar). (2) The mouse pointer no longer hides while the Bank row has the input: the list's input 570F30
+// calls InputMouseCursorUnhide 405890 every frame and the main loop's 4059E0 hides the pointer on any frame nobody did;
+// sb_input_c skipped 570F30 on the row, so the pointer vanished whenever the row was selected (moving the mouse off the row
+// gave the input back to the list: the pointer came back). Now sb_input_c calls 405890 itself on those frames.
 #include "savebanks_sim.h"  // v3.47 SB347
 
 #define SB_I(a) (*(volatile int *)(a))
@@ -95,6 +102,7 @@ static DWORD sb_bk_err;
 static DWORD sb_bk_bits[32];   // one bit per bank 0..1023: backed up in this session
 static char sb_bk_src[0x104], sb_bk_path[0x140];
 static int g_sbBroken;         // [not in the table] a failed install left sites patched: they pass through to stock
+static int sb_unhide_ok;       // v3.49 SB349: 405890 (InputMouseCursorUnhide) is stock: sb_input_c may call it
 static volatile LONG g_sbInSkip, g_sbLbarSkip, g_sbDxFail;  // read by the naked stubs
 
 static int SbFault(EXCEPTION_POINTERS *e, const char *where)
@@ -488,6 +496,9 @@ static int __cdecl sb_input_c(void)
     if (SbOff()) return 0;
     __try {
         r = sb_input_body();
+        // v3.49 SB349: 570F30 is skipped this frame, and with it its InputMouseCursorUnhide: the main loop's 4059E0 would
+        // hide the pointer at the next frame. Unhide it as the list does (the 180-frame idle hide of 4059E0 still applies).
+        if (r && sb_unhide_ok) ((void(__cdecl *)(void))0x405890)();
     } __except (SbFault(GetExceptionInformation(), "sb_input")) {
         r = 0;
     }
@@ -867,6 +878,45 @@ static void SbLogDiff(const Site *s)
     Log("save banks: %08lX found               %s", s->va, b);
 }
 
+// v3.49 SB349: the lists' highlight bar, [SaveBanks] ListBar (read at the start). Independent of the 8 bank sites (also with
+// banks Off, or when another tool owns them): one 11-byte write, byte-checked first; Poke writes all of it or nothing (it
+// copies only after VirtualProtect succeeded) and lists it in SH4WM_Patches. Yellow, or a site that is not stock: nothing
+// is written (the game's yellow). Also checks 405890 for sb_input_c's pointer fix.
+static void SbListBarInstall(void)
+{
+    static const Site kUnhide = { 0x405890, { 0xA1, 0xD8, 0xF2, 0x5F, 0x00, 0x85, 0xC0, 0x74, 0x0A, 0xC7, 0x05, 0xD8, 0xF2,
+                                              0x5F, 0x00, 0x00, 0x00, 0x00, 0x00, 0xC3 }, 20 };  // InputMouseCursorUnhide
+    Site bar;
+    char v[32];
+    int known, want;
+    sb_unhide_ok = EmOurPatch(kUnhide.va, kUnhide.len) || SiteOk(&kUnhide);
+    if (!sb_unhide_ok) {
+        SbLogDiff(&kUnhide);
+        Log("save banks: 405890 is not stock: the mouse pointer may hide while the Bank row is selected (as v3.48)");
+    }
+    IniStr("SaveBanks", "ListBar", v, sizeof v);
+    want = SbBarParse(v, &known);
+    if (!known) Log("settings: [SaveBanks] ListBar=\"%s\" is not Blue or Yellow: Blue", v);
+    if (want != SB_BAR_BLUE) {
+        Log("save banks: list highlight bar: yellow (the game's own list bar; [SaveBanks] ListBar=Yellow)");
+        return;
+    }
+    memset(&bar, 0, sizeof bar);
+    bar.va = SB_BAR_VA;
+    bar.len = SB_BAR_LEN;
+    memcpy(bar.stock, kSbBarStock, SB_BAR_LEN);
+    if (EmOurPatch(bar.va, bar.len) || !SiteOk(&bar)) {
+        SbLogDiff(&bar);
+        Log("save banks: list highlight bar: yellow (56FDCF is not stock: nothing written)");
+        return;
+    }
+    if (!Poke(SB_BAR_VA, kSbBarBlue, SB_BAR_LEN)) {
+        Log("save banks: list highlight bar: yellow (56FDCF could not be written: VirtualProtect failed)");
+        return;
+    }
+    Log("save banks: list highlight bar: blue (the game's blue menu bar, 56FCC0's colour; 56FDCF)");
+}
+
 static void SaveBanksInstall(void)
 {
     // the 8 patch sites with the table's AOB bytes at their VAs (56F150 / 56F440 / 56FF20: the first 32 bytes)
@@ -918,6 +968,7 @@ static void SaveBanksInstall(void)
     BYTE saved[8][16];
     int i, bad = 0, ok = 1, done = 0;
     SbLayoutMake(&sb_L);  // v3.47 SB347: before any hook can run
+    SbListBarInstall();   // v3.49 SB349: whatever happens to the 8 bank sites below
     for (i = 0; i < (int)(sizeof kSites / sizeof kSites[0]); ++i)
         if (!SiteOk(&kSites[i])) {
             SbLogDiff(&kSites[i]);

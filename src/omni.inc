@@ -27,6 +27,13 @@
 // Off / On; On = v3.47's Analog in every respect (the hook, the self-check, the dead zone, SH4R_StickAmount 0.6..1, Room
 // 302 / Playable Eileen's rules). [Input] OmniMove reads Off / On, 0 / 1; v3.46 / v3.47's Direction / Analog / 2 read as
 // On and the first start that finds one writes it back once as On (OmReadIni).
+// v3.49 LK349 (staging/v349_feedback/w7_look302/PLAN.md; the user: "Room 302 sometimes the right stick does not turn the 1st
+// person camera and can get sticky. It's worse for Henry than Eileen"): the game's look is 8-way (+-300 on / off, full
+// speed or nothing) and its reversal latch freezes an axis after a direct flick (Playable Eileen v1.24.2 fixes the latch
+// only while she is On). [Input] OmniLook (hidden; Off / Room302 (default) / All): OmniSticks also writes the raw look
+// stick (GetDeviceState's lRx / lRy, the confirmed source, its own look self-check) into gPad.stick[1] 0x1236C54 / 0x1236C58
+// (no new patch site). Room 302 with X turns: the left stick's small x no longer silences the right stick's yaw
+// (OmRoomTurnX). One verbose count line per place (the latch, the 8-way misses, who wrote the look).
 #include "omni_sim.h"
 
 static volatile LONG g_omMode;       // OM_* ([Input] OmniMove, the row); read by the hook every frame
@@ -58,6 +65,22 @@ static volatile LONG g_omQBg;           // LogQuota: focus-loss episodes logged 
 static volatile LONG g_omPeReads = -1;  // -1 no Playable Eileen or no SH4PE_StickAmountOn, 0 it says no, 1 she follows the amount
 static int g_omRow = -1;                // Stick Movement's row on Option 2 (-1 = no row)
 static DWORD g_omRowsControl[(OM_CTL_ROWS + 1) * 7 + 1];  // Option 2: its 6 rows, Stick Movement, Exit, the end mark
+// v3.49 LK349: the analog look ([Input] OmniLook; omni_sim.h OmLook*), this frame's GetDeviceState axes, the look's
+// self-check and the per-place counts (game thread; flushed as one verbose line per place / 5 minutes / mode change)
+static volatile LONG g_omLook = OML_ROOM302;
+static long g_omJs[4];                  // this frame's GetDeviceState lX, lY, lRx, lRy (g_omJsFresh = 1)
+static int g_omJsFresh;
+static OmCheck g_omLookChk;
+static int g_omLookBindLogged = -1;
+static unsigned g_omLookBindPads[4];
+typedef struct {
+    DWORD pushed, analog, here, key, noRead, check, bind, latch, latchX, latchY, band, turnKept;
+    DWORD t0;  // GetTickCount of the first counted frame
+} OmLookStats;
+static OmLookStats g_olSt;
+static int g_olStage = -1;              // the stage the counts belong to
+static volatile LONG g_omQLook, g_omQLookBind;  // LogQuota counters
+static DWORD g_omLookTraceT;
 
 static const BYTE *OmText(int id);
 static void OmPeProbe(void);  // v3.47 CT347 (the row part, below)
@@ -97,6 +120,8 @@ static int OmReadDevice(const BYTE *in, int bind, long *x, long *y, HRESULT *hr)
     memset(js, 0, sizeof js);
     *hr = ((HRESULT(__stdcall *)(void *, DWORD, void *))(*(void ***)dev)[9])(dev, sizeof js, js);
     if (FAILED(*hr)) return -1;
+    g_omJs[0] = js[0], g_omJs[1] = js[1], g_omJs[2] = js[3], g_omJs[3] = js[4];  // v3.49 LK349: lX, lY, lRx, lRy for the look
+    g_omJsFresh = 1;
     *x = bind == OMB_SWAPPED ? js[3] : js[0];
     *y = bind == OMB_SWAPPED ? js[4] : js[1];
     return 1;
@@ -256,6 +281,12 @@ static int OmTickBody(int fresh, int front, DWORD now, float *len, int *judged, 
     }
     gx = *(volatile const float *)0x1236C44, gy = *(volatile const float *)0x1236C48;
     if (OmMap(rx, ry, mode, dz, &fx, &fy)) {
+        // v3.49 LK349: Room 302 with X turns: a small sideways push no longer blocks the right stick's turn (omni_sim.h OmRoomTurnX)
+        const int room = *(volatile const int *)0xFD5A90 == OM_LOOK_STAGE_FP;
+        if (OmRoomTurnX(room, room && *(volatile const BYTE *)0x1091AE7 == 0, gx, &fx)) {
+            ++g_olSt.turnKept;
+            if (fy == 0.0f) return 0;  // (nothing left to write: the game's own 0, 0)
+        }
         *(volatile float *)0x1236C44 = fx;
         *(volatile float *)0x1236C48 = fy;
         *len = sqrtf(fx * fx + fy * fy);  // v3.47 CT347: SH4R_StickAmount's value in Analog  // v3.48 OM348: = On
@@ -276,6 +307,128 @@ static int OmTickBody(int fresh, int front, DWORD now, float *len, int *judged, 
     }
     return fx != 0.0f || fy != 0.0f ? 1 : 0;  // (the dead-zone stop writes 0, 0: no input, the export says 1)
 }
+// ---------------------------------------------------------------- v3.49 LK349: the analog look (omni_sim.h OmLook*)
+// One verbose line for a place (Room 302, or a stage under OmniLook=All) with the look stick in use: what wrote the look
+// (Refined's analog vector or the game's own 8-way floats, and why), how often the game's reversal latch held an axis
+// (Playable Eileen Off before v1.24.3 = vanilla Henry), how often the game's 8-way look missed a push, and how often Room
+// 302's X-turns rule kept the right stick's turn. At most 40 a session.
+static void OmLookFlush(const char *why)
+{
+    OmLookStats *const s = &g_olSt;
+    char place[24];
+    if (!s->pushed && !s->turnKept) return;
+    if (g_olStage == OM_LOOK_STAGE_FP) strcpy_s(place, sizeof place, "Room 302");
+    else sprintf_s(place, sizeof place, "stage %d", g_olStage);
+    if (LogQuota(&g_omQLook, 40))
+        LogV("omni: look: %s, %lu s (%s): the look stick pushed %lu frame(s): %lu analog (OmniLook %s), the game's own %lu "
+             "(OmniLook not here %lu, a look key %lu, no pad read %lu, look self-check %s %lu, look not on a stick %lu); the game's "
+             "reversal latch %lu frame(s) (x %lu, y %lu); a push the game's 8-way look missed %lu frame(s); the right stick's "
+             "turn kept from a small sideways push %lu frame(s) (X turns)", place, (GetTickCount() - s->t0) / 1000, why,
+             s->pushed, s->analog, kOmLookName[g_omLook >= 0 && g_omLook < OML_MODES ? g_omLook : 0],
+             s->here + s->key + s->noRead + s->check + s->bind, s->here, s->key, s->noRead, kOmSrcName[g_omLookChk.verdict & 3],
+             s->check, s->bind, s->latch, s->latchX, s->latchY, s->band, s->turnKept);
+    memset(s, 0, sizeof *s);
+}
+// The place (stage) of this frame, before OmTickBody counts into it: a new stage flushes the last one's counts; 5 minutes
+// in one place flush too (a long Room 302 visit still leaves a line).
+static void OmLookPlace(DWORD now)
+{
+    const int stage = *(volatile const int *)0xFD5A90;
+    if (stage != g_olStage) {
+        OmLookFlush("left");
+        g_olStage = stage;
+    } else if ((g_olSt.pushed || g_olSt.turnKept) && now - g_olSt.t0 >= 300000) {
+        OmLookFlush("5 minutes");
+    }
+    if (!g_olSt.pushed && !g_olSt.turnKept) g_olSt.t0 = now;
+}
+static int OmLookKeysHeld(const BYTE *in)  // a key of the four look bits (gInputButtonKeys[25..28] 0x5FF344) is down
+{
+    const volatile int *const keys = (const volatile int *)0x5FF344;
+    int i;
+    for (i = 0; i < 4; ++i) {
+        const int k = keys[i];
+        if (k > 0 && k < 0x100 && (in[0x50 + k] & 0x80)) return 1;
+    }
+    return 0;
+}
+static void OmLookBindNow(int bind, const unsigned p[4])
+{
+    if (bind == g_omLookBindLogged && !memcmp(p, g_omLookBindPads, sizeof g_omLookBindPads)) return;
+    g_omLookBindLogged = bind;
+    memcpy(g_omLookBindPads, p, sizeof g_omLookBindPads);
+    if (LogQuota(&g_omQLookBind, 8))
+        Log("omni: look bindings: LookRight %04X, LookLeft %04X, LookUp %04X, LookDown %04X = %s%s", p[0] & 0xFFFF, p[1] & 0xFFFF,
+            p[2] & 0xFFFF, p[3] & 0xFFFF, kOmLookBindName[bind], bind == OMLB_OTHER ? ": the game's own look (no analog look)" : "");
+}
+static void OmLookCheckLog(int r)
+{
+    const OmCheck *const c = &g_omLookChk;
+    if (r == OMC_VERDICT && c->verdict == OMS_DEVICE) {
+        Log("omni: look self-check: GetDeviceState %d of %d agree with the game's look bits: the analog look is on (OmniLook %s)",
+            c->lastOk[0], c->lastN[0], kOmLookName[g_omLook >= 0 && g_omLook < OML_MODES ? g_omLook : 0]);
+    } else if (r == OMC_VERDICT || r == OMC_RECHECK) {
+        const int ok = r == OMC_VERDICT ? c->lastOk[0] : c->lastOk[c->lastSrc], n = r == OMC_VERDICT ? c->lastN[0] : c->lastN[c->lastSrc];
+        Log("omni: look self-check: GetDeviceState %d of %d agree with the game's look bits: the game's own 8-way look stays this session", ok, n);
+        LogAnomaly("omni", "the look stick's GetDeviceState axes agreed with the game's look bits in only %d of %d frames: no analog "
+                   "look this session", ok, n);
+    }
+}
+// After OmTickBody (which read GetDeviceState into g_omJs when it is the confirmed source): the counts, the look's
+// self-check, and the analog look vector into stick[1] (0x1236C54 / 0x1236C58) where [Input] OmniLook applies.
+static void OmLookTick(void)
+{
+    BYTE *const in = *(BYTE *volatile *)0x6E8EA4;
+    const volatile unsigned *const pads = (const volatile unsigned *)0x5FF3BC;  // gInputButtonPads[25..28]
+    const int stage = g_olStage, look = (int)g_omLook, where = OmLookWhere(look, stage);
+    OmLookStats *const s = &g_olSt;
+    unsigned p[4], bits;
+    int bind, keys, read, pushed, latch, r;
+    long rx = 0, ry = 0;
+    float fx, fy;
+    if (!in || (!where && stage != OM_LOOK_STAGE_FP) || !OmGate()) return;  // counted: Room 302 always, other stages under All
+    p[0] = pads[0], p[1] = pads[1], p[2] = pads[2], p[3] = pads[3];
+    bind = OmLookBindings(p);
+    OmLookBindNow(bind, p);
+    bits = (*(volatile const DWORD *)(in + 0x38) >> 4) & 0xF;
+    read = g_omJsFresh && g_omChk.verdict == OMS_DEVICE;
+    if (read) {
+        rx = g_omJs[bind == OMLB_LEFT ? 0 : 2];
+        ry = g_omJs[bind == OMLB_LEFT ? 1 : 3];
+        if (!OmRawOk(rx, ry)) read = 0;
+    }
+    pushed = bits || (read && OmPushed(rx, ry, OM_LOOK_DZ));
+    if (!pushed) return;
+    keys = OmLookKeysHeld(in);
+    ++s->pushed;
+    latch = OmLatch(bits);
+    if (latch) {
+        ++s->latch;
+        s->latchX += latch & 1;
+        s->latchY += latch >> 1;
+    }
+    if (read && !bits && OmBandMiss(rx, ry, OM_LOOK_DZ)) ++s->band;
+    if (where && read && bind != OMLB_OTHER && g_omLookChk.verdict != OMS_NONE) {
+        r = OmCheckFeed(&g_omLookChk, OmEval(rx, ry, bits, keys), OME_SKIP);
+        if (r != OMC_NOTHING) OmLookCheckLog(r);
+    }
+    if (!where) ++s->here;
+    else if (bind == OMLB_OTHER) ++s->bind;
+    else if (keys) ++s->key;
+    else if (!read) ++s->noRead;
+    else if (g_omLookChk.verdict != OMS_DEVICE) ++s->check;
+    else if (OmLookMap(rx, ry, OM_LOOK_DZ, &fx, &fy)) {
+        *(volatile float *)0x1236C54 = fx;
+        *(volatile float *)0x1236C58 = fy;
+        ++s->analog;
+        if (g_logLevel >= 3 && GetTickCount() - g_omLookTraceT >= 500) {
+            g_omLookTraceT = GetTickCount();
+            LogT("omni: look: raw %ld, %ld -> stick[1] %.3f, %.3f (look bits %X)", rx, ry, fx, fy, bits);
+        }
+    } else {
+        ++s->noRead;  // (inside the dead zone with a look bit: not reached without a key; counted with the unread frames)
+    }
+}
 static float OmTick(int fresh, int *active)  // v3.47 CT347: OmTickBody + the failure episodes; returns the written length (-1 none)
 {
     const int front = OmFront();
@@ -283,7 +436,10 @@ static float OmTick(int fresh, int *active)  // v3.47 CT347: OmTickBody + the fa
     int judged = 0, cap = 0, r;
     HRESULT hr = 0;
     float len = -1.0f;
+    g_omJsFresh = 0;        // v3.49 LK349: OmReadDevice sets it
+    OmLookPlace(now);       // v3.49 LK349: the counts' place before OmTickBody counts into it
     r = OmTickBody(fresh, front, now, &len, &judged, &hr, &cap);
+    OmLookTick();           // v3.49 LK349: the analog look (after the stick's own vector)
     OmFailTick(judged, hr, front, now, cap);
     *active = r >= 0;
     return r > 0 ? len : -1.0f;
@@ -315,6 +471,7 @@ static void __cdecl OmniSticks(int pad)  // replaces `call 0x553D20` at 0x5543C0
     g_omCapSeen = seq;                      // (also while Off: a capture older than this frame is never used)
     if (!mode || g_omFault) {               // Off: nothing written, no device call
         if (g_omAmountBits) OmAmountSet(0.0f);  // v3.47 CT347
+        if (g_olSt.pushed || g_olSt.turnKept) OmLookFlush(g_omFault ? "the hook faulted" : "Omni-Directional Movement Off");  // v3.49 LK349
         return;
     }
     __try {
@@ -507,6 +664,16 @@ static float OmReadDz(const char *buf)  // empty = the default; not a number = t
     strcpy_s(s_last, sizeof s_last, buf);
     return c;
 }
+// v3.49 LK349: [Input] OmniLook's text (omni_sim.h OmLookParse); an unknown text is logged once per text and reads as Room302
+static int OmReadLook(const char *buf)
+{
+    static char s_last[32] = "\x01";
+    int known;
+    const int v = OmLookParse(buf, &known);
+    if (!known && strcmp(buf, s_last)) Log("omni: [Input] OmniLook=%s is not Off, Room302 or All (0, 1, 2): Room302", buf);
+    strcpy_s(s_last, sizeof s_last, buf);
+    return v;
+}
 static void OmReadIni(void)
 {
     char buf[32];
@@ -528,6 +695,8 @@ static void OmReadIni(void)
     }
     IniStr("Input", "OmniDeadZone", buf, sizeof buf);
     g_omDz = OmReadDz(buf);
+    IniStr("Input", "OmniLook", buf, sizeof buf);  // v3.49 LK349
+    g_omLook = OmReadLook(buf);
 }
 static void OmIniReread(void)  // under GpLock (GpIniReread, when SH4Refined.ini changed)
 {
@@ -540,6 +709,12 @@ static void OmIniReread(void)  // under GpLock (GpIniReread, when SH4Refined.ini
     if (dz != g_omDz) {
         Log("omni: [Input] OmniDeadZone read again: %.2f (was %.2f)", dz, g_omDz);
         g_omDz = dz;
+    }
+    GetPrivateProfileStringA("Input", "OmniLook", kOmLookName[OML_ROOM302], buf, sizeof buf, g_iniPath);  // v3.49 LK349
+    v = OmReadLook(buf);
+    if (v != (int)g_omLook) {
+        Log("omni: [Input] OmniLook read again: %s (was %s)", kOmLookName[v], kOmLookName[(int)g_omLook]);
+        InterlockedExchange(&g_omLook, v);
     }
     if (g_omUnsaved) return;  // the menu's value stands until it is saved or set again
     GetPrivateProfileStringA("Input", "OmniMove", kOmModeName[OmGet()], buf, sizeof buf, g_iniPath);
@@ -571,6 +746,7 @@ static void OmInstall(void)
                                             0xE8, 0x23, 0xF4, 0xFF, 0xFF }, 19 };  // ecx = lY; push 4; push 6E8FA0; push ecx; call 406F50
     GpPatch set[3];
     OmCheckInit(&g_omChk);
+    OmLookCheckInit(&g_omLookChk);  // v3.49 LK349
     if (!SiteOk(&kPoll) || !SiteOk(&kCapX) || !SiteOk(&kCapY)) {
         Log("omni: %s is not the stock code (another mod?): Omni-Directional Movement does nothing",  // v3.48 OM348: the name
             !SiteOk(&kPoll) ? "005543C0 (call 00553D20)" : !SiteOk(&kCapX) ? "00407B15 (the lX call of 00406F50)"
@@ -585,4 +761,8 @@ static void OmInstall(void)
         "00407B15 / 00407B28, picked by a self-check); [Input] OmniMove %s, OmniDeadZone %.2f; gameplay only", g_omReady ? "in" : "OFF",
         kOmModeName[OmGet()], g_omDz);
     if (!g_omReady && g_omMode) LogAnomaly("omni", "[Input] OmniMove is %s but the hook is not in: the stick stays 8-way", kOmModeName[OmGet()]);
+    Log("omni: look: [Input] OmniLook %s (%s; while Omni-Directional Movement is On, with GetDeviceState the confirmed source and "  // v3.49 LK349
+        "the look on a stick: the raw stick into stick[1] 01236C54 / 01236C58, dead zone %.2f); Room 302's X-turns rule for the "
+        "left stick's x: on", kOmLookName[(int)g_omLook], g_omLook == OML_OFF ? "the game's own 8-way look" : g_omLook == OML_ALL
+        ? "the analog look in every stage" : "the analog look in Room 302's first-person view", OM_LOOK_DZ);
 }
