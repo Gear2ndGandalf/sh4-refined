@@ -1,0 +1,19 @@
+Crimson Text: downloaded 2026-11-22 (SH4 Refined v3.43 FN343, the HD menu font; the author approved up to 3 OFL families from github.com/google/fonts).
+Licence: SIL Open Font License 1.1 (OFL.txt, from the same folder of the repository).
+Repository folder: https://github.com/google/fonts/tree/main/ofl/crimsontext
+Treated as untrusted data: read only by tools/font (pure Python, python -I), never installed or executed.
+
+CrimsonText-Regular.ttf
+  url    https://raw.githubusercontent.com/google/fonts/main/ofl/crimsontext/CrimsonText-Regular.ttf
+  bytes  107200
+  sha256 48e6c5d5ad1d01599d374ecb817e15890d1feb3b8a3a88e527d44c90389e1f06
+
+CrimsonText-SemiBold.ttf
+  url    https://raw.githubusercontent.com/google/fonts/main/ofl/crimsontext/CrimsonText-SemiBold.ttf
+  bytes  111176
+  sha256 802e84000740fec2a9fbe0ae09b6b6811bd86a78a0173b15d44450a1530e9410
+
+OFL.txt
+  url    https://raw.githubusercontent.com/google/fonts/main/ofl/crimsontext/OFL.txt
+  bytes  4393
+  sha256 50fd67cddc097377a5c871e8452b778bc5aedfa3480a705cb27c5e3a078218df

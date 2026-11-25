@@ -1,0 +1,16 @@
+# SH4 Graphics Plus dgVoodoo conf variants (written by install_variants_folder.ps1; do not edit).
+# A program may copy <file> over ..\dgVoodoo.conf only if: the game is not yet drawing with it (it applies at the next start);
+# ..\d3d9.dll has an md5 of a #d3d9.dll= line (dgVoodoo2 2.87.6); the current ..\dgVoodoo.conf md5 is one of the md5s below;
+# <file> has its md5 below. Write a temporary file, check its md5, then replace dgVoodoo.conf. Rows with an empty file are
+# ours but not offered. Lines starting with # are comments, except #d3d9.dll=<md5>: the d3d9.dll md5(s) the confs are
+# for (one line each; ..\d3d9.dll must match one of them).
+#d3d9.dll=CAA75C55D9B3121D17433BD3B38C7BB2
+name,file,md5,label
+d3d11_flipdiscard,d3d11_flipdiscard.conf,702E9E0AF46385A7B59091D5ACA3C404,Direct3D 11
+d3d11fd_rt16,d3d11fd_rt16.conf,C7E9253A95A07A1466306F417978204A,Direct3D 11 (16-bit)
+d3d12,d3d12.conf,67FDE0CF1FA6E95EFB53F0F398540F4E,Direct3D 12
+passthru,passthru.conf,C500F5C9E089D915288AD20FF89CD68A,Stock
+d3d11,,6643C79F839016623A083B687C4FAC34,
+d3d12_10bit,,A38A9DBEDA5F91B8CAD8B7836F05A885,
+d3d12_hdr,,4FFF0B9E29A63CA772F9E7FE8FE15E5D,
+d3d11fd_rt10,,94912DBFE6D57EB23F47A1B8DC13A893,

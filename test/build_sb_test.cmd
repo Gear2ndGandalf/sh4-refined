@@ -1,0 +1,8 @@
+@echo off
+rem v3.47 SB347: builds and runs the native test of src\savebanks_sim.h (the save / load lists' Bank row: layout, mouse boxes, label) and test\savebanks_sim_test.c, x86 /O2 as build.cmd.
+setlocal
+call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars32.bat" >nul || exit /b 1
+cd /d "%~dp0"
+if not exist out mkdir out
+cl /nologo /O2 /MT /W3 savebanks_sim_test.c /Fo"out\\" /Fe"out\savebanks_sim_test.exe" || exit /b 1
+out\savebanks_sim_test.exe

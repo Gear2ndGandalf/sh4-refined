@@ -1,0 +1,11 @@
+# Byte-exact: the Renderer row and the install scripts check these files by md5 (dgVoodoo_variants\manifest.csv,
+# graphics\install\variants\variants.csv). Line-ending conversion would change their md5s.
+Install/** -text
+graphics/install/** -text
+third_party/** -text
+*.dll binary
+*.sh4font binary
+*.ttf binary
+
+# Windows batch files keep CRLF
+*.cmd text eol=crlf

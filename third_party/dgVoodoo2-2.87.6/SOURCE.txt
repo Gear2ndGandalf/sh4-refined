@@ -1,0 +1,15 @@
+dgVoodoo2 2.87.6 by Dege (freeware; https://github.com/dege-diosg/dgVoodoo2, release tag 2.87.6, published 2026-10-25)
+Asset: dgVoodoo2_87_6.zip, 9,244,362 bytes, sha256 9afa493396feec7108f42a2d97661eef96bbaac5addf0dfb5cfbc3001cd76a0a
+       (matches the digest GitHub publishes for the asset).
+
+Used by SH4 Refined:
+  MS\x86\D3D9.dll (md5 caa75c55d9b3121d17433bd3b38c7bb2), unchanged, shipped as Install\d3d9.dll.
+  dgVoodoo.conf (dgVoodoo2's default configuration), here as dgVoodoo.stock.conf, unchanged; SH4 Refined's settings in
+  Install\ and graphics\install\ are this file with a few keys changed.
+
+All rights to dgVoodoo2 remain with its author. The release zip holds no licence or readme text, only links to the
+author's online documentation (Doc\Readme.url and the others):
+  http://dege.fw.hu/dgVoodoo2/ReadmeGeneral/
+  http://dege.fw.hu/dgVoodoo2/ReadmeDirectX/
+  http://dege.fw.hu/dgVoodoo2/QuickGuide/
+For the newest version, its readme and its terms, see the addresses above.

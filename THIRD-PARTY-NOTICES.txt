@@ -1,0 +1,74 @@
+THIRD-PARTY NOTICES - SH4 Refined (formerly SH4 Window Mod)
+
+SH4 Refined's own code and files are under the MIT License (LICENSE). The third-party parts below keep their own
+terms. In this repository the player files are in Install\ (winmm.dll, d3d9.dll, dgVoodoo.conf, dgVoodoo_variants\,
+fonts\); the font originals and their licences are in third_party\fonts\, dgVoodoo2's provenance in
+third_party\dgVoodoo2-2.87.6\SOURCE.txt. Silent Hill is a trademark of Konami; no game files are included.
+
+The 4:3 menus in wide shapes (winmm.dll, "Menus43") are based on the Silent Hill 4
+part of ThirteenAG's WidescreenFixesPack
+(https://github.com/ThirteenAG/WidescreenFixesPack), used under the MIT License:
+
+MIT License
+
+Copyright (c) 2018 ThirteenAG
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+Frame interpolation (FrameMode=1): the method - keeping the game's 30 Hz logic,
+recording each frame's Direct3D calls and replaying them with the vertex-shader
+constants blended between two frames, with a jump threshold for camera cuts - is
+the idea of sh4vita by vallfrr (https://github.com/vallfrr/sh4vita). No sh4vita
+source code is included: the constant pairing was written clean-room from a
+functional description, and the rest is our own Direct3D 8 code.
+
+The hash used by the frame interpolation follows the public-domain MurmurHash3
+(Austin Appleby) mixing steps.
+
+Button Config pad glyphs (winmm.dll v3.11.0, "[Input] PadGlyphs"): the Xbox,
+PlayStation and Nintendo button glyphs are from "Input Prompts" 1.5A by Kenney
+(www.kenney.nl), released under Creative Commons Zero (CC0 1.0,
+http://creativecommons.org/publicdomain/zero/1.0/). Credit is not required by
+the licence and is given with thanks. The glyphs were reduced to 32 x 32 texels
+and DXT3-encoded by tools/gen_glyphs.py; no Konami or console-maker artwork is
+included (the game's own icon atlas is not copied: the glyphs are written into
+its empty half at run time).
+
+Fonts (v3.43.0, the optional HD menu font, `[Textures] MenuFont`)
+-----------------------------------------------------------------
+fonts\EBGaramond.sh4font, fonts\CormorantGaramond.sh4font and fonts\CrimsonText.sh4font are glyph sheets rendered by
+tools/font from EB Garamond (Copyright 2017 The EB Garamond Project Authors), Cormorant Garamond (Copyright 2015 The
+Cormorant Project Authors) and Crimson Text (Copyright 2010 The Crimson Text Project Authors), all under the SIL Open
+Font License 1.1; each licence ships beside its sheet as fonts\<Name>.OFL.txt. Sources: github.com/google/fonts (ofl/
+ebgaramond, ofl/cormorantgaramond, ofl/crimsontext), downloaded 2026-11-22; the original files, licences and sha256 are
+kept in third_party\fonts\<family>\. No Reserved Font Name is used. The sheets contain no pixel of the game's own font.
+
+dgVoodoo2 (the optional renderer; included in the player package since v3.44.0)
+-------------------------------------------------------------------------------
+d3d9.dll in the package's Install folder is dgVoodoo2 2.87.6 by Dege (https://github.com/dege-diosg/dgVoodoo2),
+release 2.87.6, asset dgVoodoo2_87_6.zip (sha256 9afa493396feec7108f42a2d97661eef96bbaac5addf0dfb5cfbc3001cd76a0a):
+its file MS\x86\D3D9.dll, included unchanged (md5 caa75c55d9b3121d17433bd3b38c7bb2). dgVoodoo2 is Dege's freeware;
+all rights to it remain with its author. It is credited here with thanks; its newest version and its readme are at
+the address above. dgVoodoo.conf and the files in dgVoodoo_variants\ are dgVoodoo2 settings made for Silent Hill 4
+by SH4 Refined (from dgVoodoo2's own default configuration). SH4 Refined's Renderer row (Option 4) only switches
+between those settings files; it does not change dgVoodoo2.
+Redistribution: dgVoodoo2's general readme (http://dege.fw.hu/dgVoodoo2/ReadmeGeneral/, section 1 "Redistribution
+rights") says: "You can freely ship your game or game mod with unmodified individual dgVoodoo components (files)
+included." This repository ships one unmodified component (MS\x86\D3D9.dll) with this mod; for dgVoodoo2 itself as a
+standalone package, get the original .zip from Dege's page.

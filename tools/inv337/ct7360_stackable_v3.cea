@@ -1,0 +1,990 @@
+{ SH4 (GOG PC) - Stackable Items (entry 7360)                                                    [v3]
+  Game: SILENT HILL 4.exe (32-bit, base 400000, no relocations). Static RE only - see notes.txt here and
+  ..\..\research\inventory\inventory_re.txt. Works with or without Extend Toolbelt (7310, pockets_v6.cea), in either
+  enable order: the two scripts never patch the same bytes and never scan each other's patched bytes.
+
+  What it does
+   * Same items stack. An item that enters the toolbelt joins the first entry with the same ID that holds
+     less than st_max (99); what does not fit becomes a new entry as usual. With Extend Toolbelt on,
+     Toolbelt 2 is searched too, so a stack stays on one page.
+   * A chest take-out moves the chest stack (up to st_max) as ONE toolbelt entry; the rest stays in the
+     chest. The game moved one "unit" per take-out (1, or a gun's capacity), so a Revolver x93 came out as
+     one revolver per take-out (6 rounds each) while the chest kept the rest.
+   * Using an item takes ONE off its entry in the game already (candle, Sword, healing, keys, a shot, the
+     item thief). New here: a stacked golf club / Wine Bottle that breaks, or a used-up Saint Medallion,
+     also costs only one - the next one is fresh, the in-use mark stays - and the broken club / bottle is
+     added as its own item when there is room.
+   * Counts above 1 are drawn on the toolbelt and in the chest for every item.
+   * v2: a floor pickup with a full toolbelt still works when the whole pickup fits into a stack of the same
+     ID (st_pickfull); otherwise the game's "too many items" stays. Saint Medallions also stack in the chest
+     (the game merged chest medallions only up to 1): one chest entry, the lower condition is kept.
+
+  Switches (1 = on): st_merge, st_takeout, st_break, st_show, st_pickfull (v2).   st_max = 99 (stack size;
+  keep it 12..999).
+  Counters: st_mgn merges, st_tkn take-outs, st_bkn stacked items that broke, st_lost broken items dropped
+  (no room), st_pfn full-belt pickups let through (v2). st_force = 1: [DISABLE] runs even while a stack of more than 10 stealable items is on the
+  toolbelt (the game's item thief has room for 10 x 10 - see notes.txt).
+
+  HOOKS (address - what - why)
+   516D20  give item        pickups and script gifts join a stack first
+   4F6D70  chest take-out   the stack as one entry (up to st_max), joining a stack first
+   4F62E0  take-out check   OK when the item can join a stack, even with a full belt; bar slot it flies to
+   511F7E  take-out anim    call: how many leave the chest (does the chest row close?)
+   511947  take-out anim    call: how many the chest row shows as left
+   4F6A30  break            stacked weapon / medallion: count - 1, next one fresh, broken one added
+   4F5DB2  use one          an entry left with count > 0 never keeps condition 0 (the game removes such an
+                            entry one per frame)
+   463607  item thief       call: count per entry capped at 10 (the game's list has 100 places)
+   514D62  belt rebuild     mark "show the count" when count > 1
+   51410F  count drawing    draw the count of any item when count > 1
+   4D1110  floor pickup     call (v2): "belt full?" answers "no" when the whole pickup joins a stack
+   4F6579  chest merge      (v2) medallions merge like ammo (up to 999); the merged stack keeps the lower
+                            condition
+   5133CB  chest put-in UI  (v2) a medallion that will join a chest stack: no new chest row is animated
+  v3: on enable, stacks already on the belt get their count shown at once (before, the numbers only came
+      back after the belt changed, e.g. a chest move).
+}
+[ENABLE]
+aobscanmodule(st_givep,SILENT HILL 4.exe,53 57 8B 7C 24 0C 57 E8 ?? ?? ?? ?? 57 8B D8 E8 ?? ?? ?? ?? 83 C4 08 85 C0 0F 85 E2 00 00 00 57 E8)
+aobscanmodule(st_takep,SILENT HILL 4.exe,57 8B 7C 24 08 0F B6 04 FD B6 7B 3D 01 85 C0 74 0E 50 E8)
+aobscanmodule(st_chkp,SILENT HILL 4.exe,8B 44 24 04 85 C0 75 04 83 C8 FF C3 89 44 24 04 E9)
+aobscanmodule(st_predp,SILENT HILL 4.exe,8B 46 10 8B 08 51 E8 ?? ?? ?? ?? 2B D8 83 C4 08 85 DB 7E 07)
+aobscanmodule(st_leftp,SILENT HILL 4.exe,8B 55 00 52 8B F0 E8 ?? ?? ?? ?? 2B F0 83 C4 08 85 F6 0F 8E)
+aobscanmodule(st_brkp,SILENT HILL 4.exe,83 FE FF 74 60 0F B6 14 F5 66 7B 3D 01 33 C0 85 D2 74 21)
+aobscanmodule(st_usep,SILENT HILL 4.exe,49 66 85 C9 66 89 0C C5 64 7B 3D 01 77 32 0F B6 CA)
+aobscanmodule(st_thiefp,SILENT HILL 4.exe,3B FD 74 24 56 E8 ?? ?? ?? ?? 8B D0 83 C4 04 85 D2 75 07)
+aobscanmodule(st_barp,SILENT HILL 4.exe,85 F6 74 4B FF 05 80 EC 08 01 8A 03 0C 01)
+aobscanmodule(st_drawp,SILENT HILL 4.exe,8B 89 80 00 00 00 49 83 F9 10 77 53 0F B6 89 7C 41 51 00)
+aobscanmodule(st_pickp,SILENT HILL 4.exe,E8 ?? ?? ?? ?? 85 C0 74 5F 8B 44 24 04 56 57 8B B8 20 04 00 00 50 E8)
+aobscanmodule(st_cmrgp,SILENT HILL 4.exe,8A 46 06 3C 08 74 12 0F B6 C8 83 F9 01 7C 0A 83 F9 0B 7F 05 BF E7 03 00 00)
+aobscanmodule(st_putp,SILENT HILL 4.exe,83 FA 08 89 0D 60 EB 08 01 89 1D 44 EB 08 01 74 3A 52 E8)
+registersymbol(st_givep)
+registersymbol(st_takep)
+registersymbol(st_chkp)
+registersymbol(st_predp)
+registersymbol(st_leftp)
+registersymbol(st_brkp)
+registersymbol(st_usep)
+registersymbol(st_thiefp)
+registersymbol(st_barp)
+registersymbol(st_drawp)
+registersymbol(st_pickp)
+registersymbol(st_cmrgp)
+registersymbol(st_putp)
+
+alloc(st_mem,$800)
+label(st_merge)
+label(st_takeout)
+label(st_break)
+label(st_show)
+label(st_max)
+label(st_force)
+label(st_mgn)
+label(st_tkn)
+label(st_bkn)
+label(st_lost)
+label(st_pid)
+label(st_pcnt)
+label(st_ps)
+label(st_pm)
+label(st_pr)
+label(st_pnew)
+label(st_rest)
+label(st_gslot)
+label(st_find)
+label(st_fd_l)
+label(st_fd_n)
+label(st_fd_e)
+label(st_fd_no)
+label(st_fd_out)
+label(st_brki)
+label(st_bi_l)
+label(st_bi_no)
+label(st_bi_out)
+label(st_newc)
+label(st_nc_one)
+label(st_unit)
+label(st_addone)
+label(st_ad_new)
+label(st_ad_p2)
+label(st_ad_p2l)
+label(st_ad_put)
+label(st_ad_lost)
+label(st_plan)
+label(st_pl_w)
+label(st_pl_w2)
+label(st_pl_s)
+label(st_pl_r)
+label(st_pl_n)
+label(st_pl_nonew)
+label(st_pl_done)
+label(st_give)
+label(st_gv_try)
+label(st_gv_part)
+label(st_gv_nofit)
+label(st_gv_shown)
+label(st_gv_p2)
+label(st_gv_game)
+label(st_take)
+label(st_tk_go)
+label(st_tk_do)
+label(st_tk_m)
+label(st_tk_n)
+label(st_tk_sh0)
+label(st_tk_sh)
+label(st_tk_put)
+label(st_tk_chest)
+label(st_tk_sort)
+label(st_tk_fail)
+label(st_tk_ret)
+label(st_tchk)
+label(st_tc_free)
+label(st_tc_ret)
+label(st_tc_no)
+label(st_tc_game)
+label(st_tk1)
+label(st_tk2)
+label(st_brkh)
+label(st_bk_bar)
+label(st_bk_ret)
+label(st_bk_game)
+label(st_use)
+label(st_us_out)
+label(st_us_zero)
+label(st_stw)
+label(st_sw_ret)
+label(st_barf)
+label(st_bf_out)
+label(st_cdraw)
+label(st_cd_more)
+label(st_cd_yes)
+label(st_cd_no)
+label(st_pickfull)
+label(st_pfn)
+label(st_pfull)
+label(st_pf_l)
+label(st_pf_id)
+label(st_pf_full)
+label(st_pf_ret)
+label(st_cmax)
+label(st_cx_999)
+label(st_cx_game)
+label(st_cx_g8)
+label(st_putmed)
+label(st_pd_eq)
+label(st_pd_back)
+registersymbol(st_merge)
+registersymbol(st_takeout)
+registersymbol(st_break)
+registersymbol(st_show)
+registersymbol(st_max)
+registersymbol(st_force)
+registersymbol(st_mgn)
+registersymbol(st_tkn)
+registersymbol(st_bkn)
+registersymbol(st_lost)
+registersymbol(st_pickfull)
+registersymbol(st_pfn)
+
+// Inventory entry: +0 float condition, +4 u16 count, +6 u8 id, +7 u8 in-use flag. Belt 13D7B60 (10 entries),
+// chest 13D7BB0, Toolbelt 2 (Extend Toolbelt) 13D7FA0 = "belt index" 88h+i. Extend Toolbelt is on when its
+// jmp sits at 4F57B0 (it replaces "pockets full?" there; the game has B8 = mov eax,...).
+
+st_mem:
+st_merge:
+dd 1
+st_takeout:
+dd 1
+st_break:
+dd 1
+st_show:
+dd 1
+st_max:
+dd 63
+st_force:
+dd 0
+st_mgn:
+dd 0
+st_tkn:
+dd 0
+st_bkn:
+dd 0
+st_lost:
+dd 0
+st_pickfull:
+dd 1
+st_pfn:
+dd 0
+// take-out plan (st_plan): item, chest count, stack index, how many join it, how many make a new entry,
+// new entry yes/no.  st_rest / st_gslot: give item.
+st_pid:
+dd 0
+st_pcnt:
+dd 0
+st_ps:
+dd 0
+st_pm:
+dd 0
+st_pr:
+dd 0
+st_pnew:
+dd 0
+st_rest:
+dd 0
+st_gslot:
+dd 0
+
+// ---------------------------------------------------------------- helpers
+// edx = item id -> eax = index of the first entry with that id and count < st_max: belt 0..9, then (Extend
+// Toolbelt on) Toolbelt 2 88h..91h; -1 = none. Others kept.
+st_find:
+push ecx
+xor eax,eax
+st_fd_l:
+movzx ecx,byte ptr [eax*8+013D7B66]
+cmp ecx,edx
+jne st_fd_n
+movzx ecx,word ptr [eax*8+013D7B64]
+cmp ecx,[st_max]
+jb st_fd_out
+st_fd_n:
+inc eax
+cmp eax,0A
+jne st_fd_e
+cmp byte ptr [004F57B0],E9
+jne st_fd_no
+mov eax,88
+st_fd_e:
+cmp eax,92
+jb st_fd_l
+st_fd_no:
+or eax,FFFFFFFF
+st_fd_out:
+pop ecx
+ret
+
+// edx = item id -> eax = its place in the game's list of breakables 5BF188 (golf clubs, Wine Bottle,
+// Saint Medallion), -1 = not breakable. Others kept.
+st_brki:
+xor eax,eax
+st_bi_l:
+cmp byte ptr [eax+005BF188],0
+je st_bi_no
+cmp byte ptr [eax+005BF188],dl
+je st_bi_out
+inc eax
+jmp st_bi_l
+st_bi_no:
+or eax,FFFFFFFF
+st_bi_out:
+ret
+
+// edx = item id -> eax = condition of a new one, as the game's add 4F5900: 100.0 (5BF198) for breakables,
+// 1.0 for everything else. Others kept.
+st_newc:
+call st_brki
+cmp eax,FFFFFFFF
+je st_nc_one
+mov eax,[eax*4+005BF198]
+ret
+st_nc_one:
+mov eax,3F800000
+ret
+
+// edx = item id -> eax = the game's "unit" 4F5530 (one pickup: 1, an ammo box, a gun's rounds). Others kept.
+st_unit:
+push ecx
+push edx
+push edx
+call 004F5530
+add esp,4
+pop edx
+pop ecx
+ret
+
+// edx = item id: one more of it on the toolbelt - joins a stack, else a new entry on the belt (sorted, as a
+// pickup), else at the end of Toolbelt 2 (Extend Toolbelt on), else dropped (st_lost). ebx, esi, edi, ebp kept.
+// The belt is only shifted behind its last item, so belt indexes up to the item being worn stay valid.
+st_addone:
+call st_find
+cmp eax,FFFFFFFF
+je st_ad_new
+inc word ptr [eax*8+013D7B64]
+ret
+st_ad_new:
+cmp byte ptr [013D7BAE],0
+jne st_ad_p2
+push edx
+call 004F5900
+add esp,4
+ret
+st_ad_p2:
+cmp byte ptr [004F57B0],E9
+jne st_ad_lost
+mov eax,013D7FA0
+st_ad_p2l:
+cmp byte ptr [eax+6],0
+je st_ad_put
+add eax,8
+cmp eax,013D7FF0
+jb st_ad_p2l
+st_ad_lost:
+inc dword ptr [st_lost]
+ret
+st_ad_put:
+mov dword ptr [eax],3F800000
+mov word ptr [eax+4],1
+mov byte ptr [eax+6],dl
+mov byte ptr [eax+7],0
+ret
+
+// esi = chest index -> what a take-out will do (no writes but st_p*): want = the chest count, at most st_max
+// (st_takeout 0: at most the game's unit); st_pm of it join a stack st_ps, st_pr make a new entry when the
+// toolbelt has room (st_pnew = 1; also for an empty gun that has no stack to join). eax = st_pm + st_pr =
+// how many leave the chest. ebx, esi, edi, ebp kept.
+st_plan:
+push ebx
+push edi
+movzx edx,byte ptr [esi*8+013D7BB6]
+mov [st_pid],edx
+movzx ecx,word ptr [esi*8+013D7BB4]
+mov [st_pcnt],ecx
+mov ebx,[st_max]
+cmp dword ptr [st_takeout],0
+jne st_pl_w
+call st_unit
+mov ebx,eax
+st_pl_w:
+cmp ecx,ebx
+jae st_pl_w2
+mov ebx,ecx
+st_pl_w2:
+or eax,FFFFFFFF
+cmp dword ptr [st_merge],0
+je st_pl_s
+call st_find
+st_pl_s:
+mov [st_ps],eax
+xor edi,edi
+cmp eax,FFFFFFFF
+je st_pl_r
+movzx ecx,word ptr [eax*8+013D7B64]
+mov edi,[st_max]
+sub edi,ecx
+cmp edi,ebx
+jbe st_pl_r
+mov edi,ebx
+st_pl_r:
+mov [st_pm],edi
+sub ebx,edi
+mov dword ptr [st_pnew],0
+test ebx,ebx
+jne st_pl_n
+cmp dword ptr [st_pcnt],0
+jne st_pl_done
+cmp dword ptr [st_ps],FFFFFFFF
+jne st_pl_done
+st_pl_n:
+call 004F57B0
+test eax,eax
+jne st_pl_nonew
+mov dword ptr [st_pnew],1
+jmp st_pl_done
+st_pl_nonew:
+xor ebx,ebx
+st_pl_done:
+mov [st_pr],ebx
+lea eax,[edi+ebx]
+pop edi
+pop ebx
+ret
+
+// ---------------------------------------------------------------- give item 516D20 (pickups, script gifts)
+// replaces "push ebx / push edi / mov edi,[esp+0C]". A stack with room takes the unit (the rest, if any,
+// becomes a new entry through the game's own 4F5860 / 4F5900). Then the game's tail: bar animation at the
+// slot (ebx), first-time zoom and "obtained" flag (516D37); a stack on Toolbelt 2 only gets the flag (516DE7).
+st_give:
+push ebx
+push edi
+mov edi,[esp+0C]
+cmp dword ptr [st_merge],0
+je st_gv_game
+test edi,edi
+je st_gv_game
+cmp edi,88
+jb st_gv_try
+cmp edi,BB
+jbe st_gv_game
+st_gv_try:
+mov edx,edi
+call st_find
+cmp eax,FFFFFFFF
+je st_gv_game
+mov ebx,eax
+mov [st_gslot],eax
+inc dword ptr [st_mgn]
+call st_unit
+movzx ecx,word ptr [ebx*8+013D7B64]
+mov edx,[st_max]
+sub edx,ecx
+cmp eax,edx
+ja st_gv_part
+add word ptr [ebx*8+013D7B64],ax
+jmp st_gv_shown
+st_gv_part:
+add word ptr [ebx*8+013D7B64],dx
+sub eax,edx
+mov [st_rest],eax
+push edi
+call 004F5860
+mov ebx,eax
+push edi
+call 004F5900
+add esp,8
+test eax,eax
+jne st_gv_nofit
+mov ecx,[st_rest]
+mov word ptr [ebx*8+013D7B64],cx
+jmp 00516D37
+st_gv_nofit:
+// no room for the rest: it is lost, as the game loses a whole gift when the belt is full
+mov ebx,[st_gslot]
+st_gv_shown:
+cmp ebx,0A
+jae st_gv_p2
+xor eax,eax
+jmp 00516D37
+st_gv_p2:
+jmp 00516DE7
+st_gv_game:
+jmp 00516D26
+
+// ---------------------------------------------------------------- chest take-out 4F6D70 (chest UI 512006)
+// whole function: st_plan decides, then the stack is joined (st_pm) and / or a new entry is made at the game's
+// insert position 4F5860 (st_pr; Extend Toolbelt may move one belt item to Toolbelt 2 there, as for any add).
+// Condition: the chest entry's condition belongs to its top item, which only leaves with the whole stack.
+// A new entry gets that top item; a stack joined by a worn breakable keeps the lower condition. The chest
+// entry loses what left (deleted at 0, 4F6260), then the game's sort / merge / recount 4F6610. 0 = done.
+st_take:
+mov eax,[st_merge]
+or eax,[st_takeout]
+jne st_tk_go
+push edi
+mov edi,[esp+8]
+jmp 004F6D75
+st_tk_go:
+push ebx
+push esi
+push edi
+push ebp
+mov esi,[esp+14]
+cmp byte ptr [esi*8+013D7BB6],0
+je st_tk_fail
+call st_plan
+mov ebp,eax
+test eax,eax
+jne st_tk_do
+cmp dword ptr [st_pnew],0
+jne st_tk_do
+cmp dword ptr [st_ps],FFFFFFFF
+je st_tk_fail
+st_tk_do:
+mov ebx,[esi*8+013D7BB0]
+mov edx,[st_pid]
+call st_brki
+cmp eax,FFFFFFFF
+je st_tk_m
+cmp ebp,[st_pcnt]
+je st_tk_m
+call st_newc
+mov ebx,eax
+st_tk_m:
+// ebx = condition of the top item that leaves
+mov edi,[st_ps]
+cmp edi,FFFFFFFF
+je st_tk_n
+mov eax,[st_pm]
+add word ptr [edi*8+013D7B64],ax
+inc dword ptr [st_mgn]
+cmp dword ptr [st_pnew],0
+jne st_tk_n
+call st_brki
+cmp eax,FFFFFFFF
+je st_tk_n
+cmp ebx,[edi*8+013D7B60]
+jge st_tk_n
+mov [edi*8+013D7B60],ebx
+st_tk_n:
+cmp dword ptr [st_pnew],0
+je st_tk_chest
+push edx
+call 004F5860
+add esp,4
+cmp eax,FFFFFFFF
+jne st_tk_sh0
+// no room after all: the rest stays in the chest
+sub ebp,[st_pr]
+cmp dword ptr [st_ps],FFFFFFFF
+jne st_tk_chest
+jmp st_tk_fail
+st_tk_sh0:
+// make room at the insert position (the last belt entry is free), as the game's take-out does
+mov ecx,9
+st_tk_sh:
+cmp ecx,eax
+jle st_tk_put
+mov edx,[ecx*8+013D7B58]
+mov [ecx*8+013D7B60],edx
+mov edx,[ecx*8+013D7B5C]
+mov [ecx*8+013D7B64],edx
+dec ecx
+jmp st_tk_sh
+st_tk_put:
+mov [eax*8+013D7B60],ebx
+mov ecx,[st_pr]
+mov word ptr [eax*8+013D7B64],cx
+mov edx,[st_pid]
+mov byte ptr [eax*8+013D7B66],dl
+mov byte ptr [eax*8+013D7B67],0
+st_tk_chest:
+inc dword ptr [st_tkn]
+sub word ptr [esi*8+013D7BB4],bp
+jne st_tk_sort
+mov eax,esi
+call 004F6260
+st_tk_sort:
+call 004F6610
+xor eax,eax
+jmp st_tk_ret
+st_tk_fail:
+mov eax,1
+st_tk_ret:
+pop ebp
+pop edi
+pop esi
+pop ebx
+ret
+
+// ---------------------------------------------------------------- take-out check 4F62E0 (512602 confirm, 517135)
+// replaces "mov eax,[esp+4] / test eax,eax". The item can join a stack: OK, the bar slot is the stack's (on
+// Toolbelt 2: the first free belt slot, or the last one). Else the game's check (insert position or -1).
+st_tchk:
+mov eax,[esp+4]
+test eax,eax
+je st_tc_no
+cmp dword ptr [st_merge],0
+je st_tc_game
+push edx
+mov edx,eax
+call st_find
+pop edx
+cmp eax,FFFFFFFF
+je st_tc_game
+cmp eax,0A
+jb st_tc_ret
+xor eax,eax
+st_tc_free:
+cmp byte ptr [eax*8+013D7B66],0
+je st_tc_ret
+inc eax
+cmp eax,9
+jb st_tc_free
+st_tc_ret:
+ret
+st_tc_no:
+or eax,FFFFFFFF
+ret
+st_tc_game:
+mov eax,[esp+4]
+jmp 004F62EC
+
+// ---------------------------------------------------------------- take-out animation (chest UI 511EC0 / 511740)
+// replace "call 4F5530" (unit of [esp+4]) where the game subtracts the unit from the chest count: return what
+// st_take will really move. 511F7E: eax = the chest row record. 511947: ebp = the chest row record. Record +4 =
+// chest index. ebx, esi, edi, ebp kept.
+st_tk1:
+push esi
+movsx esi,word ptr [eax+4]
+call st_plan
+pop esi
+ret
+
+st_tk2:
+push esi
+movsx esi,word ptr [ebp+4]
+call st_plan
+pop esi
+ret
+
+// ---------------------------------------------------------------- break 4F6A30 (wear 4F6AA0 reached 0; esi = index)
+// replaces "cmp esi,-1 / je ret". A stack (count > 1): one is used up - count - 1, the rest is fresh (new
+// condition), the in-use mark stays; the broken successor (5BF298: club -> broken club, bottle -> broken
+// bottle; medallion -> nothing) is added as its own item; belt redrawn (514C40). A single item: the game's code.
+// After the return 4F6AA0 reads the condition at esi again (the fresh one): the weapon in hand is not broken.
+st_brkh:
+cmp esi,FFFFFFFF
+je st_bk_ret
+cmp dword ptr [st_break],0
+je st_bk_game
+cmp word ptr [esi*8+013D7B64],1
+jbe st_bk_game
+dec word ptr [esi*8+013D7B64]
+movzx edx,byte ptr [esi*8+013D7B66]
+call st_newc
+mov [esi*8+013D7B60],eax
+inc dword ptr [st_bkn]
+call st_brki
+cmp eax,FFFFFFFF
+je st_bk_bar
+movzx edx,byte ptr [eax+005BF298]
+cmp edx,8
+je st_bk_bar
+call st_addone
+st_bk_bar:
+call 00514C40
+st_bk_ret:
+ret
+st_bk_game:
+jmp 004F6A35
+
+// ---------------------------------------------------------------- use one 4F5D90 (516E30, 516EE0)
+// replaces "mov [eax*8+13D7B64],cx / ja 4F5DEE" after count - 1. Count 0: the game's code. Count > 0 with
+// condition <= 0 (a broken medallion stack the game removes per frame in 5172D0 / 516F60): new condition.
+st_use:
+mov word ptr [eax*8+013D7B64],cx
+test cx,cx
+je st_us_zero
+cmp dword ptr [st_break],0
+je st_us_out
+cmp dword ptr [eax*8+013D7B60],0
+jg st_us_out
+push edx
+push eax
+movzx edx,byte ptr [eax*8+013D7B66]
+call st_newc
+mov edx,eax
+pop eax
+mov [eax*8+013D7B60],edx
+pop edx
+st_us_out:
+jmp 004F5DEE
+st_us_zero:
+jmp 004F5DBC
+
+// ---------------------------------------------------------------- item thief 4635C0 (replaces "call 4F5A80" at 463607)
+// The thief writes each stealable belt entry into a 100-place list once per count. At most 10 per entry
+// (10 entries x 10 = 100); the game's own counts never exceed that.
+st_stw:
+push dword ptr [esp+4]
+call 004F5A80
+add esp,4
+cmp eax,0A
+jbe st_sw_ret
+mov eax,0A
+st_sw_ret:
+ret
+
+// ---------------------------------------------------------------- show counts
+// belt rebuild 514C40, every used slot (replaces "inc dword ptr [108EC80]" at 514D62): ebx = slot record +A8
+// (flags; bit 4 = draw the count), [ebx-20] = its count. The game sets bit 4 for ids 01, 02, 10h, 11h only.
+st_barf:
+inc dword ptr [0108EC80]
+cmp dword ptr [st_show],0
+je st_bf_out
+cmp dword ptr [ebx-20],1
+jle st_bf_out
+or byte ptr [ebx],4
+st_bf_out:
+jmp 00514D68
+
+// count drawing 5140F0 (replaces "mov ecx,[ecx+80] / dec ecx / cmp ecx,10 / ja"): ecx = record, eax = count.
+// The game draws it for ids 01..05, 07, 09..0B, 10h, 11h (table 51417C); here also any item with count > 1.
+st_cdraw:
+mov ecx,[ecx+00000080]
+dec ecx
+cmp ecx,10
+ja st_cd_more
+cmp byte ptr [ecx+0051417C],0
+je st_cd_yes
+st_cd_more:
+cmp dword ptr [st_show],0
+je st_cd_no
+cmp eax,1
+jle st_cd_no
+st_cd_yes:
+jmp 00514129
+st_cd_no:
+jmp 0051416E
+
+// ---------------------------------------------------------------- v2: floor pickup with a full toolbelt
+// A world item (object type 4) runs a step list (618548 / 61855C, runner 4D1330). Its step 4D1110 asks "belt
+// full?" (4F57B0 - Extend Toolbelt's version when that is on) and, when full, starts the "too many items" message
+// 618AE0 and blocks the pickup ([data+94h] = 1, the item stays in the world). Otherwise the item's script (object
+// data +20h, from the per-item table 62DD18, set by 4D0530) later gives it with op FFFF0403 -> 516D20 (st_give).
+// Replaces "call 4F57B0" at 4D1110: "full" becomes "not full" only when the item that script gives joins a stack
+// WHOLE (st_find's stack has room for the game's unit) - st_give then puts all of it into that stack. The give
+// op is looked for in the script's first 32 dwords, up to its end op FFFF0001 (every pickup script in the table
+// 62DD18 gives at dword 12 or 14 and ends at 15 or 17); a pointer outside .rdata / .data is not read. If only a
+// part would fit, the answer stays "full": the item stays in the world, nothing is lost. Memos: the game's answer.
+// [esp+8] at the entry = the object (4D1110's argument). Registers but eax kept.
+st_pfull:
+call 004F57B0
+test eax,eax
+je st_pf_ret
+cmp dword ptr [st_pickfull],0
+je st_pf_ret
+cmp dword ptr [st_merge],0
+je st_pf_ret
+push ecx
+push edx
+mov ecx,[esp+10]
+mov ecx,[ecx+00000420]
+mov ecx,[ecx+20]
+cmp ecx,005B7000
+jb st_pf_full
+cmp ecx,013DDF00
+jae st_pf_full
+xor edx,edx
+st_pf_l:
+cmp dword ptr [ecx+edx*4],FFFF0403
+je st_pf_id
+cmp dword ptr [ecx+edx*4],FFFF0001
+je st_pf_full
+inc edx
+cmp edx,20
+jb st_pf_l
+jmp st_pf_full
+st_pf_id:
+mov edx,[ecx+edx*4+4]
+test edx,edx
+je st_pf_full
+cmp edx,88
+jae st_pf_full
+call st_find
+cmp eax,FFFFFFFF
+je st_pf_full
+movzx ecx,word ptr [eax*8+013D7B64]
+neg ecx
+add ecx,[st_max]
+call st_unit
+cmp eax,ecx
+ja st_pf_full
+inc dword ptr [st_pfn]
+pop edx
+pop ecx
+xor eax,eax
+ret
+st_pf_full:
+pop edx
+pop ecx
+mov eax,1
+st_pf_ret:
+ret
+
+// ---------------------------------------------------------------- v2: Saint Medallions stack in the chest
+// chest merge 4F6510 (replaces "mov al,[esi+6] / cmp al,8 / je 4F6592" at 4F6579; esi = temp entry, edi = the
+// limit): the game uses the unit (1) for 08 and 999 for 01..0B; with st_merge 08 gets 999 too. When this entry
+// and the next one (both medallions) merge whole, the merged entry takes the lower condition (the worn one is
+// the top of the stack).
+st_cmax:
+mov al,[esi+6]
+cmp al,8
+jne st_cx_game
+cmp dword ptr [st_merge],0
+je st_cx_g8
+cmp byte ptr [esi+0E],8
+jne st_cx_999
+movzx ecx,word ptr [esi+4]
+movzx edx,word ptr [esi+0C]
+add ecx,edx
+cmp ecx,3E7
+ja st_cx_999
+mov ecx,[esi+8]
+cmp ecx,[esi]
+jge st_cx_999
+mov [esi],ecx
+st_cx_999:
+mov edi,3E7
+jmp 004F6592
+st_cx_game:
+jmp 004F6580
+st_cx_g8:
+jmp 004F6592
+
+// chest put-in animation 513290 (replaces "cmp edx,8 / mov [108EB60],ecx" at 5133CB; edx = the item put in):
+// the game skips its "joins a chest stack, no new row" test for 08. With st_merge 08 is tested like ammo, so the
+// list animation matches st_cmax. ZF set = the game's medallion branch (je 513416 after 5133D4).
+st_putmed:
+mov [0108EB60],ecx
+cmp edx,8
+jne st_pd_back
+cmp dword ptr [st_merge],0
+je st_pd_eq
+test esp,esp
+jmp 005133D4
+st_pd_eq:
+cmp edx,8
+st_pd_back:
+jmp 005133D4
+
+// ---------------------------------------------------------------- patches
+st_givep:
+jmp st_give
+nop
+
+st_takep:
+jmp st_take
+
+st_chkp:
+jmp st_tchk
+nop
+
+st_predp+06:
+call st_tk1
+
+st_leftp+06:
+call st_tk2
+
+st_brkp:
+jmp st_brkh
+
+st_usep+04:
+jmp st_use
+nop
+nop
+nop
+nop
+nop
+
+st_thiefp+05:
+call st_stw
+
+st_barp+04:
+jmp st_barf
+nop
+
+st_drawp:
+jmp st_cdraw
+nop
+nop
+nop
+nop
+nop
+nop
+nop
+
+st_pickp:
+call st_pfull
+
+st_cmrgp:
+jmp st_cmax
+nop
+nop
+
+st_putp:
+jmp st_putmed
+nop
+nop
+nop
+nop
+
+// ---------------------------------------------------------------- v3: show counts right away
+// The game marks a belt slot "draw the count" (bit 4 of slot record +A8) only when it rebuilds the belt.
+// Mark the stacks that are already there (record = 108ECD8 + i x B0h, +88 count, +A8 bit 0 = used).
+{$lua}
+if not syntaxcheck then
+  for i = 0, 9 do
+    local r = 0x108ECD8 + i * 0xB0
+    local f = readBytes(r + 0xA8, 1)
+    if f and f & 1 == 1 and (readInteger(r + 0x88) or 0) > 1 then writeBytes(r + 0xA8, f | 4) end
+  end
+end
+{$asm}
+
+[DISABLE]
+{$lua}
+if syntaxcheck then return end
+-- The game's item thief (4635C0) lists every stealable item on the belt once per count, in a list with room
+-- for 100 (10 entries x 10). While this script is on it counts at most 10 per entry. Turning it off with a
+-- bigger stack of candles / melee weapons on the toolbelt would let that list overflow and crash the game.
+local function v(n) return readInteger(n) or 0 end
+if v('st_force') == 0 then
+  local steal = { [0x04] = true, [0x06] = true, [0x07] = true, [0x12] = true, [0x13] = true, [0x32] = true, [0x33] = true }
+  for id = 0x15, 0x2E do steal[id] = true end
+  for _, base in ipairs({ 0x13D7B60, 0x13D7FA0 }) do
+    for i = 0, 9 do
+      local id, n = readBytes(base + 8 * i + 6, 1), readSmallInteger(base + 8 * i + 4)
+      if id and n and steal[id] and n > 10 then
+        error(string.format('Stackable Items: item %02X x%d is on the toolbelt. Put it in the chest (or lower it ' ..
+          'to 10 in the Inventory window) before turning this off - the game\'s item thief cannot handle more than ' ..
+          '10. st_force = 1 turns it off anyway.', id, n))
+      end
+    end
+  end
+end
+{$asm}
+st_givep:
+db 53 57 8B 7C 24 0C
+
+st_takep:
+db 57 8B 7C 24 08
+
+st_chkp:
+db 8B 44 24 04 85 C0
+
+st_predp+06:
+db E8 AD 35 FE FF
+
+st_leftp+06:
+db E8 E4 3B FE FF
+
+st_brkp:
+db 83 FE FF 74 60
+
+st_usep+04:
+db 66 89 0C C5 64 7B 3D 01 77 32
+
+st_thiefp+05:
+db E8 74 24 09 00
+
+st_barp+04:
+db FF 05 80 EC 08 01
+
+st_drawp:
+db 8B 89 80 00 00 00 49 83 F9 10 77 53
+
+st_pickp:
+db E8 9B 46 02 00
+
+st_cmrgp:
+db 8A 46 06 3C 08 74 12
+
+st_putp:
+db 83 FA 08 89 0D 60 EB 08 01
+
+unregistersymbol(st_givep)
+unregistersymbol(st_takep)
+unregistersymbol(st_chkp)
+unregistersymbol(st_predp)
+unregistersymbol(st_leftp)
+unregistersymbol(st_brkp)
+unregistersymbol(st_usep)
+unregistersymbol(st_thiefp)
+unregistersymbol(st_barp)
+unregistersymbol(st_drawp)
+unregistersymbol(st_pickp)
+unregistersymbol(st_cmrgp)
+unregistersymbol(st_putp)
+unregistersymbol(st_merge)
+unregistersymbol(st_takeout)
+unregistersymbol(st_break)
+unregistersymbol(st_show)
+unregistersymbol(st_max)
+unregistersymbol(st_force)
+unregistersymbol(st_mgn)
+unregistersymbol(st_tkn)
+unregistersymbol(st_bkn)
+unregistersymbol(st_lost)
+unregistersymbol(st_pickfull)
+unregistersymbol(st_pfn)
+dealloc(st_mem)

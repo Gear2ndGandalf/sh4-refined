@@ -1,0 +1,35 @@
+# build outputs (build.cmd [outdir], test\build_*_test.cmd)
+out/
+out_*/
+test/out/
+test/out_test/
+test/work/
+*.obj
+*.exe
+*.ilk
+*.pdb
+*.lib
+*.exp
+*.res
+
+# backups, logs, dumps
+*.bak
+*.bak-*
+*.orig
+*.rej
+*.log
+*.dmp
+test/results.txt
+
+# Python
+__pycache__/
+*.pyc
+
+# generated from your own copy of the game exe (python -I tools\inv337_gen.py --exe <exe>): bytes of the game, not ours
+test/inventory_rdata.h
+
+# never commit game files
+SILENT HILL 4.exe
+sh4.exe
+*.sav
+preview.dds

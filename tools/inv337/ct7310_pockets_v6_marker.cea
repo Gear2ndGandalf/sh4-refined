@@ -1,0 +1,2133 @@
+{ SH4 (GOG PC) - Extend Toolbelt v6: 20 items on two pages, every item on exactly ONE page (no pins)  [v6]
+  v6 + page-marker fix (src\research\hud\page_marker_fix.md, UNTESTED DRAFT): only pk_draw, pk_ind_x/pk_ind_dy
+  defaults and pk_txt1/pk_txt2 differ from pockets_v6.cea.
+  Game: SILENT HILL 4.exe (32-bit, base 400000, no relocations). Static RE only - see notes_v6.txt here and
+  ..\research\inventory\inventory_re.txt. Replaces pockets_v5.cea (entry 7310). Do not enable both.
+
+  How it works: the belt is page 1 (13D7B60, 10 entries). Page 2 ("Toolbelt 2") is chest entries 126..135
+  (13D7FA0, 10 entries); the chest is bounded to 126. A flip rotates the pages. Game code only looks at page 1,
+  so the hooks below make the game look at page 2 too where it matters. Page-2 entry i is used through the
+  game's own routines with the index 88h+i (13D7B60 + 8 x (88h+i) = 13D7FA0 + 8 x i), never in bar/UI code.
+
+  Switches: pk_pin   0 = no pins (default): the gun in hand and the medallion in use flip like any item
+                     1 = v5 pins: the gun in Henry's hand and the Saint Medallion in use stay on the visible page
+            pk_mel   1 = a melee weapon in hand may be on page 2 (default). 0 = it is pinned and R1/R2/R5 ignore
+                     page 2 for melee (v4).
+            pk_optc  1 = story/door/event code sees key items 3Ch..7Dh on page 2 (default).
+            pk_ovf, pk_flip, pk_ind, pk_swap, pk_force: as v4/v5.
+  Counters: pk_c3n page-2 story removals, pk_r5n re-equips from page 2, pk_gn rounds fired from a page-2 gun,
+            pk_rln reloads done by R8 (gun or box on page 2), pk_mdn broken medallions removed from page 2.
+
+  HOOKS (address - what - why)                                              new in v6 = *
+  Storage, flips, overflow (v2..v4)
+   4F4A09  HUD frame        flip requests (pk_swap), page-2 count, chest count clamp
+   4F4A18  HUD draw         page marker 1/2
+   5154A3  bar cursor       RIGHT past the last / LEFT past the first item flips (belt and chest player row)
+   4F57B0  pockets full?    full only when both pages are full (overflow)
+   4F5860  insert position  moves one visible item to page 2 when page 1 is full (overflow)
+   4F6300 4F6510 4F6610 4F6453 4F6DF0  chest sort/merge/recount/ammo/put-in bounded to 126 entries
+  Story items on page 2 (v5 Option C)
+   4F5AAE  H-C1 how many of X   + page 2 for 3Ch..7Dh (pk_optc) and *for the Saint Medallion 08
+   5171E0  H-C2 has item        replaced: page 1 as the game, then page 2 for 3Ch..7Dh
+   516EC5  H-C3 remove one by id  not on page 1: one off its page-2 entry (3Ch..7Dh),
+                                *R4 and one round off a page-2 gun 10h/11h (fire 53DF90; a gun stays at 0)
+  Weapon in hand on page 2
+   4F69E0  R1 condition of id   page 2 for guns, melee (pk_mel), *and the medallion in use (ghost touch, break)
+   4F6AE6  R2 wear id           page 2 for guns and melee (pk_mel), worn and broken by the game's own code
+   5347BA  R5 room spawn        the equipped weapon is re-attached from page 2
+  * 4F6020  R3 gun empty?       replaced: page 1, then page 2 (fire 53DF50)
+  * 4F5F50  R6 can reload       replaced: gun and ammo may each be on either page (53DED0, 530090)
+  * 53DED0  R7 auto reload      replaced: ammo looked up on page 1, then page 2, then 517000
+  * 517000  R8 reload/combine   gun on page 1 + page-1 box: the game's code; otherwise done here the same way
+                                (rounds merged, ammo switch, an empty box removed from its own page)
+  Medallion in use on page 2
+  * 4F6AC5  M2 wear medallion   in use on page 2: worn (and broken) by the game's own code with 88h+i
+  * 4F5D20  M3 medallion off    replaced: also clears +7 on page 2
+  * 4F5D0E  M4 use medallion    also clears +7 on page 2, so only one medallion is ever in use
+  * 516FF2  M5 after wear       a broken medallion on page 2 is removed (medallion off, page 2 packed)
+  * 516C97  M6 bar toggle       in use on page 2: skip the game's bar write for a slot it does not have
+  Not hooked on purpose: 4F5D60 (slot of medallion in use) is only read by bar/chest UI code that needs a
+  page-1 slot; it answers -1 when the medallion in use is on page 2 (no E marker, nothing else).
+  Table entries: 955 No Bloody Key Curse (4F5AA6) and 2970 Unbreakable Weapons (4F5C69) keep working; this
+  script never writes their bytes.
+}
+[ENABLE]
+aobscanmodule(pk_hud,SILENT HILL 4.exe,A0 30 9C 07 01 84 C0 74 14 E8 ?? ?? ?? ?? E8 ?? ?? ?? ?? E8 ?? ?? ?? ?? E9)
+aobscanmodule(pk_sort,SILENT HILL 4.exe,83 EC 0C 53 55 56 BB 01 00 00 00 57 B9 B6 7B 3D 01)
+aobscanmodule(pk_merge,SILENT HILL 4.exe,83 EC 08 53 55 56 57 B9 10 01 00 00 BE B0 7B 3D 01)
+aobscanmodule(pk_recount,SILENT HILL 4.exe,57 33 FF E8 ?? ?? ?? ?? E8 ?? ?? ?? ?? B8 BE 7B 3D 01)
+aobscanmodule(pk_ammo,SILENT HILL 4.exe,33 D2 B9 B4 7B 3D 01 55)
+aobscanmodule(pk_navp,SILENT HILL 4.exe,83 FE 0A 7C 09 66 C7 05 84 EC 08 01 00 00 33 D2 66 8B 15 84 EC 08 01)
+aobscanmodule(pk_fullp,SILENT HILL 4.exe,B8 66 7B 3D 01 80 38 00 74 10 83 C0 08 3D B6 7B 3D 01)
+aobscanmodule(pk_insp,SILENT HILL 4.exe,53 55 56 8B 74 24 10 57 33 FF 33 C0 85 F6 B9 20 F2 5B 00)
+aobscanmodule(pk_cntp,SILENT HILL 4.exe,0F B6 15 66 7B 3D 01 3B D1 75 16 83 F9 10 0F B7 05 64 7B 3D 01)
+aobscanmodule(pk_hasp,SILENT HILL 4.exe,56 57 8B 7C 24 0C 33 F6 56 E8 ?? ?? ?? ?? 83 C4 04 3B C7 74 09 46 83 FE 0A 7C ED 83 CE FF)
+aobscanmodule(pk_remp,SILENT HILL 4.exe,56 57 8B 7C 24 0C 33 F6 56 E8 ?? ?? ?? ?? 83 C4 04 3B C7 74 09 46 83 FE 0A 7C ED 5F 5E C3)
+aobscanmodule(pk_condp,SILENT HILL 4.exe,8B 4C 24 04 33 C0 EB 08 8D A4 24 00 00 00 00 90 0F B6 14 C5 66 7B 3D 01 3B D1 74 09 40 83 F8 0A 7C EE 83 C8 FF 83 F8 FF D9 05)
+aobscanmodule(pk_wearp,SILENT HILL 4.exe,0F B6 0C C5 66 7B 3D 01 3B CA 74 0F 40 83 F8 0A 7C EE D9 05 64 E0 5C 00 5E 5B C3)
+aobscanmodule(pk_spawnp,SILENT HILL 4.exe,8B 5E 28 83 FB 10 7C 37 83 FB 35 7F 32 53 E8)
+aobscanmodule(pk_first,SILENT HILL 4.exe,8B 4C 24 04 8A 04 CD 66 7B 3D 01 84 C0 74 20 33 C0 8A 14 C5 B6 7B 3D 01)
+aobscanmodule(pk_empp,SILENT HILL 4.exe,8B 54 24 04 33 C0 83 FA 01 74 14 83 FA 02 74 0F 83 FA 03 74 0A 83 FA 10 7C 2D 83 FA 35 7F 28)
+aobscanmodule(pk_canp,SILENT HILL 4.exe,51 56 57 8B 7C 24 10 C7 44 24 08 00 00 00 00 33 F6 0F B6 04 F5 66 7B 3D 01 3B C7 74 0C)
+aobscanmodule(pk_arlp,SILENT HILL 4.exe,8B 44 24 08 56 33 F6 83 F8 10 75 2F 6A 01 50 E8 ?? ?? ?? ?? 83 C4 08 83 F8 01 75 54 50 E8)
+aobscanmodule(pk_rlp,SILENT HILL 4.exe,83 EC 0C A1 80 EC 08 01 56 89 44 24 0C C7 44 24 04 00 00 00 00 E8 ?? ?? ?? ?? 8B 74 24 18 85 F6)
+aobscanmodule(pk_mwp,SILENT HILL 4.exe,8B 54 24 04 B9 08 00 00 00 53 33 C0 3B D1 56 75 23 38 0C C5 66 7B 3D 01 75 0B 8A 1C C5 67 7B 3D 01 84 DB 75 2A 40 83 F8 0A 7C E6)
+aobscanmodule(pk_medp,SILENT HILL 4.exe,8B 54 24 04 8A 0C D5 66 7B 3D 01 53 56 B0 08 33 F6 3A C8 75 0C C6 05 F4 7F 3D 01 01 BE 01 00 00 00 33 C9 38 04 CD 66 7B 3D 01 75 0C 3B CA 0F 94 C3 88 1C CD 67 7B 3D 01 41 83 F9 0A 7C E5 8B C6 5E 5B C3 90 90 90 90 90 90 90 90 90 90 90 90 90 C6 05 F4 7F 3D 01 00)
+aobscanmodule(pk_brkp,SILENT HILL 4.exe,8D 87 58 FF FF FF 85 C0 74 03 80 27 FD E8 ?? ?? ?? ?? 56 E8 ?? ?? ?? ?? 83 C4 04 C6 05 BC F3 08 01 00 81 C7 B0 00 00 00 46 83 FE 0A 7C AE D9 44 24 08 5F 5E 59 C3)
+aobscanmodule(pk_togp,SILENT HILL 4.exe,E8 ?? ?? ?? ?? 85 C0 74 56 E8 ?? ?? ?? ?? 3B C6 75 1B 69 F6 B0 00 00 00 81 C6 D8 EC 08 01)
+registersymbol(pk_hud)
+registersymbol(pk_sort)
+registersymbol(pk_merge)
+registersymbol(pk_recount)
+registersymbol(pk_ammo)
+registersymbol(pk_first)
+registersymbol(pk_navp)
+registersymbol(pk_fullp)
+registersymbol(pk_insp)
+registersymbol(pk_cntp)
+registersymbol(pk_hasp)
+registersymbol(pk_remp)
+registersymbol(pk_condp)
+registersymbol(pk_wearp)
+registersymbol(pk_spawnp)
+registersymbol(pk_empp)
+registersymbol(pk_canp)
+registersymbol(pk_arlp)
+registersymbol(pk_rlp)
+registersymbol(pk_mwp)
+registersymbol(pk_medp)
+registersymbol(pk_brkp)
+registersymbol(pk_togp)
+
+alloc(pk_mem,$2000)
+alloc(pk_buf,$100)
+label(pk_swap)
+label(pk_status)
+label(pk_p2)
+label(pk_page)
+label(pk_moved)
+label(pk_count)
+label(pk_force)
+label(pk_wait)
+label(pk_mv)
+label(pk_pin0)
+label(pk_pinmed)
+label(pk_key)
+label(pk_krank)
+label(pk_frame)
+label(pk_f_cnt)
+label(pk_f_cnx)
+label(pk_f_busy)
+label(pk_f_none)
+label(pk_f_ovf)
+label(pk_f_done)
+label(pk_f_out)
+label(pk_do_swap)
+label(pk_e_mel)
+label(pk_e_none)
+label(pk_e_pin)
+label(pk_a_loop)
+label(pk_a_tob)
+label(pk_a_next)
+label(pk_b_loop)
+label(pk_b_stay)
+label(pk_b_next)
+label(pk_s_nothing)
+label(pk_s_ovf)
+label(pk_s_ret)
+label(pk_pinned)
+label(pk_p_no)
+label(pk_p_yes)
+label(pk_rank)
+label(pk_r_find)
+label(pk_r_loop)
+label(pk_r_hit)
+label(pk_sortn)
+label(pk_o_loop)
+label(pk_i_loop)
+label(pk_place)
+label(pk_srt_done)
+label(pk_write)
+label(pk_w_loop)
+label(pk_w_empty)
+label(pk_w_next)
+label(pk_m_sent)
+label(pk_m_tail)
+label(pk_m_t_loop)
+label(pk_m_t_done)
+label(pk_rc)
+label(pk_rc_l)
+label(pk_rc_n)
+label(pk_am)
+label(pk_am_l)
+label(pk_am_n)
+label(pk_flip)
+label(pk_ind)
+label(pk_ind_x)
+label(pk_ind_dy)
+label(pk_sv0)
+label(pk_sv1)
+label(pk_sv2)
+label(pk_txt1)
+label(pk_txt2)
+label(pk_nav)
+label(pk_n_left)
+label(pk_cnt)
+label(pk_cn_p2)
+label(pk_cn_ret)
+label(pk_has)
+label(pk_h_l)
+label(pk_h_l2)
+label(pk_h_no)
+label(pk_h_yes)
+label(pk_rem)
+label(pk_rm2_go)
+label(pk_rm2_f)
+label(pk_rm2_pop)
+label(pk_rm2_gun)
+label(pk_rm2_gpop)
+label(pk_rm2_out)
+label(pk_cond)
+label(pk_cd_med)
+label(pk_cd_go)
+label(pk_wear)
+label(pk_w_nf)
+label(pk_spawn)
+label(pk_sp_p2)
+label(pk_sp_out)
+label(pk_optc)
+label(pk_mel)
+label(pk_pin)
+label(pk_c3n)
+label(pk_r5n)
+label(pk_gn)
+label(pk_rln)
+label(pk_mdn)
+label(pk_c5)
+label(pk_ovf)
+label(pk_ovfn)
+label(pk_getpins)
+label(pk_t_loop)
+label(pk_t_done)
+label(pk_class)
+label(pk_c0)
+label(pk_cw)
+label(pk_ce)
+label(pk_ca)
+label(pk_ck)
+label(pk_victim)
+label(pk_v_loop)
+label(pk_v_cmp)
+label(pk_v_next)
+label(pk_room)
+label(pk_rm1)
+label(pk_rm_find)
+label(pk_rm_put)
+label(pk_rm_out)
+label(pk_full)
+label(pk_fu_no)
+label(pk_fu_yes)
+label(pk_ins)
+label(pk_n_hud)
+label(pk_n_bar)
+label(pk_n_land0)
+label(pk_cflip)
+label(pk_n_try)
+label(pk_n_go)
+label(pk_n_ok)
+label(pk_n_land)
+label(pk_n_out)
+label(pk_cnt10)
+label(pk_c_l)
+label(pk_c_n)
+label(pk_draw)
+label(pk_d_t)
+label(pk_d_out)
+label(pk_find)
+label(pk_fd_l)
+label(pk_fd_n)
+label(pk_fd_out)
+label(pk_gate)
+label(pk_gt_no)
+label(pk_gt_ok)
+label(pk_p2sum)
+label(pk_ps_l)
+label(pk_ps_n)
+label(pk_p2del)
+label(pk_pd_l)
+label(pk_pd_last)
+label(pk_delbox)
+label(pk_db_p2)
+label(pk_medslot)
+label(pk_ms_l)
+label(pk_ms_n)
+label(pk_ms_e)
+label(pk_ms_out)
+label(pk_empty)
+label(pk_em_lo)
+label(pk_em_go)
+label(pk_em_f)
+label(pk_em_ret)
+label(pk_canrl)
+label(pk_cr_have)
+label(pk_cr_cap)
+label(pk_cr_cmp)
+label(pk_cr_lt)
+label(pk_cr_no)
+label(pk_cr_yes)
+label(pk_cr_ret)
+label(pk_arl)
+label(pk_al_go)
+label(pk_al_no)
+label(pk_rl)
+label(pk_rl_p1)
+label(pk_rl_own)
+label(pk_rl_game)
+label(pk_xrl)
+label(pk_xr_g0)
+label(pk_xr_p)
+label(pk_xr_rev)
+label(pk_xr_done)
+label(pk_xr_bar)
+label(pk_xr_ret)
+label(pk_pistol)
+label(pk_pi_sw)
+label(pk_pi_swe)
+label(pk_pi_swt)
+label(pk_pi_fail)
+label(pk_mrg)
+label(pk_mg_part)
+label(pk_mg_full)
+label(pk_mwear)
+label(pk_mw_p2)
+label(pk_mw_n)
+label(pk_moff)
+label(pk_mo_l)
+label(pk_mo_n)
+label(pk_mo_l2)
+label(pk_mo_n2)
+label(pk_muse)
+label(pk_mu_l)
+label(pk_mu_n)
+label(pk_mbrk)
+label(pk_mb_l)
+label(pk_mb_brk)
+label(pk_mb_n)
+label(pk_mtog)
+label(pk_mt_other)
+label(pk_mt_skip)
+registersymbol(pk_swap)
+registersymbol(pk_status)
+registersymbol(pk_p2)
+registersymbol(pk_page)
+registersymbol(pk_moved)
+registersymbol(pk_count)
+registersymbol(pk_force)
+registersymbol(pk_flip)
+registersymbol(pk_ind)
+registersymbol(pk_ind_x)
+registersymbol(pk_ind_dy)
+registersymbol(pk_cflip)
+registersymbol(pk_ovf)
+registersymbol(pk_ovfn)
+registersymbol(pk_optc)
+registersymbol(pk_mel)
+registersymbol(pk_pin)
+registersymbol(pk_c3n)
+registersymbol(pk_r5n)
+registersymbol(pk_gn)
+registersymbol(pk_rln)
+registersymbol(pk_mdn)
+
+// pk_buf: +00 new visible page (10 x 8), +50 new hidden page (10 x 8), +A0 old visible non-pinned items (10 x 8)
+
+pk_mem:
+pk_swap:
+dd 0
+pk_status:
+dd 0
+pk_p2:
+dd 0
+pk_page:
+dd 0
+pk_moved:
+dd 0
+pk_count:
+dd 0
+pk_force:
+dd 0
+pk_wait:
+dd 0
+pk_mv:
+dd 0
+pk_pin0:
+dd 0
+pk_pinmed:
+dd 0
+pk_key:
+dd 0
+dd 0
+pk_krank:
+dd 0
+pk_cflip:
+dd 0
+pk_ovf:
+dd 1
+pk_ovfn:
+dd 0
+pk_optc:
+dd 1
+pk_mel:
+dd 1
+pk_pin:
+dd 0
+pk_c3n:
+dd 0
+pk_r5n:
+dd 0
+pk_gn:
+dd 0
+pk_rln:
+dd 0
+pk_mdn:
+dd 0
+pk_flip:
+dd 1
+pk_ind:
+dd 1
+pk_ind_x:
+dd 1F1
+pk_ind_dy:
+dd 0
+pk_sv0:
+dd 0
+pk_sv1:
+dd 0
+pk_sv2:
+dd 0
+pk_txt1:
+db 00 80 CF D1 CE FF FF 00
+pk_txt2:
+db 00 80 CE D1 CE FF FF 00
+
+// ---------------------------------------------------------------- HUD frame (replaces "call 50EBD0" at 4F4A09)
+pk_frame:
+pushfd
+pushad
+// a chest count above 126 (left by a vanilla session that pulled page 2 into the chest): entries 126.. are page 2 again
+cmp word ptr [013D7FF0],7E
+jbe pk_f_cnt
+mov word ptr [013D7FF0],7E
+pk_f_cnt:
+xor eax,eax
+mov ecx,013D7FA6
+pk_f_cnx:
+cmp byte ptr [ecx],0
+setne dl
+movzx edx,dl
+add eax,edx
+add ecx,8
+cmp ecx,013D7FF6
+jb pk_f_cnx
+mov [pk_p2],eax
+cmp dword ptr [pk_swap],0
+je pk_f_out
+mov eax,[0107BF54]
+or eax,[0107BF58]
+jne pk_f_busy
+cmp dword ptr [0108EC8C],0
+jne pk_f_busy
+cmp dword ptr [0108EC98],0
+jne pk_f_busy
+call pk_do_swap
+cmp eax,FFFFFFFF
+je pk_f_ovf
+mov [pk_moved],eax
+test eax,eax
+je pk_f_none
+xor dword ptr [pk_page],1
+inc dword ptr [pk_count]
+push 0
+push 0108ECAC
+mov eax,00552490
+call eax
+add esp,8
+mov dword ptr [pk_status],1
+jmp pk_f_done
+pk_f_none:
+mov dword ptr [pk_status],2
+jmp pk_f_done
+pk_f_ovf:
+mov dword ptr [pk_status],FFFFFFFE
+jmp pk_f_done
+pk_f_busy:
+inc dword ptr [pk_wait]
+cmp dword ptr [pk_wait],12C
+jb pk_f_out
+mov dword ptr [pk_status],FFFFFFFF
+pk_f_done:
+mov dword ptr [pk_swap],0
+mov dword ptr [pk_wait],0
+pk_f_out:
+popad
+popfd
+call 0050EBD0
+jmp pk_hud+0E
+
+// ---------------------------------------------------------------- swap core
+// returns eax = items that changed page (0 = nothing to do), FFFFFFFF = refused (nothing written)
+// rotation: new visible = pins + the first (10 - pins) hidden items (sorted like the game keeps the belt);
+//           new hidden  = the remaining hidden items, then the old visible non-pinned items (queue order, packed)
+// v6: with pk_pin = 0 (and pk_mel = 1) nothing is pinned - every item takes part in the rotation.
+pk_do_swap:
+push ebx
+push ecx
+push edx
+push esi
+push edi
+push ebp
+call pk_getpins
+xor ebx,ebx
+xor ebp,ebp
+xor edi,edi
+mov dword ptr [pk_mv],0
+// visible page: pins stay, the rest is queued (pk_buf+A0) behind what stays hidden
+mov esi,013D7B60
+pk_a_loop:
+movzx eax,byte ptr [esi+6]
+test eax,eax
+je pk_a_next
+call pk_pinned
+test eax,eax
+je pk_a_tob
+mov eax,[esi]
+mov [ebx*8+pk_buf],eax
+mov eax,[esi+4]
+mov [ebx*8+pk_buf+4],eax
+inc ebx
+jmp pk_a_next
+pk_a_tob:
+mov eax,[esi]
+mov [edi*8+pk_buf+A0],eax
+mov eax,[esi+4]
+mov [edi*8+pk_buf+A4],eax
+inc edi
+inc dword ptr [pk_mv]
+pk_a_next:
+add esi,8
+cmp esi,013D7BB0
+jb pk_a_loop
+// hidden page in its order: fills the visible page up to 10, the rest stays hidden (first in the queue)
+mov esi,013D7FA0
+pk_b_loop:
+cmp byte ptr [esi+6],0
+je pk_b_next
+cmp ebx,0A
+jae pk_b_stay
+mov eax,[esi]
+mov [ebx*8+pk_buf],eax
+mov eax,[esi+4]
+mov [ebx*8+pk_buf+4],eax
+inc ebx
+inc dword ptr [pk_mv]
+jmp pk_b_next
+pk_b_stay:
+cmp ebp,0A
+jae pk_s_ovf
+mov eax,[esi]
+mov [ebp*8+pk_buf+50],eax
+mov eax,[esi+4]
+mov [ebp*8+pk_buf+54],eax
+inc ebp
+pk_b_next:
+add esi,8
+cmp esi,013D7FF0
+jb pk_b_loop
+// then the old visible non-pinned items
+xor ecx,ecx
+pk_t_loop:
+cmp ecx,edi
+jae pk_t_done
+cmp ebp,0A
+jae pk_s_ovf
+mov eax,[ecx*8+pk_buf+A0]
+mov [ebp*8+pk_buf+50],eax
+mov eax,[ecx*8+pk_buf+A4]
+mov [ebp*8+pk_buf+54],eax
+inc ebp
+inc ecx
+jmp pk_t_loop
+pk_t_done:
+cmp dword ptr [pk_mv],0
+je pk_s_nothing
+mov esi,pk_buf
+mov ecx,ebx
+call pk_sortn
+mov esi,pk_buf
+mov edi,013D7B60
+mov ecx,ebx
+call pk_write
+mov esi,pk_buf+50
+mov edi,013D7FA0
+mov ecx,ebp
+call pk_write
+mov eax,[pk_mv]
+jmp pk_s_ret
+pk_s_nothing:
+xor eax,eax
+jmp pk_s_ret
+pk_s_ovf:
+mov eax,FFFFFFFF
+pk_s_ret:
+pop ebp
+pop edi
+pop esi
+pop edx
+pop ecx
+pop ebx
+ret
+
+// pins (v6): pk_pin0 = weapon id in hand that stays visible (0 = none), pk_pinmed = 1 when the medallion in use stays.
+// pk_pin = 1: a gun in hand (10h/11h) and the medallion in use (v5). pk_mel = 0: a melee weapon in hand (12h..35h).
+// pk_pin = 0 and pk_mel = 1 (default): no pins. Registers but eax kept.
+pk_getpins:
+mov eax,[010A1164]
+mov dword ptr [pk_pinmed],0
+cmp dword ptr [pk_pin],0
+je pk_e_mel
+mov dword ptr [pk_pinmed],1
+cmp eax,10
+je pk_e_pin
+cmp eax,11
+je pk_e_pin
+pk_e_mel:
+cmp dword ptr [pk_mel],0
+jne pk_e_none
+cmp eax,12
+jb pk_e_none
+cmp eax,35
+jbe pk_e_pin
+pk_e_none:
+xor eax,eax
+pk_e_pin:
+mov [pk_pin0],eax
+ret
+
+// eax = item id (not 0), esi = entry -> eax = 1 pinned / 0 not
+pk_pinned:
+cmp eax,[pk_pin0]
+je pk_p_yes
+cmp byte ptr [esi+7],0
+je pk_p_no
+cmp dword ptr [pk_pinmed],0
+jne pk_p_yes
+pk_p_no:
+xor eax,eax
+ret
+pk_p_yes:
+mov eax,1
+ret
+
+// eax = item id -> eax = sort rank as 4F5860: 0 -> 7FFFFFFF, index in 5BF220[0..77], unknown -> -1. ecx kept.
+pk_rank:
+test eax,eax
+jne pk_r_find
+mov eax,7FFFFFFF
+ret
+pk_r_find:
+push ecx
+xor ecx,ecx
+pk_r_loop:
+cmp al,byte ptr [ecx+005BF220]
+je pk_r_hit
+inc ecx
+cmp ecx,78
+jb pk_r_loop
+or eax,FFFFFFFF
+pop ecx
+ret
+pk_r_hit:
+mov eax,ecx
+pop ecx
+ret
+
+// stable insertion sort of ecx entries at esi by rank (all registers kept)
+pk_sortn:
+pushad
+cmp ecx,2
+jb pk_srt_done
+mov edx,1
+pk_o_loop:
+mov eax,[esi+edx*8]
+mov [pk_key],eax
+mov eax,[esi+edx*8+4]
+mov [pk_key+4],eax
+movzx eax,byte ptr [pk_key+6]
+call pk_rank
+mov [pk_krank],eax
+mov edi,edx
+dec edi
+pk_i_loop:
+test edi,edi
+js pk_place
+movzx eax,byte ptr [esi+edi*8+6]
+call pk_rank
+cmp eax,[pk_krank]
+jle pk_place
+mov eax,[esi+edi*8]
+mov [esi+edi*8+8],eax
+mov eax,[esi+edi*8+4]
+mov [esi+edi*8+0C],eax
+dec edi
+jmp pk_i_loop
+pk_place:
+mov eax,[pk_key]
+mov [esi+edi*8+8],eax
+mov eax,[pk_key+4]
+mov [esi+edi*8+0C],eax
+inc edx
+cmp edx,ecx
+jb pk_o_loop
+pk_srt_done:
+popad
+ret
+
+// ecx entries from esi to edi, then the empty template (107A088) up to 10 entries (all registers kept)
+pk_write:
+pushad
+xor edx,edx
+pk_w_loop:
+cmp edx,ecx
+jae pk_w_empty
+mov eax,[esi+edx*8]
+mov [edi+edx*8],eax
+mov eax,[esi+edx*8+4]
+mov [edi+edx*8+4],eax
+jmp pk_w_next
+pk_w_empty:
+mov eax,[0107A088]
+mov [edi+edx*8],eax
+mov eax,[0107A08C]
+mov [edi+edx*8+4],eax
+pk_w_next:
+inc edx
+cmp edx,0A
+jb pk_w_loop
+popad
+ret
+
+// ---------------------------------------------------------------- chest bounded to 126 entries
+// 4F652A (after copying 126 entries to the temp buffer 1079C48): the merge reads temp[126] as "next entry"
+pk_m_sent:
+mov esi,[0107A088]
+mov [0107A038],esi
+mov esi,[0107A08C]
+mov [0107A03C],esi
+mov esi,01079C48
+jmp pk_merge+1F
+
+// 4F6601 (merge end): output entries [esp+14] .. 125 were merged away -> empty template
+pk_m_tail:
+mov edx,[esp+14]
+cmp edx,7E
+jge pk_m_t_done
+mov eax,[0107A088]
+mov ecx,[0107A08C]
+pk_m_t_loop:
+mov [edx*8+013D7BB0],eax
+mov [edx*8+013D7BB4],ecx
+inc edx
+cmp edx,7E
+jl pk_m_t_loop
+pk_m_t_done:
+pop edi
+pop esi
+pop ebp
+pop ebx
+add esp,8
+ret
+
+// 4F661D (recount): edi = number of used entries among 0..125, then the game's own tail fill (patched 7E/7D)
+pk_rc:
+mov eax,013D7BB6
+pk_rc_l:
+cmp byte ptr [eax],0
+je pk_rc_n
+inc edi
+pk_rc_n:
+add eax,8
+cmp eax,013D7FA6
+jb pk_rc_l
+jmp pk_recount+5A
+
+// 4F6453 (ammo sum for "put in"): edx = stacks of item edi, esi += their counts, entries 0..125; eax kept
+pk_am:
+xor edx,edx
+mov ecx,013D7BB4
+push ebp
+pk_am_l:
+movzx ebp,byte ptr [ecx+2]
+cmp ebp,edi
+jne pk_am_n
+movzx ebp,word ptr [ecx]
+add esi,ebp
+inc edx
+pk_am_n:
+add ecx,8
+cmp ecx,013D7FA4
+jb pk_am_l
+jmp pk_ammo+93
+
+// ---------------------------------------------------------------- item bar: RIGHT past the last item / LEFT past the first flips the page
+// replaces "xor edx,edx / mov dx,[108EC84]" at 5154A3 (bar cursor 5152E0, keyboard/pad path, after the game's move loop)
+// ebx = direction (2 left, 3 right), word [108EC84] = new cursor, word [108EC86] = cursor before the move
+// also reached from the storage chest PLAYER row (5121B0 -> 5152E0); there edi = 1 if 5121B0 accepted a put-in
+pk_nav:
+pushad
+cmp dword ptr [pk_flip],0
+je pk_n_out
+movzx eax,word ptr [0108EC84]
+movzx ecx,word ptr [0108EC86]
+cmp ebx,3
+jne pk_n_left
+cmp eax,ecx
+ja pk_n_out
+jmp pk_n_try
+pk_n_left:
+cmp ebx,2
+jne pk_n_out
+cmp eax,ecx
+jb pk_n_out
+pk_n_try:
+// edi = 1: chest PLAYER row (5121B0's 5152E0 call), 0: HUD belt
+xor edi,edi
+cmp dword ptr [0108EB68],1
+jne pk_n_hud
+cmp dword ptr [0108EAE4],1
+jne pk_n_out
+cmp dword ptr [esp],0
+jne pk_n_out
+inc edi
+jmp pk_n_bar
+pk_n_hud:
+mov eax,[0107BF54]
+or eax,[0107BF58]
+jne pk_n_out
+pk_n_bar:
+cmp dword ptr [0108EC8C],0
+jne pk_n_out
+cmp dword ptr [0108EC98],0
+jne pk_n_out
+mov esi,013D7FA0
+call pk_cnt10
+test eax,eax
+jne pk_n_go
+mov esi,013D7B60
+call pk_cnt10
+cmp eax,0A
+jne pk_n_out
+pk_n_go:
+call pk_do_swap
+test eax,eax
+jle pk_n_out
+cmp byte ptr [013D7B66],0
+jne pk_n_ok
+// page 1 would be empty (page 2 was empty, nothing pinned): swap back (two swaps restore it exactly), buzzer
+call pk_do_swap
+push 9C44
+mov eax,0056CC40
+call eax
+add esp,4
+mov dword ptr [pk_status],3
+jmp pk_n_out
+pk_n_ok:
+mov [pk_moved],eax
+xor dword ptr [pk_page],1
+inc dword ptr [pk_count]
+mov dword ptr [pk_status],1
+test edi,edi
+je pk_n_land0
+// chest: make its player-row caches see a changed item (item text this frame, cursor-change handling next frame)
+inc dword ptr [pk_cflip]
+mov dword ptr [0108EB70],1
+mov dword ptr [0108DF2C],FFFFFFFF
+mov dword ptr [0108EB6C],FFFFFFFF
+pk_n_land0:
+// landing: RIGHT -> slot 0, LEFT -> last item (pages are packed after a swap)
+xor eax,eax
+cmp ebx,3
+je pk_n_land
+mov esi,013D7B60
+call pk_cnt10
+dec eax
+pk_n_land:
+mov word ptr [0108EC84],ax
+cmp ax,word ptr [0108EC86]
+jne pk_n_out
+// the cursor index did not change (one item): the game stays silent then, so play its cursor sound here
+push 9C9B
+mov eax,0056CC40
+call eax
+add esp,4
+pk_n_out:
+popad
+xor edx,edx
+mov dx,word ptr [0108EC84]
+jmp pk_navp+17
+
+// esi = page base -> eax = used entries of its 10; ecx, esi kept
+pk_cnt10:
+push ecx
+push esi
+xor eax,eax
+mov ecx,0A
+pk_c_l:
+cmp byte ptr [esi+6],0
+je pk_c_n
+inc eax
+pk_c_n:
+add esi,8
+dec ecx
+jne pk_c_l
+pop esi
+pop ecx
+ret
+
+// ---------------------------------------------------------------- page indicator (replaces the tail "jmp 50D5D0" at 4F4A18)
+// marker fix (research\hud, DRAFT): v2..v6 drew "\h1/2" at x 20Ch = 524, but the game's 2D canvas is 512 x 448
+// (x 0..511), so the text was queued off screen. Now: right edge at pk_ind_x (1F1h = right edge of slot 9),
+// bottom edge 2 px above the slot row (y 358 + belt slide 108F3CC + pk_ind_dy), font 0, alpha = 128 x belt fade
+// 108EB80, strings pre-encoded in the game's byte mode (no 556730). 557660(str, x, y, 2 = right, 2 = bottom).
+pk_draw:
+call 0050D5D0
+pushfd
+pushad
+cmp dword ptr [pk_ind],0
+je pk_d_out
+cmp dword ptr [pk_p2],0
+je pk_d_out
+cmp dword ptr [0108EB80],0
+jle pk_d_out
+mov eax,[01261C14]
+mov [pk_sv0],eax
+mov eax,[01261C18]
+mov [pk_sv1],eax
+mov eax,[01261C1C]
+mov [pk_sv2],eax
+push dword ptr [01261C00]
+push 0
+mov eax,00556A40
+call eax
+add esp,4
+sub esp,4
+fld dword ptr [0108EB80]
+fmul dword ptr [005B7518]
+fistp dword ptr [esp]
+mov eax,00556AE0
+call eax
+add esp,4
+push 00808080
+mov eax,00556A90
+call eax
+add esp,4
+push 2
+push 2
+mov eax,0055A0D0
+call eax
+sub eax,5A
+add eax,[pk_ind_dy]
+push eax
+fild dword ptr [esp]
+fadd dword ptr [0108F3CC]
+fistp dword ptr [esp]
+push dword ptr [pk_ind_x]
+mov eax,pk_txt1
+cmp dword ptr [pk_page],0
+je pk_d_t
+mov eax,pk_txt2
+pk_d_t:
+push eax
+mov eax,00557660
+call eax
+add esp,14
+mov eax,[pk_sv0]
+mov [01261C14],eax
+mov eax,[pk_sv1]
+mov [01261C18],eax
+mov eax,[pk_sv2]
+mov [01261C1C],eax
+mov eax,00556A40
+call eax
+add esp,4
+pk_d_out:
+popad
+popfd
+ret
+
+// ---------------------------------------------------------------- overflow to the hidden page
+// eax = item id (not 0) -> eax = move-away class: 0 broken weapon, 1 weapon, 2 Eileen weapon, 3 key/story 3Ch..7Dh
+// (doors/events see them on page 2), 4 ammo/consumables/specials/other, 5 the weapon in Henry's hand.
+// pk_victim also gives the medallion in use (+7) class 5: what Henry holds or wears moves last.
+pk_class:
+cmp eax,[010A1164]
+je pk_c5
+cmp eax,2E
+je pk_c0
+cmp eax,16
+jb pk_cw
+cmp eax,2C
+ja pk_cw
+test al,1
+jne pk_cw
+pk_c0:
+xor eax,eax
+ret
+pk_cw:
+cmp eax,10
+jb pk_ce
+cmp eax,35
+ja pk_ce
+mov eax,1
+ret
+pk_ce:
+cmp eax,80
+jb pk_ca
+cmp eax,84
+ja pk_ca
+mov eax,2
+ret
+pk_ca:
+cmp eax,3C
+jb pk_ck
+cmp eax,7D
+ja pk_ck
+mov eax,3
+ret
+pk_ck:
+mov eax,4
+ret
+pk_c5:
+mov eax,5
+ret
+
+// -> eax = index of the visible item to move to the hidden page (lowest class, the last one among equals), -1 none
+// all registers but eax kept
+pk_victim:
+push ebx
+push ecx
+push edx
+push esi
+call pk_getpins
+or ebx,FFFFFFFF              // best index
+mov edx,6                    // best class so far (6 = none)
+xor ecx,ecx
+pk_v_loop:
+lea esi,[ecx*8+013D7B60]
+movzx eax,byte ptr [esi+6]
+test eax,eax
+je pk_v_next
+call pk_pinned
+test eax,eax
+jne pk_v_next
+movzx eax,byte ptr [esi+6]
+call pk_class
+cmp byte ptr [esi+7],0
+je pk_v_cmp
+mov eax,5                    // the medallion in use
+pk_v_cmp:
+cmp eax,edx
+ja pk_v_next
+mov edx,eax
+mov ebx,ecx
+pk_v_next:
+inc ecx
+cmp ecx,0A
+jb pk_v_loop
+mov eax,ebx
+pop esi
+pop edx
+pop ecx
+pop ebx
+ret
+
+// pk_room(id) cdecl, all registers kept: visible page full + hidden page not full + the item takes a slot ->
+// move one visible item (pk_victim) to the first free hidden entry and pack the visible page with the game's 4F5670
+pk_room:
+pushad
+cmp dword ptr [pk_ovf],0
+je pk_rm_out
+mov ebx,[esp+24]
+test ebx,ebx
+je pk_rm_out
+cmp ebx,88
+jb pk_rm1
+cmp ebx,BB
+jbe pk_rm_out
+pk_rm1:
+mov esi,013D7B60
+call pk_cnt10
+cmp eax,0A
+jb pk_rm_out
+mov esi,013D7FA0
+call pk_cnt10
+cmp eax,0A
+jae pk_rm_out
+call pk_victim
+cmp eax,FFFFFFFF
+je pk_rm_out
+mov ecx,eax
+mov edi,013D7FA0
+pk_rm_find:
+cmp byte ptr [edi+6],0
+je pk_rm_put
+add edi,8
+jmp pk_rm_find
+pk_rm_put:
+mov eax,[ecx*8+013D7B60]
+mov [edi],eax
+mov eax,[ecx*8+013D7B64]
+mov [edi+4],eax
+mov eax,ecx
+mov edx,004F5670
+call edx                     // remove visible entry eax and pack (template fill), as the game does after use
+inc dword ptr [pk_ovfn]
+mov dword ptr [pk_status],4
+pk_rm_out:
+popad
+ret
+
+// replaces "pockets full?" 4F57B0 entirely: 1 only when the visible page is full and nothing can overflow
+pk_full:
+push esi
+mov esi,013D7B60
+call pk_cnt10
+cmp eax,0A
+jb pk_fu_no
+cmp dword ptr [pk_ovf],0
+je pk_fu_yes
+mov esi,013D7FA0
+call pk_cnt10
+cmp eax,0A
+jae pk_fu_yes
+call pk_victim
+cmp eax,FFFFFFFF
+je pk_fu_yes
+pk_fu_no:
+xor eax,eax
+pop esi
+ret
+pk_fu_yes:
+mov eax,1
+pop esi
+ret
+
+// replaces "push ebx / push ebp / push esi / mov esi,[esp+10]" at the entry of 4F5860 (insert position of item [esp+4])
+pk_ins:
+push dword ptr [esp+4]
+call pk_room
+add esp,4
+push ebx
+push ebp
+push esi
+mov esi,[esp+10]
+jmp pk_insp+7
+
+// ---------------------------------------------------------------- helpers for page-2 lookups (v6)
+// edx = item id -> eax = index of its first entry: page 1 = 0..9, else page 2 = 88h+i, else -1. Others kept.
+pk_find:
+push ecx
+xor eax,eax
+pk_fd_l:
+movzx ecx,byte ptr [eax*8+013D7B66]
+cmp ecx,edx
+je pk_fd_out
+inc eax
+cmp eax,0A
+jne pk_fd_n
+mov eax,88
+pk_fd_n:
+cmp eax,92
+jb pk_fd_l
+or eax,FFFFFFFF
+pk_fd_out:
+pop ecx
+ret
+
+// eax = index from pk_find, edx = weapon id -> eax, or -1 when this weapon may not be used from page 2:
+// guns 10h/11h always, melee 12h..35h only with pk_mel = 1, anything else never. Others kept.
+pk_gate:
+cmp eax,88
+jb pk_gt_ok
+cmp eax,92
+jae pk_gt_ok
+cmp edx,10
+jb pk_gt_no
+cmp edx,11
+jbe pk_gt_ok
+cmp edx,35
+ja pk_gt_no
+cmp dword ptr [pk_mel],0
+jne pk_gt_ok
+pk_gt_no:
+or eax,FFFFFFFF
+pk_gt_ok:
+ret
+
+// edx = item id -> eax = sum of the counts of its page-2 entries. Others kept.
+pk_p2sum:
+push ecx
+push esi
+xor eax,eax
+mov esi,013D7FA0
+pk_ps_l:
+movzx ecx,byte ptr [esi+6]
+cmp ecx,edx
+jne pk_ps_n
+movzx ecx,word ptr [esi+4]
+add eax,ecx
+pk_ps_n:
+add esi,8
+cmp esi,013D7FF0
+jb pk_ps_l
+pop esi
+pop ecx
+ret
+
+// eax = address of a page-2 entry -> it is removed, the rest of page 2 moves up, empty template at the end. All kept.
+pk_p2del:
+push eax
+push ecx
+push edx
+pk_pd_l:
+lea ecx,[eax+8]
+cmp ecx,013D7FF0
+jae pk_pd_last
+mov edx,[eax+8]
+mov [eax],edx
+mov edx,[eax+0C]
+mov [eax+4],edx
+add eax,8
+jmp pk_pd_l
+pk_pd_last:
+mov edx,[0107A088]
+mov [eax],edx
+mov edx,[0107A08C]
+mov [eax+4],edx
+pop edx
+pop ecx
+pop eax
+ret
+
+// esi = index (0..9 or 88h+i) -> that entry is removed: page 1 as the game (template + pack 4F5670), page 2 pk_p2del.
+// eax, ecx, edx changed.
+pk_delbox:
+cmp esi,0A
+jae pk_db_p2
+mov ecx,[0107A088]
+mov edx,[0107A08C]
+mov [esi*8+013D7B60],ecx
+mov [esi*8+013D7B64],edx
+mov eax,esi
+call 004F5670
+ret
+pk_db_p2:
+lea eax,[esi*8+013D7B60]
+call pk_p2del
+ret
+
+// -> eax = index of the Saint Medallion in use (id 08 with +7): page 1 = 0..9, else page 2 = 88h+i, else -1. Others kept.
+pk_medslot:
+xor eax,eax
+pk_ms_l:
+cmp byte ptr [eax*8+013D7B66],8
+jne pk_ms_n
+cmp byte ptr [eax*8+013D7B67],0
+jne pk_ms_out
+pk_ms_n:
+inc eax
+cmp eax,0A
+jne pk_ms_e
+mov eax,88
+pk_ms_e:
+cmp eax,92
+jb pk_ms_l
+or eax,FFFFFFFF
+pk_ms_out:
+ret
+
+// ---------------------------------------------------------------- v5 Option C: story/door/event code sees both pages
+// H-C1 "how many of item X" 4F5AA0: replaces "movzx edx,byte ptr [13D7B66]" at 4F5AAE (after the id-0 test, so the
+// No Bloody Key Curse patch at 4F5AA6 still decides first), runs the rest of the function as a subroutine, then
+// adds the page-2 counts for 3Ch..7Dh (pk_optc) and for the Saint Medallion 08 (v6: ghost-touch tests 53A8D0/486270).
+// ecx = id (the function never writes ecx).
+pk_cnt:
+movzx edx,byte ptr [013D7B66]
+call pk_cntp+7
+cmp ecx,8
+je pk_cn_p2
+cmp dword ptr [pk_optc],0
+je pk_cn_ret
+cmp ecx,3C
+jb pk_cn_ret
+cmp ecx,7D
+ja pk_cn_ret
+pk_cn_p2:
+push eax
+mov edx,ecx
+call pk_p2sum
+pop edx
+add eax,edx
+pk_cn_ret:
+ret
+
+// H-C2 "has item" 5171E0 (Doll Key checks): replaces the whole function; page 1 exactly as the game, then page 2 for 3Ch..7Dh
+pk_has:
+push esi
+push edi
+mov edi,[esp+0C]
+xor esi,esi
+pk_h_l:
+movzx eax,byte ptr [esi*8+013D7B66]
+cmp eax,edi
+je pk_h_yes
+inc esi
+cmp esi,0A
+jb pk_h_l
+cmp dword ptr [pk_optc],0
+je pk_h_no
+cmp edi,3C
+jb pk_h_no
+cmp edi,7D
+ja pk_h_no
+xor esi,esi
+pk_h_l2:
+movzx eax,byte ptr [esi*8+013D7FA6]
+cmp eax,edi
+je pk_h_yes
+inc esi
+cmp esi,0A
+jb pk_h_l2
+pk_h_no:
+xor eax,eax
+pop edi
+pop esi
+ret
+pk_h_yes:
+mov eax,1
+pop edi
+pop esi
+ret
+
+// H-C3 / R4 "remove one by id" 516EB0: replaces the loop tail "inc esi / cmp esi,0A / jl" at 516EC5. edi = id.
+// Not on page 1: a key/story item 3Ch..7Dh loses one from its page-2 entry (at 0 the entry goes, page 2 packed);
+// a gun 10h/11h (one shot fired, 53DF90) loses one round and stays at 0 like on page 1 (4F5D90 keeps 10h/11h).
+// No bar call (516E30 animates a page-1 slot).
+pk_rem:
+inc esi
+cmp esi,0A
+jge pk_rm2_go
+jmp pk_remp+8
+pk_rm2_go:
+cmp edi,10
+je pk_rm2_gun
+cmp edi,11
+je pk_rm2_gun
+cmp dword ptr [pk_optc],0
+je pk_rm2_out
+cmp edi,3C
+jb pk_rm2_out
+cmp edi,7D
+ja pk_rm2_out
+push eax
+push edx
+mov edx,edi
+call pk_find
+cmp eax,FFFFFFFF
+je pk_rm2_pop
+lea eax,[eax*8+013D7B60]
+cmp word ptr [eax+4],0
+je pk_rm2_pop
+dec word ptr [eax+4]
+jne pk_rm2_f
+call pk_p2del
+pk_rm2_f:
+inc dword ptr [pk_c3n]
+pk_rm2_pop:
+pop edx
+pop eax
+jmp pk_rm2_out
+pk_rm2_gun:
+push eax
+push edx
+mov edx,edi
+call pk_find
+cmp eax,FFFFFFFF
+je pk_rm2_gpop
+cmp word ptr [eax*8+013D7B64],0
+je pk_rm2_gpop
+dec word ptr [eax*8+013D7B64]
+inc dword ptr [pk_gn]
+pk_rm2_gpop:
+pop edx
+pop eax
+pk_rm2_out:
+jmp pk_remp+1B
+
+// ---------------------------------------------------------------- weapon in hand on page 2 (R1, R2, R5 from v5; R3, R6..R8 new)
+// R1 "condition of id" 4F69E0 (break test / model 544D80, ghost touch 53A8D0/486270): page 1 as the game, then page 2
+// (pk_gate: guns, melee with pk_mel) through the game's own tail with index 88h+i. Saint Medallion 08: the condition of
+// the medallion IN USE, page 1 first, then page 2 (the game's 4F5D60 only sees page 1).
+pk_cond:
+mov ecx,[esp+4]
+cmp ecx,8
+je pk_cd_med
+mov edx,ecx
+call pk_find
+call pk_gate
+pk_cd_go:
+jmp pk_condp+25
+pk_cd_med:
+call pk_medslot
+cmp eax,FFFFFFFF
+je pk_cd_go
+jmp pk_condp+41
+
+// R2 "wear id" 4F6AA0, not found on page 1 (replaces "fld [5CE064]" at 4F6AE6; edx = id): a gun or melee weapon on
+// page 2 is worn by the game's own code with index 88h+i - including the break (4F6A30 writes the broken id there).
+pk_wear:
+call pk_find
+call pk_gate
+cmp eax,FFFFFFFF
+je pk_w_nf
+jmp pk_wearp+1B
+pk_w_nf:
+fld dword ptr [005CE064]
+jmp pk_wearp+18
+
+// R5 room spawn 5346D0 (re-equip [Henry+28h] after the room load cleared the weapon in hand): replaces
+// "push ebx / call 4F5AA0" at 5347BA. On page 1 -> the game's path. Only on page 2 -> attach it (5450D0) without the
+// bar E-marker call 516B10 (that one takes a page-1 slot).
+pk_spawn:
+push ebx
+call 004F5AA0
+add esp,4
+test eax,eax
+je pk_sp_p2
+jmp pk_spawnp+1A
+pk_sp_p2:
+push edx
+mov edx,ebx
+call pk_find
+call pk_gate
+pop edx
+cmp eax,88
+jb pk_sp_out
+cmp eax,FFFFFFFF
+je pk_sp_out
+push ebx
+push 0
+call 005450D0
+add esp,8
+inc dword ptr [pk_r5n]
+pk_sp_out:
+jmp pk_spawnp+3F
+
+// R3 "gun empty?" 4F6020 (fire 53DF50: empty -> auto reload, else one round off): whole function replaced.
+// Same rules as the game (ids 01..03, 10h..35h; not carried = "not empty"), the item is looked up on page 1, then page 2.
+pk_empty:
+mov edx,[esp+4]
+xor eax,eax
+cmp edx,3
+jbe pk_em_lo
+cmp edx,10
+jl pk_em_ret
+cmp edx,35
+jg pk_em_ret
+jmp pk_em_go
+pk_em_lo:
+test edx,edx
+je pk_em_ret
+pk_em_go:
+call pk_find
+cmp eax,FFFFFFFF
+jne pk_em_f
+xor eax,eax
+ret
+pk_em_f:
+cmp word ptr [eax*8+013D7B64],0
+mov eax,0
+sete al
+pk_em_ret:
+ret
+
+// R6 "can gun X be reloaded from ammo type Y" 4F5F50 (auto reload, reload by use 530090): whole function replaced.
+// The game's rules (silver/normal switch for the pistol, capacity 4F5530); the gun is looked up on page 1, then
+// page 2, and the ammo counts on either page.
+pk_canrl:
+push esi
+push edi
+push ebp
+mov edi,[esp+10]             // gun id
+mov ebp,[esp+14]             // ammo id
+mov edx,edi
+call pk_find
+cmp eax,FFFFFFFF
+je pk_cr_no
+mov esi,eax
+push ebp
+call 004F5AA0
+add esp,4
+test eax,eax
+jne pk_cr_have
+mov edx,ebp
+call pk_p2sum
+test eax,eax
+je pk_cr_no
+pk_cr_have:
+movzx esi,word ptr [esi*8+013D7B64]   // rounds in the gun
+cmp edi,10
+jne pk_cr_cap
+cmp ebp,3
+jne pk_cr_cap
+cmp byte ptr [013D7FF2],3
+jne pk_cr_yes
+test esi,esi
+je pk_cr_yes
+pk_cr_cap:
+push edi
+call 004F5530
+add esp,4
+cmp ebp,3
+jne pk_cr_cmp
+push ebp
+call 004F5530
+add esp,4
+pk_cr_cmp:
+cmp edi,10
+jne pk_cr_lt
+cmp ebp,1
+jne pk_cr_lt
+cmp byte ptr [013D7FF2],3
+je pk_cr_yes
+pk_cr_lt:
+cmp esi,eax
+jl pk_cr_yes
+pk_cr_no:
+xor eax,eax
+jmp pk_cr_ret
+pk_cr_yes:
+mov eax,1
+pk_cr_ret:
+pop ebp
+pop edi
+pop esi
+ret
+
+// R7 auto reload 53DED0 (empty gun fired 53DF50, gun selected on the bar 530538): whole function replaced.
+// As the game: pistol takes Handgun Bullets 01, revolver 02; R6 decides; the box is looked up on page 1, then page 2
+// (index 88h+i), and 517000 (R8) reloads. 1 = reloading (the caller starts the reload animation, state 58h).
+pk_arl:
+mov eax,[esp+8]
+push esi
+mov esi,1
+cmp eax,10
+je pk_al_go
+mov esi,2
+cmp eax,11
+je pk_al_go
+pk_al_no:
+xor eax,eax
+pop esi
+ret
+pk_al_go:
+push esi
+push eax
+call 004F5F50
+add esp,8
+cmp eax,1
+jne pk_al_no
+mov edx,esi
+call pk_find
+cmp eax,FFFFFFFF
+je pk_al_no
+push eax
+push dword ptr [esp+10]
+call 00517000
+add esp,8
+mov eax,1
+pop esi
+ret
+
+// R8 reload/combine gun X with the ammo box at index S 517000 (reload by use 530379, R7): replaces
+// "sub esp,0C / mov eax,[108EC80]". Gun on page 1 and S a page-1 slot: the game's code, unchanged. Gun only on
+// page 2, or S = 88h+i (a page-2 box): pk_xrl does the same reload across the pages.
+pk_rl:
+push eax
+push edx
+mov eax,[esp+10]             // S
+test eax,eax
+js pk_rl_game
+cmp eax,0A
+jb pk_rl_p1
+cmp eax,88
+jb pk_rl_game
+cmp eax,92
+jb pk_rl_own
+jmp pk_rl_game
+pk_rl_p1:
+mov edx,[esp+0C]             // gun id
+call pk_find
+cmp eax,0A
+jb pk_rl_game
+cmp eax,FFFFFFFF
+je pk_rl_game
+pk_rl_own:
+pop edx
+pop eax
+jmp pk_xrl
+pk_rl_game:
+pop edx
+pop eax
+sub esp,0C
+mov eax,[0108EC80]
+jmp pk_rlp+8
+
+// pk_xrl(gun, S) cdecl: 517000's body with the gun and the box each on either page. The reload itself is the
+// game's (4F6070/4F5EA0 pistol, 4F6170 revolver), an emptied box leaves its own page (pk_delbox), and the bar's
+// "box used up" animation only plays for a page-1 slot. Locals: [esp] old [108EC80], [esp+4] switch flag,
+// [esp+8] capacity of the box id, [esp+0C] rounds in the box before.
+pk_xrl:
+push ebx
+push esi
+push edi
+push ebp
+sub esp,10
+mov eax,[0108EC80]
+mov [esp],eax
+mov dword ptr [esp+4],0
+call 00514C40
+mov edi,[esp+24]             // gun id
+mov esi,[esp+28]             // box index
+mov edx,edi
+call pk_find
+mov ebp,eax                  // gun index or -1
+movzx ebx,byte ptr [esi*8+013D7B66]
+movzx eax,word ptr [esi*8+013D7B64]
+mov [esp+0C],eax
+push ebx
+call 004F5530
+add esp,4
+mov [esp+8],eax
+xor ecx,ecx                  // rounds in the gun before (none = 0, as 4F5A80(-1))
+cmp ebp,FFFFFFFF
+je pk_xr_g0
+movzx ecx,word ptr [ebp*8+013D7B64]
+pk_xr_g0:
+cmp edi,10
+jne pk_xr_rev
+test ecx,ecx
+je pk_xr_p
+movzx eax,byte ptr [013D7FF2]
+cmp ebx,eax
+je pk_xr_p
+mov dword ptr [esp+4],1      // loaded pistol, other ammo type: a switch (the box stays)
+pk_xr_p:
+push ecx
+call pk_pistol
+pop ecx
+jmp pk_xr_done
+pk_xr_rev:
+cmp edi,11
+jne pk_xr_ret
+mov eax,1
+cmp ebp,FFFFFFFF
+je pk_xr_done
+push ecx
+push 11
+call 004F5530
+add esp,4
+call pk_mrg
+pop ecx
+pk_xr_done:
+test eax,eax
+jne pk_xr_ret
+inc dword ptr [pk_rln]
+cmp dword ptr [esp+4],0
+jne pk_xr_bar
+add ecx,[esp+0C]
+cmp ecx,[esp+8]
+jg pk_xr_bar
+mov ecx,[esp]
+lea eax,[ecx-1]
+cmp ecx,eax
+jle pk_xr_bar
+cmp esi,0A
+jae pk_xr_bar                // a page-2 box has no bar slot: no animation
+mov dword ptr [0108EC98],2
+mov [0108EC9C],esi
+mov [0108ECA0],ebx
+mov dword ptr [0108EC94],0
+pk_xr_bar:
+mov dword ptr [0108ECA4],0
+mov byte ptr [0108ECA8],0
+push dword ptr [00653D14]
+call 005139F0
+push dword ptr [00653D14]
+call 0050CF50
+push dword ptr [00653D14]
+call 005139F0
+push dword ptr [00653D14]
+call 0050CF50
+add esp,10
+pk_xr_ret:
+add esp,10
+pop ebp
+pop edi
+pop esi
+pop ebx
+ret
+
+// pistol reload (4F6070 with a given box; 4F5EA0 when the box holds the other ammo type): esi = box index,
+// ebp = gun index (-1 = none) -> eax = 0 done, 1 not possible. ebx, esi, edi, ebp kept.
+pk_pistol:
+cmp ebp,FFFFFFFF
+je pk_pi_fail
+mov al,byte ptr [013D7FF2]
+cmp byte ptr [esi*8+013D7B66],al
+jne pk_pi_sw
+movzx eax,al
+push eax
+call 004F5530
+add esp,4
+jmp pk_mrg
+pk_pi_sw:
+// switch: the gun's rounds go back into the box (which takes the old type), the box's rounds into the gun
+push ebx
+mov cx,word ptr [ebp*8+013D7B64]
+movzx ebx,byte ptr [esi*8+013D7B66]
+mov dx,word ptr [esi*8+013D7B64]
+mov word ptr [esi*8+013D7B64],cx
+mov word ptr [ebp*8+013D7B64],dx
+test cx,cx
+je pk_pi_swe
+mov al,byte ptr [013D7FF2]
+mov byte ptr [esi*8+013D7B66],al
+jmp pk_pi_swt
+pk_pi_swe:
+call pk_delbox               // the gun was empty: the box is used up
+pk_pi_swt:
+mov byte ptr [013D7FF2],bl
+pop ebx
+xor eax,eax
+ret
+pk_pi_fail:
+mov eax,1
+ret
+
+// merge (4F6070 / 4F6170): gun ebp, box esi, eax = the gun's capacity. All rounds fit -> into the gun, the box is
+// used up (pk_delbox); else the gun is filled and the rest stays in the box. eax = 0 done, 1 gun already full.
+// The gun is written before the box is removed (a page-2 gun behind the box moves up with its new count).
+pk_mrg:
+movzx ecx,word ptr [ebp*8+013D7B64]
+cmp ecx,eax
+je pk_mg_full
+movzx edx,word ptr [esi*8+013D7B64]
+add edx,ecx
+cmp edx,eax
+jg pk_mg_part
+mov word ptr [ebp*8+013D7B64],dx
+call pk_delbox
+xor eax,eax
+ret
+pk_mg_part:
+sub edx,eax
+mov word ptr [esi*8+013D7B64],dx
+mov word ptr [ebp*8+013D7B64],ax
+xor eax,eax
+ret
+pk_mg_full:
+mov eax,1
+ret
+
+// ---------------------------------------------------------------- Saint Medallion in use on page 2 (M2..M6, new)
+// M2 wear of the medallion in use 4F6AA0 (ghost touch 53A8D0, every 516F60 call): replaces the page-1 loop tail
+// "inc eax / cmp eax,0A / jl" at 4F6AC5. Not in use on page 1 but on page 2 -> the game's wear code with 88h+i
+// (1/fps per call, at 0 the game's 4F6A30 sets condition 0 and calls medallion off).
+pk_mwear:
+inc eax
+cmp eax,0A
+jge pk_mw_p2
+jmp pk_mwp+11
+pk_mw_p2:
+call pk_medslot
+cmp eax,FFFFFFFF
+je pk_mw_n
+jmp pk_mwp+4F
+pk_mw_n:
+jmp pk_mwp+2B
+
+// M3 medallion OFF 4F5D20 (bar toggle, chest put-in, broken): whole function replaced. As the game (flag 13D7FF4 = 0,
+// +7 = 0 on every medallion of page 1), and the same for page 2.
+pk_moff:
+mov byte ptr [013D7FF4],0
+mov ecx,8
+mov eax,013D7B67
+pk_mo_l:
+cmp byte ptr [eax-1],cl
+jne pk_mo_n
+mov byte ptr [eax],0
+pk_mo_n:
+add eax,ecx
+cmp eax,013D7BB7
+jb pk_mo_l
+mov eax,013D7FA7
+pk_mo_l2:
+cmp byte ptr [eax-1],cl
+jne pk_mo_n2
+mov byte ptr [eax],0
+pk_mo_n2:
+add eax,ecx
+cmp eax,013D7FF7
+jb pk_mo_l2
+ret
+
+// M4 medallion USE 4F5CD0 (bar 516BE0): replaces the tail "mov eax,esi / pop esi / pop ebx / ret" at 4F5D0E. The game
+// marked the used page-1 slot and cleared +7 on the other page-1 medallions; page 2 is cleared here too.
+pk_muse:
+push eax
+mov eax,013D7FA7
+pk_mu_l:
+cmp byte ptr [eax-1],8
+jne pk_mu_n
+mov byte ptr [eax],0
+pk_mu_n:
+add eax,8
+cmp eax,013D7FF7
+jb pk_mu_l
+pop eax
+mov eax,esi
+pop esi
+pop ebx
+ret
+
+// M5 after the wear in 516F60 (replaces "fld [esp+8] / pop edi" at 516FF2): the game removed broken (condition <= 0)
+// medallions from page 1 (medallion off 4F5D20, one off 516E30); the same for page 2, packed, without the bar call.
+pk_mbrk:
+push eax
+push ecx
+mov eax,013D7FA0
+pk_mb_l:
+cmp byte ptr [eax+6],8
+jne pk_mb_n
+mov ecx,[eax]                // condition (float) <= 0, as the game's fcomp test (NaN stays)
+test ecx,ecx
+je pk_mb_brk
+jns pk_mb_n
+and ecx,7FFFFFFF
+cmp ecx,7F800000
+ja pk_mb_n
+pk_mb_brk:
+push eax
+call 004F5D20
+pop eax
+mov byte ptr [0108F3BC],0
+cmp word ptr [eax+4],0
+je pk_mb_n
+dec word ptr [eax+4]
+jne pk_mb_n
+call pk_p2del
+inc dword ptr [pk_mdn]
+pk_mb_n:
+add eax,8
+cmp eax,013D7FF0
+jb pk_mb_l
+pop ecx
+pop eax
+fld dword ptr [esp+08]
+pop edi
+jmp pk_brkp+33
+
+// M6 bar toggle 516BE0, medallion at bar slot esi while one is in use: replaces "call 4F5D60 / cmp eax,esi / jne" at
+// 516C97. The game clears the E marker of the slot in use (slot x B0h + 108ECD8); when that medallion is on page 2
+// (4F5D60 = -1) there is no such slot -> skip that write and go on with "use the selected one" (4F5CD0 + M4).
+pk_mtog:
+call 004F5D60
+cmp eax,esi
+jne pk_mt_other
+jmp pk_togp+12
+pk_mt_other:
+cmp eax,FFFFFFFF
+je pk_mt_skip
+jmp pk_togp+2D
+pk_mt_skip:
+jmp pk_togp+41
+
+// ---------------------------------------------------------------- patches
+pk_hud+09:
+jmp pk_frame
+pk_hud+18:
+jmp pk_draw
+
+pk_navp+0E:
+jmp pk_nav
+nop
+nop
+nop
+nop
+
+pk_fullp:
+jmp pk_full
+
+pk_insp:
+jmp pk_ins
+nop
+nop
+
+pk_cntp:
+jmp pk_cnt
+nop
+nop
+
+pk_hasp:
+jmp pk_has
+nop
+
+pk_remp+15:
+jmp pk_rem
+nop
+
+pk_condp:
+jmp pk_cond
+nop
+nop
+nop
+
+pk_wearp+12:
+jmp pk_wear
+nop
+
+pk_spawnp+0D:
+jmp pk_spawn
+nop
+
+pk_empp:
+jmp pk_empty
+nop
+
+pk_canp:
+jmp pk_canrl
+nop
+nop
+
+pk_arlp:
+jmp pk_arl
+nop
+nop
+
+pk_rlp:
+jmp pk_rl
+nop
+nop
+nop
+
+pk_mwp+25:
+jmp pk_mwear
+nop
+
+pk_medp+3E:
+jmp pk_muse
+
+pk_medp+50:
+jmp pk_moff
+nop
+nop
+
+pk_brkp+2E:
+jmp pk_mbrk
+
+pk_togp+09:
+jmp pk_mtog
+nop
+nop
+nop
+nop
+
+pk_sort+19:
+dd 7D
+pk_sort+48:
+dd 7E
+pk_sort+56:
+dd 7E
+
+pk_merge+08:
+dd FC
+pk_merge+1A:
+jmp pk_m_sent
+pk_merge+D6:
+dd 7E
+pk_merge+E7:
+dd 7E
+pk_merge+F1:
+jmp pk_m_tail
+nop
+nop
+
+pk_recount+0D:
+jmp pk_rc
+pk_recount+5C:
+dd 7E
+pk_recount+80:
+dd 7D
+
+pk_ammo:
+jmp pk_am
+nop
+nop
+
+pk_first+1E:
+dd 7E
+
+[DISABLE]
+{$lua}
+local function v(n) return readInteger(n) or 0 end
+if v('pk_p2') > 0 and v('pk_force') == 0 then
+  error('Extend Toolbelt v6: page 2 still holds ' .. v('pk_p2') .. ' item(s). Swap them back (pk_swap = 1) and put what does not fit in the chest, then disable. pk_force = 1 disables anyway (the game then moves page 2 into the chest, see report.md).')
+end
+{$asm}
+pk_hud+09:
+db E8 C2 A1 01 00
+pk_hud+18:
+db E9 B3 8B 01 00
+
+pk_navp+0E:
+db 33 D2 66 8B 15 84 EC 08 01
+
+pk_fullp:
+db B8 66 7B 3D 01
+
+pk_insp:
+db 53 55 56 8B 74 24 10
+
+pk_cntp:
+db 0F B6 15 66 7B 3D 01
+
+pk_hasp:
+db 56 57 8B 7C 24 0C
+
+pk_remp+15:
+db 46 83 FE 0A 7C ED
+
+pk_condp:
+db 8B 4C 24 04 33 C0 EB 08
+
+pk_wearp+12:
+db D9 05 64 E0 5C 00
+
+pk_spawnp+0D:
+db 53 E8 E0 12 FC FF
+
+pk_empp:
+db 8B 54 24 04 33 C0
+
+pk_canp:
+db 51 56 57 8B 7C 24 10
+
+pk_arlp:
+db 8B 44 24 08 56 33 F6
+
+pk_rlp:
+db 83 EC 0C A1 80 EC 08 01
+
+pk_mwp+25:
+db 40 83 F8 0A 7C E6
+
+pk_medp+3E:
+db 8B C6 5E 5B C3
+
+pk_medp+50:
+db C6 05 F4 7F 3D 01 00
+
+pk_brkp+2E:
+db D9 44 24 08 5F
+
+pk_togp+09:
+db E8 C4 F0 FD FF 3B C6 75 1B
+
+pk_sort+19:
+db 87 00 00 00
+pk_sort+48:
+db 88 00 00 00
+pk_sort+56:
+db 88 00 00 00
+
+pk_merge+08:
+db 10 01 00 00
+pk_merge+1A:
+db BE 48 9C 07 01
+pk_merge+D6:
+db 88 00 00 00
+pk_merge+E7:
+db 88 00 00 00
+pk_merge+F1:
+db 5F 5E 5D 5B 83 C4 08
+
+pk_recount+0D:
+db B8 BE 7B 3D 01
+pk_recount+5C:
+db 88 00 00 00
+pk_recount+80:
+db 87 00 00 00
+
+pk_ammo:
+db 33 D2 B9 B4 7B 3D 01
+
+pk_first+1E:
+db 88 00 00 00
+
+unregistersymbol(pk_hud)
+unregistersymbol(pk_sort)
+unregistersymbol(pk_merge)
+unregistersymbol(pk_recount)
+unregistersymbol(pk_ammo)
+unregistersymbol(pk_first)
+unregistersymbol(pk_navp)
+unregistersymbol(pk_fullp)
+unregistersymbol(pk_insp)
+unregistersymbol(pk_cntp)
+unregistersymbol(pk_hasp)
+unregistersymbol(pk_remp)
+unregistersymbol(pk_condp)
+unregistersymbol(pk_wearp)
+unregistersymbol(pk_spawnp)
+unregistersymbol(pk_empp)
+unregistersymbol(pk_canp)
+unregistersymbol(pk_arlp)
+unregistersymbol(pk_rlp)
+unregistersymbol(pk_mwp)
+unregistersymbol(pk_medp)
+unregistersymbol(pk_brkp)
+unregistersymbol(pk_togp)
+unregistersymbol(pk_swap)
+unregistersymbol(pk_status)
+unregistersymbol(pk_p2)
+unregistersymbol(pk_page)
+unregistersymbol(pk_moved)
+unregistersymbol(pk_count)
+unregistersymbol(pk_force)
+unregistersymbol(pk_flip)
+unregistersymbol(pk_ind)
+unregistersymbol(pk_ind_x)
+unregistersymbol(pk_ind_dy)
+unregistersymbol(pk_cflip)
+unregistersymbol(pk_ovf)
+unregistersymbol(pk_ovfn)
+unregistersymbol(pk_optc)
+unregistersymbol(pk_mel)
+unregistersymbol(pk_pin)
+unregistersymbol(pk_c3n)
+unregistersymbol(pk_r5n)
+unregistersymbol(pk_gn)
+unregistersymbol(pk_rln)
+unregistersymbol(pk_mdn)
+dealloc(pk_buf)
+dealloc(pk_mem)
