@@ -12,7 +12,8 @@
 #include <stdlib.h>  // v3.47 PX347: abs (the pixel checks)
 
 // ---------------------------------------------------------------- values (rows and [ScreenEffects] keys)
-enum { PPB_OFF, PPB_LOW, PPB_HIGH, PPB_VHIGH, PPB_N };            // Bloom (v3.44 CS344: + Very High)
+// v3.52 FX352 (USER_FEEDBACK_v351 D7): Off / Low / Medium / High / Ultra (was Off / Low / High / Very High = 0..3)
+enum { PPB_OFF, PPB_LOW, PPB_MED, PPB_HIGH, PPB_ULTRA, PPB_N };   // Bloom (v3.44 CS344: + Very High; v3.52 FX352: 5 levels)
 enum { PPG_OFF, PPG_PS2, PPG_OTHER, PPG_APT, PPG_BLEACH, PPG_N };  // Colour Grading
 enum { PPL_OFF, PPL_ON, PPL_N };                                  // Otherworld Lens
 enum { PPE_BLOOM, PPE_GRADE, PPE_LENS, PPE_N };                   // the three rows (Screen Effects rows FX_N + k)
@@ -20,7 +21,7 @@ enum { PPE_BLOOM, PPE_GRADE, PPE_LENS, PPE_N };                   // the three r
 static const int kPpCount[PPE_N] = { PPB_N, PPG_N, PPL_N };
 static const char *const kPpIniKey[PPE_N] = { "Bloom", "Grading", "Lens" };
 static const char *const kPpName[PPE_N][PP_VMAX] = {
-    { "Off", "Low", "High", "Very High" },  // v3.44 CS344: + Very High
+    { "Off", "Low", "Medium", "High", "Ultra" },  // v3.52 FX352 (v3.44 .. v3.51: Off, Low, High, Very High)
     { "Off", "PS2", "Otherworld", "Apartment", "Bleach" },
     { "Off", "On" },
 };
@@ -60,7 +61,8 @@ static int PpOnceTake(int *armed)
     return 1;
 }
 // what a pause copy was made with (the frozen copy is drawn again when this changes during the pause)
-static int PpKey(int bloom, int grade, int lens) { return (bloom & 3) | (grade & 7) << 2 | (lens & 1) << 5; }
+// v3.52 FX352: bloom 3 bits (5 levels; was 2)
+static int PpKey(int bloom, int grade, int lens) { return (bloom & 7) | (grade & 7) << 3 | (lens & 1) << 6; }
 
 // ---------------------------------------------------------------- which filters each effect runs under (Filter ids)
 // None, CRT, Vivid, Sepia, Old Film, Night Vision, Night Vision Mono, Thermal, Spirit Vision, Vignette (FXF_*).
@@ -78,14 +80,64 @@ static int PpWith(const unsigned char *t, int filter) { return filter >= 0 && fi
 // + up x the tent of the level below (SRCALPHA blend: never above 1); the composite: frame' = frame + k B - frame k B
 // (screen: ONE / INVSRCCOLOR, highlights never clip harder than the frame did).
 typedef struct { float th, gain, k, up; } PpBloomLook;
+// v3.52 FX352 (USER_FEEDBACK_v351 D7: "hardly any bloom on low or high"; the user plays Very High): recalibrated so each
+// step is clearly visible, measured with tools\post_mockup.py's chain on its test room and a darker copy of it (SH4's
+// rooms are dark: the threshold decides how much of a frame can glow at all). The glow added (mean, 0..1), dark room /
+// test room: v3.51 Low 0.006 / 0.013, High 0.013 / 0.023, Very High 0.028 / 0.039; v3.52 Low 0.020 / 0.030, Medium
+// 0.030 / 0.041, High 0.045 / 0.059, Ultra 0.067 / 0.086 (each step about 1.5x the one below; High 1.6x v3.51's Very
+// High, Ultra 2.4x). k may now exceed 1: the composite shader multiplies by c1 = k / 2 with _x2 (screenfx.inc kPsPpComp),
+// so a constant stays inside ps.1.1's -1..1 up to k = 2; gain / 4 <= 1 as before (the bright pass's c2).
 static const PpBloomLook kPpBloom[PPB_N] = {
     { 1.0f, 0.0f, 0.0f, 0.0f },
-    { 0.62f, 3.0f, 0.90f, 0.80f },   // Low: the bright lamps, windows and flames, a soft halo
-    { 0.52f, 2.6f, 1.00f, 0.85f },   // High: more of the light, a wider glow
-    // v3.44 CS344 Very High (USER_FEEDBACK_v343 item 5 "could have a more intense setting"): about 1.6x High's glow
-    // (PpBloomEnergy: 1.56x); k stays 1 and gain / 4 = 0.875 (ps.1.1 constants <= 1), so the threshold and gain carry it
-    { 0.41f, 3.5f, 1.00f, 0.90f },
+    { 0.46f, 3.2f, 0.95f, 0.86f },   // Low: lamps, windows and flames glow softly (about v3.51's High and a half)
+    { 0.38f, 3.6f, 1.00f, 0.89f },   // Medium: a clear glow (about v3.51's Very High; v3.51's High is migrated here)
+    { 0.32f, 4.0f, 1.20f, 0.92f },   // High: strong and wide (v3.51's Very High is migrated here: 1.6x its glow)
+    { 0.26f, 4.0f, 1.60f, 0.94f },   // Ultra: a dreamy haze around every light (the dark quarter of the picture never glows)
 };
+// v3.52 FX352: the one-time migration of a v3.43 .. v3.51 Bloom value. Without the hidden [ScreenEffects] BloomV marker
+// (absent or lower than PP_BLOOM_VER) the value is read with its old meaning: Off / Low the same, High -> Medium, Very
+// High -> High. With the marker: the new names (a hand-written "Very High" still reads as High). "Medium" and "Ultra"
+// never existed before: the same either way. The digits mean the same either way too (old 2 = High -> Medium = new 2,
+// old 3 = Very High -> High = new 3; 4 = Ultra). Only the word "High" differs between the two meanings.
+#define PP_BLOOM_VER 352
+#define PP_BLOOM_VER_S "352"
+static int PpBloomParse(const char *s, int legacy)
+{
+    char b[32];
+    int n = 0;
+    if (!s) return -1;
+    while (*s == ' ' || *s == '\t') ++s;
+    while (s[n] && n < (int)sizeof b - 1) b[n] = s[n], ++n;
+    while (n > 0 && (b[n - 1] == ' ' || b[n - 1] == '\t' || b[n - 1] == '\r' || b[n - 1] == '\n')) --n;
+    b[n] = 0;
+    if (!n) return -1;
+    if (n == 1 && b[0] >= '0' && b[0] <= '4') return b[0] - '0';  // PPB_OFF .. PPB_ULTRA, either meaning
+    if (PpSameName("Off", b)) return PPB_OFF;
+    if (PpSameName("Low", b)) return PPB_LOW;
+    if (PpSameName("Medium", b)) return PPB_MED;
+    if (PpSameName("High", b)) return legacy ? PPB_MED : PPB_HIGH;
+    if (PpSameName("Very High", b)) return PPB_HIGH;
+    if (PpSameName("Ultra", b)) return PPB_ULTRA;
+    return -1;
+}
+// s = the ini text, marker = [ScreenEffects] BloomV (0 = absent). The level (-1 = not a value); *rewrite = 1 when the
+// line must be written as kPpName[PPE_BLOOM][level] (its text is not already that name); *mark = 1: the marker must be
+// written (a legacy value, the line read with its old meaning).
+static int PpBloomMigrate(const char *s, int marker, int *rewrite, int *mark)
+{
+    const int legacy = marker < PP_BLOOM_VER, v = PpBloomParse(s, legacy);
+    *rewrite = legacy && v >= 0 && !PpSameName(kPpName[PPE_BLOOM][v], s);
+    *mark = legacy && v >= 0;
+    return v;
+}
+// How a chosen level is written (DoF's DofStrWriteOrder, v3.45 QS345-03): the marker on disk: the value only; else an
+// unambiguous value first, then the marker (a failure of either leaves a same-meaning ini); "High" (legacy = Medium)
+// the marker first, then the value, the marker taken back if the value fails (the old line keeps its old meaning).
+enum { PPBW_VALUE, PPBW_VALUE_MARK, PPBW_MARK_VALUE };
+static int PpBloomWriteOrder(int v, int markedOnDisk)
+{
+    return markedOnDisk ? PPBW_VALUE : v == PPB_HIGH ? PPBW_MARK_VALUE : PPBW_VALUE_MARK;
+}
 #define PP_LEVELS   4      // 1/2 .. 1/16 of the frame
 #define PP_RT_MIN   8      // no level smaller than this (a tiny window)
 #define PP_KAWASE_A 1.5f   // the two blur passes' tap offsets (texels of the smallest level)
@@ -230,22 +282,57 @@ static void PpGradePixel(const PpGradeLook *g, const float in[3], float out[3])
 // (1 - distance / radius) at the player (0 outside every aura). nearness = falloff / sum (0..1, no unit); target = BASE
 // while a haunting is registered, up to 1 as she nears it; hidden LensOtherworld=1: at least OW in every Otherworld
 // stage (not Room 302, stages 1 / 0x0A). Fades: in over IN_S, out over OUT_S (real time).
-#define PP_LENS_BASE   0.40f
+// v3.52 FX352 (USER_FEEDBACK_v351 D6: "not sure it is working outside our preview"): who registers a haunting this
+// frame (func_0053A8D0, summed by HauntingSumAuraStrength 0x539920; none while the player is frozen, none in the first
+// 10 frames with auras): the ghosts' EnemyHauntingAuraRegister 0x4509E0 (Cynthia and Victim 13 0xC, the victim ghosts
+// 0xB, Jasper 0xD, Andrew DeSalvo 0xE, the Wheelchair 6, the scratch wall 0x4B9810), the companion Eileen's curse aura
+// (radius 800, strength curse x 2.5: the second half, once her curse shows) and Room 302's hauntings (0x547010). The
+// v3.51 log: 23 fades in, every one at "nearness 0.00: 40 %" (the Subway World's ghosts registered all over the room;
+// the player rarely inside an aura's radius): the lens ran at its base of 40 %: red and blue about 7 px apart at the
+// corners of 2560 x 1440 (17 at full strength), a 1.6 % pull, hard to see in SH4's dark corners and invisible in the
+// middle of the screen. The base is now 70 % (hidden [ScreenEffects] LensBase, 10..100 %,
+// 40 = v3.51); full strength halfway into an aura as before; the page's preview stays at full strength (unchanged).
+#define PP_LENS_BASE   0.70f   // v3.52 FX352: was 0.40
+#define PP_LENS_BASE_V351 0.40f
 #define PP_LENS_NEAR_K 2.0f    // nearness x this, clamped: full strength halfway into an aura
 #define PP_LENS_OW     0.35f
 #define PP_LENS_IN_S   1.2f
 #define PP_LENS_OUT_S  2.5f
 #define PP_LENS_MIN    0.01f   // below this nothing is drawn
-static float PpLensTarget(float sum, float falloff, int stage, int otherworld, int always)
+// v3.52 FX352: the base as a parameter (LensBase); out of 0.10 .. 1.00 (or NaN): PP_LENS_BASE
+static float PpLensTargetB(float sum, float falloff, int stage, int otherworld, int always, float base)
 {
     float t = 0.0f;
+    if (!(base >= 0.10f && base <= 1.0f)) base = PP_LENS_BASE;
     if (always) return 1.0f;
     if (sum > 0.0f && sum < 1e6f && falloff == falloff) {
         const float n = PpSat(falloff / sum);
-        t = PP_LENS_BASE + (1.0f - PP_LENS_BASE) * PpSat(n * PP_LENS_NEAR_K);
+        t = base + (1.0f - base) * PpSat(n * PP_LENS_NEAR_K);
     }
     if (otherworld && stage != 1 && stage != 0x0A && stage > 0 && t < PP_LENS_OW) t = PP_LENS_OW;
     return t;
+}
+static float PpLensTarget(float sum, float falloff, int stage, int otherworld, int always)
+{
+    return PpLensTargetB(sum, falloff, stage, otherworld, always, PP_LENS_BASE);
+}
+// v3.52 FX352: [ScreenEffects] LensBase (percent, hidden): 10..100; anything else = the default (*ok 0: the caller logs it)
+static float PpLensBaseParse(int pct, int *ok)
+{
+    *ok = pct >= 10 && pct <= 100;
+    return *ok ? (float)pct / 100.0f : PP_LENS_BASE;
+}
+// v3.52 FX352: a room's lens time (post.inc's room line: when the lens shows, how strong): fed every gameplay frame
+typedef struct { float secs, shown, maxS, maxSum, maxNear; } PpLensRoom;
+static void PpLensRoomAdd(PpLensRoom *r, float dt, float target, float s, float sum, float nearness)
+{
+    if (!(dt > 0.0f)) return;
+    if (dt > 0.25f) dt = 0.25f;  // a hitch or a load (as PpLensStep)
+    r->secs += dt;
+    if (s >= PP_LENS_MIN || target > 0.0f) r->shown += dt;
+    if (s > r->maxS) r->maxS = s;
+    if (sum == sum && sum > r->maxSum && sum < 1e6f) r->maxSum = sum;
+    if (nearness == nearness && nearness > r->maxNear) r->maxNear = nearness > 1.0f ? 1.0f : nearness;
 }
 static float PpLensStep(float cur, float target, float dt)
 {

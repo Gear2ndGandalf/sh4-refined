@@ -750,4 +750,72 @@ static float HbHideStep(HbHide *h, int hideOn, int wake, int hold, float fade, f
     if (o > 0.0f) h->asleep = 0;  // (shown again: a later fade-out is the timer's, not the sleep's)
     return o;
 }
+
+// ---------------------------------------------------------------- v3.52 HB352: which enemy may have a bar (D1, D2)
+// staging/v352_feedback/w2_hud/PLAN.md. The cause of D2 (bars above the player, "shimmying", in the Building World
+// elevators and the Subway's conductor room): an arriving victim's ghost. The game's arrival (0x485F20 / 0x485930,
+// SH4Decomp src/ghost/ghost_484730.c) moves the real ghost, state [work+0x3C] 0x0D (not drawn: EnemyIsActive 0x45CA40 is
+// 1..0x0C or 0x12; the task clears its actor model, 0x45C6E0), with its collision off, horizontally towards the player
+// until 0x484A00 finds it a wall spot; where none is found (state 0x0E) it keeps sliding onto her. In a tiny room that is
+// for good: Enemies Follow lets victims into rooms the stock rule keeps them out of (0x486199). Its HP block is a real
+// one and the model's no-draw bit (+0xE4 & 4) is untouched, so v3.51 drew its bar at her position. 0x0D is also the
+// hidden state of a Gum Head under the floor, a Wall Man in the wall, Walter before he emerges (0x4A17F0), a victim
+// parked at y >= 65536 (0x4AFA90). 0x0F is the follower placeholder (0x486070; it has no HP block, never a bar).
+enum { HB_RF_NONE, HB_RF_HIDDEN, HB_RF_PLACE, HB_RF_N };
+static const char *const kHbRfName[HB_RF_N] = { "-", "not in the room yet (the game does not draw it: hidden, arriving or a placeholder)",
+                                                "not at a place in the room (the origin, parked away or not a number)" };
+// the game draws an enemy task in these states (EnemyIsActive 0x45CA40); 0x10+ are dead, removed or scripted (v3.29's "gone")
+static int HbStateDrawn(int cls) { return cls > 0 && (cls <= 0x0C || cls == 0x12); }
+static int HbStateHidden(int cls) { return cls == 0 || (cls >= 0x0D && cls <= 0x0F); }  // not in the room yet: no bar at all
+static int HbPlaceOk(const float *p)
+{
+    int i;
+    for (i = 0; i < 3; ++i)
+        if (!(p[i] == p[i]) || p[i] > 1e6f || p[i] < -1e6f) return 0;  // (NaN, inf)
+    if (p[1] >= 65536.0f) return 0;  // parked out of the room (0x4AFA90 keeps a victim placed there hidden)
+    if (fabsf(p[0]) < 1.0f && fabsf(p[1]) < 1.0f && fabsf(p[2]) < 1.0f) return 0;  // the origin: no position written yet
+    return 1;
+}
+// why this enemy gets no bar this frame (HB_RF_NONE: it may have one; the 0x10+ states keep v3.29's fade-out)
+static int HbRefuseWhy(int cls, const float *pos)
+{
+    if (HbStateHidden(cls)) return HB_RF_HIDDEN;
+    if (!HbPlaceOk(pos)) return HB_RF_PLACE;
+    return HB_RF_NONE;
+}
+// D1 (Walter's bar missing on his first appearance, there after a room load): a boss's bar shows whenever it is up and in
+// view, at any distance (All Near's 1500 units are 3D: Walter emerges more than 1000 away by his own rule, 0x4A17F0, and
+// Water Prison's tower 4:1F is 2700 tall), in Locked Target too. Other enemies: HbWant.
+static float HbWantBoss(int mode, int boss, int locked, float sinceHit, float dist)
+{
+    if (boss && (mode == HB_MODE_LOCKED || mode == HB_MODE_NEAR)) return 1.0f;
+    return HbWant(mode, locked, sinceHit, dist);
+}
+// Where the bar goes on screen (pixels): the top anchor when it projects inside the 3D viewport (x within 40 px, y below
+// its top and above its bottom + 40); D1: a tall or near body whose top is above the viewport (or behind the near plane)
+// while its middle is inside gets the bar at the top edge (the caller keeps it 2 % under it). 0 = no bar.
+static int HbBarPlace(int okTop, float tx, float ty, int okMid, float mx, float my, float vx, float vy, float vw, float vh,
+                      float *ox, float *oy)
+{
+    const int topX = okTop && tx > vx - 40.0f && tx < vx + vw + 40.0f;
+    if (topX && ty > vy && ty < vy + vh + 40.0f) {
+        *ox = tx, *oy = ty;
+        return 1;
+    }
+    if (okMid && mx > vx - 40.0f && mx < vx + vw + 40.0f && my > vy && my < vy + vh && (!okTop || ty <= vy)) {
+        *ox = topX ? tx : mx, *oy = vy;
+        return 1;
+    }
+    return 0;
+}
+// The per-room-visit refusal count (distinct beings by reason; the room line, tools\logcheck.py): a being counts once a
+// reason a visit (said = its bit mask).
+typedef struct { int n[HB_RF_N]; } HbRefCount;
+static int HbRefNote(HbRefCount *c, int *said, int why)
+{
+    if (why <= HB_RF_NONE || why >= HB_RF_N || (*said & (1 << why))) return 0;
+    *said |= 1 << why;
+    ++c->n[why];
+    return 1;  // first time for this being and reason: the caller may log it
+}
 #endif

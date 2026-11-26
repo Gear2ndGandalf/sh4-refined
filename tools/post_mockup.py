@@ -10,6 +10,9 @@ target 8 bits a channel): the bloom chain of PpMakePlan (bright pass + down in 2
 (PpGradePixel) and the lens (PpLensK / PpLensUv per channel, exact instead of the 16 x 10 mesh). The constants below are
 post_sim.h's (keep them in step).
 Writes: post_bloom.png, post_grading.png, post_lens.png (with a 4x corner zoom), post_combined.png.
+v3.52 FX352: Bloom Off / Low / Medium / High / Ultra (post_sim.h kPpBloom; the composite's k may exceed 1); also writes
+post_bloom_v352.png (v3.51's three levels against v3.52's four, the test room and a darker copy of it, with the glow
+added as a number) and post_lens_v352.png (the lens at v3.51's base 40 %, v3.52's 70 % and full, corner zooms).
 """
 import math
 import os
@@ -23,7 +26,11 @@ OUT = sys.argv[1] if len(sys.argv) > 1 else os.path.join(HERE, '..', '..', 'mock
 W, H = 1280, 720
 
 # ---- post_sim.h
-BLOOM = {'Low': (0.62, 3.0, 0.90, 0.80), 'High': (0.52, 2.6, 1.00, 0.85), 'Very High': (0.41, 3.5, 1.00, 0.90)}  # th, gain, k, up (v3.44 CS344: + Very High)
+# th, gain, k, up. v3.52 FX352: five levels (post_sim.h kPpBloom); BLOOM_V351: v3.44 .. v3.51's, for the comparison
+BLOOM = {'Low': (0.46, 3.2, 0.95, 0.86), 'Medium': (0.38, 3.6, 1.00, 0.89), 'High': (0.32, 4.0, 1.20, 0.92),
+         'Ultra': (0.26, 4.0, 1.60, 0.94)}
+BLOOM_V351 = {'v3.51 Low': (0.62, 3.0, 0.90, 0.80), 'v3.51 High': (0.52, 2.6, 1.00, 0.85), 'v3.51 Very High': (0.41, 3.5, 1.00, 0.90)}
+BLOOM.update(BLOOM_V351)
 LEVELS, RT_MIN, KAWASE_A, KAWASE_B, UP_TAP, COMP_TAP = 4, 8, 1.5, 2.5, 0.75, 0.5
 GRADE = {  # sat, gain, off, sh, hi
     'PS2': (0.85, (0.92, 0.97, 0.90), (0.030, 0.042, 0.030), (0.000, 0.012, 0.002), (-0.015, 0.008, -0.025)),
@@ -145,7 +152,7 @@ def bloom(img, look, base=None):
     for i in range(L - 1, 0, -1):  # up: SRCALPHA blend with alpha = up
         t = mean4(lv[i + 1], ws[i], hs[i], UP_TAP / ws[i + 1], UP_TAP / hs[i + 1])
         lv[i] = q8(lv[i] * (1 - up) + t * up)
-    b = mean4(lv[1], W, H, COMP_TAP / ws[1], COMP_TAP / hs[1]) * k
+    b = mean4(lv[1], W, H, COMP_TAP / ws[1], COMP_TAP / hs[1]) * (k * 0.5) * 2.0  # v3.52 FX352: c1 = k / 2, mul_x2
     b = q8(b)
     base = img if base is None else base
     return q8(base + b - base * b), lv[1]
@@ -201,8 +208,9 @@ def main():
     lo, lo1 = bloom(img, 'Low')
     hi, hi1 = bloom(img, 'High')
     sheet([('Bloom Off (the game)', img), ('Bloom Low', lo), ('Bloom High', hi), ('High: the half-size glow (B, x1)', hi1)],
-          2, 0.5, 'SH4 Refined v3.43 Bloom (generated test room, 1280x720; the chain 640x360 .. 80x45)').save(
+          2, 0.5, 'SH4 Refined v3.52 Bloom (generated test room, 1280x720; the chain 640x360 .. 80x45)').save(
         os.path.join(OUT, 'post_bloom.png'))
+    v352(img)  # v3.52 FX352
     tiles = [('Colour Grading Off', img)] + [(n, grade(img, n)) for n in ('PS2', 'Otherworld', 'Apartment', 'Bleach')]
     sheet(tiles, 3, 0.5, 'SH4 Refined v3.43 Colour Grading (per-channel curves, the ps.1.1 shader math)').save(
         os.path.join(OUT, 'post_grading.png'))
@@ -220,8 +228,43 @@ def main():
     sheet([('the game', img), ('Apartment + Bloom Low', c1), ('PS2 + Bloom Low', c3), ('Otherworld + Bloom High + Lens 70 %', c2)],
           2, 0.5, 'SH4 Refined v3.43 combinations (as drawn: the bloom of the frame laid over the graded frame)').save(
         os.path.join(OUT, 'post_combined.png'))
-    for n in ('post_bloom.png', 'post_grading.png', 'post_lens.png', 'post_combined.png'):
+    for n in ('post_bloom.png', 'post_grading.png', 'post_lens.png', 'post_combined.png', 'post_bloom_v352.png', 'post_lens_v352.png'):
         print(os.path.join(OUT, n))
+
+
+# ---------------------------------------------------------------- v3.52 FX352: the comparisons for the merge
+def dark_room(img):
+    """the test room as dark as SH4's rooms: everything below mid grey at 45 %, the lights at 85 %"""
+    L = (img * LUMA).sum(-1, keepdims=True)
+    d = np.where(L < 0.55, img * 0.45, img * 0.85)
+    d[H - 70:] = img[H - 70:] * 0.45
+    return q8(d)
+
+
+def v352(img):
+    dk = dark_room(img)
+    tiles, rows = [], []
+    for name in ('v3.51 Low', 'v3.51 High', 'v3.51 Very High', 'Low', 'Medium', 'High', 'Ultra'):
+        a, _ = bloom(img, name)
+        b, _ = bloom(dk, name)
+        ga, gb = float((a - img).mean()), float((b - dk).mean())
+        rows.append((name, ga, gb))
+        label = name if name.startswith('v3.51') else 'v3.52 ' + name
+        tiles.append(('%s: glow %.3f (dark room %.3f)' % (label, ga, gb), b))
+    tiles.insert(0, ('the dark room, Bloom Off', dk))
+    sheet(tiles, 4, 0.36, 'SH4 Refined v3.52 Bloom levels against v3.51 (the dark test room; glow = the mean added, test room / dark room). '
+          'Migration: v3.51 High -> Medium, Very High -> High').save(os.path.join(OUT, 'post_bloom_v352.png'))
+    for name, ga, gb in rows:
+        print('bloom %-16s glow %.4f (dark room %.4f)' % (name, ga, gb))
+    l40, l70, l100 = lens(dk, 0.40, 1.5), lens(dk, 0.70, 1.5), lens(dk, 1.0, 1.5)
+
+    def corner(a):
+        return np.kron(a[0:180, 960:1280], np.ones((4, 4, 1)))[:H, :W]
+    sheet([('Lens Off', dk), ('v3.51: 40 % (a haunting in the room)', l40), ('v3.52: 70 % (the new base)', l70),
+           ('full (halfway into an aura; the preview)', l100), ('corner, Off (4x)', corner(dk)), ('corner, 40 % (4x)', corner(l40)),
+           ('corner, 70 % (4x)', corner(l70)), ('corner, full (4x)', corner(l100))], 4, 0.36,
+          'SH4 Refined v3.52 Otherworld Lens: the base while a ghost or haunting is in the room, 40 % -> 70 % (the dark test room)').save(
+        os.path.join(OUT, 'post_lens_v352.png'))
 
 
 if __name__ == '__main__':

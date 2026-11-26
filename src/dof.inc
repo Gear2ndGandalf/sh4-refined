@@ -46,6 +46,12 @@
 // far side and the near side are marked and composed one after the other (the top stencil bits cleared in between). The
 // pause's depth map holds a strength-free depth index (DofMakeBandList); the page marks any strength from it by alpha
 // tests. Without the blend shader the steps fall back to whole levels (logged once).
+// v3.52 FX352 (USER_FEEDBACK_v351 D3: "Depth of Field switches off when the camera is very close"; the log: "the player is
+// nearer than 150 (a first-person view)" in 10639 frames, 7733 of them in one Subway World room): first person is the
+// game's own state only (Room 302's camera: stages 1 / 0x0A, the camera dispatch 0x4FF900; the views of another place:
+// the room's geometry off). A player nearer than 150 is a focus (dof_sim.h DOFF_CLOSE): on her, the far side only
+// (DofPlanFarOnly), no snap between the close and the ordinary focus; the room line counts the close frames, the first
+// close shot of a room is logged; the pause's preview drops the near side when its copy was taken close.
 #include "dof_sim.h"
 
 typedef HRESULT(STDMETHODCALLTYPE *DofSetRT_t)(void *, void *, void *);
@@ -93,6 +99,9 @@ static unsigned g_dofProbeNext = DOF_PROBE_AFTER;  // v3.45 RB345-01: the eligib
 static int g_dofProbeTries;                 // v3.45 RB345-01: tries done in this room
 static int g_dofProbeVerdict = DOFP_NONE;
 static unsigned g_dofEligible, g_dofDrawn, g_dofSceneFoc;
+static unsigned g_dofCloseFoc;              // v3.52 FX352: frames drawn with the player close to the camera (this room)
+static int g_dofCapClose;                   // v3.52 FX352: the pause's copy was taken with a close player (the far side only)
+static int g_dofCloseSeen;                  // v3.52 FX352: this room's first close shot was logged
 static DofTally g_dofTally;                 // v3.44 DF344: each asked / skipped frame's reason in this room
 static double g_dofMs;
 static float g_dofMsMax, g_dofFMin, g_dofFMax;
@@ -714,11 +723,16 @@ static void DofRoomLine(void)
     ++s_lines;
     DofTallyText(&g_dofTally, 0, why, (int)sizeof why);
     DofTallyText(&g_dofTally, 1, design, (int)sizeof design);
-    LogV("depth of field: stage %lX room %lX: drawn in %u of %u frames it was asked for (not drawn: %s; the cut-scene's own focus %u); "
-         "skipped by design: %s; focus %.0f .. %.0f; ours %.3f ms a frame on average, %.3f at most; %s %s; probe: %s; render targets %.1f MB",
-         g_dofRoom >> 16, g_dofRoom & 0xFFFF, g_dofDrawn, g_dofEligible, why, g_dofSceneFoc, design,
-         g_dofDrawn ? g_dofFMin : 0.0f, g_dofDrawn ? g_dofFMax : 0.0f, g_dofDrawn ? g_dofMs / g_dofDrawn : 0.0, g_dofMsMax,
-         kDofModeName[DofModeGet()], kDofStrName[DofStrGet()], kDofProbeName[g_dofProbeVerdict], DofMb(g_dofVram));
+    {   // v3.52 FX352: + the frames drawn with the player close to the camera (after the focus range; only when any)
+        char close[64];
+        close[0] = 0;
+        if (g_dofCloseFoc) sprintf_s(close, sizeof close, " (the player close to the camera in %u frame(s))", g_dofCloseFoc);
+        LogV("depth of field: stage %lX room %lX: drawn in %u of %u frames it was asked for (not drawn: %s; the cut-scene's own focus %u); "
+             "skipped by design: %s; focus %.0f .. %.0f%s; ours %.3f ms a frame on average, %.3f at most; %s %s; probe: %s; render targets %.1f MB",
+             g_dofRoom >> 16, g_dofRoom & 0xFFFF, g_dofDrawn, g_dofEligible, why, g_dofSceneFoc, design,
+             g_dofDrawn ? g_dofFMin : 0.0f, g_dofDrawn ? g_dofFMax : 0.0f, close, g_dofDrawn ? g_dofMs / g_dofDrawn : 0.0, g_dofMsMax,
+             kDofModeName[DofModeGet()], kDofStrName[DofStrGet()], kDofProbeName[g_dofProbeVerdict], DofMb(g_dofVram));
+    }
     if (g_dofEligible != DofTallyAsked(&g_dofTally)) {
         static volatile LONG s_q;
         if (LogQuota(&s_q, 3))
@@ -744,6 +758,7 @@ static void DofRoomTick(DWORD room)
     g_dofProbeState = g_dofProbeOn && !RbOff() ? 0 : 1;  // v3.45 RB345: no read back on this backend: on at once, unprobed
     g_dofProbeVerdict = g_dofProbeOn && RbOff() ? DOFP_NOREAD : DOFP_NONE;
     g_dofEligible = g_dofDrawn = g_dofSceneFoc = 0;
+    g_dofCloseFoc = 0, g_dofCloseSeen = 0;  // v3.52 FX352
     g_dofProbeNext = DOF_PROBE_AFTER, g_dofProbeTries = 0;  // v3.45 RB345-01
     memset(&g_dofTally, 0, sizeof g_dofTally);
     g_dofMs = 0.0;
@@ -974,7 +989,9 @@ static int DofDrawSides(void *dev, const DofPlanT *pl, int strength, int fromBan
     return ok;
 }
 // v3.44 DF344: *drew = DOFN_DRAWN when the depth of field was drawn, else the reason (each early exit used to be silent)
-static int DofDrawFrame(void *dev, int draw, int cap, float F, int strength, int *nSlices, int *nDraws, const char **fail, int *drew)
+// v3.52 FX352: farOnly = the player is close to the camera (DOFF_CLOSE): the plan's near side is dropped (DofPlanFarOnly)
+static int DofDrawFrame(void *dev, int draw, int cap, float F, int strength, int farOnly, int *nSlices, int *nDraws, const char **fail,
+                        int *drew)
 {
     FxSurfDesc8 d;
     DofPlanT pl;
@@ -994,6 +1011,8 @@ static int DofDrawFrame(void *dev, int draw, int cap, float F, int strength, int
         static volatile LONG s_q;
         if (LogQuota(&s_q, 5)) LogAnomaly("depth of field", "no slices for focus %.0f (projection z column %g %g): not drawn", F, p22, p32);
         draw = 0;
+    } else if (draw && farOnly && !DofPlanFarOnly(&pl, strength)) {  // v3.52 FX352: nothing beyond her within the far plane
+        draw = 0;  // (*drew stays DOFN_NOPLAN: "no slice between the near and far planes"; not an anomaly)
     }
     if (!draw && !cap) return 1;
     if (!DofShader(dev)) return *fail = "the 4-tap shader could not be made", 0;
@@ -1031,11 +1050,13 @@ static int DofDrawFrame(void *dev, int draw, int cap, float F, int strength, int
     ok = DofRunChain(dev, g_dofCtx.ds);
     if (ok && cap) {  // the paused scene for the page: the copy (clean) and its depth map at this focus
         g_dofCapOk = 1, g_dofCapFrame = g_fxFrame, g_dofCapF = F, g_dofBandOk = g_dofBandCard = 0;
+        g_dofCapClose = farOnly;  // v3.52 FX352: the page's preview of this pause drops the near side too
         if (F > 0.0f && DofMakeBandList(F, p22, p32, &all) && DofRtMake(dev, &g_dofBand, (int)d.w, (int)d.h, 21, "the depth map") &&
             DofBandDraw(dev, all.s, all.n, DOF_BAND_UNIT, g_dofCtx.ds, w, h))  // v3.47 DF347: the band grid's index x 8
             g_dofBandOk = 1, g_dofBandW = (int)d.w, g_dofBandH = (int)d.h;
-        LogV("depth of field: the paused scene kept for the Screen Effects preview: %dx%d copy + blur levels%s (focus %.0f, frame %ld)", (int)d.w,
-             (int)d.h, g_dofBandOk ? " + its depth map" : " (no depth map: the page shows preview.dds with a sample depth)", F, g_dofCapFrame);
+        LogV("depth of field: the paused scene kept for the Screen Effects preview: %dx%d copy + blur levels%s (focus %.0f%s, frame %ld)", (int)d.w,
+             (int)d.h, g_dofBandOk ? " + its depth map" : " (no depth map: the page shows preview.dds with a sample depth)", F,
+             farOnly ? ", the player close to the camera: the far side only" : "", g_dofCapFrame);  // v3.52 FX352
     }
     if (!DofTargetBack(dev, g_dofCtx.rt, g_dofCtx.ds, &g_dofCtx.sv.vp)) ok = 0;
     if (ok && draw) {
@@ -1094,18 +1115,25 @@ static void DofFrame(void *dev)
         float Ft = 0.0f;
         src = DofPickFocus(phase, sceneOn, sceneF, playerOk && (figOk || phase == 0), pw, &Ft);
         if (src != DOFF_NONE) {
-            g_dofF = DofFocusStep(g_dofF, Ft, dt, src != g_dofFocusSrc);
+            g_dofF = DofFocusStep(g_dofF, Ft, dt, !DofSameSubject(src, g_dofFocusSrc));  // v3.52 FX352: player <-> close: no snap
             F = g_dofF;
         } else {
             why = DofNoFocusWhy(playerOk, pw, figOk, phase);
         }
-        if (src != g_dofFocusSrc) {
+        if (!DofSameSubject(src, g_dofFocusSrc)) {  // v3.52 FX352: (was src != g_dofFocusSrc)
             static volatile LONG s_q;
             if (LogQuota(&s_q, 200))
                 LogV("depth of field: stage %lX room %lX: focus %s (%.0f)%s%s (the player's view depth %.0f)", room >> 16, room & 0xFFFF,
                      kDofFocusName[src], Ft, src == DOFF_NONE ? ": " : "", src == DOFF_NONE ? kDofWhyNot[why] : "", pw);
-            g_dofFocusSrc = src;
         }
+        if (src == DOFF_CLOSE && !g_dofCloseSeen) {  // v3.52 FX352: the first close shot of a room
+            static volatile LONG s_q;
+            g_dofCloseSeen = 1;
+            if (LogQuota(&s_q, 300))
+                LogV("depth of field: stage %lX room %lX: the player is close to the camera (view depth %.0f): the focus on the player "
+                     "(%.0f), the far side only (v3.51 took this for a first-person view and drew nothing)", room >> 16, room & 0xFFFF, pw, F);
+        }
+        g_dofFocusSrc = src;
     }
     if (gate == DOFG_ON) {
         ++g_dofEligible;
@@ -1136,7 +1164,7 @@ static void DofFrame(void *dev)
         if (gate == DOFG_ON) DofNote(why);
         return;
     }
-    if (!DofDrawFrame(dev, draw, cap, F, strength, &nSlices, &nDraws, &fail, &drew)) {
+    if (!DofDrawFrame(dev, draw, cap, F, strength, src == DOFF_CLOSE, &nSlices, &nDraws, &fail, &drew)) {  // v3.52 FX352: + farOnly
         if (gate == DOFG_ON) DofNote(DOFN_FAILED);
         DofFail(fail ? fail : "a draw failed", E_FAIL);
         return;
@@ -1151,6 +1179,7 @@ static void DofFrame(void *dev)
         if (F < g_dofFMin) g_dofFMin = F;
         if (F > g_dofFMax) g_dofFMax = F;
         if (src == DOFF_SCENE) ++g_dofSceneFoc;
+        if (src == DOFF_CLOSE) ++g_dofCloseFoc;  // v3.52 FX352
         if (!g_dofFirstLogged++)
             Log("depth of field: first frame drawn (%s, %s): focus %.0f (%s), %d slice(s), %d blurred band(s), %.2f ms; render targets %.1f MB; %s",
                 kDofModeName[mode], kDofStrName[strength], F, kDofFocusName[src], nSlices, nDraws, ms, DofMb(g_dofVram),
@@ -1241,6 +1270,7 @@ static void DofFxPreview(void)
                 if (ds && DofShader(dev)) {
                     DofPlanT pl;  // v3.47 DF347: every code of the strength, marked from the depth map's index
                     DofPlanCodes(strength, &pl);
+                    if (mode == DOFV_SCENE && g_dofCapClose) DofPlanFarOnly(&pl, strength);  // v3.52 FX352: as in play
                     // the picture on screen (the pause's own picture, filtered or not, is what the page shows) into the chain
                     ok = DofChainReady(dev, (int)d.w, (int)d.h, d.fmt) &&
                          SUCCEEDED(((FxCopyRects_t)VT(dev, DOFVT_COPYRECTS))(dev, rt, NULL, 0, g_dofFull.surf, NULL)) && DofRunChain(dev, ds);

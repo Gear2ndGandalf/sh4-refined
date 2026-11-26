@@ -542,6 +542,17 @@ V351EP = V333_END + """10:00:00.201 enemies: followers across saves in (snapshot
 10:01:20.000 [v] enemies: monster 07000001 (Gum Head, type 07 v1) gave up the chase in room 4:6: it had not sensed you for 4 s (Enemy Pursuit Forgetful; AI state 11 -> 9, its own routine)
 10:01:30.000 enemies: room 4:6 (Enemy Pursuit Forgetful): 1 gave up the chase in the room (1 monster(s), 0 ghost(s); 0 of them again, 0 down when you walked off); 0 set back during their rest; 1 left to the game's own rules (a save load)
 """
+# v3.52 EP352: Forgetful's ghosts: out of their sight, the calm after the rest, dives set back (the room line's calm part)
+V352EP = V333_END + """10:00:00.201 enemies: followers across saves in (snapshot 004FC1A4, load 004FC6ED; side file G:\\Game\\save\\SH4Refined_follow.dat); Enemy Pursuit Forgetful (memory 4 s, doors away 1; Relentless = v3.49)
+10:00:00.202 enemies: Enemy Pursuit in the room in (Normal / Forgetful: monsters give up after 10 / 4 s unsensed, ghosts after 12 / 3 s far (2500 / 1200 u) or 25 / 8 s without touching you, Forgetful's also after 3 s out of their sight, then rest 8 / 15 s and stay calm until they sense you again (2000 / 1200 u, nothing between); Hummer, Gum Head, Sniffer Dog, Twin Victim, Wall Man, victims' ghosts; Relentless = stock)
+10:00:10.000 [v] enemies: ghost FFFF0007 (type 0B v3) gave up the chase in room 2:1: farther than 1200 from you for 3 s (Enemy Pursuit Forgetful; AI state 2 -> 1; it drifts back towards its spot and rests 15 s, then stays calm until it senses you again)
+10:00:10.020 [v] enemies: ghost FFFF0007 in room 2:1 began a dive into a wall towards you in its rest (4512 u away; AI state 7 step 0): set back to its idle float (Enemy Pursuit Forgetful)
+10:00:12.000 [v] enemies: ghost FFFF000A (type 0B v0) gave up the chase in room 2:1: you were out of its sight for 3 s (Enemy Pursuit Forgetful; AI state 2 -> 1; it drifts back towards its spot and rests 15 s, then stays calm until it senses you again)
+10:00:40.000 [v] enemies: ghost FFFF000A in room 2:1 sensed you again and took up the chase (900 u away; AI state 2): its calm after the give-up ends (Enemy Pursuit Forgetful)
+10:00:48.000 [v] enemies: ghost FFFF000A (type 0B v0) gave up the chase in room 2:1: it chased you 8 s without touching you (Enemy Pursuit Forgetful; AI state 2 -> 1; it drifts back towards its spot and rests 15 s, then stays calm until it senses you again) (again)
+10:00:50.000 enemies: room 2:1 (Enemy Pursuit Forgetful): 3 gave up the chase in the room (0 monster(s), 3 ghost(s); 1 of them again, 0 down when you walked off); 4 set back during their rest; 0 left to the game's own rules (you left the room); ghosts' calm: 1 ghost dive(s) into a wall stopped, 1 ghost(s) sensed you again
+10:01:30.000 enemies: room 2:2 (Enemy Pursuit Forgetful): 1 gave up the chase in the room (0 monster(s), 1 ghost(s); 0 of them again, 0 down when you walked off); 0 set back during their rest; 0 left to the game's own rules (a save load); ghosts' calm: 2 ghost dive(s) into a wall stopped, 0 ghost(s) sensed you again
+"""
 V348RZB = V333_END + """10:00:00.040 randomizer: [Randomizer] Items "Randomize" is not Off / Shuffle / Random: Random (the default)
 10:00:00.041 """ + RZ_INSTALL % ('Random', 136, ': some scripts are not the stock ones (their pickups are left alone)') + """
 10:00:06.000 ANOMALY: randomizer: stage 2 visit 1: the script at 00683AA0 is not the stock one (17 plain pickup(s), 7 weapon spot(s)): its pickups are left alone
@@ -698,6 +709,18 @@ V349S = V333_END + """10:00:00.100 shadows: Darkness 85 % (of the game's inside 
 10:02:00.000 [v] shadows: room 4:0C: 640 Tremer wall shadow draw(s), 600 at the Darkness (85 %; alpha 08..30 asked)
 10:02:00.001 [v] shadows: room 4:0C: 1200 composites over 1200 frames (at most 1 in a frame), 1200 soft; ours 0.050 ms a composite on average, 0.300 at most; edge Soft; render targets 4.8 MB; darkness 85 %
 """
+# v3.52 SH352: the room line's tail (hard with reasons, no darkness), the once-a-room reason lines; an old 4:1F line
+V352S = V333_END + """10:00:00.101 shadows: hooks in place (the composite's draw 0055FE43, the device reset 00402E0D); Edge Soft; Soft 12.0 px at 720 lines, scaled with the height (down, blur and up in 2x steps); preview on (the page backdrop 0x526A53)
+10:00:00.102 shadows: the edge and the Darkness cover every shadow the game draws: the real-time shadows of every caster in one stencil mask a composite (the player and the weapon in hand, Eileen, Cynthia, enemies, ghosts, Room 302's hauntings, the boss room's spears, event and cut-scene figures), Edge and Darkness; the Tremers' wall shadows: the Darkness (hook 0045F4CA; their edge is their texture's); the shadows baked into the room textures (furniture, doors, items, Room 302) are not drawn as shadows (left as painted); where the game's darkness is 0 (stage 4 room 0x1F, cut-scene 0x43) no real-time shadow shows, with any edge: nothing to soften there
+10:01:00.000 [v] shadows: room 4:22: 591 composites over 591 frames (at most 1 in a frame), 591 soft; ours 0.049 ms a composite on average, 0.086 at most; edge Soft; render targets 47.0 MB; darkness 100 %
+10:01:00.010 [v] shadows: room 4:1F: a composite not soft: the game's darkness is 0 here (TEXTUREFACTOR alpha 0: the mask is empty, the game's own draw leaves the picture as it is: no shadow shows, so there is nothing to soften) (darkness 00000000, edge Soft, Darkness 100 %; once a room)
+10:02:00.000 [v] shadows: room 4:1F: 2769 composites over 2769 frames (at most 1 in a frame), 0 soft; ours 0.004 ms a composite on average, 0.120 at most; edge Soft; render targets 47.0 MB; darkness 100 %; not soft: 0 hard, 2769 with no darkness (the game's own 0: nothing drawn)
+10:02:01.000 shadows: our render targets could not be made (1 in a row): the stock edge this time, tried again
+10:02:01.000 shadows: room 4:22: a composite not soft: our render targets could not be made this time: the game's own hard edge, soft again at the next composite (darkness 50000000, edge Soft, Darkness 100 %; once a room)
+10:03:00.000 [v] shadows: room 4:22: 1000 composites over 1000 frames (at most 1 in a frame), 997 soft; ours 0.050 ms a composite on average, 0.300 at most; edge Soft; render targets 47.0 MB; darkness 100 %; not soft: 3 hard (render targets 1, failed 2), 0 with no darkness (the game's own 0: nothing drawn)
+10:04:00.000 [v] shadows: room 4:1F: 1138 composites over 1138 frames (at most 1 in a frame), 0 soft; ours 0.004 ms a composite on average, 0.098 at most; edge Soft; render targets 47.0 MB; darkness 100 %
+10:05:00.000 [v] shadows: room 2:01: 400 composites over 400 frames (at most 1 in a frame), 0 soft; ours 0.000 ms a composite on average, 0.000 at most; edge Stock; render targets 0.0 MB; darkness 85 %; not soft: 400 hard (Stock 400), 0 with no darkness (the game's own 0: nothing drawn)
+"""
 V349SOFF = V333_END + """10:00:00.101 shadows: hooks in place (the composite's draw 0055FE43, the device reset 00402E0D); Edge Stock; Soft 12.0 px at 720 lines, scaled with the height (down, blur and up in 2x steps); preview on (the page backdrop 0x526A53)
 10:00:00.102 shadows: [Shadows] TremerShadows=0: the Tremers' wall shadows stay the game's own (the Darkness does not apply to them)
 10:00:00.103 shadows: the edge and the Darkness cover every shadow the game draws: the real-time shadows of every caster in one stencil mask a composite (the player and the weapon in hand, Eileen, Cynthia, enemies, ghosts, Room 302's hauntings, the boss room's spears, event and cut-scene figures), Edge and Darkness; the Tremers' wall shadows: the game's own (no hook); the shadows baked into the room textures (furniture, doors, items, Room 302) are not drawn as shadows (left as painted)
@@ -760,6 +783,19 @@ V351G = V333_END + """10:00:00.200 ghost teleport: in (no exe patch; 34 game fun
 10:01:04.000 [v] ghost teleport: not now: no free floor ahead of her in this room (no standing enemy she faces within 5000 u; 1 enemy(ies) in the cone skipped: behind collision (the first: a ghost in its wall (its portal open); type 0B 600 u, 8 degrees off); 7 tries from 800 down to 200 u, 7 door line(s): a wall between 7; through walls: 5 of 5 ray(s) met an obstacle within 800 u, past it: no route of the room reaches it 25; the room's floor map 4120 cell(s)) (Action left to the game)
 10:01:06.000 [v] ghost teleport: room 2:4 left: 2 warp(s) (1 through walls, 1 behind the enemy she faces, 0 ahead), 1 refused (ahead 1); 0 Action / Check press(es) taken back in fade-outs; 4 enemy(ies) in the cone skipped behind collision in 3 try(ies); floor map 4120 cell(s), finished, 9.4 ms over 3 run(s)
 10:01:07.000 [v] ghost teleport: room 2:7 left: 0 warp(s) (0 through walls, 0 behind the enemy she faces, 0 ahead), 1 refused (her state 1); 0 Action / Check press(es) taken back in fade-outs; 0 enemy(ies) in the cone skipped behind collision in 0 try(ies); floor map not built
+"""
+
+# v3.52 TP352: every landing proven; freed from a wall (after a warp, at a warp from inside one, left inside one)
+V352G = V333_END + """10:00:00.200 ghost teleport: in (no exe patch; 34 game functions checked), [Gameplay] GhostTeleport On; Run + Action together (within 80 ms): behind the standing enemy she faces (+-35 degrees) within 5000 u in the open (none past collision), else up to 800 u ahead the way she faces, through walls on (onto floor a route of the room reaches), cooldown 0.0 s; every landing proven (her body free, on the room's floor map); inside a wall after a warp: moved to the nearest proven floor; held: the next warp once she has faded in; never across or into a walk-in event zone; Richard's transition: his warp sound 0xEC86 on, his see-through fade (0.5 s out, 0.5 s in) on her model in
+10:01:00.000 [v] ghost teleport: room 4:17: the floor map begins (a grid of 69 x 69 cells of 60 u on the room's box; 9 of 9 door(s) seeded, 0 without a floor there, 1 inside collision)
+10:01:00.010 [v] ghost teleport: room 4:17: the floor map is finished: 1624 cell(s) a route of the room reaches, from 9 seed(s) (0 without a floor); 12.6 ms over 1 run(s); 1 seed(s) inside collision refused
+10:01:00.500 [v] ghost teleport: behind type 09 343 u away (the enemy she faces, 1 degrees off her facing, 2 in the +-35 degree cone; spot 4: 160 u on its far side (no usable facing), floor +0 u of hers, proven: her body free, on the room's floor map): from (-1752, 788) to (-1542, 1181), facing it; cooldown 0.0 s (warp 1; same room: 9 door line(s), box in)
+10:01:02.000 [v] ghost teleport: not now: no free floor behind the enemy she faces (type 09 343 u, 1 degrees off her facing; 21 spots, 9 door line(s): a wall between 2, no room for her body 19) (Action left to the game)
+10:01:03.500 [v] ghost teleport: ahead 700 u the way she faces (no standing enemy she faces within 5000 u; try 2 of 7, floor +0 u of hers, proven: her body free, on the room's floor map): from (0, 0) to (0, 700) (the fade began at (0, 0)); cooldown 0.0 s (warp 2; same room: 9 door line(s), box in)
+10:01:03.700 ghost teleport: freed from a wall: after warp 2 (ahead) her body stood inside collision at (0, 700) for 0.15 s: moved 62 u to the nearest proven floor cell (0, 638), floor +0 u of hers (9 cell(s) tried)
+10:01:05.500 ghost teleport: freed from a wall: at the warp she stood inside collision at (-1600, 1320) and no other landing was proven: to the nearest proven floor cell (-1620, 1194), 128 u away, floor +0 u of hers (warp 3)
+10:01:07.700 [v] ghost teleport: inside collision after warp 4 at (100, 200): no proven floor cell within 480 u (12 tried; floor map 900 cell(s)): not moved (Ghost Teleport or No Clip moves her)
+10:01:08.000 [v] ghost teleport: room 4:17 left: 2 warp(s) (0 through walls, 1 behind the enemy she faces, 1 ahead), 1 refused (behind the faced enemy 1); 0 Action / Check press(es) taken back in fade-outs; 0 enemy(ies) in the cone skipped behind collision in 0 try(ies); 2 time(s) freed from a wall; floor map 1624 cell(s), finished, 12.6 ms over 1 run(s)
 """
 
 V343G = V333_END + """10:00:00.200 ghost teleport: in (no exe patch; 13 game functions checked), [Gameplay] GhostTeleport On; hold Run 0.4 s standing still: behind the nearest standing enemy within 2500 u, cooldown 3.0 s, Richard's warp sound 0xEC86 on, Echo Doubles' teleport smoke
@@ -865,12 +901,61 @@ V351MU = V333_END + """10:00:00.010 extra menu: sound in the Storage Chest / Sav
 10:00:40.000 """ + MU_S + """storage chest: opened from the pause: pause mode 2, master 0.20, fade 0: the level music PLAYS quietly
 10:00:40.001 ANOMALY: extra menu: the level music is not paused in the storage chest (opened from the pause; pause mode 2, master 0.20, fade 0)
 """
+# v3.52 SND352: Sound (sound.inc): the install line, the start line, changes on Option 1 and the Sound page, a discard, a save's
+# Sound put back, the engine re-applied, two minute lines
+SND_IN_OK = ('sound: in: pan law Smooth (004090BD / 0040B617), volume hooks in (Night Mode), Room Reverb in (the sound reads of '
+             '00ED4F40), Mono fold in (streams) / in (music); the mode at the first frame (Stereo)')
+SND_START = ("sound: Mode %s (the game's Sound %d, engine %d), pan law %s, Stereo Width %d %%, Headphones floor -9 dB, Room Reverb %s "
+             "(%s), Night Mode %s, Voice volume not in this build, Mono fold on; speakers stereo (00140004)")
+SND_MIN = ('[v] sound: minute: volumes 2D %d, 3D %d, streams %d (Night Mode %s: %d changed); pans 2D %d (one ear only %d; the stock '
+           'law %d), streams %d (one ear only %d; the stock law %d); Mono: %d stream block(s) folded, %d music fold(s); Mode %s, engine %d')
+V352SND = V333_END + "10:00:00.010 " + SND_IN_OK + """
+10:00:01.000 """ + SND_START % ('Stereo', 1, 1, 'Smooth', 100, 'On', 'probe ok', 'Off') + """
+10:00:01.000 [v] sound: reverb probe: 3D buffer hr 0878000A (DS_NO_VIRTUALIZATION: no HRTF, plain 3D), SetFX hr 00000000 result 2, reverb object hr 00000000; 2D buffer hr 00000000, SetFX hr 00000000 result 2, reverb object hr 00000000
+10:01:01.000 """ + SND_MIN % (1200, 40, 300, 'Off', 0, 1000, 5, 400, 200, 0, 60, 0, 0, 'Stereo', 1) + """
+10:01:30.000 sound: Mode Stereo -> Headphones (Options): the game's Sound 1 (Stereo), the other ear at most 9 dB down
+10:01:31.000 sound: Stereo Width 100 -> 80 % (Options)
+10:01:32.000 sound: Room Reverb On -> Off (Options): the sound reads of the CPU class see 0
+10:01:33.000 sound: Night Mode Off -> Low (Options)
+10:01:40.000 sound: Mode Headphones -> Stereo (Options discarded): the game's Sound 1 (Stereo)
+10:01:40.000 sound: Options discarded: the engine back to Sound 1 (it kept 0, the last value passed over)
+10:01:41.000 sound: the engine was told Sound 0 but the Options say 1 (the game's discard skips Sound): applied
+10:01:50.000 sound: the Options block's Sound came in as 2 (a save's or the memory card's copy): 1 for Mode Stereo
+10:02:01.000 """ + SND_MIN % (800, 10, 100, 'Low', 700, 500, 0, 100, 100, 0, 40, 0, 0, 'Stereo', 1) + """
+"""
+# v3.52 SND352: the first start (Mode from the save's byte), PanLaw=Stock, the volume sites not stock, the reverb probe failed
+V352SND1 = V333_END + """10:00:00.005 sound: volume (004090A6 / 00409285 / 0040B5E7): 004090A6 is not the GOG v7 code (E8 11 22 33 ...; another mod?): not installed
+10:00:00.010 sound: in: pan law Stock ([Sound] PanLaw=Stock: not patched), volume hooks NOT IN (Night Mode), Room Reverb in (the sound reads of 00ED4F40), Mono fold off (MonoFold=0) (streams) / off (music); the mode at the first frame (first start: from the save's Sound)
+10:00:01.000 sound: first start: [Sound] Mode=Mono, from the save's Option 1 Sound 0 (Monaural)
+10:00:01.000 ANOMALY: sound: Room Reverb: DirectSound would not make a buffer with the Waves Reverb (3D buffer hr 88780078, SetFX hr 80004005 result 0, reverb object hr 80004005; -): no reverb this session
+10:00:01.000 """ + SND_START % ('Mono', 0, 0, 'Stock', 100, 'On', 'PROBE FAILED: none', 'Off') + """
+"""
 # v3.51 MU351: PauseSound=0 (v3.50's sound): quiet music is no fault; and a load list opened from play (Seamless=0)
 V351MU0 = V333_END + """10:00:00.010 extra menu: sound in the Storage Chest / Save Game / Load Game: plays quietly as in v3.50 ([ExtraMenu] PauseSound=0)
 10:00:05.000 """ + MU_S + """load list: opened from the pause: pause mode 2, master 0.20, fade 0: the level music PLAYS quietly (PauseSound=0: v3.50)
 10:00:09.000 """ + MU_S + """load list: closed, back in the pause: pause mode 0, master 0.00, fade 4: the level music stays paused (PauseSound=0: v3.50)
 10:00:15.000 """ + MU_S + """load list: opened from play: pause mode 2, master 0.84, fade 2: the level music PLAYS quietly
 10:00:19.000 """ + MU_S + """load list: closed, back to play: pause mode -1, master 0.20, fade 1: the level music comes back
+"""
+
+# v3.52 QL352: Quick Load's paths (extramenu.inc ql_go / QlSoundTick, quicksave.inc QsLoad): the install line, two quick
+# loads inside the pause (one handed to a cut-scene), one by the key, one v3.51 fallback (a message was up), a refusal at
+# black, a late black with the music not paused (+ its ANOMALY line), a room never seen running
+QL_IN = 'quick load: slot 1 (sequence 25), stage 2 room 4, game time 40974; path: the Extra Menu inside the pause (black in '
+V352QL = V333_END + """10:00:00.010 extra menu: Quick Load runs inside the pause (the world frozen and the level music paused until the loaded room starts) ([ExtraMenu] QuickLoadInPause=1)
+10:00:05.000 """ + QL_IN + """16 frames; pause mode 2, master 0.00, fade 0: the level music stays paused)
+10:00:06.800 quick load: the loaded room runs after 1800 ms (stage 2 room 4): the level music fades in (0x56E960(-1) from pause mode 2)
+10:00:20.000 quick load: slot 2 (sequence 26), stage 3 room 1, game time 50000; path: the Quick Load key in play
+10:00:30.000 quick load: slot 2 (sequence 26), stage 3 room 1, game time 50000; path: the Extra Menu after the pause closed (v3.51: a message was up)
+10:00:40.000 quick load: refused at black: every catalog entry is clear data; back in the pause (path: the Extra Menu inside the pause)
+10:00:50.000 """ + QL_IN + """16 frames; pause mode 2, master 0.00, fade 0: the level music stays paused)
+10:00:52.400 quick load: the loaded room opened a menu or a cut-scene first (sub-mode 0, pending 0, phase 1) after 2400 ms: its own end gives the level music back
+"""
+V352QL2 = V333_END + """10:00:00.010 extra menu: Quick Load closes the pause first (v3.51) ([ExtraMenu] QuickLoadInPause=1: 0055A160 is not stock)
+10:00:05.000 """ + QL_IN + """90 frames, NOT black: loaded anyway; pause mode 2, master 0.20, fade 0: the level music PLAYS quietly)
+10:00:05.001 ANOMALY: extra menu: Quick Load: the level music is not paused at black (pause mode 2, master 0.20, fade 0)
+10:00:35.000 quick load: the loaded room runs after 30000 ms (stage 2 room 4): the level music fades in (0x56E960(-1) from pause mode 2): NOT seen running
+10:00:35.001 ANOMALY: extra menu: Quick Load: no loaded room seen running within 30000 ms: the sound given back anyway (start mode 1, next stage 2 room 4, fade target 128)
 """
 
 
@@ -1099,6 +1184,16 @@ V350RW = V333_END + """10:00:00.104 """ + R3_OWNERS % ('at start', 'waiting for 
 10:00:01.001 room 302: look hooks in (first game tick): 0052DF74 call, 0052DCC6 / 0052DD14 operands
 """
 
+# v3.52 HB352: the enemy bars refused (an arriving ghost in an elevator) and a boss's first bar (the lines hudbars.inc writes)
+V352HB = V333_END + """10:00:01.000 [v] hud bars: no bar for FFFF0007 (type 0B) in room 5:C: not in the room yet (the game does not draw it: hidden, arriving or a placeholder) (state D, at -1590 -160 1248, 12 from you)
+10:00:01.100 [v] hud bars: no bar for FFFF000A (type 0B) in room 5:C: not in the room yet (the game does not draw it: hidden, arriving or a placeholder) (state E, at -1580 -160 1250, 20 from you)
+10:00:01.200 [v] hud bars: no bar for 05020003 (type 07) in room 5:C: not at a place in the room (the origin, parked away or not a number) (state 1, at 0 0 0, 1900 from you)
+10:00:30.000 [v] hud bars: room 5:C: no bar for 2 enemy(ies) not in the room yet (hidden, arriving or a placeholder), 1 not at a place in the room; this session 2 / 1
+10:01:00.000 [v] hud bars: boss Walter 841F0001 (type 10) in room 4:1F: its bar is up 0.2 s after it became active (state 3, 2480 from you, hp 3000 / 3000)
+10:02:00.000 [v] hud bars: boss Walter 841F0001 (type 10) in room 4:22: active 5 s and no bar yet: walled off from the camera (state 3, 900 from you, hp 3000 / 3000)
+10:03:00.000 [v] hud bars: room 4:22: no bar for 1 enemy(ies) not in the room yet (hidden, arriving or a placeholder), 0 not at a place in the room; this session 3 / 1
+"""
+
 
 def run(text, name='SH4Refined.log'):
     d = tempfile.mkdtemp(prefix='logcheck_')
@@ -1108,6 +1203,24 @@ def run(text, name='SH4Refined.log'):
     s = logcheck.Session(p)
     s.read()
     return s, '\n'.join(s.report(False, None))
+
+
+# v3.52 FX352: the depth of field with a close camera (a focus, the far side only), Bloom's five levels and the one-time
+# migration of a v3.51 value, the Otherworld lens' room lines
+V352FX = V333_END + """10:00:00.050 post effects: [ScreenEffects] Bloom=Very High (v3.43 .. v3.51) is v3.52's High (v3.52: Off, Low, Medium, High, Ultra; the old High is the new Medium, the old Very High the new High): written as High (marker BloomV=352)
+10:00:00.060 post effects: in place (drawn in the scene pass before the filter; device reset 00402DF4 hooked); Bloom High, Colour Grading Off, Otherworld Lens On (the lens at 70 % while a ghost or haunting is in the room, full halfway into its aura)
+10:00:00.100 depth of field: hooks in place (the render frame before the light grid 004EFBCA; the device reset 00402E0D chained to 10012340); DepthOfField Always, Strength Medium; probe on (once per room); preview on (the Screen Effects page, 0x526A53)
+10:00:05.000 depth of field: first frame drawn (Always, Medium): focus 627 (the player), 12 slice(s), 12 blurred band(s), 0.41 ms; render targets 33.6 MB; eased in (a quarter level a step)
+10:00:20.000 [v] depth of field: stage 2 room 1: the player is close to the camera (view depth 120): the focus on the player (200), the far side only (v3.51 took this for a first-person view and drew nothing)
+10:01:00.000 [v] depth of field: stage 2 room 1: drawn in 17660 of 17668 frames it was asked for (not drawn: the room's depth probe is pending 8; the cut-scene's own focus 0); skipped by design: none; focus 200 .. 873 (the player close to the camera in 7733 frame(s)); ours 0.120 ms a frame on average, 0.300 at most; Always Medium; probe: the scene's depth: on; render targets 33.6 MB
+10:01:00.500 [v] post effects: the Otherworld lens in stage 2 room 1: shown 40 of 60 s (67 %), at most 100 % strength (haunting strength up to 2.00, nearness up to 0.62; the base 70 %)
+10:01:30.000 screen effects: Bloom Ultra
+10:02:00.000 [v] depth of field: stage 2 room 2: drawn in 900 of 900 frames it was asked for (not drawn: none; the cut-scene's own focus 0); skipped by design: none; focus 300 .. 700; ours 0.110 ms a frame on average, 0.200 at most; Always Medium; probe: the scene's depth: on; render targets 33.6 MB
+10:02:00.500 [v] post effects: the Otherworld lens in stage 2 room 2: shown 15 of 15 s (100 %), at most 70 % strength (haunting strength up to 1.00, nearness up to 0.00; the base 70 %)
+"""
+V352FXN = V333_END + """10:00:00.050 post effects: [ScreenEffects] Bloom=High (v3.43 .. v3.51) is v3.52's Medium (v3.52: Off, Low, Medium, High, Ultra; the old High is the new Medium, the old Very High the new High): could not be written to SH4Refined.ini (used for this start; tried again at the next): the value
+10:00:00.060 post effects: in place (drawn in the scene pass before the filter; device reset 00402DF4 hooked); Bloom Medium, Colour Grading Off, Otherworld Lens Off (the lens at 70 % while a ghost or haunting is in the room, full halfway into its aura)
+"""
 
 
 def main():
@@ -1189,6 +1302,17 @@ def main():
     check('perf readout place: 2048x1536 under the PE HUD; 1920x1080 corner the stock gauge' in r, 'v3.38: the readout place summary')
     check('curse meter Hide Gauge: on (since 10:00:01); faded out 2 time(s), shown again 2 (own wake 1, the health gauge 1)' in r,
           'v3.38: the Hide Gauge summary')
+    s, r = run(V352HB)  # v3.52 HB352
+    print(r)
+    check(s.hb_ref_lines == {'hidden': 2, 'place': 1} and s.hb_ref['rooms'] == 2 and s.hb_ref['hidden'] == 3 and s.hb_ref['place'] == 1 and
+          s.hb_ref_tot == (3, 1) and len(s.hb_boss) == 2 and s.hb_boss[0][3] == 0.2 and s.hb_boss[1][4] == 'walled off from the camera',
+          'v3.52: the refused-bar and boss lines parse (%r %r %r %r)' % (dict(s.hb_ref_lines), dict(s.hb_ref), s.hb_ref_tot, s.hb_boss))
+    check('enemy health bars: no bar for 3 enemy(ies) the game does not draw yet (hidden, arriving or a placeholder) and 1 with no place '
+          'in the room (2 room line(s), 3 verbose line(s); first FFFF0007 type 0B in room 5:C [10:00:01]); bosses: bar up 1 time(s) (at '
+          'most 0.2 s after it became active; first Walter in room 4:1F [10:01:00]), no bar 5 s after it became active 1 time(s) (last: '
+          'walled off from the camera, Walter in room 4:22 [10:02:00])' in r, 'v3.52: the enemy health bars summary')
+    s, r = run(V333_END)
+    check(not s.hb_ref_lines and not s.hb_boss and 'enemy health bars:' not in r, 'v3.52: no refused-bar lines, no summary line')
     s, r = run(V341C)  # v3.41 CM341
     print(r)
     check(s.hb_pe_ring and s.hb_pe_ring[1] == 'pe', 'v3.41: the player curse ring owner line parses')
@@ -1283,6 +1407,18 @@ def main():
     check('2 room visit(s) with tries: 2 warp(s) (1 through walls, 1 behind the faced enemy, 0 ahead), 2 refused (ahead x1, her '
           'state x1), 0 Action / Check press(es) taken back in fade-outs; 4 enemy(ies) in the cone skipped behind collision (in 3 '
           'try(ies))' in r, 'v3.51: the ghost teleport summary counts the skips behind collision')
+    s, r = run(V352G)  # v3.52 TP352
+    print(r)
+    check(s.gt == ('in', 'On') and s.gt_warps['09'] == 1 and s.gt_warps['ahead'] == 1 and s.gt_faced == 1 and
+          dict(s.gt_free) == {'after warp': 1, 'at the warp': 1} and s.gt_free_no == 1 and s.gt_room_freed == 2 and
+          s.gt_rooms == [('4:17', 2, 0, 1, 1, 1, 0)] and s.gt_maps == [('4:17', 1624, 9, 0, 12.6)] and s.gt_map_open == 0 and
+          s.gt_no['no free floor behind the enemy she faces'] == 1,
+          'v3.52: the landing proof and freed-from-a-wall lines read (%r %r %r)' % (dict(s.gt_free), s.gt_free_no, s.gt_rooms))
+    check('; 2 time(s) freed from a wall' in r and 'freed from a wall: 1 after a warp, 1 at a warp from inside one, 1 time(s) LEFT '
+          'inside collision (not moved)' in r, 'v3.52: the ghost teleport summary counts the frees')
+    s, r = run(V351G)  # v3.52 TP352: a v3.51 log reads as before (no freed part)
+    check(s.gt_room_freed == 0 and not s.gt_free and s.gt_free_no == 0 and 'freed from a wall' not in r and s.gt_skip == 4 and
+          s.gt_rooms == [('2:4', 2, 1, 1, 0, 1, 0), ('2:7', 0, 0, 0, 0, 1, 0)], 'v3.52: a v3.51 log: the room lines read as before')
     s, r = run(V337I)  # v3.37 INV337
     print(r)
     check(s.inv == ('on', 'off', 'in') and s.inv_sw['extended toolbelt stays on'] == 1 and s.inv_sw['extended toolbelt off'] == 1,
@@ -1407,6 +1543,23 @@ def main():
     print(r)
     check(s.sh_rib_state == "the game's own (TremerShadows=0)" and not s.sh['rib'] and
           "; Tremer wall shadows: the game's own (TremerShadows=0)" in r, 'v3.49 SH349: TremerShadows=0 (%r)' % s.sh_rib_state)
+    check(not s.sh_rooms and not s.sh_ns and 'HARD share' not in r and 'no darkness' not in r, 'v3.52 SH352: no room lines: no share parts')
+    s, r = run(V352S)  # v3.52 SH352: why composites were not soft, the rooms with a hard share
+    print(r)
+    check(s.sh_rib_state == 'the Darkness' and s.sh['composites'] == 5898 and s.sh['soft'] == 1588 and s.sh['hard'] == 403 and
+          s.sh['nodark'] == 2769 and s.sh['unexpl'] == 1138 and s.sh_rooms['4:1F'] == [3907, 0, 0, 2769, 1138, {}] and
+          s.sh_rooms['4:22'][:5] == [1591, 1588, 3, 0, 0] and dict(s.sh_rooms['4:22'][5]) == {'render targets': 1, 'failed': 2} and
+          dict(s.sh_rooms['2:01'][5]) == {'Stock': 400} and [(x[1], x[2].split(' (')[0]) for x in s.sh_ns] ==
+          [('4:1F', "the game's darkness is 0 here"), ('4:22', 'our render targets could not be made this time: the game\'s own hard edge, soft again at the next composite')],
+          'v3.52 SH352: the tails and the reason lines read (%r %r %r)' % (dict(s.sh), s.sh_rooms, s.sh_ns))
+    check('; HARD share: 403 composite(s) in 2 room(s): 2:01 400 of 400 (100 %: Stock 400), 4:22 3 of 1591 (0 %: failed 2, render '
+          'targets 1)' in r and "; 2769 with no darkness (the game's own 0: no shadow shows, nothing to soften) in room(s) 4:1F" in r and
+          "; 1138 not soft with no reason given (a log before v3.52) in room(s) 4:1F 1138 of 3907 (the game's own darkness is 0 there: "
+          "no shadow shows)" in r and '; 2 not-soft reason line(s) (4:1F [10:01:00]: the game\'s darkness is 0 here, 4:22 [10:02:01]: our '
+          'render targets could not be made this time)' in r, 'v3.52 SH352: the shadows summary names the hard rooms and why')
+    s, r = run(V349S)
+    check(not s.sh['hard'] and not s.sh['nodark'] and not s.sh['unexpl'] and 'HARD share' not in r and 'not soft' not in r,
+          'v3.52 SH352: an all-soft log has no share parts (%r)' % dict(s.sh))
     s, r = run(V341W)  # v3.41 VW341
     print(r)
     check(s.vw.startswith("Room 302's window views keep the 4:3 view") and len(s.vw_views) == 2 and len(s.edges) == 2 and
@@ -1775,6 +1928,18 @@ def main():
           "set back in their rest, 1 left to the game [verbose: 5 lines: 2 unsensed, 1 downed, 1 far, 1 untouched; Gum Head 1, "
           "Hummer 1, Sniffer Dog 1, victim's ghost 2]" in r, 'v3.51: the enemy pursuit summary has the in-room give-ups')
     check(s.ef['lost'] == 2 and s.ef['sight'] == 2, 'v3.51: the door line still reads (%r)' % dict(s.ef))
+    check('calm' not in r and not s.ep['undive'] and not s.ep['sensed'] and 'out of sight' not in r,
+          'v3.51 log: no v3.52 calm part')  # v3.52 EP352
+    s, r = run(V352EP)  # v3.52 EP352: Forgetful's ghosts
+    print(r)
+    p = s.ep
+    check(s.ep_site == 'in' and p['rooms'] == 2 and p['give'] == 4 and p['ghost'] == 4 and p['again'] == 1 and p['held'] == 4 and
+          p['stock'] == 0, "v3.52: the rooms' lines still read (%r)" % dict(p))
+    check(p['undive'] == 3 and p['sensed'] == 1, 'v3.52: the calm parts (%r)' % dict(p))
+    check(p['v_give'] == 3 and p['v_far'] == 1 and p['v_sight'] == 1 and p['v_untouched'] == 1, 'v3.52: out of sight (%r)' % dict(p))
+    check("1 left to the game" not in r and "0 left to the game; ghosts' calm: 3 ghost dive(s) into a wall stopped, 1 ghost(s) "
+          "sensed you again [verbose: 3 lines: 0 unsensed, 0 downed, 1 far, 1 untouched, 1 out of sight; victim's ghost 3]" in r,
+          'v3.52: the enemy pursuit summary has the calm and the out-of-sight give-ups')
     s, r = run(V349F)
     check('enemy pursuit:' not in r and s.ef_mode is None, 'v3.49 log: no enemy pursuit line')
     s, r = run(V349F3)
@@ -1942,6 +2107,58 @@ def main():
           'v3.51: PauseSound=0 and a list from play: counted, no fault (%r %r)' % (dict(s.mu), s.mu_loud))
     s, r = run(V333_END)
     check(s.mu_set is None and not s.mu and 'extra menu sound' not in r, 'v3.51: no Extra Menu sound lines, no summary line')
+    s, r = run(V352QL)  # v3.52 QL352: Quick Load's paths
+    print(r)
+    check(s.ql_set == ('10:00:00', 'pause', '1', None) and s.ql['pause'] == 2 and s.ql['key'] == 1 and s.ql['closed'] == 1 and
+          s.ql['back'] == 1 and s.ql['drop'] == 1 and s.ql['refused'] == 1 and s.ql_black == [16, 16] and s.ql_ms == [1800] and
+          dict(s.ql_closed) == {'a message was up': 1} and not s.ql['loud'] and not s.ql['late'] and s.ql_anom == 0,
+          'v3.52: the Quick Load lines read (%r %r %r %r)' % (s.ql_set, dict(s.ql), s.ql_black, dict(s.ql_closed)))
+    check('quick load: inside the pause at the start (QuickLoadInPause=1); 4 quick load(s) (2 inside the pause, 1 by the key in '
+          'play, 1 after the pause closed (v3.51)); v3.51 path because: a message was up x1; black in 16 frame(s) (worst 16); the '
+          'music held until the loaded room ran: 1800 ms on average (worst 1800); 1 handed to a menu / cut-scene of the loaded room; '
+          '1 refused at black' in r, 'v3.52: the Quick Load summary line')
+    check(not [v for v in s.warnings.values() if 'quick load' in v[3]], 'v3.52: no Quick Load line lands in the warnings')
+    s, r = run(V352QL2)
+    print(r)
+    check(s.ql_set == ('10:00:00', 'v3.51', '1', '0055A160 is not stock') and s.ql['late'] == 1 and s.ql['loud'] == 1 and
+          s.ql['notrun'] == 1 and s.ql_anom == 2 and
+          'quick load: the pause closes first (v3.51) at the start (QuickLoadInPause=1: 0055A160 is not stock); 1 quick load(s) (1 '
+          'inside the pause); black in 90 frame(s) (worst 90); the music held until the loaded room ran: 30000 ms on average (worst '
+          '30000); 1 NOT black in time; the music NOT paused at black 1 time(s); the loaded room NOT seen running 1 time(s); 2 '
+          'ANOMALY line(s)' in r, 'v3.52: the Quick Load faults counted (%r %r)' % (s.ql_set, dict(s.ql)))
+    s, r = run(V333_END + '10:00:05.000 quick load: slot 1 (sequence 25), stage 2 room 4, game time 40974\n')
+    check(s.ql['unknown'] == 1 and 'quick load: (no start line); 1 quick load(s) (1 path not logged)' in r,
+          'v3.52: a v3.51 quick load line (no path) is counted')
+    s, r = run(V333_END)
+    check(s.ql_set is None and not s.ql and 'quick load:' not in r, 'v3.52: no Quick Load lines, no summary line')
+    s, r = run(V352SND)  # v3.52 SND352: Sound
+    print(r)
+    check(s.snd_in == ('Smooth', 'in', 'in', 'in', 'in') and s.snd_start and s.snd_start[1][:5] == ('Stereo', '1', '1', 'Smooth', '100')
+          and len(s.snd_changes) == 5 and s.snd_changes[0][1:] == ('Mode', 'Stereo', 'Headphones', 'Options') and
+          s.snd_changes[1][1:] == ('Stereo Width', '100', '80', 'Options') and s.snd_changes[4][1:] == ('Mode', 'Headphones', 'Stereo',
+          'Options discarded') and len(s.snd_min) == 2 and dict(s.snd_fix) == {'byte': 1, 'engine': 1, 'discard': 1} and not s.snd_anom,
+          'v3.52: the Sound lines read (%r %r %r %r)' % (s.snd_in, s.snd_start, s.snd_changes, dict(s.snd_fix)))
+    check("sound: at the start Mode Stereo (the game's Sound 1, engine 1), pan law Smooth, Stereo Width 100 %, Room Reverb On (probe "
+          "ok), Night Mode Off, Mono fold on; speakers stereo (00140004)  [10:00:01]; sites all in; 5 change(s): Mode Stereo -> "
+          "Headphones (Options) [10:01:30], Stereo Width 100 -> 80 (Options) [10:01:31], Room Reverb On -> Off (Options) [10:01:32], "
+          "Night Mode Off -> Low (Options) [10:01:33], Mode Headphones -> Stereo (Options discarded) [10:01:40]; 2 minute line(s): pans "
+          "2D 1500 (one ear only 0.3 %; the stock law 33.3 %), streams 300 (one ear only 0.0 %; the stock law 33.3 %); volumes 2D 2000, "
+          "3D 50, streams 400 (Night Mode changed 700); Mono: 0 stream block(s), 0 music fold(s); the Sound byte put back 1 time(s), the "
+          "engine re-applied 2 time(s) (1 at an Options discard)" in r, 'v3.52: the Sound summary line')
+    check(not [v for v in s.warnings.values() if v[3].startswith('sound: ')], 'v3.52: no Sound line lands in the warnings')
+    s, r = run(V352SND1)
+    print(r)
+    check(s.snd_in[0] == 'Stock' and s.snd_in[1] == 'NOT IN' and s.snd_first == ('10:00:01', 'Mono', '0') and s.snd_anom == 1 and
+          s.snd_notin == [('volume (004090A6 / 00409285 / 0040B5E7)', '004090A6')] and
+          "sound: at the start Mode Mono (the game's Sound 0, engine 0), pan law Stock, Stereo Width 100 %, Room Reverb On (PROBE "
+          "FAILED: none), Night Mode Off, Mono fold on; speakers stereo (00140004)  [10:00:01]; sites NOT IN: volume (PanLaw=Stock); "
+          "first start: Mode Mono from the save's Sound 0  [10:00:01]; NOT the GOG code: volume (004090A6 / 00409285 / 0040B5E7) "
+          "004090A6; 1 ANOMALY line(s)" in r, 'v3.52: the first start, PanLaw=Stock, a site not stock, the probe failed (%r %r)' % (
+              s.snd_in, s.snd_first))
+    s, r = run(V333_END + '10:00:00.010 sound: [Sound] Enabled=0: the game\'s own sound and Sound row (no Refined sound site)\n')
+    check(s.snd_in == 'off' and "sound: off ([Sound] Enabled=0: the game's own)" in r, 'v3.52: Enabled=0')
+    s, r = run(V333_END)
+    check(s.snd_in is None and not s.snd_changes and '\n  sound:' not in r, 'v3.52: no Sound lines, no summary line')
     s, r = run(V351PT)  # v3.51 PT351: the tar portal and the hold
     print(r)
     check(s.fi == ('in', 'scene pass', 'Fade + Portal', '0.80') and s.fi_tar and s.fi_tar[1:] == ('Auto', '1') and s.fi_rooms == 1 and
@@ -1970,6 +2187,28 @@ def main():
     check(s.fi_tar and s.fi_tar[1] == 'Vortex' and s.fi_by == {'vortex': 1} and s.fi_held == 0 and s.fi_cost == [0, 0.0, 0.0] and
           "tar portal NOT available (FadeInPortalDraw=Vortex): v3.50's blood vortex; by draw: vortex 1; 0 held" in r and
           'NEVER DRAWN' not in r, 'v3.51: Vortex: v3.50\'s portal, no hold (%r %r)' % (s.fi_tar, dict(s.fi_by)))
+    s, r = run(V352FX)  # v3.52 FX352
+    print(r)
+    dof = [x for x in r.splitlines() if x.startswith('  depth of field: ')]
+    pp = [x for x in r.splitlines() if x.startswith('  post effects: ')]
+    check(s.dof_close == 7733 and s.dof_close_rooms == ['2:1'] and len(dof) == 1 and
+          'the player close to the camera: drawn in 7733 frame(s), first in 1 room(s)' in dof[0] and 'nearer than 150' not in dof[0],
+          'v3.52 FX352: the close camera reads (%r %r %r)' % (s.dof_close, s.dof_close_rooms, dof))
+    check(s.dof['drawn'] == 18560 and s.dof['asked'] == 18568 and s.dof_why == {"the room's depth probe is pending": 8},
+          'v3.52 FX352: the room line with the close count still reads (%r %r)' % (dict(s.dof), dict(s.dof_why)))
+    check(s.pp_mig == ('Very High', 'High', True) and s.pp == ('hooked', 'High', 'Off', 'On') and s.pp_set == [('10:01:30', 'Bloom', 'Ultra')],
+          'v3.52 FX352: the Bloom migration and the five levels read (%r %r %r)' % (s.pp_mig, s.pp, s.pp_set))
+    check(s.pp_lens_rooms == [('2:1', 40, 60, 100), ('2:2', 15, 15, 70)] and len(pp) == 1 and
+          'lens shown 55 of 75 s in 2 room line(s), at most 100 % strength' in pp[0] and
+          "the ini's v3.51 Bloom=Very High read as High (rewritten)" in pp[0],
+          'v3.52 FX352: the lens room lines and the summary (%r %r)' % (s.pp_lens_rooms, pp))
+    s, r = run(V352FXN)
+    pp = [x for x in r.splitlines() if x.startswith('  post effects: ')]
+    check(s.pp_mig == ('High', 'Medium', False) and len(pp) == 1 and "Bloom=High read as Medium (NOT rewritten)" in pp[0] and
+          'lens shown' not in pp[0], 'v3.52 FX352: a migration that could not be written (%r %r)' % (s.pp_mig, pp))
+    s, r = run(V347D)
+    check(s.dof_close == 0 and not s.dof_close_rooms and 'close to the camera' not in r and s.pp_mig is None and not s.pp_lens_rooms,
+          'v3.52 FX352: an older log: no close camera, no migration, no lens rooms')
     test_compare()  # v3.40 LG340
     print('%d failure(s)' % len(FAILS))
     return 1 if FAILS else 0

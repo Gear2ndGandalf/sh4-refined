@@ -514,15 +514,16 @@ static void TestDark342(void)
               !ShParseDark(NULL, &pct) && pct == SH_DARK_DEF, "not a number: the default 85");
         CHECK(SH_DARK_DEF == 85 && kShDarkPct[ShDarkIndex(SH_DARK_DEF)] == 85, "default 85 %% is a row value");
         for (k = 0; k < SH_DARK_N; ++k) CHECK(ShDarkIndex(kShDarkPct[k]) == k, "row value %d -> index %d", kShDarkPct[k], k);
-        CHECK(ShDarkIndex(48) == 3 && ShDarkIndex(47) == 4 && ShDarkIndex(77) == 2 && ShDarkIndex(78) == 1 && ShDarkIndex(93) == 0 &&
-              ShDarkIndex(92) == 1, "nearest row value (48 -> 55, 47 -> 40, 77 -> 70, 78 -> 85, 93 -> 100)");
+        CHECK(ShDarkIndex(48) == 2 && ShDarkIndex(47) == 1 && ShDarkIndex(77) == 3 && ShDarkIndex(78) == 4 && ShDarkIndex(93) == 5 &&
+              ShDarkIndex(92) == 4, "nearest row value (48 -> 55, 47 -> 40, 77 -> 70, 78 -> 85, 93 -> 100)");  // v3.52 SH352: the new indices
         // v3.43 SH343: the row 100 / 85 / 70 / 55 / 40 / 25, default 85; the ini's 0..100 keeps its meaning
-        CHECK(SH_DARK_N == 6 && kShDarkPct[4] == 40 && kShDarkPct[5] == 25, "v3.43: the row's six values");
-        CHECK(ShDarkIndex(40) == 4 && ShDarkIndex(25) == 5 && ShDarkIndex(33) == 4 && ShDarkIndex(32) == 5 && ShDarkIndex(0) == 5 &&
-              ShDarkIndex(10) == 5, "v3.43: nearest (40, 25, 33 -> 40, 32 -> 25, 0 / 10 -> 25)");
+        CHECK(SH_DARK_N == 6 && kShDarkPct[0] == 25 && kShDarkPct[1] == 40 && kShDarkPct[2] == 55 && kShDarkPct[3] == 70 &&
+              kShDarkPct[4] == 85 && kShDarkPct[5] == 100, "v3.52: the row's six values, 25 .. 100 (was 100 .. 25)");
+        CHECK(ShDarkIndex(40) == 1 && ShDarkIndex(25) == 0 && ShDarkIndex(33) == 1 && ShDarkIndex(32) == 0 && ShDarkIndex(0) == 0 &&
+              ShDarkIndex(10) == 0, "v3.43: nearest (40, 25, 33 -> 40, 32 -> 25, 0 / 10 -> 25)");  // v3.52 SH352: the new indices
         CHECK(ShParseDark("40", &pct) && pct == 40 && ShParseDark("25 %", &pct) && pct == 25 && ShParseDark("10", &pct) && pct == 10,
               "v3.43: parse 40 / 25 / 10 (any 0..100 used as it is)");
-        for (k = 1; k < SH_DARK_N; ++k) CHECK(kShDarkPct[k] < kShDarkPct[k - 1], "the row lightens step by step (%d)", k);
+        for (k = 1; k < SH_DARK_N; ++k) CHECK(kShDarkPct[k] > kShDarkPct[k - 1], "v3.52: the row darkens step by step to the right (%d)", k);
         CHECK(ShDarkD(100) == 1.0f && ShDarkD(0) == 0.0f && ShDarkD(150) == 1.0f && ShDarkD(-3) == 0.0f && fabsf(ShDarkD(85) - 0.85f) < 1e-6f, "d");
     }
     for (st = 0; st <= 12; ++st)
@@ -615,12 +616,12 @@ static void TestC1343(void)
             CHECK(!ShC1Same(play, play + 1.0f / 255.0f) && !ShC1Same(play, -1.0f), "a read back off by a byte step: not the same");
             ++cases;
         }
-    for (a8 = 1; a8 <= 255; ++a8) {  // the six row values: each lighter than the one before, Soft and Stock
+    for (a8 = 1; a8 <= 255; ++a8) {  // the six row values: each darker than the one before (v3.52 SH352: was lighter), Soft and Stock
         int k;
         for (k = 1; k < SH_DARK_N; ++k) {
             const float dk = ShDarkD(kShDarkPct[k]), dp = ShDarkD(kShDarkPct[k - 1]);
-            CHECK(ShCompC1(a8, kShDarkPct[k]) < ShCompC1(a8, kShDarkPct[k - 1]) + 1e-7f, "soft row order a8 %d at %d %%", a8, kShDarkPct[k]);
-            CHECK(ShStockDarkByte(a8, dk) <= ShStockDarkByte(a8, dp), "stock byte order a8 %d at %d %%", a8, kShDarkPct[k]);
+            CHECK(ShCompC1(a8, kShDarkPct[k - 1]) < ShCompC1(a8, kShDarkPct[k]) + 1e-7f, "soft row order a8 %d at %d %%", a8, kShDarkPct[k]);
+            CHECK(ShStockDarkByte(a8, dp) <= ShStockDarkByte(a8, dk), "stock byte order a8 %d at %d %%", a8, kShDarkPct[k]);
             CHECK(fabsf(ShStockDarkInside(a8, ShStockDarkByte(a8, dk)) - dk * ShStockAlpha((float)a8 / 255.0f)) <= (float)a8 / 255.0f / 255.0f + 1e-6f,
                   "stock inside at %d %% (a8 %d)", kShDarkPct[k], a8);
         }
@@ -798,8 +799,103 @@ static void TestRibbon349(void)
            ShRibbonAlpha(0x30u, 25), (float)worst / 100.0f);
 }
 
+// v3.52 SH352 (USER_FEEDBACK_v351 D5): the Darkness row, Left lighter / Right darker; old ini values read unchanged
+static int StepModel(int v, int count, int left) { return left ? (v + count - 1) % count : (v + 1) % count; }  // sh4windowmod.c StepValue
+static void TestDarkOrder352(void)
+{
+    static const int kOld[SH_DARK_N] = { 100, 85, 70, 55, 40, 25 };  // v3.43 .. v3.51
+    int pct, k;
+    for (pct = 0; pct <= 100; ++pct) {  // the ini holds a percentage: the same nearest row value as before, only its slot moved
+        int best = 0, got;
+        for (k = 1; k < SH_DARK_N; ++k)
+            if (abs(kOld[k] - pct) < abs(kOld[best] - pct)) best = k;
+        got = kShDarkPct[ShDarkIndex(pct)];
+        CHECK(got == kOld[best], "v3.52: ini %d %% shows %d %% as before (shows %d)", pct, kOld[best], got);
+        CHECK(pct < 25 || abs(got - pct) <= 7, "v3.52: ini %d %%: the nearest row value %d", pct, got);
+    }
+    for (k = 0; k < SH_DARK_N; ++k) {  // Right: more %, Left: less % (a wrap at the ends, as every Options row)
+        const int r = StepModel(k, SH_DARK_N, 0), l = StepModel(k, SH_DARK_N, 1);
+        if (k < SH_DARK_N - 1) CHECK(kShDarkPct[r] == kShDarkPct[k] + 15, "v3.52: Right from %d %% -> %d %%", kShDarkPct[k], kShDarkPct[r]);
+        else CHECK(kShDarkPct[r] == 25, "v3.52: Right from 100 %% wraps to 25 %%");
+        if (k > 0) CHECK(kShDarkPct[l] == kShDarkPct[k] - 15, "v3.52: Left from %d %% -> %d %%", kShDarkPct[k], kShDarkPct[l]);
+        else CHECK(kShDarkPct[l] == 100, "v3.52: Left from 25 %% wraps to 100 %%");
+        CHECK(ShCompC1(0x4B, kShDarkPct[k]) <= ShCompC1(0x4B, kShDarkPct[r]) || r == 0, "v3.52: Right never lightens (but the wrap)");
+    }
+    CHECK(kShDarkPct[StepModel(ShDarkIndex(85), SH_DARK_N, 0)] == 100 && kShDarkPct[StepModel(ShDarkIndex(85), SH_DARK_N, 1)] == 70,
+          "v3.52: the default 85 %%: Right 100 %%, Left 70 %%");
+    CHECK(kShDarkPct[StepModel(ShDarkIndex(90), SH_DARK_N, 0)] == 100 && kShDarkPct[StepModel(ShDarkIndex(60), SH_DARK_N, 1)] == 40,
+          "v3.52: an ini value off the row steps from its nearest (90 -> 85 -> Right 100; 60 -> 55 -> Left 40)");
+    printf("darkness row (v3.52): 25 / 40 / 55 / 70 / 85 / 100 %%, Left lighter, Right darker; 101 ini values read as before\n");
+}
+
+// v3.52 SH352 (USER_FEEDBACK_v351 D8): why a composite is not soft; the game's darkness table (ShStockTf, the decomp's
+// 0x55F660) over every stage, room, cut-scene and Playable Eileen scale: only stage 4 room 0x1F and cut-scene 0x43 have
+// no darkness, so with Edge Soft every other composite is soft
+static void TestNs352(void)
+{
+    static const int kCut[] = { 0, 2, 9, 0x32, 0x43, 0x10 };
+    static const float kPe[] = { 1.0f, 1.5f, 0.5f, 3.0f, 0.05f };
+    static const unsigned kClear[] = { 0x00000000u, 0x80303030u, 0xFF8080FFu };
+    ShNsRoom r;
+    char t[SH_NS_TEXT_MAX], small[24];
+    int st, room, c, k, q, nodark = 0, soft = 0, len;
+    unsigned big;
+    CHECK(SHN_N == 9 && SHN_N <= 32 && !ShNsHard(SHN_SOFT) && !ShNsHard(SHN_NODARK) && !ShNsHard(-1) && !ShNsHard(SHN_N), "v3.52: kinds");
+    for (k = SHN_STOCK; k < SHN_N; ++k) CHECK(ShNsHard(k) && kShNsName[k][0] && kShNsWhy[k][0], "v3.52: %d is a hard edge, named", k);
+    CHECK(ShNsGate(0, SH_SOFT, 0) == SHN_NODARK && ShNsGate(0, SH_STOCK, 1) == SHN_NODARK, "v3.52: no darkness first (nothing shows)");
+    CHECK(ShNsGate(0x50, SH_STOCK, 0) == SHN_STOCK && ShNsGate(0x50, SH_STOCK, 1) == SHN_STOCK, "v3.52: Stock chosen");
+    CHECK(ShNsGate(0x50, SH_SOFT, 1) == SHN_OFF && ShNsGate(0x50, SH_SOFT, 0) == SHN_SOFT && ShNsGate(1, SH_SOFT, 0) == SHN_SOFT,
+          "v3.52: off this session / soft");
+    for (st = 0; st <= 12; ++st)
+        for (room = 0; room <= 0x40; ++room)
+            for (c = 0; c < (int)(sizeof kCut / sizeof kCut[0]); ++c)
+                for (k = 0; k < (int)(sizeof kPe / sizeof kPe[0]); ++k)
+                    for (q = 0; q < (int)(sizeof kClear / sizeof kClear[0]); ++q) {
+                        const unsigned tf = ShPeScale(ShStockTf(st, room, kClear[q], kCut[c]), kPe[k]);
+                        const int g = ShNsGate(ShTfAlpha(tf), SH_SOFT, 0);
+                        const int none = kCut[c] == 0x43 || (st == 4 && room == 0x1F && kCut[c] != 2 && kCut[c] != 9 && kCut[c] != 0x32);
+                        CHECK(g == (none ? SHN_NODARK : SHN_SOFT), "v3.52: stage %d room %02X cut %02X pe %.2f: %s", st, room, kCut[c],
+                              kPe[k], kShNsName[g]);
+                        nodark += g == SHN_NODARK, soft += g == SHN_SOFT;
+                    }
+    CHECK(ShStockTf(4, 0x1F, 0, 0) == 0u && ShStockTf(4, 0x1F, 0, 9) == 0x78000000u && ShStockTf(4, 0x11, 0, 0) == 0x50000000u,
+          "v3.52: 4:1F has no darkness (a cut-scene 9 there has 0x78)");
+    // the room's counts and its line's tail
+    ShNsReset(&r);
+    CHECK(ShNsText(t, sizeof t, &r) == 0 && !t[0], "v3.52: nothing counted: no tail");
+    for (k = 0; k < 1200; ++k) CHECK(!ShNsAdd(&r, SHN_SOFT), "v3.52: soft is never noted");
+    CHECK(ShNsText(t, sizeof t, &r) == 0 && !t[0] && r.n[SHN_SOFT] == 1200, "v3.52: all soft: no tail (the line as before)");
+    ShNsReset(&r);
+    CHECK(ShNsAdd(&r, SHN_NODARK) == 1, "v3.52: the first no-darkness composite is noted");
+    for (k = 1; k < 2769; ++k) CHECK(ShNsAdd(&r, SHN_NODARK) == 0, "v3.52: once a room");
+    len = ShNsText(t, sizeof t, &r);
+    CHECK(!strcmp(t, "; not soft: 0 hard, 2769 with no darkness (the game's own 0: nothing drawn)") && len == (int)strlen(t),
+          "v3.52: room 4:1F's tail: '%s'", t);
+    CHECK(ShNsAdd(&r, SHN_RT) == 1 && ShNsAdd(&r, SHN_RT) == 0 && ShNsAdd(&r, SHN_STOCK) == 1 && ShNsAdd(&r, 77) == 1 &&
+          ShNsAdd(&r, -3) == 0 && r.n[SHN_FAIL] == 2, "v3.52: each reason once; a bad reason counts as failed");
+    ShNsAdd(&r, SHN_SOFT);
+    ShNsText(t, sizeof t, &r);
+    CHECK(!strcmp(t, "; not soft: 5 hard (Stock 1, render targets 2, failed 2), 2769 with no darkness (the game's own 0: nothing drawn)") &&
+          ShNsHardN(&r) == 5, "v3.52: mixed tail: '%s'", t);
+    ShNsReset(&r);
+    CHECK(r.seen == 0 && ShNsAdd(&r, SHN_RT) == 1, "v3.52: a new room notes again");
+    for (k = 0; k < SHN_N; ++k) r.n[k] = 4294967295u;  // the longest tail fits, a short buffer truncates (no CRT abort)
+    len = ShNsText(t, sizeof t, &r);
+    big = (unsigned)strlen(t);
+    CHECK(len == (int)big && big + 1 < SH_NS_TEXT_MAX && strstr(t, "failed 4294967295), 4294967295 with no darkness"),
+          "v3.52: the longest tail %u bytes fits %d", big, SH_NS_TEXT_MAX);
+    memset(small, 'x', sizeof small);
+    len = ShNsText(small, 16, &r);
+    CHECK(len <= 15 && small[15] == 0 && small[16] == 'x' && !strncmp(small, "; not soft: 429", 15), "v3.52: truncated to 15 (%d)", len);
+    CHECK(ShNsText(NULL, 16, &r) == 0 && ShNsText(small, 1, &r) == 0, "v3.52: no buffer");
+    printf("not-soft reasons (v3.52): %d stage / room / cut / PE / clear cases: %d soft, %d with no darkness (4:1F and cut-scene 0x43 "
+           "only); the longest room tail %u bytes\n", soft + nodark, soft, nodark, big);
+}
+
 int main(void)
 {
+    TestDarkOrder352();  // v3.52 SH352
+    TestNs352();  // v3.52 SH352
     TestRibbon349();  // v3.49 SH349
     TestPx347();  // v3.47 PX347
     TestParse();

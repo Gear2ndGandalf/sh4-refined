@@ -1,6 +1,9 @@
 // v3.51 EP351: native test of src\pursuit_room_sim.h (test\build_pursuit_room_test.cmd): Enemy Pursuit inside the room:
 // the families and their states, each setting's timers, sight lost / regained, a hit or coming close, the rests, the
 // dog's own give-up, the quick re-notice guard, a room change or a load mid-timer (no stale state), the door's question.
+// v3.52 EP352: Forgetful's ghosts (TestForgetfulGhosts352): 1200 / 3 s, 8 s, out of sight 3 s, the calm after the rest,
+// dives into a wall set back, no quick-guard hand-over, value changes mid-calm; Normal keeps its numbers and no sight rule
+// but (host decision) gets the dive fix, the calm (2000) and no hand-over.
 #include <stdio.h>
 #include <stdlib.h>
 #include "../src/pursuit_sim.h"
@@ -286,15 +289,16 @@ static void TestGhosts(void)
     k.dist = 2400.0f;
     t = RunUntil(41, EP_FAM_GHOST, EF_PURSUIT_NORMAL, 0.0f, 60.0f, 0.25f, k, EP_GIVEUP, &why);
     CHECK(t >= 24.99f && t <= 25.3f && why == EP_WHY_LONG, "ghost Normal 25 s chase (%.2f %d)", t, why);
-    // Forgetful: 1500 for 6 s; 12 s chase
+    // Forgetful (v3.52 EP352: was 1500 for 6 s, 12 s chase): 1200 for 3 s; 8 s chase (in its sight: sees = 1)
     EpRoomReset(&R, 1);
-    k.dist = 1600.0f;
+    k.dist = 1300.0f, k.sees = 1;
     t = RunUntil(42, EP_FAM_GHOST, EF_PURSUIT_FORGETFUL, 0.0f, 30.0f, 0.25f, k, EP_GIVEUP, &why);
-    CHECK(t >= 5.99f && t <= 6.3f && why == EP_WHY_FAR, "ghost Forgetful far 6 s (%.2f)", t);
+    CHECK(t >= 2.99f && t <= 3.3f && why == EP_WHY_FAR, "ghost Forgetful far 3 s (%.2f)", t);
     EpRoomReset(&R, 1);
     k.dist = 1000.0f;
     t = RunUntil(43, EP_FAM_GHOST, EF_PURSUIT_FORGETFUL, 0.0f, 30.0f, 0.25f, k, EP_GIVEUP, &why);
-    CHECK(t >= 11.99f && t <= 12.3f && why == EP_WHY_LONG, "ghost Forgetful 12 s chase (%.2f)", t);
+    CHECK(t >= 7.99f && t <= 8.3f && why == EP_WHY_LONG, "ghost Forgetful 8 s chase (%.2f)", t);
+    k.sees = 0;
     // coming near interrupts the far timer; touching restarts the chase timer
     EpRoomReset(&R, 1);
     k.dist = 3000.0f;
@@ -328,11 +332,15 @@ static void TestGhosts(void)
     CHECK(EpIgnoresYou(&R, 46, EF_PURSUIT_NORMAL, 25.0f), "resting: does not follow");
     k.chase = EP_NOT;
     CHECK(EpStep(&R, 46, EP_FAM_GHOST, EF_PURSUIT_NORMAL, 28.4f, &k, &why) == EP_HOLD, "7.9 s: still resting");
-    CHECK(EpStep(&R, 46, EP_FAM_GHOST, EF_PURSUIT_NORMAL, 28.6f, &k, &why) == EP_KEEP, "8 s: rest over");
+    // (v3.52 EP352 host decision: Normal too stays calm after its rest until it senses her: within 2000, nothing between)
+    CHECK(EpStep(&R, 46, EP_FAM_GHOST, EF_PURSUIT_NORMAL, 28.6f, &k, &why) == EP_HOLD, "8 s: rest over, calm (3000, unseen)");
     CHECK(EpIgnoresYou(&R, 46, EF_PURSUIT_NORMAL, 28.6f), "idle after the rest, not re-noticed: does not follow");
     k.chase = EP_CHASE_OK;
-    a = EpStep(&R, 46, EP_FAM_GHOST, EF_PURSUIT_NORMAL, 29.0f, &k, &why);
-    CHECK(a == EP_KEEP && !EpIgnoresYou(&R, 46, EF_PURSUIT_NORMAL, 29.0f), "re-noticed by the stock rules: chases, follows");
+    CHECK(EpStep(&R, 46, EP_FAM_GHOST, EF_PURSUIT_NORMAL, 29.0f, &k, &why) == EP_AGAIN, "calm, not sensed: set back");
+    k.dist = 1900.0f, k.sees = 1;
+    a = EpStep(&R, 46, EP_FAM_GHOST, EF_PURSUIT_NORMAL, 29.5f, &k, &why);
+    CHECK(a == EP_KEEP && !EpIgnoresYou(&R, 46, EF_PURSUIT_NORMAL, 29.5f) && R.nSensed == 1,
+          "it senses her within 2000: chases, follows");
     // Forgetful rest 15 s; a hit ends it
     EpRoomReset(&R, 1);
     k = Look(EP_CHASE_OK, 0, 3000.0f, 50.0f);
@@ -370,13 +378,22 @@ static void TestPortalHold(void)
     CHECK(R.n == 1 && R.e[0].chasing == 0 && R.e[0].far0 < 0.0f && R.e[0].seen >= 3.49f, "held: restarted");
     t = RunUntil(61, EP_FAM_GHOST, EF_PURSUIT_NORMAL, 3.75f, 40.0f, 0.25f, k, EP_GIVEUP, &why);
     CHECK(t >= 15.74f && t <= 16.1f && why == EP_WHY_FAR, "far: 12 s from the end of the hold, not from 0 (%.2f)", t);
-    // the chase timer too (Forgetful 12 s chase without touching)
+    // the chase timer too (Forgetful 8 s chase without touching; v3.52 EP352: was 12 s; in its sight)
     EpRoomReset(&R, 7);
-    k.dist = 1000.0f;
+    k.dist = 1000.0f, k.sees = 1;
     RunUntil(62, EP_FAM_GHOST, EF_PURSUIT_FORGETFUL, 0.0f, 10.0f, 0.5f, k, EP_GIVEUP, &why);
     for (t = 10.25f; t < 12.75f; t += 0.25f) EpPortalHeld(&R, 62, t);
     t = RunUntil(62, EP_FAM_GHOST, EF_PURSUIT_FORGETFUL, 12.75f, 60.0f, 0.5f, k, EP_GIVEUP, &why);
-    CHECK(t >= 24.7f && t <= 25.3f && why == EP_WHY_LONG, "chase 12 s from the end of the hold (%.2f)", t);
+    CHECK(t >= 20.7f && t <= 21.3f && why == EP_WHY_LONG, "chase 8 s from the end of the hold (%.2f)", t);
+    // v3.52 EP352: the out-of-sight timer too (Forgetful 3 s)
+    EpRoomReset(&R, 7);
+    k.sees = 0;
+    CHECK(RunUntil(64, EP_FAM_GHOST, EF_PURSUIT_FORGETFUL, 0.0f, 2.5f, 0.25f, k, EP_GIVEUP, &why) < 0.0f, "2.5 s unseen: still");
+    for (t = 2.75f; t < 5.25f; t += 0.25f) EpPortalHeld(&R, 64, t);
+    CHECK(R.e[0].lost0 < 0.0f, "held: the out-of-sight timer restarted");
+    t = RunUntil(64, EP_FAM_GHOST, EF_PURSUIT_FORGETFUL, 5.25f, 60.0f, 0.25f, k, EP_GIVEUP, &why);
+    CHECK(t >= 8.24f && t <= 8.6f && why == EP_WHY_SIGHT, "unseen 3 s from the end of the hold (%.2f %d)", t, why);
+    k.sees = 1;
     // its rest and give-up count are kept; an unknown id is nothing
     EpRoomReset(&R, 7);
     k.dist = 3000.0f;
@@ -386,6 +403,213 @@ static void TestPortalHold(void)
     CHECK(R.e[0].gives == 1 && R.e[0].restEnd > t + 7.9f, "rest and count kept");
     EpPortalHeld(&R, 9999u, 1.0f);
     CHECK(R.n == 1, "unknown id: no entry");
+}
+
+// v3.52 EP352 (the user's v3.51 QA 2): Forgetful's ghosts: shorter limits, out of sight 3 s, the calm after the rest (it must
+// sense her again first), a dive into a wall set back, no quick-guard hand-over; Normal: its numbers, the dive fix, its calm
+static EpLook LookG(int chase, int sees, float dist, int idle, int dive)
+{
+    EpLook k = Look(chase, sees, dist, 50.0f);
+    k.idle = idle, k.dive = dive;
+    return k;
+}
+static void TestForgetfulGhosts352(void)
+{
+    int why = -1, i, a;
+    float t, g;
+    EpLook k;
+    // Normal's numbers unchanged: no sight rule (out of sight 30 s: only the 25 s chase), far 2500 / 12 s
+    EpRoomReset(&R, 70);
+    k = LookG(EP_CHASE_OK, 0, 2000.0f, 0, 0);
+    t = RunUntil(70, EP_FAM_GHOST, EF_PURSUIT_NORMAL, 0.0f, 40.0f, 0.25f, k, EP_GIVEUP, &why);
+    CHECK(t >= 24.99f && t <= 25.3f && why == EP_WHY_LONG, "Normal: unseen does not count (%.2f %d)", t, why);
+    // Forgetful: 1200 is the limit (1100 is not far), out of sight 3 s, regained sight restarts it
+    EpRoomReset(&R, 70);
+    k = LookG(EP_CHASE_OK, 1, 1100.0f, 0, 0);
+    CHECK(RunUntil(71, EP_FAM_GHOST, EF_PURSUIT_FORGETFUL, 0.0f, 7.5f, 0.25f, k, EP_GIVEUP, &why) < 0.0f, "1100 in sight 7.5 s: still");
+    EpRoomReset(&R, 70);
+    k = LookG(EP_CHASE_OK, 0, 800.0f, 0, 0);
+    t = RunUntil(72, EP_FAM_GHOST, EF_PURSUIT_FORGETFUL, 0.0f, 20.0f, 0.25f, k, EP_GIVEUP, &why);
+    CHECK(t >= 2.99f && t <= 3.3f && why == EP_WHY_SIGHT, "Forgetful: out of sight 3 s (%.2f %d)", t, why);
+    EpRoomReset(&R, 70);
+    CHECK(RunUntil(73, EP_FAM_GHOST, EF_PURSUIT_FORGETFUL, 0.0f, 2.5f, 0.25f, k, EP_GIVEUP, &why) < 0.0f, "unseen 2.5 s");
+    k.sees = 1;
+    EpStep(&R, 73, EP_FAM_GHOST, EF_PURSUIT_FORGETFUL, 2.75f, &k, &why);
+    k.sees = 0;
+    t = RunUntil(73, EP_FAM_GHOST, EF_PURSUIT_FORGETFUL, 3.0f, 20.0f, 0.25f, k, EP_GIVEUP, &why);
+    CHECK(t >= 5.99f && t <= 6.3f && why == EP_WHY_SIGHT, "seen at 2.75 s: 3 s from 3.0 (%.2f)", t);
+    // within its touch (300) the line does not count; in a wall (not to be set) it does not either, and it restarts
+    EpRoomReset(&R, 70);
+    k = LookG(EP_CHASE_OK, 0, 250.0f, 0, 0);
+    t = RunUntil(74, EP_FAM_GHOST, EF_PURSUIT_FORGETFUL, 0.0f, 20.0f, 0.25f, k, EP_GIVEUP, &why);
+    CHECK(t < 0.0f, "within 300, unseen: it touches you, no give-up (%.2f %d)", t, why);
+    EpRoomReset(&R, 70);
+    k = LookG(EP_CHASE, 0, 800.0f, 0, 0);
+    CHECK(RunUntil(75, EP_FAM_GHOST, EF_PURSUIT_FORGETFUL, 0.0f, 5.0f, 0.25f, k, EP_GIVEUP, &why) < 0.0f && R.e[0].lost0 < 0.0f,
+          "inside a wall 5 s: no out-of-sight time");
+    k.chase = EP_CHASE_OK;
+    t = RunUntil(75, EP_FAM_GHOST, EF_PURSUIT_FORGETFUL, 5.25f, 20.0f, 0.25f, k, EP_GIVEUP, &why);
+    CHECK(t >= 8.0f && t <= 8.6f && why == EP_WHY_LONG, "out of the wall: its 8 s chase came first (%.2f %d)", t, why);
+    // the clock goes back: never a negative age
+    EpRoomReset(&R, 70);
+    k = LookG(EP_CHASE_OK, 0, 800.0f, 0, 0);
+    EpStep(&R, 76, EP_FAM_GHOST, EF_PURSUIT_FORGETFUL, 50.0f, &k, &why);
+    CHECK(EpStep(&R, 76, EP_FAM_GHOST, EF_PURSUIT_FORGETFUL, 20.0f, &k, &why) == EP_KEEP && R.e[0].lost0 == 20.0f, "clock back");
+
+    // the calm: rest 15 s, then held until it senses her (within 1200, nothing between) or is woken
+    EpRoomReset(&R, 71);
+    k = LookG(EP_CHASE_OK, 1, 1500.0f, 0, 0);
+    g = RunUntil(80, EP_FAM_GHOST, EF_PURSUIT_FORGETFUL, 0.0f, 20.0f, 0.25f, k, EP_GIVEUP, &why);
+    CHECK(g >= 2.99f && g <= 3.3f && why == EP_WHY_FAR, "far 3 s (%.2f)", g);
+    EpCommit(&R, 80, EF_PURSUIT_FORGETFUL, g, 0, why);
+    CHECK(R.e[0].calm == 1 && R.e[0].restEnd > g + 14.9f, "calm and its 15 s rest");
+    k = LookG(EP_NOT, 1, 1000.0f, 1, 0);
+    CHECK(EpStep(&R, 80, EP_FAM_GHOST, EF_PURSUIT_FORGETFUL, g + 5.0f, &k, &why) == EP_HOLD, "rest: held even in sight");
+    k = LookG(EP_NOT, 1, 2000.0f, 1, 0);
+    CHECK(EpStep(&R, 80, EP_FAM_GHOST, EF_PURSUIT_FORGETFUL, g + 15.5f, &k, &why) == EP_HOLD, "after the rest, 2000 away: calm");
+    k = LookG(EP_NOT, 0, 1000.0f, 1, 0);
+    CHECK(EpStep(&R, 80, EP_FAM_GHOST, EF_PURSUIT_FORGETFUL, g + 16.0f, &k, &why) == EP_HOLD, "1000 behind a wall: calm");
+    CHECK(EpIgnoresYou(&R, 80, EF_PURSUIT_FORGETFUL, g + 16.0f), "calm: it does not follow at the door");
+    k = LookG(EP_CHASE_OK, 0, 1000.0f, 0, 0);  // (the game noticed her another way)
+    CHECK(EpStep(&R, 80, EP_FAM_GHOST, EF_PURSUIT_FORGETFUL, g + 16.5f, &k, &why) == EP_AGAIN, "calm, not sensed: set back");
+    k = LookG(EP_NOT, 0, 1000.0f, 1, 0);
+    for (t = g + 17.0f; t < g + 300.0f; t += 1.0f)  // (minutes: it never comes back while it cannot sense her)
+        if ((a = EpStep(&R, 80, EP_FAM_GHOST, EF_PURSUIT_FORGETFUL, t, &k, &why)) != EP_HOLD) break;
+    CHECK(t >= g + 300.0f, "calm for minutes behind a wall (%d at %.1f)", a, t);
+    k = LookG(EP_NOT, 1, 1000.0f, 1, 0);
+    CHECK(EpStep(&R, 80, EP_FAM_GHOST, EF_PURSUIT_FORGETFUL, g + 301.0f, &k, &why) == EP_KEEP && R.e[0].calm == 1,
+          "it senses her: let go (still calm, not chasing)");
+    CHECK(EpIgnoresYou(&R, 80, EF_PURSUIT_FORGETFUL, g + 301.0f), "let go but not chasing: still not following");
+    k = LookG(EP_NOT, 0, 1000.0f, 1, 0);
+    CHECK(EpStep(&R, 80, EP_FAM_GHOST, EF_PURSUIT_FORGETFUL, g + 302.0f, &k, &why) == EP_HOLD, "she hides again: held again");
+    k = LookG(EP_CHASE_OK, 1, 1000.0f, 0, 0);
+    CHECK(EpStep(&R, 80, EP_FAM_GHOST, EF_PURSUIT_FORGETFUL, g + 303.0f, &k, &why) == EP_KEEP && R.e[0].calm == 0 &&
+          R.e[0].calmEnd == EP_CALM_SENSED && R.nSensed == 1, "it senses her and chases: the calm ends");
+    CHECK(!EpIgnoresYou(&R, 80, EF_PURSUIT_FORGETFUL, g + 303.0f), "chasing again: it follows by the door rules");
+    t = RunUntil(80, EP_FAM_GHOST, EF_PURSUIT_FORGETFUL, g + 303.25f, g + 330.0f, 0.25f, k, EP_GIVEUP, &why);
+    CHECK(t >= g + 311.0f && t <= g + 311.3f && why == EP_WHY_LONG, "its new chase: 8 s (%.2f)", t - g);
+    CHECK(EpCommit(&R, 80, EF_PURSUIT_FORGETFUL, t, 0, why) == 1 && R.e[0].calm == 1, "the second give-up: calm again");
+    // woken from the calm: a hit, her within 400, its touch
+    for (i = 0; i < 3; ++i) {
+        EpRoomReset(&R, 72);
+        k = LookG(EP_CHASE_OK, 1, 1500.0f, 0, 0);
+        g = RunUntil(81, EP_FAM_GHOST, EF_PURSUIT_FORGETFUL, 0.0f, 20.0f, 0.25f, k, EP_GIVEUP, &why);
+        EpCommit(&R, 81, EF_PURSUIT_FORGETFUL, g, 0, why);
+        k = LookG(EP_NOT, 0, 2000.0f, 1, 0);
+        EpStep(&R, 81, EP_FAM_GHOST, EF_PURSUIT_FORGETFUL, g + 20.0f, &k, &why);
+        if (i == 0) k.hp = 30.0f;
+        else if (i == 1) k.dist = 350.0f;
+        else k.chase = EP_CHASE, k.touch = 1, k.idle = 0, k.dist = 200.0f;
+        a = EpStep(&R, 81, EP_FAM_GHOST, EF_PURSUIT_FORGETFUL, g + 21.0f, &k, &why);
+        CHECK(a == EP_KEEP && R.e[0].calm == 0 && R.e[0].calmEnd == EP_CALM_WOKEN && R.nSensed == 0, "woken (%d): %d", i, a);
+    }
+
+    // the log's case: a far give-up (> 4000) and its idle float dives into a wall at once (state 7 step 0)
+    EpRoomReset(&R, 73);
+    k = LookG(EP_CHASE_OK, 0, 4500.0f, 0, 0);
+    g = RunUntil(82, EP_FAM_GHOST, EF_PURSUIT_FORGETFUL, 0.0f, 20.0f, 0.25f, k, EP_GIVEUP, &why);
+    EpCommit(&R, 82, EF_PURSUIT_FORGETFUL, g, 0, why);
+    k = LookG(EP_CHASE, 0, 4500.0f, 0, 1);
+    CHECK(EpStep(&R, 82, EP_FAM_GHOST, EF_PURSUIT_FORGETFUL, g + 0.02f, &k, &why) == EP_UNDIVE, "its dive: set back");
+    CHECK(EpStep(&R, 82, EP_FAM_GHOST, EF_PURSUIT_FORGETFUL, g + 0.04f, &k, &why) == EP_UNDIVE, "not done (refused): next tick too");
+    EpUndived(&R, 82);
+    CHECK(R.nUndive == 1 && R.e[0].idleChain == 1 && R.e[0].calm == 1 && R.e[0].restEnd > 0.0f, "undone: rest and calm kept");
+    k = LookG(EP_NOT, 0, 4500.0f, 1, 0);
+    for (t = g + 0.1f; t < g + 120.0f; t += 0.5f)
+        if ((a = EpStep(&R, 82, EP_FAM_GHOST, EF_PURSUIT_FORGETFUL, t, &k, &why)) != EP_HOLD) break;
+    CHECK(t >= g + 120.0f && R.nStock == 0 && R.e[0].gives == 1, "then held 2 minutes, never handed to the game (%d)", a);
+    k = LookG(EP_CHASE, 0, 4500.0f, 0, 1);  // (a dive in the calm, after the rest)
+    CHECK(EpStep(&R, 82, EP_FAM_GHOST, EF_PURSUIT_FORGETFUL, g + 121.0f, &k, &why) == EP_UNDIVE, "a dive in the calm: set back");
+    // a dive not from the idle float (out of its wall, 8 -> 7, or after a portal hold) is never set back: the rest ends
+    EpRoomReset(&R, 74);
+    k = LookG(EP_CHASE_OK, 0, 4500.0f, 0, 0);
+    g = RunUntil(83, EP_FAM_GHOST, EF_PURSUIT_FORGETFUL, 0.0f, 20.0f, 0.25f, k, EP_GIVEUP, &why);
+    EpCommit(&R, 83, EF_PURSUIT_FORGETFUL, g, 0, why);
+    k = LookG(EP_CHASE, 0, 4500.0f, 0, 0);  // (state 8 inside a wall)
+    EpPortalHeld(&R, 83, g + 0.01f);
+    k = LookG(EP_CHASE, 0, 4500.0f, 0, 1);
+    a = EpStep(&R, 83, EP_FAM_GHOST, EF_PURSUIT_FORGETFUL, g + 0.02f, &k, &why);
+    CHECK(a == EP_KEEP && R.e[0].calm == 0 && R.e[0].calmEnd == EP_CALM_ATTACK && R.nUndive == 0, "not from its float: left (%d)", a);
+    // the chain: idle -> dive step 0 -> step 1 (a refused set-back) still from its float; anything else breaks it
+    EpRoomReset(&R, 75);
+    k = LookG(EP_CHASE_OK, 0, 4500.0f, 0, 0);
+    g = RunUntil(84, EP_FAM_GHOST, EF_PURSUIT_FORGETFUL, 0.0f, 20.0f, 0.25f, k, EP_GIVEUP, &why);
+    EpCommit(&R, 84, EF_PURSUIT_FORGETFUL, g, 0, why);
+    k = LookG(EP_NOT, 0, 4500.0f, 1, 0);
+    EpStep(&R, 84, EP_FAM_GHOST, EF_PURSUIT_FORGETFUL, g + 1.0f, &k, &why);
+    k = LookG(EP_CHASE, 0, 4500.0f, 0, 1);
+    CHECK(EpStep(&R, 84, EP_FAM_GHOST, EF_PURSUIT_FORGETFUL, g + 1.1f, &k, &why) == EP_UNDIVE &&
+          EpStep(&R, 84, EP_FAM_GHOST, EF_PURSUIT_FORGETFUL, g + 1.2f, &k, &why) == EP_UNDIVE, "idle, then a dive, still a dive");
+    // Normal (v3.52 EP352 host decision: the dive is a bug there too): set back as well, never handed to the game
+    EpRoomReset(&R, 76);
+    k = LookG(EP_CHASE_OK, 0, 4500.0f, 0, 0);
+    t = 0.0f;
+    for (i = 0; i < 2; ++i) {
+        t = RunUntil(85, EP_FAM_GHOST, EF_PURSUIT_NORMAL, t, t + 40.0f, 0.25f, k, EP_GIVEUP, &why);
+        EpCommit(&R, 85, EF_PURSUIT_NORMAL, t, 0, why);
+        k = LookG(EP_CHASE, 0, 4500.0f, 0, 1);
+        a = EpStep(&R, 85, EP_FAM_GHOST, EF_PURSUIT_NORMAL, t + 0.02f, &k, &why);
+        CHECK(a == EP_UNDIVE, "Normal: the dive is set back (%d)", a);
+        EpUndived(&R, 85);
+        k = LookG(EP_CHASE, 0, 4500.0f, 0, 0);  // (it attacks of its own: the rest ends, a chase at once)
+        EpStep(&R, 85, EP_FAM_GHOST, EF_PURSUIT_NORMAL, t + 0.1f, &k, &why);
+        k = LookG(EP_CHASE_OK, 0, 4500.0f, 0, 0);
+        t += 0.25f;
+    }
+    CHECK(R.nStock == 0 && !R.e[0].stock && R.nUndive == 2 && R.e[0].gives == 2, "Normal: never handed to the game (%d)", R.nStock);
+    // Normal's calm: the game's own 2000 (1900 in sight lets it go, 2100 or behind a wall holds it); its numbers unchanged
+    EpRoomReset(&R, 76);
+    k = LookG(EP_CHASE_OK, 0, 3000.0f, 0, 0);
+    g = RunUntil(89, EP_FAM_GHOST, EF_PURSUIT_NORMAL, 0.0f, 30.0f, 0.25f, k, EP_GIVEUP, &why);
+    CHECK(g >= 11.99f && g <= 12.3f && why == EP_WHY_FAR, "Normal: far 12 s (%.2f)", g);
+    EpCommit(&R, 89, EF_PURSUIT_NORMAL, g, 0, why);
+    CHECK(R.e[0].calm == 1 && R.e[0].restEnd > g + 7.9f && R.e[0].restEnd < g + 8.1f, "Normal: 8 s rest, then calm");
+    k = LookG(EP_NOT, 1, 2100.0f, 1, 0);
+    CHECK(EpStep(&R, 89, EP_FAM_GHOST, EF_PURSUIT_NORMAL, g + 9.0f, &k, &why) == EP_HOLD, "Normal calm: 2100 in sight holds");
+    k = LookG(EP_NOT, 0, 1500.0f, 1, 0);
+    CHECK(EpStep(&R, 89, EP_FAM_GHOST, EF_PURSUIT_NORMAL, g + 9.5f, &k, &why) == EP_HOLD, "Normal calm: 1500 behind a wall holds");
+    k = LookG(EP_NOT, 1, 1900.0f, 1, 0);
+    CHECK(EpStep(&R, 89, EP_FAM_GHOST, EF_PURSUIT_NORMAL, g + 10.0f, &k, &why) == EP_KEEP, "Normal calm: 1900 in sight lets go");
+    k = LookG(EP_NOT, 1, 1500.0f, 1, 0);
+    CHECK(EpStep(&R, 89, EP_FAM_GHOST, EF_PURSUIT_FORGETFUL, g + 10.5f, &k, &why) == EP_HOLD, "Forgetful: 1500 still holds (1200)");
+    // Forgetful: quick re-chases (woken at once) never hand a ghost to the game
+    EpRoomReset(&R, 77);
+    k = LookG(EP_CHASE_OK, 0, 1500.0f, 0, 0);
+    t = 0.0f;
+    for (i = 0; i < 4; ++i) {
+        t = RunUntil(86, EP_FAM_GHOST, EF_PURSUIT_FORGETFUL, t, t + 40.0f, 0.25f, k, EP_GIVEUP, &why);
+        EpCommit(&R, 86, EF_PURSUIT_FORGETFUL, t, 0, why);
+        k = LookG(EP_CHASE_OK, 0, 350.0f, 0, 0);  // (she walks into it at once)
+        EpStep(&R, 86, EP_FAM_GHOST, EF_PURSUIT_FORGETFUL, t + 0.25f, &k, &why);
+        k = LookG(EP_CHASE_OK, 0, 1500.0f, 0, 0);
+        t += 0.5f;
+    }
+    CHECK(R.nStock == 0 && !R.e[0].stock && R.e[0].gives == 4, "Forgetful: never left to the game (%d %d)", R.nStock, R.e[0].gives);
+    // a value change mid-calm: the calm goes on with the new value's range (Forgetful 1200 -> Normal 2000 and back)
+    EpRoomReset(&R, 78);
+    k = LookG(EP_CHASE_OK, 1, 1500.0f, 0, 0);
+    g = RunUntil(87, EP_FAM_GHOST, EF_PURSUIT_FORGETFUL, 0.0f, 20.0f, 0.25f, k, EP_GIVEUP, &why);
+    EpCommit(&R, 87, EF_PURSUIT_FORGETFUL, g, 0, why);
+    k = LookG(EP_NOT, 1, 1500.0f, 1, 0);
+    CHECK(EpStep(&R, 87, EP_FAM_GHOST, EF_PURSUIT_FORGETFUL, g + 16.0f, &k, &why) == EP_HOLD, "Forgetful calm at 1500: held");
+    CHECK(EpStep(&R, 87, EP_FAM_GHOST, EF_PURSUIT_NORMAL, g + 16.5f, &k, &why) == EP_KEEP && R.e[0].calm == 1,
+          "now Normal: 1500 in sight is within its 2000: let go, still calm");
+    CHECK(EpStep(&R, 87, EP_FAM_GHOST, EF_PURSUIT_FORGETFUL, g + 17.0f, &k, &why) == EP_HOLD, "back to Forgetful: held again");
+    k = LookG(EP_CHASE, 0, 2000.0f, 0, 1);
+    CHECK(EpStep(&R, 87, EP_FAM_GHOST, EF_PURSUIT_NORMAL, g + 17.5f, &k, &why) == EP_UNDIVE, "Normal: a dive in the calm set back");
+    // Relentless: nothing; a room change: nothing carried over
+    CHECK(EpStep(&R, 87, EP_FAM_GHOST, EF_PURSUIT_RELENTLESS, g + 18.0f, &k, &why) == EP_KEEP, "Relentless: keep");
+    R.nUndive = 3, R.nSensed = 2;
+    EpRoomReset(&R, 79);
+    CHECK(R.n == 0 && R.nUndive == 0 && R.nSensed == 0, "a new room visit: the calm counts start afresh");
+    CHECK(kEpWhy[EP_WHY_SIGHT][0] == 'y' && EP_WHY_N == 6, "the out-of-sight reason");
+    // monsters on Forgetful are unchanged (4 s unsensed, their 3 s rest; never calm)
+    EpRoomReset(&R, 80);
+    k = Look(EP_CHASE_OK, 0, 2500.0f, 100.0f);
+    t = RunUntil(88, EP_FAM_TWIN, EF_PURSUIT_FORGETFUL, 0.0f, 30.0f, 0.25f, k, EP_GIVEUP, &why);
+    CHECK(t >= 3.99f && t <= 4.3f && why == EP_WHY_UNSEEN, "Forgetful monster: 4 s (%.2f)", t);
+    EpCommit(&R, 88, EF_PURSUIT_FORGETFUL, t, 0, why);
+    CHECK(R.e[0].calm == 0 && R.e[0].restEnd > t + 2.9f && R.e[0].restEnd < t + 3.1f, "monster: no calm, 3 s rest");
 }
 
 static void TestResets(void)
@@ -425,8 +649,9 @@ static void TestResets(void)
     CHECK(!EpIgnoresYou(&R, 53, EF_PURSUIT_RELENTLESS, t + 1.0f), "Relentless: the door rules of v3.50 only");
     CHECK(EpStep(&R, 53, EP_FAM_TWIN, EF_PURSUIT_RELENTLESS, t + 1.0f, &k, &why) == EP_KEEP, "Relentless: keep");
     CHECK(EpCommit(&R, 9999u, EF_PURSUIT_NORMAL, 1.0f, 0, 0) == 0, "commit of an unknown id: nothing");
-    CHECK(EpGhostSecs(EF_PURSUIT_NORMAL, EP_WHY_FAR) == 12.0f && EpGhostSecs(EF_PURSUIT_FORGETFUL, EP_WHY_LONG) == 12.0f &&
-          EpGhostSecs(EF_PURSUIT_RELENTLESS, EP_WHY_FAR) == 0.0f, "the ghosts' seconds for the log");
+    CHECK(EpGhostSecs(EF_PURSUIT_NORMAL, EP_WHY_FAR) == 12.0f && EpGhostSecs(EF_PURSUIT_FORGETFUL, EP_WHY_LONG) == 8.0f &&
+          EpGhostSecs(EF_PURSUIT_FORGETFUL, EP_WHY_SIGHT) == 3.0f && EpGhostSecs(EF_PURSUIT_FORGETFUL, EP_WHY_FAR) == 3.0f &&
+          EpGhostSecs(EF_PURSUIT_RELENTLESS, EP_WHY_FAR) == 0.0f, "the ghosts' seconds for the log (v3.52 EP352)");
 }
 
 int main(void)
@@ -440,6 +665,7 @@ int main(void)
     TestGhosts();
     TestResets();
     TestPortalHold();  // v3.51 MERGE
+    TestForgetfulGhosts352();  // v3.52 EP352
     printf("pursuit_room_sim_test: %d checks, %d failed\n", g_n, g_fail);
     return g_fail ? 1 : 0;
 }

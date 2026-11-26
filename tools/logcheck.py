@@ -117,6 +117,13 @@ OPEN_SAVED = re.compile(r'^opening: (Full|Skip Logos|Fast) saved \(\[Window\] Op
 HB_HIDE = re.compile(r'^hud bars: Hide Gauge (on|off): ')
 HB_HIDE_RING = re.compile(r'^hud bars: Hide Gauge: (the curse meter|companion Eileen\'s small ring) (shown|faded out): (.*?) \(gauge fade')
 # v3.41 CM341: who draws the player's curse ring (hudbars.inc HbPeOwnCheck: Playable Eileen v1.23.1+ or Refined)
+# v3.52 HB352: the enemy bars refused for an enemy the game does not draw yet / with no place (hudbars.inc HbRefuseNote,
+# HbRefRoomEnd) and the bosses' first bar (HbBossFrame)
+HB_REF = re.compile(r'^hud bars: no bar for ([0-9A-F]{8}) \(type ([0-9A-F]{2})\) in room (\d+:[0-9A-F]+): (not in the room yet|not at a place in the room)')
+HB_REF_ROOM = re.compile(r'^hud bars: room (\d+:[0-9A-F]+): no bar for (\d+) enemy\(ies\) not in the room yet .*?, (\d+) not at a place in the '
+                         r'room; this session (\d+) / (\d+)')
+HB_BOSS = re.compile(r'^hud bars: boss (Walter|the Wall boss) ([0-9A-F]{8}) \(type ([0-9A-F]{2})\) in room (\d+:[0-9A-F]+): '
+                     r'(?:its bar is up ([\d.]+) s after it became active|active 5 s and no bar yet: (.*?) \(state)')
 HB_PE_RING = re.compile(r"^hud bars: (?:Playable Eileen draws the player's curse ring \(SH4PE_DrawsPlayerCurse\)|"
                         r"SH4PE_DrawsPlayerCurse (is not exported|\(\) returned -?\d+))")
 PERF_PLACE = re.compile(r'^perf: readout (at the top-left corner, clear of|under|right of|at the top-left corner, over) (.+?) \((\d+)x(\d+), S')
@@ -128,9 +135,38 @@ MU_LINE = re.compile(r'^extra menu: sound in the (load list|save menu|storage ch
                      r'back in the pause|closed, back to play|closed, a save loads[^:]*): pause mode (-?\d+), master ([\d.]+), fade '
                      r'(-?\d+): the level music (stays paused|PLAYS quietly|comes back|PLAYS)( \(PauseSound=0: v3\.50\))?$')
 MU_LISTS = ('load list', 'save menu', 'storage chest')
+# v3.52 QL352: Quick Load inside the pause (extramenu.inc QlPauseStart / ql_go / QlSoundTick, quicksave.inc QsLoad)
+QL_SET = re.compile(r'^extra menu: Quick Load (runs inside the pause(?: \([^)]*\))?|closes the pause first \(v3\.51\)) \(\[ExtraMenu\] '
+                    r'QuickLoadInPause=([01])(?:: (.*))?\)$')
+QL_LOAD = re.compile(r'^quick load: slot (\d) \(sequence \d+\), stage (\d+) room (\d+), game time \d+(?:; path: (.*?))?'
+                     r'(?: \(black in (\d+) frames(, NOT black: loaded anyway)?; pause mode (-?\d+), master ([\d.]+), fade (-?\d+): '
+                     r'the level music (stays paused|PLAYS quietly|comes back|PLAYS)\))?$')
+QL_BACK = re.compile(r'^quick load: the loaded room runs after (\d+) ms \(stage \d+ room \d+\): the level music fades in '
+                     r'\(0x56E960\(-1\) from pause mode -?\d+\)(: NOT seen running)?$')
+QL_DROP = re.compile(r'^quick load: the loaded room opened a menu or a cut-scene first ')
+QL_REFUSED = re.compile(r'^quick load: refused at black: (.*?); back in the pause')
 MU_EVENTS = (('opened from the pause', 'from the pause'), ('opened from play', 'from play'),
              ('closed, back in the pause', 'back in the pause'), ('closed, back to play', 'back to play'),
              ('closed, a save loads', 'a save loads'))
+# v3.52 SND352: Sound (sound.inc): the install line, the first frame's start line, the row / page changes, the first start's
+# migration, the Sound byte / engine fixes, the minute lines (level 2)
+SND_IN = re.compile(r'^sound: in: pan law (Smooth|Stock|NOT IN)[^,]*, volume hooks (in|NOT IN) \(Night Mode\), Room Reverb (in|NOT IN)'
+                    r'[^,]*, Mono fold (in|NOT IN|off)(?: \(MonoFold=0\))? \(streams\) / (in|NOT IN|off) \(music\)')
+SND_START = re.compile(r"^sound: Mode (\w+) \(the game's Sound (\d+), engine (-?\d+)\), pan law (.+?), Stereo Width (\d+) %, "
+                       r"Headphones floor -(\d+) dB, Room Reverb (On|Off) \(([^)]*)\), Night Mode (\w+), Voice volume not in this "
+                       r"build, Mono fold (on|off); speakers (.+)$")
+SND_FIRST = re.compile(r"^sound: first start: \[Sound\] Mode=(\w+), from the save's Option 1 Sound (-?\d+)")
+SND_BADMODE = re.compile(r'^sound: \[Sound\] Mode="(.*)" is not a mode .*?: (\w+), from the save')
+SND_DIFF = re.compile(r"^sound: the save's Sound (-?\d+) .*? differs from \[Sound\] Mode=(\w+)")
+SND_CHANGE = re.compile(r'^sound: (Mode|Stereo Width|Room Reverb|Night Mode) (\S+) -> (\S+?)(?: %)? \(([^)]*)\)')
+SND_BYTEFIX = re.compile(r"^sound: the Options block's Sound came in as (-?\d+)")
+SND_ENGFIX = re.compile(r'^sound: the engine was told Sound (-?\d+) but the Options say (\d+)')
+SND_DISC = re.compile(r'^sound: Options discarded: the engine back to Sound (\d+) \(it kept (-?\d+)')
+SND_MIN = re.compile(r'^sound: minute: volumes 2D (\d+), 3D (\d+), streams (\d+) \(Night Mode (\w+): (\d+) changed\); pans 2D (\d+) '
+                     r'\(one ear only (\d+); the stock law (\d+)\), streams (\d+) \(one ear only (\d+); the stock law (\d+)\); Mono: '
+                     r'(\d+) stream block\(s\) folded, (\d+) music fold\(s\)')
+SND_NOTIN = re.compile(r'^sound: (.+?): ([0-9A-F]{8}) is not the GOG v7 code')
+SND_OFF = re.compile(r'^sound: \[Sound\] Enabled=0')
 # v3.37 INV337: Extended Toolbelt / Stackable Items (inventory.inc): the install line, the switches, the counters
 INV_INSTALL = re.compile(r'^inventory: Extended Toolbelt (on|off|UNAVAILABLE) .*?, Stackable Items (on|off|UNAVAILABLE) .*?'
                          r'stack guards (in|OFF)')
@@ -156,8 +192,13 @@ GT_THRU = re.compile(r'^ghost teleport: through (\d+) u the way she faces')
 GT_FACED = 'the enemy she faces'  # in a GT_WARP line: behind the enemy she faces (v3.50), not the nearest (v3.43 .. v3.49)
 GT_ROOM = re.compile(r'^ghost teleport: room (\d+):(\d+) left: (\d+) warp\(s\) \((\d+) through walls, (\d+) behind the enemy she '
                      r'faces, (\d+) ahead\), (\d+) refused(?: \((.*?)\))?; (\d+) Action / Check press\(es\) taken back in '
-                     r'fade-outs(?:; (\d+) enemy\(ies\) in the cone skipped behind collision in (\d+) try\(ies\))?; floor map (.*)$')
+                     r'fade-outs(?:; (\d+) enemy\(ies\) in the cone skipped behind collision in (\d+) try\(ies\))?'
+                     r'(?:; (\d+) time\(s\) freed from a wall)?; floor map (.*)$')
 # v3.51 TP351: + the enemies in the cone skipped behind collision (optional: a v3.50 room line has none)
+# v3.52 TP352: + the times she was freed from a wall in the room visit (optional: a v3.51 room line has none)
+# v3.52 TP352: freed from a wall (after a warp, or at a warp from inside one) / left inside collision (not moved)
+GT_FREE = re.compile(r'^ghost teleport: freed from a wall: (after warp|at the warp)')
+GT_FREE_NO = re.compile(r'^ghost teleport: inside collision after warp \d+ at \(-?\d+, -?\d+\): (?:no proven floor cell|not moved)')
 GT_MAP = re.compile(r'^ghost teleport: room (\d+):(\d+): the floor map is finished: (\d+) cell\(s\) a route of the room reaches, '
                     r'from (\d+) seed\(s\) \((\d+) without a floor\); ([\d.]+) ms over (\d+) run')
 # v3.46 OM346: Stick Movement (omni.inc): the install line, the mode changes, the bindings, the self-check, the counts
@@ -376,12 +417,15 @@ EF_SET = re.compile(r'^gameplay: (?:\[Gameplay\] )?EnemyPursuit (?:read again: )
 # v3.51 EP351: Enemy Pursuit inside the room (pursuit_room.inc): the install line, one verbose line per give-up, the room's line
 EP_IN = re.compile(r'^enemies: Enemy Pursuit in the room (in|off|NOT in)\b')
 EP_GIVE = re.compile(r'^enemies: (monster|copy|ghost|ghost copy) [0-9A-F]{8} \((?:([A-Za-z ]+), )?type ([0-9A-F]{2}) v\d+\) gave up the '
-                     r'chase in room \d+:\d+: (it had not sensed you|it was down when you walked off|farther than|it chased you)')
+                     r'chase in room \d+:\d+: (it had not sensed you|it was down when you walked off|farther than|it chased you|'
+                     r'you were out of its sight)')  # v3.52 EP352: + out of its sight
 EP_ROOM = re.compile(r'^enemies: room \d+:\d+ \(Enemy Pursuit ' + EF_VALUES + r'\): (\d+) gave up the chase in the room \((\d+) '
                      r'monster\(s\), (\d+) ghost\(s\); (\d+) of them again, (\d+) down when you walked off\); (\d+) set back during '
                      r"their rest; (\d+) left to the game's own rules")
 EP_WHY = {'it had not sensed you': 'unsensed', 'it was down when you walked off': 'downed', 'farther than': 'far',
-          'it chased you': 'untouched'}
+          'it chased you': 'untouched', 'you were out of its sight': 'sight'}  # v3.52 EP352: + sight
+# v3.52 EP352: the ghosts' calm (Normal, Forgetful): the room line's calm part (only when there is something to say)
+EP_ROOM_CALM = re.compile(r"; ghosts' calm: (\d+) ghost dive\(s\) into a wall stopped, (\d+) ghost\(s\) sensed you again$")
 # v3.41 EN341: a ghost copy made in another room without its record (the way the game's own ghosts arrive)
 FOL_FRESH = re.compile(r"^enemies: ghost copy [0-9A-F]{8} \(type [0-9A-F]{2} v\d+\) (?:came into|is back in) room \d+ as the "
                        r"game's own ghosts arrive")
@@ -410,6 +454,9 @@ DOF_WHY = re.compile(r'\(not drawn: (.*?); the cut-scene.s own focus \d+\); skip
 DOF_RAMPS = re.compile(r'^depth of field: the blur eases in: Low (\d+) far \+ (\d+) near slices, Medium (\d+) \+ (\d+), High (\d+) \+ (\d+)')
 DOF_FIRST = re.compile(r'^depth of field: first frame drawn \((.*?), (Low|Medium|High)\): .*?; render targets [\d.]+ MB; (eased in|whole levels)')
 DOF_NOBLEND = re.compile(r'^depth of field: the blend shader \(bloom.s up-step\) could not be made')
+# v3.52 FX352: the player close to the camera (a focus, the far side only; v3.51 took it for a first-person view)
+DOF_CLOSE = re.compile(r'; focus [\d.]+ \.\. [\d.]+ \(the player close to the camera in (\d+) frame\(s\)\)')
+DOF_CLOSE1 = re.compile(r'^depth of field: stage ([0-9A-F]+) room ([0-9A-F]+): the player is close to the camera \(view depth ([-\d.]+)\)')
 # v3.40 SH340: Shadow Edge (shadows.inc)
 SH_IN = re.compile(r'^shadows: hooks in place .*?; Edge (Stock|Soft|Softer);')
 SH_NOT = re.compile(r'^shadows: (.*?) is not stock .*?: no Shadow Edge')
@@ -418,6 +465,11 @@ SH_PLAN = re.compile(r'^shadows: (Soft|Softer) at (\d+)x(\d+): (\d) pass\(es\) d
 SH_ROOM = re.compile(r'^shadows: room ([0-9A-F]+):([0-9A-F]+): (\d+) composites over (\d+) frames \(at most (\d+) in a frame\), (\d+) soft; '
                      r'ours ([\d.]+) ms a composite on average, ([\d.]+) at most')
 SH_OFF = re.compile(r'^shadows: off for this session: (.*?) \(hr ([0-9A-F]+), (.*?)\)')
+# v3.52 SH352: the room line's tail (why composites were not soft: hard with their reasons, none with no darkness) and the
+# once-a-room reason line
+SH_ROOM_NS = re.compile(r'; not soft: (\d+) hard(?: \((.*?)\))?, (\d+) with no darkness')
+SH_NS = re.compile(r'^shadows: room ([0-9A-F]+):([0-9A-F]+): a composite not soft: (.*?) \(darkness ([0-9A-F]{8}), edge (\S+), '
+                   r'Darkness (\d+) %')
 # v3.49 SH349: what the edge and the Darkness cover (every real-time shadow) and the Tremers' wall shadows at the Darkness
 SH_COVER = re.compile(r'^shadows: the edge and the Darkness cover every shadow the game draws: .*?; the Tremers\' wall shadows: '
                       r'(the Darkness|the game\'s own)')
@@ -448,6 +500,11 @@ PP_LENS = re.compile(r'^post effects: the Otherworld lens fades (in|out) \(stage
 PP_CHAIN = re.compile(r'^post effects: bloom chain at (\d+)x(\d+): .*?: (\d+) draws, ([\d.]+) MB of render targets')
 PP_NOTF = re.compile(r'^post effects: (bloom|colour grading|the Otherworld lens) (Very High|\S+) not drawn under the filter (.+?) \(')
 PP_DRAWN = re.compile(r'^post effects: (bloom|colour grading|the Otherworld lens) (Very High|\S+) drawn over (.+?) \(before the filter')
+# v3.52 FX352: Bloom Off / Low / Medium / High / Ultra: a v3.43 .. v3.51 value migrated once; the lens' room line
+PP_MIG = re.compile(r'^post effects: \[ScreenEffects\] Bloom=(.*?) \(v3\.43 \.\. v3\.51\) is v3\.52\'s (Off|Low|Medium|High|Ultra) '
+                    r'.*?: (written|could not)')
+PP_LENS_ROOM = re.compile(r'^post effects: the Otherworld lens in stage ([0-9A-F]+) room ([0-9A-F]+): shown (\d+) of (\d+) s \((\d+) %\), '
+                          r'at most (\d+) % strength \(haunting strength up to ([-\d.]+), nearness up to ([-\d.]+)')
 # v3.44 CS344: the pixel checks (a fixed test draw through the real shader, read back): the grade and the shadow composite
 PP_PX = re.compile(r'^post effects: colour grading (\S+): pixel check (ok|FAILED): .*?(\d+) level\(s\) off its sim at most, '
                    r'([\d.]+) levels changed on average \(the sim ([\d.]+)\): (.*)$')
@@ -634,6 +691,9 @@ class Session:
         self.gt_map_open = 0      # v3.50 TP350: room visits left with the floor map not finished (or overflowed)
         self.gt_skip = 0          # v3.51 TP351: enemies in the cone skipped behind collision (the room visits' lines)
         self.gt_skip_tries = 0    # v3.51 TP351: the tries with such a skip
+        self.gt_free = Counter()  # v3.52 TP352: freed from a wall: 'after warp' / 'at the warp' (the lines)
+        self.gt_free_no = 0       # v3.52 TP352: left inside collision (no proven floor cell, or not moved)
+        self.gt_room_freed = 0    # v3.52 TP352: freed, from the room visits' lines
         self.fi = None            # v3.50 FI350: Fade In: ('in', portal, mode, seconds) or ('OFF', why) from the install line
         self.fi_rooms = 0         # v3.50 FI350: room visits with a Fade In line
         self.fi_src = Counter()   # v3.50 FI350: fades by source
@@ -768,9 +828,29 @@ class Session:
         self.mu = Counter()       # v3.51 MU351: (list, event short name) -> lines; (list, 'paused') -> opened from the pause, paused
         self.mu_loud = []         # v3.51 MU351: (ts, list, event, verdict) the music not paused while the list stayed in the pause
         self.mu_anom = 0          # v3.51 MU351: its ANOMALY lines
+        self.ql_set = None        # v3.52 QL352: (ts, 'pause' / 'v3.51', QuickLoadInPause, why off) from the install line
+        self.ql = Counter()       # v3.52 QL352: quick loads by path ('pause', 'key', 'closed', 'unknown'), 'late', 'loud', 'back', 'notrun', 'drop', 'refused'
+        self.ql_black = []        # v3.52 QL352: frames to black of each quick load inside the pause
+        self.ql_ms = []           # v3.52 QL352: ms from the restart to the loaded room running (the music back)
+        self.ql_closed = Counter()  # v3.52 QL352: the v3.51 fallbacks by their reason
+        self.ql_anom = 0          # v3.52 QL352: its ANOMALY lines
+        self.snd_in = None        # v3.52 SND352: (pan, volume, reverb, mono streams, mono music) from the install line, or 'off'
+        self.snd_start = None     # v3.52 SND352: the first frame's start line (ts, groups)
+        self.snd_first = None     # v3.52 SND352: (ts, mode, the save's byte) of the first start's migration, or a bad Mode
+        self.snd_diff = None      # v3.52 SND352: (ts, byte, mode): the save's Sound differed from the ini at the start
+        self.snd_changes = []     # v3.52 SND352: (ts, what, from, to, why)
+        self.snd_min = []         # v3.52 SND352: the minute lines' numbers
+        self.snd_fix = Counter()  # v3.52 SND352: 'byte' / 'engine' / 'discard'
+        self.snd_notin = []       # v3.52 SND352: sites not installed (what, va)
+        self.snd_anom = 0         # v3.52 SND352: its ANOMALY lines
         self.hb_hide = []         # v3.38 HB338: (ts, 'on' / 'off') Hide Gauge as the curse meter saw it
         self.hb_ring = Counter()  # v3.38 HB338: 'faded out' / 'shown: <why>' counts (both rings)
         self.hb_pe_ring = None    # v3.41 CM341: (ts, 'pe' / 'refined', why) who draws the player's curse ring
+        self.hb_ref = Counter()   # v3.52 HB352: 'hidden' / 'place' -> beings, from the room lines; 'rooms' -> room lines
+        self.hb_ref_lines = Counter()  # v3.52 HB352: the per-being lines by reason (bounded: 60 a session)
+        self.hb_ref_first = None  # v3.52 HB352: (ts, id, type, room) of the first per-being line
+        self.hb_ref_tot = (0, 0)  # v3.52 HB352: the last room line's session totals (hidden, place)
+        self.hb_boss = []         # v3.52 HB352: (ts, name, room, seconds or None, why or None)
         self.perf_place = OrderedDict()  # v3.38 HB338: 'WxH' -> (where, of what, ts)
         self.fol = Counter()      # v3.38 EN338: doors, follow, most, wait, stopped, came, spotted, stops, story, wheelchairs
         self.fol_wait = Counter()  # v3.38 EN338: the space reasons of the waits
@@ -791,6 +871,8 @@ class Session:
         self.sh_plans = OrderedDict()  # 'Soft 2560x1440' -> (passes, low size, taps, px)
         self.sh_worst = [0, 0.0, 0.0, '']  # most composites in a frame, the worst ms, the average ms of that room, its room
         self.sh_off = None        # (ts, why, where)
+        self.sh_rooms = {}        # v3.52 SH352: room -> [composites, soft, hard, no darkness, no reason given, Counter(hard reasons)]
+        self.sh_ns = []           # v3.52 SH352: the once-a-room reason lines (ts, room, why)
         self.sh_not = None
         self.sh_vram = 0.0
         self.sh_rib_state = ''    # v3.49 SH349: the Tremers' wall shadows: 'the Darkness' / "the game's own (why)"
@@ -810,6 +892,8 @@ class Session:
         self.dof_ramps = None     # v3.47 DF347: 'Low 4+4, Medium 8+4, High 12+8' (the install's verbose line)
         self.dof_first = None     # v3.47 DF347: 'eased in' / 'whole levels' at the first drawn frame
         self.dof_noblend = 0      # v3.47 DF347: "the blend shader could not be made" lines (a device each)
+        self.dof_close = 0        # v3.52 FX352: frames drawn with the player close to the camera (the room lines)
+        self.dof_close_rooms = []  # v3.52 FX352: 'stage:room' of each room's first close shot
         self.fx_pic = [0, 0, 0.0, 0, 0.0]  # v3.41 SH341: pause pictures on the GPU (made, kept, most ms), read backs (n, worst ms)
         self.started = None       # v3.40 LG340: datetime of the "log: started" line
         self.d3d_head = None      # v3.40 LG340: 'dgvoodoo' / 'none' from the session header's d3d9.dll line
@@ -828,6 +912,8 @@ class Session:
         self.pp_chain = OrderedDict()  # v3.43 PP343: 'WxH' -> MB of the bloom targets
         self.pp_notf = Counter()  # v3.43 PP343: 'colour grading under Thermal' ...
         self.pp_drawn = Counter()  # v3.43 PP343: 'bloom Low' ... (the first draw of each state)
+        self.pp_mig = None        # v3.52 FX352: (old value, new, written?) of the one-time Bloom migration
+        self.pp_lens_rooms = []   # v3.52 FX352: (stage:room, shown s, of s, max strength %) the lens' room lines
         self.fn = {'set': None, 'live': False, 'match': set(), 'nomatch': set(), 'stock': None,
                    'row': False, 'switches': []}  # v3.43 FN343; v3.44 FN344: + row, switches
         self.sb_row = None  # v3.47 SB347: (label, Menu Font, width) of the Bank row's first draw
@@ -954,6 +1040,105 @@ class Session:
             self.mu[(lst, 'loud')] += 1
         return True
 
+    def hb_ref_line(self):  # v3.52 HB352: the enemy bars refused, the bosses' first bars
+        hid = max(self.hb_ref['hidden'], self.hb_ref_tot[0], self.hb_ref_lines['hidden'])
+        plc = max(self.hb_ref['place'], self.hb_ref_tot[1], self.hb_ref_lines['place'])
+        line = ('enemy health bars: no bar for %d enemy(ies) the game does not draw yet (hidden, arriving or a placeholder) and %d with '
+                'no place in the room (%d room line(s), %d verbose line(s)%s)' % (
+                    hid, plc, self.hb_ref['rooms'], sum(self.hb_ref_lines.values()),
+                    '; first %s type %s in room %s [%s]' % (self.hb_ref_first[1], self.hb_ref_first[2], self.hb_ref_first[3],
+                                                            self.hb_ref_first[0]) if self.hb_ref_first else ''))
+        if self.hb_boss:
+            up = [b for b in self.hb_boss if b[3] is not None]
+            late = [b for b in self.hb_boss if b[3] is None]
+            line += '; bosses: bar up %d time(s)%s, no bar 5 s after it became active %d time(s)%s' % (
+                len(up), ' (at most %.1f s after it became active; first %s in room %s [%s])' % (
+                    max(b[3] for b in up), up[0][1], up[0][2], up[0][0]) if up else '',
+                len(late), ' (last: %s, %s in room %s [%s])' % (late[-1][4], late[-1][1], late[-1][2], late[-1][0]) if late else '')
+        return line
+
+    def parse_ql(self, ts, msg):  # v3.52 QL352: True = a Quick Load path line read
+        m = QL_SET.match(msg)
+        if m:
+            self.ql_set = (ts, 'pause' if m.group(1).startswith('runs') else 'v3.51', m.group(2), m.group(3))
+            return True
+        m = QL_LOAD.match(msg)
+        if m:
+            path = m.group(4) or ''
+            if path == 'the Extra Menu inside the pause':
+                self.ql['pause'] += 1
+                if m.group(5):
+                    self.ql_black.append(int(m.group(5)))
+                if m.group(6):
+                    self.ql['late'] += 1
+                if m.group(10) and m.group(10) != 'stays paused':
+                    self.ql['loud'] += 1
+            elif path.startswith('the Quick Load key'):
+                self.ql['key'] += 1
+            elif path.startswith('the Extra Menu after the pause closed'):
+                self.ql['closed'] += 1
+                r = re.search(r'\(v3\.51: (.*)\)$', path)
+                self.ql_closed[r.group(1) if r else '?'] += 1
+            else:
+                self.ql['unknown'] += 1  # before v3.52 (no path)
+            return True
+        m = QL_BACK.match(msg)
+        if m:
+            self.ql['back'] += 1
+            self.ql_ms.append(int(m.group(1)))
+            if m.group(2):
+                self.ql['notrun'] += 1
+            return True
+        if QL_DROP.match(msg):
+            self.ql['drop'] += 1
+            return True
+        if QL_REFUSED.match(msg):
+            self.ql['refused'] += 1
+            return True
+        return False
+
+    def ql_line(self):  # v3.52 QL352: None when the log has no quick load and no install line
+        n = sum(self.ql[k] for k in ('pause', 'key', 'closed', 'unknown'))
+        if not self.ql_set and not n and not self.ql['refused']:
+            return None
+        if self.ql_set:
+            head = 'quick load: %s at the start (QuickLoadInPause=%s%s)' % (
+                'inside the pause' if self.ql_set[1] == 'pause' else 'the pause closes first (v3.51)', self.ql_set[2],
+                ': ' + self.ql_set[3] if self.ql_set[3] else '')
+        else:
+            head = 'quick load: (no start line)'
+        line = head + '; %d quick load(s)' % n
+        parts = ['%d %s' % (self.ql[k], name) for k, name in (('pause', 'inside the pause'), ('key', 'by the key in play'),
+                                                               ('closed', 'after the pause closed (v3.51)'),
+                                                               ('unknown', 'path not logged'))] if n else []
+        parts = [p for p in parts if not p.startswith('0 ')]
+        if parts:
+            line += ' (%s)' % ', '.join(parts)
+        if self.ql_closed:
+            line += '; v3.51 path because: %s' % ', '.join('%s x%d' % kv for kv in self.ql_closed.most_common())
+        if self.ql['pause']:
+            if self.ql_black:
+                line += '; black in %d frame(s) (worst %d)' % (min(self.ql_black), max(self.ql_black))
+            if self.ql_ms:
+                line += '; the music held until the loaded room ran: %d ms on average (worst %d)' % (
+                    sum(self.ql_ms) // len(self.ql_ms), max(self.ql_ms))
+            owed = self.ql['pause'] - self.ql['back'] - self.ql['drop']
+            if self.ql['drop']:
+                line += '; %d handed to a menu / cut-scene of the loaded room' % self.ql['drop']
+            if owed > 0:
+                line += '; %d still owed at the log end' % owed
+        if self.ql['late']:
+            line += '; %d NOT black in time' % self.ql['late']
+        if self.ql['loud']:
+            line += '; the music NOT paused at black %d time(s)' % self.ql['loud']
+        if self.ql['notrun']:
+            line += '; the loaded room NOT seen running %d time(s)' % self.ql['notrun']
+        if self.ql['refused']:
+            line += '; %d refused at black' % self.ql['refused']
+        if self.ql_anom:
+            line += '; %d ANOMALY line(s)' % self.ql_anom
+        return line
+
     def mu_line(self):  # v3.51 MU351: None when the log has none of its lines
         if not self.mu_set and not self.mu:
             return None
@@ -978,6 +1163,96 @@ class Session:
                 sum(self.mu[(l, 'loud')] for l in MU_LISTS), ', '.join('%s %s (%s) [%s]' % (l, e, v, t) for t, l, e, v in self.mu_loud[:4]))
         if self.mu_anom:
             line += '; %d ANOMALY line(s)' % self.mu_anom
+        return line
+
+    def parse_snd(self, ts, msg):  # v3.52 SND352: True = a Sound line read
+        m = SND_IN.match(msg)
+        if m:
+            self.snd_in = m.groups()
+            return True
+        if SND_OFF.match(msg):
+            self.snd_in = 'off'
+            return True
+        m = SND_START.match(msg)
+        if m:
+            self.snd_start = (ts, m.groups())
+            return True
+        m = SND_FIRST.match(msg)
+        if m:
+            self.snd_first = (ts, m.group(1), m.group(2))
+            return True
+        m = SND_BADMODE.match(msg)
+        if m:
+            self.snd_first = (ts, m.group(2), 'not a mode: "%s"' % m.group(1)[:30])
+            return True
+        m = SND_DIFF.match(msg)
+        if m:
+            self.snd_diff = (ts, m.group(1), m.group(2))
+            return True
+        m = SND_CHANGE.match(msg)
+        if m:
+            self.snd_changes.append((ts,) + m.groups())
+            return True
+        m = SND_MIN.match(msg)
+        if m:
+            self.snd_min.append(tuple(int(x) if x.isdigit() else x for x in m.groups()))
+            return True
+        if SND_BYTEFIX.match(msg):
+            self.snd_fix['byte'] += 1
+            return True
+        if SND_ENGFIX.match(msg):
+            self.snd_fix['engine'] += 1
+            return True
+        if SND_DISC.match(msg):
+            self.snd_fix['discard'] += 1
+            return True
+        m = SND_NOTIN.match(msg)
+        if m:
+            self.snd_notin.append((m.group(1), m.group(2)))
+            return True
+        return False
+
+    def snd_line(self):  # v3.52 SND352: None when the log has no Sound line
+        if not (self.snd_in or self.snd_start or self.snd_changes or self.snd_min or self.snd_fix or self.snd_notin or self.snd_anom):
+            return None
+        if self.snd_in == 'off':
+            line = 'sound: off ([Sound] Enabled=0: the game\'s own)'
+        elif self.snd_start:
+            t, g = self.snd_start
+            line = ('sound: at the start Mode %s (the game\'s Sound %s, engine %s), pan law %s, Stereo Width %s %%, Room Reverb %s (%s), '
+                    'Night Mode %s, Mono fold %s; speakers %s  [%s]' % (g[0], g[1], g[2], g[3], g[4], g[6], g[7], g[8], g[9], g[10], t))
+        else:
+            line = 'sound: (no start line: the first frame never came, or a log before v3.52)'
+        if self.snd_in and self.snd_in != 'off':
+            names = ('pan', 'volume', 'reverb', 'mono streams', 'mono music')
+            bad = [n for n, v in zip(names, self.snd_in) if v == 'NOT IN']
+            line += '; sites %s' % ('all in' if not bad else 'NOT IN: ' + ', '.join(bad))
+            if self.snd_in[0] == 'Stock':
+                line += ' (PanLaw=Stock)'
+        if self.snd_first:
+            line += '; first start: Mode %s from the save\'s Sound %s  [%s]' % (self.snd_first[1], self.snd_first[2], self.snd_first[0])
+        if self.snd_diff:
+            line += '; the save said Sound %s, the ini Mode %s won  [%s]' % (self.snd_diff[1], self.snd_diff[2], self.snd_diff[0])
+        if self.snd_changes:
+            line += '; %d change(s): %s' % (len(self.snd_changes), ', '.join(
+                '%s %s -> %s (%s) [%s]' % (w, a, b, why, t) for t, w, a, b, why in self.snd_changes[:8]))
+            if len(self.snd_changes) > 8:
+                line += ', ...'
+        if self.snd_min:
+            s = [sum(r[i] for r in self.snd_min) for i in (0, 1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 12)]
+            def pc(a, b):
+                return '%.1f %%' % (100.0 * a / b) if b else '-'
+            line += ('; %d minute line(s): pans 2D %d (one ear only %s; the stock law %s), streams %d (one ear only %s; the stock law '
+                     '%s); volumes 2D %d, 3D %d, streams %d (Night Mode changed %d); Mono: %d stream block(s), %d music fold(s)' % (
+                         len(self.snd_min), s[4], pc(s[5], s[4]), pc(s[6], s[4]), s[7], pc(s[8], s[7]), pc(s[9], s[7]), s[0], s[1], s[2],
+                         s[3], s[10], s[11]))
+        if self.snd_fix:
+            line += '; the Sound byte put back %d time(s), the engine re-applied %d time(s) (%d at an Options discard)' % (
+                self.snd_fix['byte'], self.snd_fix['engine'] + self.snd_fix['discard'], self.snd_fix['discard'])
+        if self.snd_notin:
+            line += '; NOT the GOG code: %s' % ', '.join('%s %s' % (w, va) for w, va in self.snd_notin[:4])
+        if self.snd_anom:
+            line += '; %d ANOMALY line(s)' % self.snd_anom
         return line
 
     def fadein_line(self):  # v3.50 FI350: None when the log has no Fade In line
@@ -1092,10 +1367,14 @@ class Session:
                      'walked off), %d set back in their rest, %d left to the game' % (
                          self.ep_site or 'not in the log', p['give'], p['rooms'], p['mon'], p['ghost'], p['again'], p['down'],
                          p['held'], p['stock']))
+            if p['undive'] or p['sensed']:  # v3.52 EP352
+                line += ("; ghosts' calm: %d ghost dive(s) into a wall stopped, %d ghost(s) sensed you again" % (
+                    p['undive'], p['sensed']))
             if p['v_give']:
                 fams = sorted(k[2:] for k in p if k.startswith('f_'))
-                line += (' [verbose: %d lines: %d unsensed, %d downed, %d far, %d untouched%s]' % (
+                line += (' [verbose: %d lines: %d unsensed, %d downed, %d far, %d untouched%s%s]' % (
                     p['v_give'], p['v_unsensed'], p['v_downed'], p['v_far'], p['v_untouched'],
+                    ', %d out of sight' % p['v_sight'] if p['v_sight'] else '',  # v3.52 EP352
                     '; ' + ', '.join('%s %d' % (f, p['f_' + f]) for f in fams) if fams else ''))
         return line
 
@@ -1940,8 +2219,12 @@ class Session:
                 self.r3_anom += 1
             if body.startswith('regeneration: '):  # v3.47 RG347
                 self.rg_anom += 1
+            if body.startswith('sound: '):  # v3.52 SND352
+                self.snd_anom += 1
             if body.startswith(('extra menu: the level music is not paused', "extra menu: the pause menu's sound was in mode")):  # v3.51 MU351
                 self.mu_anom += 1
+            if body.startswith('extra menu: Quick Load: '):  # v3.52 QL352
+                self.ql_anom += 1
             if body.startswith('randomizer: monsters'):  # v3.49 RZ349
                 self.rzm_anom += 1
             elif body.startswith(('randomizer: outfit: ', 'randomizer: ghosts: ')):  # v3.49 RZ349L  # v3.49 MERGE: counted apart, as the Monsters' (not in rz_anom: the Items line keeps its own count)
@@ -2227,6 +2510,9 @@ class Session:
                     self.dof_worst = [float(m.group(6)), float(m.group(5)), '%s:%s' % (m.group(1), m.group(2))]
                 if DOF_NOREAD.search(msg):  # v3.45 RB345: the room's probe could not read back
                     self.dof_noread += 1
+                c = DOF_CLOSE.search(msg)  # v3.52 FX352
+                if c:
+                    self.dof_close += int(c.group(1))
                 w = DOF_WHY.search(msg)  # v3.44 DF344
                 if w:
                     for txt, ctr in ((w.group(1), self.dof_why), (w.group(2), self.dof_design)):
@@ -2276,6 +2562,10 @@ class Session:
                 return
             if DOF_NOBLEND.match(msg):  # v3.47 DF347
                 self.dof_noblend += 1
+                return
+            m = DOF_CLOSE1.match(msg)  # v3.52 FX352
+            if m:
+                self.dof_close_rooms.append('%s:%s' % m.group(1, 2))
             return
         if msg.startswith('post effects: '):  # v3.43 PP343
             m = PP_IN.match(msg)
@@ -2288,6 +2578,14 @@ class Session:
             m = PP_FAIL.match(msg)
             if m:
                 self.pp_fail.append((ts, m.group(1), m.group(2)))
+                return
+            m = PP_MIG.match(msg)  # v3.52 FX352
+            if m:
+                self.pp_mig = (m.group(1), m.group(2), m.group(3) == 'written')
+                return
+            m = PP_LENS_ROOM.match(msg)  # v3.52 FX352
+            if m:
+                self.pp_lens_rooms.append(('%s:%s' % m.group(1, 2), int(m.group(3)), int(m.group(4)), int(m.group(6))))
                 return
             m = PP_LENS.match(msg)
             if m:
@@ -2366,9 +2664,28 @@ class Session:
                 self.sh_rib_state = ("the game's own (%s)" % ('TremerShadows=0' if m.group(1).startswith('[') else
                                                               'not stock' if 'not stock' in m.group(1) else 'not written'))
                 return
+            m = SH_NS.match(msg)  # v3.52 SH352
+            if m:
+                self.sh_ns.append((ts, '%s:%s' % (m.group(1), m.group(2)), m.group(3)))
+                return
             m = SH_ROOM.match(msg)
             if m:
                 n, soft = int(m.group(3)), int(m.group(6))
+                t = SH_ROOM_NS.search(msg)  # v3.52 SH352: why the rest was not soft (none before v3.52)
+                hard, nodark, why = (int(t.group(1)), int(t.group(3)), Counter()) if t else (0, 0, Counter())
+                if t and t.group(2):
+                    for item in t.group(2).split(', '):
+                        name, _, cnt = item.rpartition(' ')
+                        if cnt.isdigit():
+                            why[name] += int(cnt)
+                unexpl = max(0, n - soft - hard - nodark)
+                rr = self.sh_rooms.setdefault('%s:%s' % (m.group(1), m.group(2)), [0, 0, 0, 0, 0, Counter()])
+                for i, v in enumerate((n, soft, hard, nodark, unexpl)):
+                    rr[i] += v
+                rr[5].update(why)
+                self.sh['hard'] += hard
+                self.sh['nodark'] += nodark
+                self.sh['unexpl'] += unexpl
                 self.sh['rooms'] += 1
                 self.sh['composites'] += n
                 self.sh['soft'] += soft
@@ -2443,6 +2760,23 @@ class Session:
         if m:
             self.hb_hide.append((ts, m.group(1)))
             return
+        m = HB_REF.match(msg)  # v3.52 HB352
+        if m:
+            self.hb_ref_lines['hidden' if m.group(4) == 'not in the room yet' else 'place'] += 1
+            if self.hb_ref_first is None:
+                self.hb_ref_first = (ts, m.group(1), m.group(2), m.group(3))
+            return
+        m = HB_REF_ROOM.match(msg)
+        if m:
+            self.hb_ref['rooms'] += 1
+            self.hb_ref['hidden'] += int(m.group(2))
+            self.hb_ref['place'] += int(m.group(3))
+            self.hb_ref_tot = (int(m.group(4)), int(m.group(5)))
+            return
+        m = HB_BOSS.match(msg)
+        if m:
+            self.hb_boss.append((ts, m.group(1), m.group(4), float(m.group(5)) if m.group(5) else None, m.group(6)))
+            return
         m = HB_HIDE_RING.match(msg)
         if m:
             why = m.group(3).lstrip(': ')
@@ -2455,8 +2789,14 @@ class Session:
             what = 'PE HUD' if m.group(2).startswith("Playable Eileen's HUD") else 'stock gauge'
             self.perf_place['%sx%s' % (m.group(3), m.group(4))] = (where, what, ts)
             return
+        if msg.startswith('sound: '):  # v3.52 SND352
+            if self.parse_snd(ts, msg):
+                return
         if msg.startswith('extra menu: sound in the '):  # v3.51 MU351
             if self.parse_mu(ts, msg):
+                return
+        if msg.startswith(('quick load: ', 'extra menu: Quick Load ')):  # v3.52 QL352
+            if self.parse_ql(ts, msg):
                 return
         m = CAM_PAGE.match(msg)
         if m:
@@ -2521,6 +2861,9 @@ class Session:
                 p['rooms'] += 1
                 for k, v in zip(('give', 'mon', 'ghost', 'again', 'down', 'held', 'stock'), g):
                     p[k] += v
+                m = EP_ROOM_CALM.search(msg)  # v3.52 EP352
+                if m:
+                    p['undive'] += int(m.group(1)); p['sensed'] += int(m.group(2))
                 return
             m = EP_GIVE.match(msg)
             if m:
@@ -2630,7 +2973,15 @@ class Session:
                     self.gt_room_no[k] += int(v)
             self.gt_skip += int(g[9] or 0)  # v3.51 TP351
             self.gt_skip_tries += int(g[10] or 0)
-            self.gt_map_open += 'not finished' in g[11] or 'OVERFLOW' in g[11]
+            self.gt_room_freed += int(g[11] or 0)  # v3.52 TP352
+            self.gt_map_open += 'not finished' in g[12] or 'OVERFLOW' in g[12]
+            return
+        m = GT_FREE.match(msg)  # v3.52 TP352
+        if m:
+            self.gt_free[m.group(1)] += 1
+            return
+        if GT_FREE_NO.match(msg):
+            self.gt_free_no += 1
             return
         m = GT_MAP.match(msg)
         if m:
@@ -2939,6 +3290,8 @@ class Session:
             say('  curse meter Hide Gauge: %s%s; faded out %d time(s), shown again %d (%s)' % (
                 last[1] if last else '?', ' (since %s)' % last[0] if last else '', self.hb_ring['faded out'], shown,
                 ', '.join('%s %d' % kv for kv in sorted(whys.items())) or 'none'))
+        if self.hb_ref_lines or self.hb_ref['rooms'] or self.hb_boss:  # v3.52 HB352
+            say('  ' + self.hb_ref_line())
         if self.hb_cm42:  # v3.42 SM342: Curse Meter Off / On; Refined never draws the player's ring
             t, who, why = self.hb_pe_ring or ('', '', '')
             line = "  player curse ring: never drawn by Refined (v3.42 Curse Meter Off / On: companion Eileen's ring only); %s" % (
@@ -2960,6 +3313,12 @@ class Session:
         line = self.mu_line()  # v3.51 MU351: the sound in the Extra Menu's lists
         if line:
             say('  ' + line)
+        line = self.ql_line()  # v3.52 QL352: Quick Load's paths
+        if line:
+            say('  ' + line)
+        line = self.snd_line()  # v3.52 SND352: Sound (the mode, pan law, reverb, Night Mode)
+        if line:
+            say('  ' + line)
         # v3.37 INV337: Extended Toolbelt / Stackable Items
         if self.inv or self.inv_sw or self.inv_counts:
             head = '  inventory: '
@@ -2973,7 +3332,7 @@ class Session:
             say(head)
         # v3.43 GT343: Ghost Teleport
         if (self.gt or self.gt_warps or self.gt_no or self.gt_cool or self.gt_chord or self.gt_fades[0] or self.gt_off or
-                self.gt_holds or self.gt_zones or self.gt_rooms or self.gt_maps):  # v3.50 TP350: + rooms, maps
+                self.gt_holds or self.gt_zones or self.gt_rooms or self.gt_maps or self.gt_free or self.gt_free_no):  # v3.50 TP350: + rooms, maps  # v3.52 TP352: + frees
             line = '  ghost teleport: '
             if self.gt:
                 line += '%s at the start (%s); ' % (self.gt[0], self.gt[1])
@@ -3013,6 +3372,12 @@ class Session:
                              if self.gt_room_no else '', sum(r[6] for r in rr)))
                 if self.gt_skip:  # v3.51 TP351
                     line += '; %d enemy(ies) in the cone skipped behind collision (in %d try(ies))' % (self.gt_skip, self.gt_skip_tries)
+                if self.gt_room_freed:  # v3.52 TP352
+                    line += '; %d time(s) freed from a wall' % self.gt_room_freed
+            if self.gt_free or self.gt_free_no:  # v3.52 TP352: the lines themselves
+                line += '; freed from a wall: %d after a warp, %d at a warp from inside one%s' % (
+                    self.gt_free['after warp'], self.gt_free['at the warp'],
+                    ', %d time(s) LEFT inside collision (not moved)' % self.gt_free_no if self.gt_free_no else '')
             if self.gt_maps or self.gt_map_open:
                 mp = self.gt_maps
                 line += '; floor maps: %d finished%s%s' % (
@@ -3142,6 +3507,26 @@ class Session:
             if h['composites']:
                 line += ('; %d composite(s) in %d room line(s), %d soft, at most %d in a frame; ours %.3f ms at most (room %s, %.3f on average)'
                          % (h['composites'], h['rooms'], h['soft'], self.sh_worst[0], self.sh_worst[1], self.sh_worst[3], self.sh_worst[2]))
+            if h['hard'] or h['nodark'] or h['unexpl']:  # v3.52 SH352: the rooms with a hard share, and why
+                def rooms(i):
+                    ks = sorted((k for k, v in self.sh_rooms.items() if v[i]), key=lambda k: -self.sh_rooms[k][i])
+                    return ks if full else ks[:6]
+                if h['hard']:
+                    ks = rooms(2)
+                    line += '; HARD share: %d composite(s) in %d room(s): %s' % (h['hard'], len([v for v in self.sh_rooms.values() if v[2]]), ', '.join(
+                        '%s %d of %d (%d %%: %s)' % (k, self.sh_rooms[k][2], self.sh_rooms[k][0], 100 * self.sh_rooms[k][2] // max(1, self.sh_rooms[k][0]),
+                                                     ', '.join('%s %d' % kv for kv in self.sh_rooms[k][5].most_common(3)) or '?') for k in ks))
+                if h['nodark']:
+                    line += ("; %d with no darkness (the game's own 0: no shadow shows, nothing to soften) in room(s) %s"
+                             % (h['nodark'], ', '.join(rooms(3))))
+                if h['unexpl']:
+                    line += '; %d not soft with no reason given (a log before v3.52) in room(s) %s' % (
+                        h['unexpl'], ', '.join('%s %d of %d%s' % (k, self.sh_rooms[k][4], self.sh_rooms[k][0],
+                                                                 " (the game's own darkness is 0 there: no shadow shows)" if k == '4:1F' else '')
+                                               for k in rooms(4)))
+            if self.sh_ns:  # v3.52 SH352
+                line += '; %d not-soft reason line(s) (%s)' % (len(self.sh_ns), ', '.join('%s [%s]: %s' % (r, t, w.split(':')[0].split(' (')[0])
+                                                                                           for t, r, w in self.sh_ns[:3 if not full else 64]))
             if self.sh_vram:
                 line += '; render targets at most %.1f MB' % self.sh_vram
             if h['kept'] or h['scene'] or h['figure']:
@@ -3163,7 +3548,7 @@ class Session:
                 line += '; OFF from %s: %s (%s)' % self.sh_off
             say(line)
         # v3.43 DF343: Depth of Field
-        if self.dof_set or self.dof_not or self.dof['asked'] or self.dof_mig:  # v3.45 QS345: + the migration
+        if self.dof_set or self.dof_not or self.dof['asked'] or self.dof_mig or self.dof_close_rooms:  # v3.45 QS345 / v3.52 FX352
             d = self.dof
             line = '  depth of field: %s' % (('NOT installed (%s)' % self.dof_not) if self.dof_not else
                                               ', then '.join('%s [%s]' % (e, t) for t, e in self.dof_set[:6]))
@@ -3185,6 +3570,9 @@ class Session:
             if self.dof_first or self.dof_noblend:  # v3.47 DF347: eased in, or whole levels (no blend shader)
                 line += ('; NOT eased in (no blend shader %d time(s): whole levels)' % self.dof_noblend if self.dof_noblend or
                          self.dof_first == 'whole levels' else '; eased in (%s slices)' % (self.dof_ramps or 'quarter-level'))
+            if self.dof_close or self.dof_close_rooms:  # v3.52 FX352
+                line += '; the player close to the camera: drawn in %d frame(s), first in %d room(s)' % (
+                    self.dof_close, len(self.dof_close_rooms))
             if self.dof_off:
                 line += '; OFF from %s: %s' % self.dof_off
             if self.dof_mig:  # v3.45 QS345
@@ -3192,7 +3580,7 @@ class Session:
                          % (self.dof_mig[0], self.dof_mig[1], 'rewritten' if self.dof_mig[2] else 'NOT rewritten'))
             say(line)
         # v3.43 PP343: Bloom, Colour Grading, Otherworld Lens
-        if self.pp or self.pp_ini_off or self.pp_set:
+        if self.pp or self.pp_ini_off or self.pp_set or self.pp_mig or self.pp_lens_rooms:  # v3.52 FX352: + the migration, rooms
             if self.pp_ini_off:
                 line = '  post effects: off ([ScreenEffects] PostEffects=0)'
             elif self.pp:
@@ -3216,6 +3604,14 @@ class Session:
             if self.pp_lens:
                 line += '; lens faded in %d / out %d time(s), at most %d %% (%s)' % (
                     self.pp_lens['in'], self.pp_lens['out'], self.pp_lens_max[0], self.pp_lens_max[1])
+            if self.pp_lens_rooms:  # v3.52 FX352: when it shows
+                shown = sum(r[1] for r in self.pp_lens_rooms)
+                secs = sum(r[2] for r in self.pp_lens_rooms)
+                line += '; lens shown %d of %d s in %d room line(s), at most %d %% strength' % (
+                    shown, secs, len(self.pp_lens_rooms), max(r[3] for r in self.pp_lens_rooms))
+            if self.pp_mig:  # v3.52 FX352
+                line += ('; the ini\'s v3.51 Bloom=%s read as %s (%s)'
+                         % (self.pp_mig[0], self.pp_mig[1], 'rewritten' if self.pp_mig[2] else 'NOT rewritten'))
             if self.pp_notf:
                 line += '; not under a filter: ' + ', '.join('%s x%d' % kv for kv in sorted(self.pp_notf.items()))
             if self.pp_fail:

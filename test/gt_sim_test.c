@@ -5,6 +5,10 @@
 // tries); the nearest-first pick (range, height, standing only, at most GT_PICK_MAX); the back direction from the
 // model's quaternion (and its fallback); the spot rings; the facing; the clearance from other enemies; the room's
 // edges; the hidden keys; the move-held check.
+// v3.52 TP352 (staging/v352_feedback/w5_teleport/PLAN.md): Proof() replays warp 129 of the user's v3.51 log (the spot
+// behind the enemy that put her in a Water Prison wall) on a box world: v3.51's rules took it, the landing proof refuses
+// it; the warp ahead's spot at a wall; the proof's answers; the map's seeds inside collision; GtStuck; GtFreeCell (the
+// nearest proven floor cell, against every cell of the map); FreeWatch(): the watch after a warp at 30 .. 240 Hz.
 // Build and run: test\build_gt_test.cmd (cl /O2 x86, as build.cmd).
 #include <stdio.h>
 #include <stdlib.h>
@@ -1101,6 +1105,228 @@ static void Sight(void)
     }
 }
 
+// ================================================================ v3.52 TP352: every landing proven; freed from a wall
+// v3.51's spot rules on the box world (teleport.inc GtSpotTest's order; the game's mover ray / room-to-stand: the floor
+// query here), with or without the landing proof (GtLandProof)
+enum { TS_OK, TS_BOX, TS_SIGHT, TS_WALL, TS_FLOOR, TS_LEDGE, TS_BODY, TS_ROUTE, TS_PENDING, TS_NOMAP, TS_N };
+static int TSpot(TScene *s, const float from[3], const float c[3], int proof, float out[3])
+{
+    float a[3], b[3], fy;
+    if (!GtInBox(s->lo, s->hi, c)) return TS_BOX;
+    a[0] = from[0], a[1] = from[1] - GT_CHEST_DY, a[2] = from[2], b[0] = c[0], b[1] = from[1] - GT_CHEST_DY, b[2] = c[2];
+    if (TLine(&s->t, a, b)) return TS_SIGHT;                        // the anchor's chest line (0x454000)
+    if (TSolidAt(&s->t, c[0], from[1] - 4.0f, c[2])) return TS_WALL;  // 4 u above the floor not inside solid (0x46F700)
+    if (!TFloor(&s->t, c[0], from[1] - 60.0f, from[1] + 6000.0f, c[2], &fy)) return TS_FLOOR;
+    if (fabsf(fy - from[1]) > GT_FLOOR_TOL) return TS_LEDGE;
+    out[0] = c[0], out[1] = fy, out[2] = c[2];
+    if (!proof) return TS_OK;  // (v3.43 .. v3.51: the spot behind an enemy / ahead stopped here)
+    switch (GtLandProof(s->m, &s->w, out)) {
+    case GTP_OK: return TS_OK;
+    case GTP_BODY: return TS_BODY;
+    case GTP_ROUTE: return TS_ROUTE;
+    case GTP_PENDING: return TS_PENDING;
+    default: return TS_NOMAP;
+    }
+}
+// the first of the 21 spots behind the enemy (e, back, rad) that passes; -1 none
+static int TBehind(TScene *s, const float e[3], const float back[2], float rad, int proof, float out[3], int *cnt)
+{
+    int k;
+    for (k = 0; k < GT_SPOT_N; ++k) {
+        float c[3];
+        int r;
+        GtSpotCand(e, back, rad, k, c);
+        if ((r = TSpot(s, e, c, proof, out)) == TS_OK) return k;
+        if (cnt) ++cnt[r];
+    }
+    return -1;
+}
+// GtFreeCell checked against every cell of the map (the nearest that passes the same rules)
+static float TFreeBrute(const GtMap *m, const GtWorld *w, const float from[3], float maxR)
+{
+    float best = 1e30f;
+    int c;
+    for (c = 0; c < m->nx * m->ny; ++c) {
+        float x, z, fy, d2, p[3];
+        if (!m->st[c] || !(fabsf((float)m->fy[c] - from[1]) <= GT_FREE_DY)) continue;
+        GtMapXZ(m, c, &x, &z);
+        d2 = (x - from[0]) * (x - from[0]) + (z - from[2]) * (z - from[2]);
+        if (d2 > maxR * maxR || d2 >= best) continue;
+        if (w->floorAt(w->ctx, x, (float)m->fy[c] - GT_REACH_UP, (float)m->fy[c] + GT_REACH_UP, z, &fy) <= 0 ||
+            fabsf(fy - (float)m->fy[c]) > 2.0f || !GtBodyFree(w, x, fy, z))
+            continue;
+        p[0] = x, p[1] = fy, p[2] = z;
+        if (GtStuck(w, p) != 0) continue;
+        best = d2;
+    }
+    return best < 1e29f ? sqrtf(best) : -1.0f;
+}
+static int TOkLeft(void *c, const float p[3]) { return p[0] <= *(const float *)c; }  // a caller's rule: x at most this
+static float TDistXZ(const float a[3], const float b[3]) { return sqrtf((a[0] - b[0]) * (a[0] - b[0]) + (a[2] - b[2]) * (a[2] - b[2])); }
+static void Proof(void)
+{
+    static TScene s;
+    // 1. warp 129 (the user's v3.51 play log, Water Prison 4:11, 09:49:10): "behind type 09 343 u away (the enemy she faces,
+    //    1 degrees off her facing, 2 in the +-35 degree cone; spot 2: 160 u on its far side (no usable facing), floor +0 u of
+    //    hers): from (-1752, 788) to (-1590, 1248)". Its body radius: 160 - GT_RING0 = 90; no usable facing: the far side
+    //    from her (back = the way from her to it). The enemy's place solved from the two points: L - her = 343 b + 160 R(-30) b
+    const float her[3] = { -1752.0f, 0.0f, 788.0f }, L[3] = { -1590.0f, 0.0f, 1248.0f };
+    const float rad = 160.0f - GT_RING0, ca = cosf(-0.5235988f), sa = sinf(-0.5235988f);
+    const float m00 = 343.0f + 160.0f * ca, m01 = -160.0f * sa;  // [X; Z] = [m00 m01; -m01 m00] [b0; b1]
+    const float X = L[0] - her[0], Z = L[2] - her[2], det = m00 * m00 + m01 * m01;
+    float back[2], e[3], c2[3], at[3], at2[3], q[3], l;
+    int k0, k1, cnt[TS_N], tried, i;
+    back[0] = (m00 * X - m01 * Z) / det, back[1] = (m01 * X + m00 * Z) / det;
+    l = sqrtf(back[0] * back[0] + back[1] * back[1]), back[0] /= l, back[1] /= l;
+    e[0] = her[0] + 343.0f * back[0], e[1] = 0.0f, e[2] = her[2] + 343.0f * back[1];
+    GtSpotCand(e, back, rad, 2, c2);
+    if (g_verbose) printf("  (warp 129: the enemy at (%.0f, %.0f), back (%.3f, %.3f), spot 2 at (%.1f, %.1f))\n", e[0], e[2], back[0], back[1], c2[0], c2[2]);
+    Check(Near(c2[0], L[0], 3.0f) && Near(c2[2], L[2], 3.0f) && Near(GtOffFacing(her, atan2f(back[0], back[1]), e), 0.0f, 0.02f),
+          "proof: warp 129 replayed: spot 2 of an enemy 343 u ahead (radius 90, its far side) is the logged landing (-1590, 1248)");
+    //    The room: the Water Prison's wall 22 u past that landing (its face at z 1270, 130 thick, 1400 wide); her floor map
+    //    from where she stood (no door needed: the room's floor is hers)
+    TSceneInit(&s, 3000.0f);
+    memcpy(s.her, her, sizeof s.her);
+    TWall(&s.t, -2400.0f, -1000.0f, 1270.0f, 1400.0f, 1000.0f);
+    TMap(&s);
+    memset(cnt, 0, sizeof cnt);
+    k0 = TBehind(&s, e, back, rad, 0, at, cnt);
+    Check(k0 == 2 && Near(at[0], L[0], 3.0f) && Near(at[2], L[2], 3.0f) && cnt[TS_SIGHT] + cnt[TS_WALL] == 2,
+          "proof: v3.51's spot rules: spots 0 and 1 in the wall (a wall between), spot 2 (22 u from its face) taken: warp 129's landing");
+    Check(GtStuck(&s.w, at) == 1 && !GtBodyFree(&s.w, at[0], at[1], at[2]), "proof: at warp 129's landing her body overlaps the wall (stuck)");
+    memset(cnt, 0, sizeof cnt);
+    k1 = TBehind(&s, e, back, rad, 1, at2, cnt);
+    if (g_verbose) printf("  (proven: spot %d at (%.0f, %.0f); refused: wall %d, body %d, route %d)\n", k1, at2[0], at2[2], cnt[TS_WALL], cnt[TS_BODY], cnt[TS_ROUTE]);
+    Check(k1 > 2 && cnt[TS_BODY] >= 1 && GtBodyFree(&s.w, at2[0], at2[1], at2[2]) && GtStuck(&s.w, at2) == 0 &&
+          1270.0f - at2[2] >= GT_BODY_HI_R && GtMapHas(s.m, &s.w, at2) == GTM_HAS,
+          "proof: with the landing proof spot 2 is refused (no room for her body); a later spot clear of the wall is taken");
+    //    after the warp (v3.51's landing): the nearest proven floor cell; the same answer as every cell of the map tested
+    tried = 0;
+    Check(GtFreeCell(s.m, &s.w, at, GT_FREE_R, NULL, NULL, q, &tried) && GtBodyFree(&s.w, q[0], q[1], q[2]) && GtStuck(&s.w, q) == 0 &&
+          q[2] <= 1270.0f - GT_BODY_HI_R && TDistXZ(q, at) <= 120.0f && tried > 0 &&
+          Near(TDistXZ(q, at), TFreeBrute(s.m, &s.w, at, GT_FREE_R), 1e-3f),
+          "free: stuck at warp 129's landing: moved to the nearest proven floor cell (under 120 u, clear of the wall)");
+    // 2. a warp that starts INSIDE the wall (50 u into it): stuck (inside solid), no floor seed there; the nearest cell
+    {
+        const float in[3] = { -1600.0f, 0.0f, 1320.0f }, face[3] = { -1500.0f, 0.0f, 1250.0f };
+        const int seeds = s.m->seeds, cells = s.m->cells, blocked = s.m->seedsBlocked;
+        Check(GtStuck(&s.w, in) == 1, "free: inside the wall: stuck");
+        Check(GtMapSeed(s.m, &s.w, in[0], in[1], in[2], GT_REACH_UP) == -1 && s.m->seeds == seeds && s.m->cells == cells,
+              "map: her feet inside the wall are no seed (no floor from inside solid)");
+        Check(GtMapSeed(s.m, &s.w, face[0], face[1], face[2], GT_REACH_UP) == -1 && s.m->seedsBlocked == blocked + 1 &&
+              s.m->cells == cells, "map: her feet 20 u from the wall's face (her body in it) are no seed either (inside collision)");
+        Check(GtFreeCell(s.m, &s.w, in, GT_FREE_R, NULL, NULL, q, &tried) && q[2] <= 1270.0f - GT_BODY_HI_R &&
+              TDistXZ(q, in) <= 180.0f && Near(TDistXZ(q, in), TFreeBrute(s.m, &s.w, in, GT_FREE_R), 1e-3f),
+              "free: a warp from inside the wall: the nearest proven floor cell outside it");
+        Check(GtStuck(&s.w, her) == 0 && GtStuck(&s.w, at2) == 0, "free: on open floor: not stuck");
+    }
+    // 3. the caller's rules, the reach, the level: a cell its rule refuses is never given; none within reach: none
+    {
+        float lim = -1700.0f, q2[3];
+        Check(GtFreeCell(s.m, &s.w, at, GT_FREE_R, TOkLeft, &lim, q2, &tried) && q2[0] <= lim && TDistXZ(q2, at) >= TDistXZ(q, at) - 1e-3f,
+              "free: the caller's rule (the door lines, zones, the game's floor ray) refuses cells: the nearest it allows");
+        lim = -9000.0f;
+        Check(!GtFreeCell(s.m, &s.w, at, GT_FREE_R, TOkLeft, &lim, q2, &tried), "free: every cell refused: none (she is not moved)");
+        Check(!GtFreeCell(s.m, &s.w, (const float[3]){ -1600.0f, -400.0f, 1320.0f }, GT_FREE_R, NULL, NULL, q2, &tried),
+              "free: from another level (400 u up): no cell of this floor");
+        Check(!GtFreeCell(s.m, &s.w, (const float[3]){ 9000.0f, 0.0f, 9000.0f }, GT_FREE_R, NULL, NULL, q2, &tried) && tried == 0 &&
+              !GtFreeCell(s.m, &s.w, (const float[3]){ NAN, 0.0f, 0.0f }, GT_FREE_R, NULL, NULL, q2, &tried),
+              "free: far off the map, or not a number: none");
+    }
+    // 4. the warp ahead (v3.44): a wall face 30 u past 800 u ahead: v3.51 took 800 (her body in the wall); proven: 700
+    TSceneInit(&s, 3000.0f);
+    TWall(&s.t, -3100.0f, 3100.0f, 830.0f, 900.0f, 1000.0f);
+    TMap(&s);
+    {
+        float c[3], o[3];
+        GtFwdCand(s.her, 0.0f, 800.0f, 0, c);
+        i = TSpot(&s, s.her, c, 0, o);
+        k0 = TSpot(&s, s.her, c, 1, o);
+        GtFwdCand(s.her, 0.0f, 800.0f, 1, c);
+        k1 = TSpot(&s, s.her, c, 1, o);
+        Check(i == TS_OK && k0 == TS_BODY && k1 == TS_OK && Near(o[2], 700.0f, 0.5f),
+              "proof: the warp ahead 30 u short of a wall: v3.51 took it, now refused (her body); 700 u is taken");
+    }
+    // 5. the proof's answers: a closed pen past a wall (no route), an unfinished map (not known yet), no map / off it / NaN
+    TSceneInit(&s, 600.0f);
+    TWall(&s.t, -700.0f, 700.0f, 300.0f, 340.0f, 1000.0f);
+    TWall(&s.t, -700.0f, 700.0f, 700.0f, 740.0f, 1000.0f);
+    TMap(&s);
+    Check(GtLandProof(s.m, &s.w, (const float[3]){ 0.0f, 0.0f, 520.0f }) == GTP_ROUTE &&
+          GtLandProof(s.m, &s.w, (const float[3]){ 0.0f, 0.0f, 100.0f }) == GTP_OK &&
+          GtLandProof(s.m, &s.w, (const float[3]){ 0.0f, 0.0f, 280.0f }) == GTP_BODY, "proof: a closed pen: no route; her side: proven; at the wall: her body");
+    s.mapCells = 5;
+    TMap(&s);
+    Check(GtLandProof(s.m, &s.w, (const float[3]){ 0.0f, 0.0f, -500.0f }) == GTP_PENDING, "proof: the map not finished: not known yet");
+    Check(GtLandProof(s.m, &s.w, (const float[3]){ 9000.0f, 0.0f, 0.0f }) == GTP_NOMAP &&
+          GtLandProof(s.m, &s.w, (const float[3]){ 0.0f, NAN, 0.0f }) == GTP_NOMAP && GtLandProof(NULL, &s.w, s.her) == GTP_NOMAP,
+          "proof: off the map, not a number, no map: not proven");
+    s.m->on = 0;
+    Check(GtLandProof(s.m, &s.w, s.her) == GTP_NOMAP, "proof: a map that could not begin (the room's box): not proven");
+    Check(kGtProofWhy[GTP_NOMAP] && GTP_N == 5, "proof: every answer has a text");
+    // 6. a query that cannot answer: never stuck on a guess; the solid map alone unknown: the sphere decides
+    TSceneInit(&s, 600.0f);
+    s.t.unknown = 1;
+    Check(GtStuck(&s.w, s.her) == -1 && GtStuck(&s.w, (const float[3]){ INFINITY, 0.0f, 0.0f }) == -1, "free: the collision cannot answer: unknown (not moved)");
+}
+// the watch after a warp: stuck 0.15 s in a row frees her; clear for 1 s ends it; menus hold it; never past 3 s
+static int TWatch(int hz, int stuckFrom, int stuckTo, int ticks, int *fireTick)  // stuck on ticks [stuckFrom, stuckTo)
+{
+    GtFreeWatch f;
+    int i;
+    *fireTick = -1;
+    GtFreeWatchStart(&f);
+    for (i = 0; i < ticks && f.on; ++i)
+        if (GtFreeWatchStep(&f, 1, i >= stuckFrom && i < stuckTo, 1.0f / (float)hz) && *fireTick < 0) {
+            *fireTick = i;
+            GtFreeWatchStop(&f);
+        }
+    return i;
+}
+static void FreeWatch(void)
+{
+    static const int kHz[4] = { 30, 60, 144, 240 };
+    int k, fire, n;
+    for (k = 0; k < 4; ++k) {
+        const int hz = kHz[k];
+        char what[120];
+        n = TWatch(hz, 0, 100000, 10 * hz, &fire);
+        sprintf_s(what, sizeof what, "watch %d Hz: stuck from the landing: freed after 0.15 s (tick %d)", hz, fire);
+        Check(fire >= 0 && fabsf((float)(fire + 1) / (float)hz - GT_FREE_STUCK_S) <= 1.0f / (float)hz + 1e-4f, what);
+        n = TWatch(hz, -1, -1, 10 * hz, &fire);
+        sprintf_s(what, sizeof what, "watch %d Hz: clear: the watch ends after 1 s (%d ticks), nobody moved", hz, n);
+        Check(fire < 0 && abs(n - hz) <= 1, what);
+        n = TWatch(hz, (int)(0.95f * (float)hz), 100000, 10 * hz, &fire);
+        sprintf_s(what, sizeof what, "watch %d Hz: stuck from 0.95 s on: followed past the window, freed at %.2f s", hz, (float)(fire + 1) / (float)hz);
+        Check(fire > hz && (float)(fire + 1) / (float)hz <= 0.95f + GT_FREE_STUCK_S + 2.0f / (float)hz, what);
+        n = TWatch(hz, 0, (int)(0.1f * (float)hz), 10 * hz, &fire);
+        sprintf_s(what, sizeof what, "watch %d Hz: stuck 0.1 s, then pushed out by the game: not moved", hz);
+        Check(fire < 0, what);
+    }
+    {
+        GtFreeWatch f;
+        int i, fired = 0;
+        GtFreeWatchStart(&f);
+        for (i = 0; i < 600; ++i) fired |= GtFreeWatchStep(&f, 0, 1, 1.0f / 60.0f);  // a menu over it: nothing counts
+        Check(!fired && f.on && f.t == 0.0f, "watch: menus / scenes hold it (no time, no stuck time)");
+        for (i = 0; i < 6; ++i) fired |= GtFreeWatchStep(&f, 1, 1, 1.0f / 60.0f);
+        fired |= GtFreeWatchStep(&f, 1, -1, 1.0f / 60.0f);  // an unknown answer breaks the run
+        for (i = 0; i < 6; ++i) fired |= GtFreeWatchStep(&f, 1, 1, 1.0f / 60.0f);
+        Check(!fired && f.on, "watch: a query that cannot answer breaks the stuck run (never moved on a guess)");
+        GtFreeWatchStart(&f);
+        for (i = 0; i < 1000 && f.on; ++i) fired |= GtFreeWatchStep(&f, 1, i & 1, 1.0f / 60.0f);  // flickering: never 0.15 s
+        Check(!fired && !f.on && i >= (int)(GT_FREE_WATCH_S * 60.0f) && i <= (int)(GT_FREE_END_S * 60.0f) + 1,
+              "watch: a stuck answer that flickers never frees her; the watch ends (at most 3 s)");
+        GtFreeWatchStart(&f);
+        for (i = 0; i < 100; ++i) fired |= GtFreeWatchStep(&f, 1, 1, 0.5f);  // a stall: no time passes
+        Check(!fired && f.on && f.t == 0.0f, "watch: a stalled clock (0.5 s ticks): no time, no move");
+        for (i = 0; i < 20; ++i) GtFreeWatchStep(&f, 1, 1, 1.0f / 60.0f);
+        Check(GtFreeWatchStep(&f, 1, 1, 1.0f / 60.0f) == 1 && f.on, "watch: while she cannot be moved yet (a gate) it keeps asking");
+        GtFreeWatchStop(&f);
+        Check(!GtFreeWatchStep(&f, 1, 1, 1.0f / 60.0f), "watch: stopped: nothing");
+    }
+}
+
 int main(int argc, char **argv)
 {
     static const int kHz[4] = { 30, 60, 120, 144 };
@@ -1121,6 +1347,8 @@ int main(int argc, char **argv)
     Reach();
     Faced();
     Sight();  // v3.51 TP351
+    Proof();  // v3.52 TP352
+    FreeWatch();
     printf("%s: %d of %d checks passed\n", g_fail ? "FAILED" : "PASSED", g_n - g_fail, g_n);
     return g_fail ? 1 : 0;
 }

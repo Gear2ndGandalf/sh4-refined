@@ -344,14 +344,31 @@ static int QsRestart(BYTE *img, const QsHeader *hd)
     return 1;
 }
 
-static void QsLoad(void)
+// v3.52 QL352: the newest valid slot read into g_qsFile (header + image), shared by QsLoad and the Extra Menu's Quick Load
+// inside the pause (extramenu.inc QlPauseStart, read at the confirm, restarted at black). The slot index, -1 = none.
+static int QsPickNewest(void)
 {
-    const char *why = QsGuard(1, 0);
     BYTE *const probe = g_qsProbe;
-    const QsHeader *hd = (const QsHeader *)g_qsFile;
-    BYTE *img = g_qsFile + QS_HDR;
     DWORD best = 0;
     int k, from = -1;
+    for (k = 0; k < QS_SLOTS; ++k)
+        if (QsReadSlot(k, probe) && ((QsHeader *)probe)->seq > best) {
+            best = ((QsHeader *)probe)->seq;
+            from = k;
+            memcpy(g_qsFile, probe, QS_HDR + QS_IMG);
+        }
+    g_qsAnyValid = from >= 0;
+    return from;
+}
+
+// v3.52 QL352: via = the path taken (named in the log line, one per quick load): the key in play, or the Extra Menu after
+// the pause closed (v3.51's path; extramenu.inc QlPathName)
+static void QsLoad(const char *via)
+{
+    const char *why = QsGuard(1, 0);
+    const QsHeader *hd = (const QsHeader *)g_qsFile;
+    BYTE *img = g_qsFile + QS_HDR;
+    int from;
     if (why) {
         Log("quick load: refused: %s%s%s", why, strcmp(why, "a data file is loading") ? "" : ": ",  // v3.33 MENU333
             strcmp(why, "a data file is loading") ? "" : g_qsPassWhat);
@@ -359,12 +376,7 @@ static void QsLoad(void)
         QsSay("Quick load not possible here", 0);
         return;
     }
-    for (k = 0; k < QS_SLOTS; ++k)
-        if (QsReadSlot(k, probe) && ((QsHeader *)probe)->seq > best) {
-            best = ((QsHeader *)probe)->seq;
-            from = k;
-            memcpy(g_qsFile, probe, QS_HDR + QS_IMG);
-        }
+    from = QsPickNewest();  // v3.52 QL352
     if (from < 0) {
         g_qsAnyValid = 0;
         Log("quick load: no valid quick save in %s", g_qsDir);
@@ -380,8 +392,8 @@ static void QsLoad(void)
         return;
     }
     g_qsLoadSay = 1;
-    Log("quick load: slot %d (sequence %lu), stage %lu room %lu, game time %lu", from + 1, hd->seq, hd->stage, hd->room,
-        hd->gtime);
+    Log("quick load: slot %d (sequence %lu), stage %lu room %lu, game time %lu; path: %s", from + 1, hd->seq, hd->stage,
+        hd->room, hd->gtime, via);  // v3.52 QL352: the path
     QsSound(1);
 }
 
@@ -450,7 +462,7 @@ static int __cdecl QsTick(void)
     } else if (req && g_qsInstalled && GetTickCount() - g_qsReqTick < 1000) {
         __try {
             if (req == 1) QsSave();
-            else QsLoad();
+            else QsLoad("the Quick Load key in play");  // v3.52 QL352
         } __except (QsFaultNote(GetExceptionInformation()), EXCEPTION_EXECUTE_HANDLER) {
             Log("quick %s: faulted (code %08lX at %p)", req == 1 ? "save" : "load", g_qsFaultCode, g_qsFaultAt);
         }

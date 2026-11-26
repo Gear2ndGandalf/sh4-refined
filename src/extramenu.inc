@@ -51,6 +51,7 @@ typedef void(__cdecl *EmText)(int, int, int, int, int, int);
 #define MU_FADEMODE EM_I(0x13D666C)               // gSndSys.fadeMode: the master fade
 #define MU_MASTER (*(volatile float *)0x13CDBDC)  // the master fade volume (0x56C580): the music, the world's sounds
 #include "pausesound_sim.h"                       // MuBridgeAct / MuMusicState
+#include "qlpause_sim.h"                          // v3.52 QL352: QlPath / QlFadeStep / QlSoundStep (test\qlpause_test.c)
 
 // ---------------------------------------------------------------- data (RE 1.3; CT 537-749)
 // row ids (pm_rows / pm_okt index), CT 598-612
@@ -97,6 +98,15 @@ static int g_emSeamless = 1;
 static int g_emBridge, g_emBridgeFrames, g_emBridgeIdle, g_emSeamN;
 static void hkEmBridge(void);
 static int g_emPauseSound = 1;  // v3.51 MU351: hidden [ExtraMenu] PauseSound (1 = the pause's silence goes on in the lists; 0 = v3.50)
+// v3.52 QL352: Quick Load inside the pause (hidden [ExtraMenu] QuickLoadInPause, 1; 0 = v3.51's close first). ql_phase 1 =
+// our hand-over overlay fades to black; ql_soundOwed = the restart is asked, the music stays paused until the loaded room runs
+static int g_emQlInPause = 1;
+static int ql_phase, ql_frames, ql_from, ql_soundOwed;
+static DWORD ql_soundT0;
+static char g_qlVia[128];  // the path of the last confirm (QlPathName), named in QsLoad's / ql_go's log line
+// v3.52 MERGE: sound.inc's frame-end keeper waits for this (sound_sim.h SndKeepStep): the fade to black, then the music
+// owed until the loaded room's 0x56E960(-1)
+static int QlSoundHeld(void) { return ql_phase || ql_soundOwed; }
 
 // v3.51 MU351: one line per list opened / closed with the sound state (at most 400 a session); `watch` = opened or back
 // in the pause with PauseSound on: an ANOMALY when the music is not paused then
@@ -267,7 +277,7 @@ static int EmSubBusy(void) { return (EM_SUB || EM_PEND) && !EmInBridge(); }
 static int sa_idle(void) { return EmSubBusy() || !sa_hard() ? 0 : sa_soft_save(); }  // v3.32 PM332: EmSubBusy
 static int la_idle(void) { return EmSubBusy() || !sa_hard() ? 0 : sa_soft_load(); }
 static int ch_idle(void) { return EmSubBusy() || !sa_hard() || !ch_hard() ? 0 : sa_soft_load(); }
-static int pm_busy(void) { return sa_active || sa_loading || la_active || la_restart || ch_active || pm_defer; }
+static int pm_busy(void) { return sa_active || sa_loading || la_active || la_restart || ch_active || pm_defer || ql_phase; }  // v3.52 QL352: ql_phase
 static int pm_can_save(void) { return !pm_busy() && sa_hard() && sa_soft_save() == 1; }
 static int pm_can_load(void) { return !pm_busy() && sa_hard() && sa_soft_load() == 1; }
 static int pm_can_chest(void) { return !pm_busy() && sa_hard() && ch_hard() && sa_soft_load() == 1; }
@@ -685,7 +695,7 @@ static void EmHudBack(void)
 static void em_bridge_body(void)
 {
     ++g_emBridgeFrames;
-    if (sa_request | la_request | ch_request | sa_loading) g_emBridgeIdle = 0;
+    if (sa_request | la_request | ch_request | sa_loading | ql_phase) g_emBridgeIdle = 0;  // v3.52 QL352: ql_phase
     else ++g_emBridgeIdle;
     if (g_emBridgeIdle >= 3 || g_emBridgeFrames > 1200) {
         Log("extra menu: the hand-over overlay waited %d frames for nothing: back to the pause menu", g_emBridgeFrames);
@@ -716,6 +726,7 @@ static void pm_buzz(void)
 // pm_close: a feature row closes the pause like Resume; the request runs at sub-mode 0 (pm_defer).
 // v3.32 PM332: seamless (Storage Chest, Save Game, Load Game): the pause becomes our hand-over overlay instead, the
 // request runs inside it (EmInBridge); Quick Load (a world restart from disk, QsLoad's gameplay guards) stays v3.31's.
+// v3.52 QL352: Quick Load runs inside the pause too (QlPauseStart); pm_close(0) only for its v3.51 fallbacks.
 static void pm_close(int seamless)
 {
     pm_ret_go = 0;
@@ -779,6 +790,138 @@ static void pm_cam_confirm(int id)
         return;
     }
     if (CamPauseStep(id - PM_CAMR0, 1, 1)) EM_SOUND(0x9C40);
+}
+
+// ---------------------------------------------------------------- v3.52 QL352: Quick Load inside the pause
+// USER_FEEDBACK_v351 Q2 (MU351's open question 2): "Quick Load still un-pauses for a moment first". v3.51 closed the pause
+// like Resume (the master to 1.0 at once, a select sound, phase 0) and then waited for QsLoad's gameplay guards: the world
+// ran and the level music played, visibly, before the door's leave even began. Now (the game's order: qlpause_sim.h):
+// the confirm turns the pause into the hand-over overlay (EmBridgeOpen: the frozen picture, phase 2, MU351's silence),
+// the screen fades to black inside it, and only at black is the world restart asked (QsRestart) and the overlay left
+// without the Resume's sound call. Behind the black screen the old room takes one tick into its door leave (phase 0 is
+// what runs the world state machine; nothing of it is kept: the save replaces it), the master stays 0 through the leave
+// and the world start, and the loaded room's first frame is followed by one 0x56E960(-1): the music fades in.
+
+// the confirm (pm_dispatch, inside 0x4F8E90 at sub-mode 2, the row's guards passed). 1 = handled here (our overlay fades,
+// or the buzzer); 0 = v3.51's close (g_qlVia names why)
+static int QlPauseStart(void)
+{
+    static LONG s_q;
+    const int canOpen = EmSeamCanOpen(1, EM_SUB, EM_PEND, EM_PHASE, EM_CAPTURE, pm_pe_open());
+    int w = QlPath(g_emQlInPause, g_emSeamless, canOpen, EM_I(0x108CE78) != 0);
+    if (w == QLW_PAUSE) {
+        ql_from = QsPickNewest();  // the slot now (g_qsFile): no file read at black
+        if (ql_from < 0) {
+            Log("quick load: no valid quick save in %s", g_qsDir);
+            pm_buzz();
+            QsSay("No quick save", 0);
+            return 1;
+        }
+        if (!EmBridgeOpen()) w = QLW_UNSETTLED;  // (EmSeamCanOpen held just now: never seen)
+    }
+    strcpy_s(g_qlVia, sizeof g_qlVia, QlPathName(w));
+    if (w != QLW_PAUSE) {
+        if (w != QLW_OFF && w != QLW_NOSEAM && LogQuota(&s_q, 100))
+            LogV("extra menu: Quick Load: %s (sub %d pending %d phase %d picture %d, message %d)", g_qlVia, EM_SUB, EM_PEND,
+                 EM_PHASE, EM_CAPTURE, EM_I(0x108CE78));
+        return 0;
+    }
+    pm_leave_sub();
+    pm_ret_row = 0;
+    pm_ret_go = 0;
+    EM_SOUND(0x9C48);
+    EM_CALL2(0x565CB0, QL_BLACK, QL_FADE_SPEED);  // to black over the frozen picture (the chest fades the same way)
+    ql_phase = 1;
+    ql_frames = 0;
+    g_emJmp = EM_EPI;
+    if (LogQuota(&s_q, 100)) LogV("extra menu: Quick Load: inside the pause: fading to black (slot %d)", ql_from + 1);
+    return 1;
+}
+
+// at black (EmTick, our overlay up): the restart, then the overlay left as Resume (0x4F90C2) and 0x4F9110's case 8 would
+// leave it, without either 0x56E960(-1). A refusal (never seen: the pause held the world still) goes back into the pause.
+static void ql_go(int late)
+{
+    static LONG s_q, s_a;
+    const QsHeader *hd = (const QsHeader *)g_qsFile;
+    const float master = MU_MASTER;
+    const int fade = MU_FADEMODE, pm = MU_PAUSEMODE, st = MuMusicState(master, fade);
+    const char *why = QsGuardHard(1, 0, 1);  // the load guards without the sub-mode / phase / input tests
+    ql_phase = 0;
+    if (!why && !QsRestart(g_qsFile + QS_HDR, hd)) why = "every catalog entry is clear data";
+    if (why) {
+        Log("quick load: refused at black: %s; back in the pause (path: %s)", why, g_qlVia);
+        pm_ret_row = PM_QLOAD;
+        EmBridgeBack();  // the pause again on the Quick Load row, fading in, the buzzer
+        QsSay("Quick load not possible here", 0);
+        return;
+    }
+    g_emBridge = 0;
+    EM_CALL0(0x4F8DA0);     // MenuSubModeDisable: no pause before the room change (as a door's 0x4F72F0)
+    EM_CALL0(0x4031F0);     // 0x4F90C2's Resume: RenderFixedTargetsReleaseBackups,
+    EM_CALL0(0x406C30);     //   InputForceStart,
+    EM_CALL1(0x55A160, 0);  //   the frozen picture dropped at the frame end (under black); not its 0x56E960(-1)
+    EM_CALL0(0x50BE50);     // 0x4F9110 case 8: MsgBoxShow,
+    EM_CALL0(0x4F8B80);     //   MenuSubModeReset (sub-mode 0, no callback, events on),
+    EM_PHASE = 0;           //   0x4EFAE0 from phase 2 (only the phase; not its 0x56E960(-1)),
+    EM_CALL0(0x553CF0);     //   its input flush. The HUD stays off: the loaded room's 0x4F0AC0 turns it on
+    g_qsLoadSay = 1;        // "Quick loaded" when the loaded room runs (QsFrame)
+    ql_soundOwed = 1;
+    ql_soundT0 = GetTickCount();
+    if (LogQuota(&s_q, 400))
+        Log("quick load: slot %d (sequence %lu), stage %lu room %lu, game time %lu; path: %s (black in %d frames%s; pause mode "
+            "%d, master %.2f, fade %d: %s)", ql_from + 1, hd->seq, hd->stage, hd->room, hd->gtime, g_qlVia, ql_frames,
+            late ? ", NOT black: loaded anyway" : "", pm, master, fade, MuMusicName(st));
+    if (g_emPauseSound && st != MU_MUSIC_PAUSED && LogQuota(&s_a, 20))
+        LogAnomaly("extra menu", "Quick Load: the level music is not paused at black (pause mode %d, master %.2f, fade %d)", pm,
+                   master, fade);
+}
+
+// EmTick while ql_phase: one frame of the fade inside our overlay
+static void ql_step(void)
+{
+    static LONG s_a;
+    int r;
+    if (!EmInBridge()) {  // our overlay went away under us (never seen): nothing was asked yet
+        ql_phase = 0;
+        if (LogQuota(&s_a, 20))
+            LogAnomaly("extra menu", "Quick Load: the hand-over overlay closed while it faded to black (sub %d phase %d picture "
+                       "%d): nothing loaded", EM_SUB, EM_PHASE, EM_CAPTURE);
+        return;
+    }
+    r = QlFadeStep(++ql_frames, EM_I(0x137F98C), QL_FADE_MAX);
+    if (r != QLF_WAIT) ql_go(r == QLF_GO_LATE);
+}
+
+// EmTick, first: the sound owed since ql_go, given back once the loaded room runs (one 0x56E960(-1), pauseMode marked 2:
+// the master fades in from 0.2 to full in about 0.4 s, no select sound)
+static void QlSoundTick(void)
+{
+    static LONG s_q, s_a;
+    unsigned ms;
+    int r, pm;
+    if (!ql_soundOwed) return;
+    ms = (unsigned)(GetTickCount() - ql_soundT0);
+    r = QlSoundStep(EM_I(0xFD5A74), EM_I(0xFD5AA0), EM_I(0xFD5AA4), EM_I(0x137F990), EM_SUB || EM_PEND || EM_PHASE == 1, ms,
+                    QL_SOUND_MAX_MS);
+    if (r == QLS_HOLD) return;
+    ql_soundOwed = 0;
+    if (r == QLS_DROP) {
+        if (LogQuota(&s_q, 400))
+            Log("quick load: the loaded room opened a menu or a cut-scene first (sub-mode %d, pending %d, phase %d) after %u ms: "
+                "its own end gives the level music back", EM_SUB, EM_PEND, EM_PHASE, ms);
+        return;
+    }
+    pm = MU_PAUSEMODE;
+    if (QlSoundMark(pm) != pm) MU_PAUSEMODE = QlSoundMark(pm);
+    EM_CALL1(0x56E960, -1);
+    if (LogQuota(&s_q, 400))
+        Log("quick load: the loaded room runs after %u ms (stage %d room %d): the level music fades in (0x56E960(-1) from pause "
+            "mode %d)%s", ms, EM_I(0xFD5A90), EM_I(0xFD5A94), QlSoundMark(pm), r == QLS_BACK_LATE ? ": NOT seen running" : "");
+    if (r == QLS_BACK_LATE && LogQuota(&s_a, 20))
+        LogAnomaly("extra menu", "Quick Load: no loaded room seen running within %u ms: the sound given back anyway (start mode "
+                   "%d, next stage %d room %d, fade target %d)", ms, EM_I(0xFD5A74), EM_I(0xFD5AA0), EM_I(0xFD5AA4),
+                   EM_I(0x137F990));
 }
 
 static void pm_dispatch_body(void)
@@ -853,7 +996,7 @@ static void pm_dispatch_body(void)
         }
         QsSaveEx(1);
         return;
-    case PM_QLOAD:  // pm_do_ql: files checked again; then close the pause, QsLoad at sub-mode 0; no return to menu
+    case PM_QLOAD:  // pm_do_ql: files checked again; then close the pause, QsLoad at sub-mode 0; no return to menu  // v3.52 QL352: inside the pause (QlPauseStart)
         {   // v3.33 MENU333: the load guards, the reason logged
             const char *w = QsAnyValid() ? pm_why_ql() : "no valid quick save on disk";
             static LONG s_q;
@@ -864,8 +1007,9 @@ static void pm_dispatch_body(void)
             }
         }
         g_emQlTick = GetTickCount();  // v3.33 MENU333
-        ql_request = 1;
         pm_ret_row = 0;
+        if (QlPauseStart()) return;  // v3.52 QL352: inside the pause (or the buzzer); 0 = v3.51's close below
+        ql_request = 1;
         pm_close(0);  // v3.32 PM332: Quick Load keeps v3.31's close
         return;
     case PM_PE:  // pm_do_pe: PE's Open() (its own sound); 1 = its menu is up, the list stays as it is
@@ -1424,13 +1568,14 @@ static void sa_check_req(void)
         // file, a message) is waited for, up to 1.5 s; then QsLoad decides (and logs a refusal)
         if (!QsGuardHard(1, 0, 1) && QsGuard(1, 0) && GetTickCount() - g_emQlTick < 1500) return;
         ql_request = 0;
-        QsLoad();
+        QsLoad(g_qlVia[0] ? g_qlVia : QlPathName(QLW_OFF));  // v3.52 QL352: the path named
     }
 }
 
 // g_extraTick: first thing of every game tick (0x4EF982 dispatcher, inside its SEH), the table's sa_code moment
 static void __cdecl EmTick(void)
 {
+    QlSoundTick();  // v3.52 QL352: the music owed by a Quick Load from the pause, once the loaded room runs
     if (pm_pe_open()) return;  // E5: Playable Eileen's menu is up
     if (EM_SUB != 2 && EM_PEND != 2 && pm_sub) {  // the sub-list only lives while the pause is up or pending
         pm_sub = 0;
@@ -1440,6 +1585,7 @@ static void __cdecl EmTick(void)
     pm_eo_lr();
     pm_cam_lr();  // v3.37 CP337
     em_qs_wait();  // v3.33 MENU333
+    if (ql_phase) { ql_step(); return; }  // v3.52 QL352: Quick Load fading to black inside the pause
     if (ch_active) { ch_run(); return; }
     if (la_restart) { la_do_restart(); return; }
     if (sa_loading) { sa_wait(); return; }
@@ -1770,6 +1916,32 @@ static void ExtraInstall(void)
     if (g_emSeamless)
         Log("extra menu: sound in the Storage Chest / Save Game / Load Game: %s ([ExtraMenu] PauseSound=%d)",
             g_emPauseSound ? "paused as in the pause menu" : "plays quietly as in v3.50", g_emPauseSound);
+    {   // v3.52 QL352: hidden [ExtraMenu] QuickLoadInPause (default 1); 0 = v3.51 (the pause closes, then the quick load).
+        // The game functions its silent leave calls, checked here so that a mismatch only turns this path off.
+        static const Site kQlFns[] = {
+            { 0x4F8DA0, { 0xC7, 0x05, 0x50, 0xBF, 0x07, 0x01, 0x00, 0x00, 0x00, 0x00, 0xC3 }, 11 },  // MenuSubModeDisable
+            { 0x4F8B80, { 0x33, 0xC0, 0x50, 0xA3, 0x54, 0xBF, 0x07, 0x01 }, 8 },                    // MenuSubModeReset
+            { 0x50BE50, { 0x83, 0x25, 0x70, 0xCF, 0x08, 0x01, 0xFD, 0xC3 }, 8 },                    // MsgBoxShow
+            { 0x4031F0, { 0xA1, 0x00, 0x8E, 0x6E, 0x00, 0x56, 0x33, 0xF6 }, 8 },                    // RenderFixedTargetsReleaseBackups
+            { 0x406C30, { 0xE8, 0xEB, 0xFC, 0xFF, 0xFF }, 5 },                                      // InputForceStart
+            { 0x55A160, { 0x8B, 0x44, 0x24, 0x04, 0x85, 0xC0, 0x74, 0x14 }, 8 },                    // RenderCaptureSet
+        };
+        const char *off = NULL;
+        char why[96];
+        const int asked = GetPrivateProfileIntA("ExtraMenu", "QuickLoadInPause", 1, g_iniPath) != 0;
+        g_emQlInPause = asked;
+        for (i = 0; g_emQlInPause && i < (int)(sizeof kQlFns / sizeof kQlFns[0]); ++i)
+            if (!EmOurPatch(kQlFns[i].va, kQlFns[i].len) && !SiteOk(&kQlFns[i]) && !PeHookedCallee(kQlFns[i].va, "extra menu")) {
+                EmLogDiff(&kQlFns[i]);
+                sprintf_s(why, sizeof why, "%08lX is not stock", kQlFns[i].va);
+                off = why;
+                g_emQlInPause = 0;
+            }
+        if (!g_emSeamless && g_emQlInPause) off = "[ExtraMenu] Seamless=0";
+        Log("extra menu: Quick Load %s ([ExtraMenu] QuickLoadInPause=%d%s%s)", g_emQlInPause && g_emSeamless ?
+            "runs inside the pause (the world frozen and the level music paused until the loaded room starts)" :
+            "closes the pause first (v3.51)", asked, off ? ": " : "", off ? off : "");
+    }
     Log("extra menu: on, 8 patches (4F8A30 4F8F2E 4F8F5D 4F8FAC 4F8FE9 4F8EC1 4F8ED3 512235), engine in the 0x4EF982 "
         "dispatcher; rows Chest %ld Save %ld Load %ld QuickSave %ld QuickLoad %ld Eileen %ld (Option 6); Camera row (its page: "
         "the camera settings) while SH4 Refined's camera owns the view, now %s",

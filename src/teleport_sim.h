@@ -24,6 +24,12 @@
 // v3.51 TP351 (the user's v3.50 QA item 2; staging/v351_feedback/w1_teleport/PLAN.md): an enemy she faces only through
 // collision (a wall, a prop, a turnstile between, inside a wall, a ghost in its wall) is not "faced": the next one in
 // the cone she has a clear line to, else the warp ahead (GtFoeSight, GtPickFacedVia).
+//
+// v3.52 TP352 (the user's v3.51 QA D4, staging/v352_feedback/USER_FEEDBACK_v351.md; staging/v352_feedback/w5_teleport/
+// PLAN.md): stuck in a Water Prison wall after a warp behind an enemy. Every landing (behind, ahead, through) passes one
+// proof by her own walk rules and collision (GtLandProof: her body free, on the room's floor map); the floor map takes
+// no seed inside collision (GtCellFree); after a warp, or at a warp that starts inside a wall, she is moved to the
+// nearest proven floor cell when her body overlaps the room's collision (GtStuck, GtFreeWatch, GtFreeCell).
 #ifndef TELEPORT_SIM_H
 #define TELEPORT_SIM_H
 #include <float.h>
@@ -673,6 +679,7 @@ typedef struct {
     short fy[GT_MAP_DIM * GT_MAP_DIM];                // its floor (rounded)
     int ring[GT_MAP_RING], head, tail;                // cells to expand (FIFO)
     int cells, done, seeds, seedsNoFloor, runs;       // the log: cells reached, expanded; seeds taken, without a floor
+    int seedsBlocked;                                 // v3.52 TP352: seeds refused inside collision (GtCellFree)
     GtExit x[GT_EXIT_MAX];
     int nExit;
 } GtMap;
@@ -690,6 +697,7 @@ static void GtMapBegin(GtMap *m, const float lo[3], const float hi[3], const GtE
     memset(m->st, 0, sizeof m->st);
     m->head = m->tail = m->overflow = m->unknown = 0;
     m->cells = m->done = m->seeds = m->seedsNoFloor = m->runs = 0;
+    m->seedsBlocked = 0;  // v3.52 TP352
     m->nExit = nx < 0 ? 0 : nx > GT_EXIT_MAX ? GT_EXIT_MAX : nx;
     if (m->nExit) memcpy(m->x, x, sizeof(GtExit) * (size_t)m->nExit);
 }
@@ -720,6 +728,15 @@ static int GtExitBeyond(const GtExit *x, int n, const float s[3])
     }
     return 0;
 }
+// v3.52 TP352: a floor point (x, its floor fy, z) a cell may hold: not inside solid GT_REACH_LOW above it, no polygon in
+// her upper body's sphere (GT_REACH_BODY above it, radius GT_REACH_R). 1 = free (GtWalkStep's own cell rules, moved here)
+static int GtCellFree(const GtWorld *w, float x, float fy, float z, int *unknown)
+{
+    int r;
+    if ((r = w->solid(w->ctx, x, fy - GT_REACH_LOW, z)) != 0) return *unknown += r < 0, 0;
+    if ((r = w->sphere(w->ctx, x, fy - GT_REACH_BODY, z, GT_REACH_R)) != 0) return *unknown += r < 0, 0;
+    return 1;
+}
 // may she walk from a (x, its floor y, z) onto (x, z)? 1 (*fy its floor), 0 no (*unknown counts queries that could not answer)
 static int GtWalkStep(const GtWorld *w, const float a[3], float x, float z, float *fy, int *unknown)
 {
@@ -731,8 +748,7 @@ static int GtWalkStep(const GtWorld *w, const float a[3], float x, float z, floa
         return 0;
     }
     if (!(fabsf(y - a[1]) <= GT_REACH_STEP)) return 0;
-    if ((r = w->solid(w->ctx, x, y - GT_REACH_LOW, z)) != 0) return *unknown += r < 0, 0;
-    if ((r = w->sphere(w->ctx, x, y - GT_REACH_BODY, z, GT_REACH_R)) != 0) return *unknown += r < 0, 0;
+    if (!GtCellFree(w, x, y, z, unknown)) return 0;  // v3.52 TP352: (the same two queries as before, in GtCellFree)
     la[0] = a[0], la[2] = a[2], lb[0] = x, lb[2] = z;
     for (k = 0; k < 3; ++k) {
         la[1] = a[1] - kDy[k], lb[1] = y - kDy[k];
@@ -753,12 +769,13 @@ static int GtMapTake(GtMap *m, int c, float fy)  // mark a cell reached and queu
     return 1;
 }
 // a seed: the floor at (x, z) from dy above y down to dy below it (a door's point, her feet). 1 = taken, 0 = already in
-// the map at that level, -1 = no floor there (or off the grid, or beyond a door line)
+// the map at that level, -1 = no floor there (or off the grid, or beyond a door line; v3.52 TP352: or inside collision,
+// counted in seedsBlocked: her feet inside a wall never seed the map)
 static int GtMapSeed(GtMap *m, const GtWorld *w, float x, float y, float z, float dy)
 {
     float fy, p[3];
     const int c = GtMapIdx(m, x, z);
-    int r;
+    int r, unk = 0;
     if (c < 0) return ++m->seedsNoFloor, -1;
     if ((r = w->floorAt(w->ctx, x, y - dy, y + dy, z, &fy)) <= 0 || !_finite(fy)) {
         m->unknown += r < 0;
@@ -768,6 +785,7 @@ static int GtMapSeed(GtMap *m, const GtWorld *w, float x, float y, float z, floa
     if (m->st[c]) return ++m->seedsNoFloor, -1;  // (another floor holds the cell: one level a cell)
     p[0] = x, p[1] = fy, p[2] = z;
     if (GtExitBeyond(m->x, m->nExit, p)) return ++m->seedsNoFloor, -1;
+    if (!GtCellFree(w, x, fy, z, &unk)) return m->unknown += unk, ++m->seedsBlocked, -1;  // v3.52 TP352
     if (!GtMapTake(m, c, fy)) return -1;
     ++m->seeds;
     return 1;
@@ -903,5 +921,114 @@ static int GtPickFacedVia(GtCand *c, int n, float range, float cone, int (*test)
         c[i].skip = 1;
     }
     return -1;
+}
+
+// ================================================================ v3.52 TP352: every landing proven; freed from a wall
+// The user's v3.51 QA D4: stuck in a Water Prison wall (room 4:11) after warp 129, "behind type 09, 343 u away, spot 2:
+// 160 u on its far side (no usable facing), floor +0 u", from (-1752, 788) to (-1590, 1248). The spots behind an enemy and
+// v3.44's spots ahead passed only v3.43's rules (the mover's floor ray 0x459490, 0x458F00's flat floor, the point 4 u
+// above the floor not inside tree2 0x46F700, the anchor's chest line 0x454000): nothing tested her BODY against the walls,
+// so a spot 20 u from a wall passed (her spheres need 70). The through-warp's spots (v3.50) had the proof; now every
+// landing kind has the same one (GtLandProof): her body's three spheres free (GtBodyFree, 0x561B80 the polygons the
+// player's own wall collision 0x5339D0 asks) and the room's floor map holds the spot (GtMapHas: a route of the room
+// reaches it by her walk rules). A map that is not finished: "not known yet" (the press may start the fade, the warp
+// decides); no map (no solid map in the room, the queries not stock, off the grid): not proven (fail closed).
+enum { GTP_OK = 0, GTP_BODY, GTP_ROUTE, GTP_PENDING, GTP_NOMAP, GTP_N };
+static const char *const kGtProofWhy[GTP_N] = { "proven", "no room for her body", "no route of the room reaches it",
+                                                "not on the room's floor map yet", "no floor map (not proven)" };
+// spot = the landing's floor point (x, its floor y, z)
+static int GtLandProof(const GtMap *m, const GtWorld *w, const float spot[3])
+{
+    int r;
+    if (!_finite(spot[0]) || !_finite(spot[1]) || !_finite(spot[2])) return GTP_NOMAP;
+    if (!m || !m->on) return GTP_NOMAP;
+    if (!GtBodyFree(w, spot[0], spot[1], spot[2])) return GTP_BODY;
+    r = GtMapHas(m, w, spot);
+    return r == GTM_HAS ? GTP_OK : r == GTM_UNKNOWN ? GTP_PENDING : r == GTM_NOT ? GTP_ROUTE : GTP_NOMAP;
+}
+// Her body overlaps the room's collision at her feet p: No Clip's "clear" body sphere (noclip_world.h NwClearAt: 60 at
+// 110 above her feet; the stock collision keeps her clear of it in every position it gives her) touches a polygon, or the
+// point GT_REACH_LOW above her feet is inside solid (tree2). 1 = stuck, 0 = clear, -1 = the sphere query cannot answer
+// (never "stuck" on an unknown: she is not moved on a guess).
+#define GT_STUCK_DY    110.0f
+#define GT_STUCK_R     60.0f
+static int GtStuck(const GtWorld *w, const float p[3])
+{
+    int s, q;
+    if (!_finite(p[0]) || !_finite(p[1]) || !_finite(p[2])) return -1;
+    s = w->sphere(w->ctx, p[0], p[1] - GT_STUCK_DY, p[2], GT_STUCK_R);
+    if (s > 0) return 1;
+    q = w->solid(w->ctx, p[0], p[1] - GT_REACH_LOW, p[2]);
+    if (q > 0) return 1;
+    return s < 0 ? -1 : 0;  // (solid unknown, no polygon round her body: clear)
+}
+// After a warp her body is watched GT_FREE_WATCH_S of gameplay time (menus, scenes: held): stuck GT_FREE_STUCK_S in a row
+// (the stock collision did not push her out) = free her (1, every tick until the caller stops the watch: it may have to
+// wait for a gate); a stuck run still going at the window's end is followed to its end; never past GT_FREE_END_S.
+#define GT_FREE_WATCH_S 1.0f
+#define GT_FREE_STUCK_S 0.15f
+#define GT_FREE_END_S   3.0f
+typedef struct { int on; float t, stuck; } GtFreeWatch;
+static void GtFreeWatchStart(GtFreeWatch *f) { f->on = 1, f->t = 0.0f, f->stuck = 0.0f; }
+static void GtFreeWatchStop(GtFreeWatch *f) { f->on = 0, f->t = 0.0f, f->stuck = 0.0f; }
+// one tick: live = a gameplay tick (outside it nothing counts); stuck = GtStuck now (1 / 0 / -1)
+static int GtFreeWatchStep(GtFreeWatch *f, int live, int stuck, float dt)
+{
+    if (!f->on) return 0;
+    if (!(dt > 0.0f) || dt > 0.25f) dt = 0.0f;  // (a stall or a bad clock: no time passes)
+    if (!live) return 0;
+    f->t += dt;
+    if (f->t >= GT_FREE_END_S) {
+        GtFreeWatchStop(f);
+        return 0;
+    }
+    f->stuck = stuck > 0 ? f->stuck + dt : 0.0f;  // (unknown: not stuck)
+    if (stuck > 0 && f->stuck >= GT_FREE_STUCK_S - 1e-4f) return 1;
+    if (f->t >= GT_FREE_WATCH_S && !(f->stuck > 0.0f)) GtFreeWatchStop(f);
+    return 0;
+}
+// The nearest proven floor cell to `from` (her feet: x, her floor, z; xz distance) within maxR: a cell of the room's
+// floor map at her level (GT_FREE_DY), its floor found again at its centre (within 2 u of the map's), her body free there
+// (GtBodyFree) and not stuck (GtStuck 0), and the caller's rules (ok: the room's door lines, the walk-in zones, the game's
+// own floor ray and room to stand; NULL = none). Searched ring by ring outward; the first ring that cannot hold a nearer
+// cell ends it. 1 = found (out: its floor point); *tried counts the cells tested.
+#define GT_FREE_R      480.0f
+#define GT_FREE_DY     100.0f
+static int GtFreeCell(const GtMap *m, const GtWorld *w, const float from[3], float maxR, int (*ok)(void *ctx, const float p[3]),
+                      void *ctx, float out[3], int *tried)
+{
+    float bestD2;
+    int ci, cj, rad, r, found = 0;
+    *tried = 0;
+    if (!m || !m->on || !(maxR > 0.0f) || !_finite(from[0]) || !_finite(from[1]) || !_finite(from[2])) return 0;
+    ci = (int)floorf((from[0] - m->x0) / m->cell + 0.5f), cj = (int)floorf((from[2] - m->z0) / m->cell + 0.5f);
+    rad = (int)ceilf(maxR / m->cell);
+    if (rad > GT_MAP_DIM) rad = GT_MAP_DIM;
+    bestD2 = maxR * maxR;
+    for (r = 0; r <= rad; ++r) {
+        int di, dj;
+        if (found && bestD2 <= ((float)r - 0.5f) * m->cell * ((float)r - 0.5f) * m->cell) break;  // (ring r is farther)
+        for (dj = -r; dj <= r; ++dj)
+            for (di = -r; di <= r; ++di) {
+                const int i = ci + di, j = cj + dj;
+                float x, z, fy, d2, p[3];
+                int c;
+                if ((di != -r && di != r && dj != -r && dj != r) || i < 0 || i >= m->nx || j < 0 || j >= m->ny) continue;
+                c = j * m->nx + i;
+                if (!m->st[c] || !(fabsf((float)m->fy[c] - from[1]) <= GT_FREE_DY)) continue;
+                GtMapXZ(m, c, &x, &z);
+                d2 = (x - from[0]) * (x - from[0]) + (z - from[2]) * (z - from[2]);
+                if (d2 > bestD2 || (found && d2 >= bestD2)) continue;
+                ++*tried;
+                if (w->floorAt(w->ctx, x, (float)m->fy[c] - GT_REACH_UP, (float)m->fy[c] + GT_REACH_UP, z, &fy) <= 0 || !_finite(fy) ||
+                    !(fabsf(fy - (float)m->fy[c]) <= 2.0f))
+                    continue;
+                if (!GtBodyFree(w, x, fy, z)) continue;
+                p[0] = x, p[1] = fy, p[2] = z;
+                if (GtStuck(w, p) != 0 || (ok && !ok(ctx, p))) continue;
+                out[0] = x, out[1] = fy, out[2] = z, bestD2 = d2, found = 1;
+            }
+    }
+    return found;
 }
 #endif

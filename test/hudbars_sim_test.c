@@ -1112,8 +1112,128 @@ static void TestCurse342(void)
     }
 }
 
+// v3.52 HB352 (D1, D2): which enemy may have a bar, the boss's want, the bar's place, the refusal count
+static void TestRefuse352(void)
+{
+    static const int kFps[] = { 30, 60, 144, 240 };
+    int s, i, k;
+    for (s = 0; s <= 0x20; ++s) {  // EnemyIsActive 0x45CA40: 1..0x0C or 0x12
+        const int active = s > 0 && (s <= 0x0C || s == 0x12);
+        CHECK(HbStateDrawn(s) == active, "state %X drawn by the game: %d", s, active);
+        CHECK(HbStateHidden(s) == (s == 0 || s == 0x0D || s == 0x0E || s == 0x0F), "state %X hidden (no bar at all)", s);
+    }
+    {
+        const float her[3] = { -1590.0f, -160.0f, 1248.0f }, origin[3] = { 0.0f, 0.0f, 0.0f }, nearO[3] = { 0.4f, -0.3f, 0.2f };
+        const float parked[3] = { 120.0f, 70000.0f, -300.0f }, far_[3] = { 2e6f, 0.0f, 0.0f }, deep[3] = { 300.0f, -30000.0f, 9000.0f };
+        float nan_[3];
+        const unsigned qnan = 0x7FC00000u;
+        nan_[0] = 1.0f, nan_[2] = 0.0f;
+        memcpy(&nan_[1], &qnan, sizeof nan_[1]);  // NaN
+        CHECK(HbRefuseWhy(0x0D, her) == HB_RF_HIDDEN, "an arriving ghost (state 0D) at her position: no bar");
+        CHECK(HbRefuseWhy(0x0E, her) == HB_RF_HIDDEN, "an arriving ghost with no wall spot (state 0E): no bar");
+        CHECK(HbRefuseWhy(0x0F, her) == HB_RF_HIDDEN, "a follower placeholder (state 0F): no bar");
+        CHECK(HbRefuseWhy(0x00, her) == HB_RF_HIDDEN, "a task not set up (state 0): no bar");
+        CHECK(HbRefuseWhy(0x02, her) == HB_RF_NONE && HbRefuseWhy(0x0A, her) == HB_RF_NONE && HbRefuseWhy(0x12, her) == HB_RF_NONE,
+              "standing / down / the 0x12 state at a place: may have a bar (0x12: v3.29's fade-out)");
+        CHECK(HbRefuseWhy(0x10, her) == HB_RF_NONE && HbRefuseWhy(0x11, her) == HB_RF_NONE, "0x10+: not refused (they fade out as before)");
+        CHECK(HbRefuseWhy(0x03, origin) == HB_RF_PLACE && HbRefuseWhy(0x03, nearO) == HB_RF_PLACE, "at the origin: no place in the room");
+        CHECK(HbRefuseWhy(0x03, parked) == HB_RF_PLACE, "parked at y 70000 (0x4AFA90's hidden spot): no place");
+        CHECK(HbRefuseWhy(0x03, far_) == HB_RF_PLACE && HbRefuseWhy(0x03, nan_) == HB_RF_PLACE, "far away / not a number: no place");
+        CHECK(HbRefuseWhy(0x03, deep) == HB_RF_NONE, "a tall room's deep floor (y -30000) is a place");
+        CHECK(HbRefuseWhy(0x0D, origin) == HB_RF_HIDDEN, "hidden comes first");
+    }
+    // the boss's want: any distance, both modes; never with the bars Off; the others as HbWant
+    CHECK(HbWantBoss(HB_MODE_NEAR, 1, 0, 1e6f, 2500.0f) == 1.0f, "a boss 2500 away in All Near: wanted (v3.51: 0)");
+    CHECK(HbWant(HB_MODE_NEAR, 0, 1e6f, 2500.0f) == 0.0f, "(v3.51's rule: nothing at 2500)");
+    CHECK(HbWantBoss(HB_MODE_LOCKED, 1, 0, 1e6f, 300.0f) == 1.0f, "a boss in Locked Target, not locked: wanted");
+    CHECK(HbWantBoss(HB_MODE_OFF, 1, 1, 0.0f, 100.0f) == 0.0f, "bars Off: no boss bar");
+    for (i = 0; i <= 20; ++i) {
+        const float d = 100.0f * (float)i;
+        CHECK(HbWantBoss(HB_MODE_NEAR, 0, 0, 1e6f, d) == HbWant(HB_MODE_NEAR, 0, 1e6f, d) &&
+              HbWantBoss(HB_MODE_LOCKED, 0, i & 1, (float)i, d) == HbWant(HB_MODE_LOCKED, i & 1, (float)i, d), "not a boss: v3.51's want at %.0f", d);
+    }
+    {   // the bar's place in a 0,0 2560x1440 view
+        float x = -1.0f, y = -1.0f;
+        CHECK(HbBarPlace(1, 900.0f, 300.0f, 1, 900.0f, 700.0f, 0.0f, 0.0f, 2560.0f, 1440.0f, &x, &y) && x == 900.0f && y == 300.0f,
+              "the top in the view: the top (%.0f, %.0f)", x, y);
+        CHECK(HbBarPlace(1, 900.0f, -150.0f, 1, 905.0f, 500.0f, 0.0f, 0.0f, 2560.0f, 1440.0f, &x, &y) && x == 900.0f && y == 0.0f,
+              "the top above the view, the middle in it: the top edge (%.0f, %.0f)", x, y);
+        CHECK(HbBarPlace(0, 0.0f, 0.0f, 1, 905.0f, 500.0f, 0.0f, 0.0f, 2560.0f, 1440.0f, &x, &y) && x == 905.0f && y == 0.0f,
+              "the top behind the near plane, the middle in the view: the middle's x at the top edge");
+        CHECK(!HbBarPlace(1, 900.0f, -150.0f, 1, 905.0f, -20.0f, 0.0f, 0.0f, 2560.0f, 1440.0f, &x, &y), "top and middle above: none");
+        CHECK(!HbBarPlace(1, 3000.0f, 300.0f, 1, 3000.0f, 600.0f, 0.0f, 0.0f, 2560.0f, 1440.0f, &x, &y), "right of the view: none");
+        CHECK(!HbBarPlace(1, 900.0f, 1500.0f, 1, 900.0f, 1300.0f, 0.0f, 0.0f, 2560.0f, 1440.0f, &x, &y),
+              "the top below the bottom + 40: none (v3.51's rule)");
+        CHECK(HbBarPlace(1, -30.0f, 1470.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 2560.0f, 1440.0f, &x, &y), "v3.51's 40 px margins kept");
+        CHECK(!HbBarPlace(0, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 2560.0f, 1440.0f, &x, &y), "no projection: none");
+    }
+    {   // the count: a being once a reason a room visit
+        HbRefCount c;
+        int said1 = 0, said2 = 0;
+        memset(&c, 0, sizeof c);
+        CHECK(HbRefNote(&c, &said1, HB_RF_HIDDEN) == 1 && HbRefNote(&c, &said1, HB_RF_HIDDEN) == 0, "once per being and reason");
+        CHECK(HbRefNote(&c, &said1, HB_RF_PLACE) == 1 && HbRefNote(&c, &said2, HB_RF_HIDDEN) == 1, "another reason / being counts");
+        CHECK(HbRefNote(&c, &said2, HB_RF_NONE) == 0 && HbRefNote(&c, &said2, HB_RF_N) == 0, "no reason: nothing");
+        CHECK(c.n[HB_RF_HIDDEN] == 2 && c.n[HB_RF_PLACE] == 1 && c.n[HB_RF_NONE] == 0, "counts %d %d", c.n[HB_RF_HIDDEN], c.n[HB_RF_PLACE]);
+    }
+    // D2 as a story: a victim's ghost arrives in an elevator (All Near); 8 s in state 0D / 0E sliding onto her (no bar on any
+    // frame, the loop forces the alpha to 0), then the game finds a wall spot and it stands (state 02): the bar fades in 0.2 s
+    for (k = 0; k < (int)(sizeof kFps / sizeof kFps[0]); ++k) {
+        const int fps = kFps[k];
+        const float dt = 1.0f / (float)fps;
+        HbBar b = { 0 };
+        int f, everUp = 0;
+        float at02 = -1.0f;
+        for (f = 1; f <= 10 * fps; ++f) {
+            const float t = (float)f * dt;
+            const int cls = t < 8.0f - 1e-6f ? ((f & 1) ? 0x0D : 0x0E) : 0x02;
+            const float d = t < 8.0f ? 1500.0f * (1.0f - t / 8.0f) : 600.0f;  // it slides onto her
+            const float pos[3] = { 100.0f + d, -160.0f, 50.0f };
+            if (HbRefuseWhy(cls, pos) != HB_RF_NONE) {
+                HbBarStep(&b, 1.0f, 0.0f, 0, dt);
+                b.alpha = 0.0f;
+            } else {
+                HbBarStep(&b, 1.0f, HbWantBoss(HB_MODE_NEAR, 0, 0, b.sinceHit, d), 1, dt);
+                if (at02 < 0.0f) at02 = t;
+            }
+            if (t < 8.0f - 1e-6f && b.alpha > 0.0f) everUp = 1;
+            if (fabsf(t - 8.2f) < 0.5f * dt) CHECK(Near(b.alpha, 1.0f, 1.01f * dt / HB_FADE_IN_S), "%d fps: up 0.2 s after it stood (%.3f)", fps, b.alpha);
+        }
+        CHECK(!everUp && Near(at02, 8.0f, 1.5f * dt), "%d fps: no bar while it arrived; it stood at %.3f s", fps, at02);
+    }
+    // D1 as a story: Walter emerges 2500 away (All Near): v3.51 never; now up 0.2 s after his first active frame
+    for (k = 0; k < (int)(sizeof kFps / sizeof kFps[0]); ++k) {
+        const int fps = kFps[k];
+        const float dt = 1.0f / (float)fps;
+        HbBar old = { 0 }, now = { 0 };
+        int f;
+        for (f = 1; f <= fps; ++f) {
+            HbBarStep(&old, 1.0f, HbWant(HB_MODE_NEAR, 0, old.sinceHit, 2500.0f), 1, dt);
+            HbBarStep(&now, 1.0f, HbWantBoss(HB_MODE_NEAR, 1, 0, now.sinceHit, 2500.0f), 1, dt);
+            if (f == (int)(0.2f * (float)fps + 0.5f)) CHECK(Near(now.alpha, 1.0f, 1e-4f), "%d fps: Walter's bar up at 0.2 s", fps);
+        }
+        CHECK(old.alpha == 0.0f && now.alpha == 1.0f, "%d fps: v3.51 %.2f, now %.2f", fps, old.alpha, now.alpha);
+    }
+}
+
+// v3.52 MERGE (HB352 x EP352): a calm ghost keeps its bar when the game draws it. EP352 sets a dive back to the idle
+// float (AI state 1, class 1) and holds a ghost calm after its rest; a dive at its wall node (class 7) is never set back.
+static void TestCalm352(void)
+{
+    const float pos[3] = { 1200.0f, -50.0f, 800.0f };
+    int cls;
+    for (cls = 1; cls <= 7; ++cls) {
+        CHECK(HbRefuseWhy(cls, pos) == HB_RF_NONE && HbStateDrawn(cls), "calm / idle ghost class %d refused", cls);
+        CHECK(HbGhostState(0x0B, cls, 0.0f, 0) == HB_GS_STAND, "calm ghost class %d not standing", cls);
+    }
+    for (cls = 0x0D; cls <= 0x0F; ++cls) CHECK(HbRefuseWhy(cls, pos) == HB_RF_HIDDEN, "arriving class %X shown", cls);
+    CHECK(HbRefuseWhy(0, pos) == HB_RF_HIDDEN, "class 0 shown");
+}
+
 int main(void)
 {
+    TestRefuse352();  // v3.52 HB352
+    TestCalm352();  // v3.52 MERGE
     TestFrameRates();
     TestWant();
     TestSeenAndHeal();

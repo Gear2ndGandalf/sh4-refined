@@ -498,6 +498,14 @@ static void TestGate(void)
     CHECK(DofGate(DOF_ALWAYS, 1, 0, 0, 0) == DOFG_VIEW, "a peephole view");
     CHECK(DofGate(DOF_ALWAYS, 1, 0, 1, 1) == DOFG_FP && DofGate(DOF_ALWAYS, 1, 1, 1, 1) == DOFG_ON, "Room 302: play off, cut-scenes on");
     CHECK(DofIsRoom302(1) && DofIsRoom302(0x0A) && !DofIsRoom302(2) && !DofIsRoom302(0), "Room 302 stages");
+    {   // v3.52 FX352: the game's first-person states are exactly the camera dispatch's (0x4FF900: stages 1 and 10 run
+        // CameraFpUpdate) and the views of another place; the stages of the worlds never are
+        unsigned st;
+        for (st = 0; st < 0x20u; ++st)
+            CHECK(DofIsRoom302(st) == (st == 1u || st == 10u), "stage %u first person = the CameraFp dispatch", st);
+        CHECK(DofGate(DOF_ALWAYS, 1, 0, 1, DofIsRoom302(2)) == DOFG_ON && DofGate(DOF_ALWAYS, 1, 0, 1, DofIsRoom302(4)) == DOFG_ON,
+              "the Subway / Water Prison worlds: on, however near the camera");
+    }
     CHECK(DofGate(7, 1, 0, 1, 0) == DOFG_OFF && DofGate(-1, 1, 0, 1, 0) == DOFG_OFF, "bad mode");
 }
 
@@ -508,9 +516,87 @@ static void TestPick(void)
     CHECK(DofPickFocus(0, 1, 2500.0f, 1, 900.0f, &F) == DOFF_PLAYER && F == 900.0f, "in play the player (a stale scene focus)");
     CHECK(DofPickFocus(1, 0, 2500.0f, 1, 900.0f, &F) == DOFF_PLAYER && F == 900.0f, "a cut-scene without its own focus");
     CHECK(DofPickFocus(1, 1, 0.0f, 1, 900.0f, &F) == DOFF_PLAYER, "a zero scene focus");
-    CHECK(DofPickFocus(0, 0, 0.0f, 1, 60.0f, &F) == DOFF_NONE && F == 0.0f, "first person: none");
+    // v3.52 FX352 (USER_FEEDBACK_v351 D3): a close player is a focus, never "first person"
+    CHECK(DofPickFocus(0, 0, 0.0f, 1, 60.0f, &F) == DOFF_CLOSE && F == 60.0f, "close to the camera: the close focus (was none)");
+    CHECK(DofPickFocus(0, 0, 0.0f, 1, DOF_F_NOFOCUS, &F) == DOFF_CLOSE && DofPickFocus(0, 0, 0.0f, 1, DOF_F_NOFOCUS + 1.0f, &F) == DOFF_PLAYER,
+          "the boundary: <= 150 close, above it the ordinary focus");
+    CHECK(DofPickFocus(0, 0, 0.0f, 1, 0.0f, &F) == DOFF_NONE && DofPickFocus(0, 0, 0.0f, 1, -20.0f, &F) == DOFF_NONE && F == 0.0f,
+          "at or behind the camera: none");
+    CHECK(DofPickFocus(0, 0, 0.0f, 0, 60.0f, &F) == DOFF_NONE, "close but not read: none");
+    CHECK(DofPickFocus(1, 1, 2500.0f, 1, 60.0f, &F) == DOFF_SCENE, "a cut-scene's own focus still wins over a close player");
+    CHECK(DofPickFocus(1, 1, 100.0f, 1, 60.0f, &F) == DOFF_CLOSE, "a cut-scene focus of 100: not trusted, the close player");
     CHECK(DofPickFocus(0, 0, 0.0f, 0, 900.0f, &F) == DOFF_NONE, "no player");
     CHECK(DofPickFocus(0, 0, 0.0f, 1, sqrtf(-1.0f), &F) == DOFF_NONE, "NaN");
+}
+
+// v3.52 FX352 (USER_FEEDBACK_v351 D3, dof_close_camera.webp): a close third-person camera keeps the depth of field. The
+// user's log: 10639 frames "nearer than 150", 7733 in Subway World room 1; the player's view depth 148 .. 152 at the edges.
+static void TestClose(void)
+{
+    static const float kP22 = -50.0f / (40000.0f - 50.0f), kP32 = 40000.0f * 50.0f / (40000.0f - 50.0f);  // n 50, f 40000
+    float F = 0.0f, f = 0.0f, Ft;
+    int s, src, prev = DOFF_PLAYER, i, snaps = 0;
+    DofPlanT pl, full;
+    CHECK(DofSameSubject(DOFF_PLAYER, DOFF_CLOSE) && DofSameSubject(DOFF_CLOSE, DOFF_PLAYER) && DofSameSubject(DOFF_CLOSE, DOFF_CLOSE) &&
+          !DofSameSubject(DOFF_CLOSE, DOFF_NONE) && !DofSameSubject(DOFF_SCENE, DOFF_CLOSE) && !DofSameSubject(DOFF_NONE, DOFF_PLAYER),
+          "the player near and far is one subject");
+    CHECK(kDofFocusName[DOFF_CLOSE] && strlen(kDofFocusName[DOFF_CLOSE]) > 0, "the close focus has a name");
+    for (s = 0; s < DOFS_N; ++s) {
+        // the player at 100 (closer than the old limit): a focus, on her (clamped to DOF_F_MIN), the far side only
+        src = DofPickFocus(0, 0, 0.0f, 1, 100.0f, &Ft);
+        F = DofFocusStep(0.0f, Ft, 0.016f, 1);
+        CHECK(src == DOFF_CLOSE && F == DOF_F_MIN, "strength %d: the close focus is drawn at %.0f", s, F);
+        CHECK(DofMakePlan(F, kP22, kP32, s, &full) && full.side[DOF_NEAR].n > 0, "strength %d: the ordinary plan has a near side", s);
+        pl = full;
+        CHECK(DofPlanFarOnly(&pl, s), "strength %d: something is left to draw", s);
+        CHECK(pl.side[DOF_NEAR].n == 0 && pl.side[DOF_NEAR].codes == 1u && pl.side[DOF_NEAR].maxQ == 0, "strength %d: no near slices", s);
+        CHECK(pl.side[DOF_FAR].n == full.side[DOF_FAR].n && pl.n == full.side[DOF_FAR].n && pl.maxLevel >= 1, "strength %d: the far side kept", s);
+        {   // her (at 60 .. 150) and everything between her and the near plane stays sharp; the distance blurs
+            const float ws[4] = { 55.0f, 60.0f, 100.0f, 150.0f };
+            int k, code;
+            for (k = 0; k < 4; ++k) {
+                const float z = DofDepthAt(ws[k], kP22, kP32);
+                code = DofEmulateCode(&pl.side[DOF_FAR], DOF_FAR, z);
+                CHECK(code == 0 && DofEmulateCode(&pl.side[DOF_NEAR], DOF_NEAR, z) == 0, "strength %d: %.0f u from the camera sharp", s, ws[k]);
+                CHECK(DofEmulateCode(&full.side[DOF_NEAR], DOF_NEAR, z) > 0 || ws[k] >= DofSliceW(F, s, DOF_NEAR, 1),
+                      "strength %d: (the full plan would near-blur %.0f)", s, ws[k]);
+            }
+            code = DofEmulateCode(&pl.side[DOF_FAR], DOF_FAR, DofDepthAt(2000.0f, kP22, kP32));
+            CHECK(code == DofRampN(s, DOF_FAR), "strength %d: the far background (2000 u) fully blurred (code %d)", s, code);
+            code = DofEmulateCode(&pl.side[DOF_FAR], DOF_FAR, DofDepthAt(180.0f, kP22, kP32));
+            CHECK(s == DOFS_HIGH || code == 0, "strength %d: a companion just behind her (180 u) sharp at Low / Medium (code %d)", s, code);
+        }
+        {   // the composite runs on the far side only, the frame's draws fewer than the full plan's
+            int compFull = 0, compFar = 0;
+            CHECK(DofFrameDraws(&pl, s, 1, &compFar) < DofFrameDraws(&full, s, 1, &compFull) && compFar > 0 && compFar <= compFull,
+                  "strength %d: fewer draws (%d / %d)", s, compFar, compFull);
+        }
+    }
+    // the page's preview of a pause taken close: every code of the far side, none of the near side
+    DofPlanCodes(DOFS_HIGH, &pl);
+    CHECK(DofPlanFarOnly(&pl, DOFS_HIGH) && pl.side[DOF_NEAR].n == 0 && pl.side[DOF_FAR].n == DofRampN(DOFS_HIGH, DOF_FAR), "the preview's plan");
+    // a camera that swings in and out (148 .. 152, the log's edge, at 60 fps): never a snap, never none, the focus steady
+    f = 0.0f;
+    for (i = 0; i < 600; ++i) {
+        const float w = 150.0f + 2.0f * sinf((float)i * 0.3f);
+        const float before = f;
+        src = DofPickFocus(0, 0, 0.0f, 1, w, &Ft);
+        CHECK(src == DOFF_CLOSE || src == DOFF_PLAYER, "frame %d: a focus at %.1f", i, w);
+        if (i && !DofSameSubject(src, prev)) ++snaps;
+        f = DofFocusStep(f, Ft, 1.0f / 60.0f, i == 0 || !DofSameSubject(src, prev));
+        CHECK(i == 0 || fabsf(f - before) < 1e-3f, "frame %d: the focus holds (%.3f -> %.3f)", i, before, f);
+        prev = src;
+    }
+    CHECK(snaps == 0 && fabsf(f - DOF_F_MIN) < 0.01f, "no snap in 600 frames; the focus %.0f", f);
+    // the player walks away from a close camera: the focus follows smoothly from DOF_F_MIN
+    f = DOF_F_MIN, prev = DOFF_CLOSE;
+    for (i = 0; i < 120; ++i) {
+        const float w = 120.0f + 4.0f * (float)i, before = f;
+        src = DofPickFocus(0, 0, 0.0f, 1, w, &Ft);
+        f = DofFocusStep(f, Ft, 1.0f / 60.0f, !DofSameSubject(src, prev));
+        CHECK(f >= before - 1e-3f && f <= DofClampF(w) + 1e-3f, "walking away, frame %d: %.0f -> %.0f (target %.0f)", i, before, f, w);
+        prev = src;
+    }
 }
 
 static void TestProbe(void)
@@ -640,7 +726,7 @@ static void TestRestorePlan(void)
                 }
 }
 
-// v3.44 DF344: every asked frame gets one reason; the room line's lists; the first of each kind
+// v3.44 DF344: every asked frame gets one reason; the room line's lists; the first of each kind (v3.52 FX352: no DOFN_NEAR)
 static void TestWhyNot(void)
 {
     DofTally t;
@@ -657,7 +743,7 @@ static void TestWhyNot(void)
     CHECK(DofNoFocusWhy(0, 1500.0f, 1, 0) == DOFN_READ, "a fault reading the player / the matrix");
     CHECK(DofNoFocusWhy(1, -300.0f, 0, 0) == DOFN_BEHIND && DofNoFocusWhy(1, 0.0f, 0, 0) == DOFN_BEHIND, "behind the camera");
     CHECK(DofNoFocusWhy(1, sqrtf(-1.0f), 0, 0) == DOFN_BEHIND && DofNoFocusWhy(1, 2.0e6f, 1, 0) == DOFN_BEHIND, "NaN / too far");
-    CHECK(DofNoFocusWhy(1, 120.0f, 1, 0) == DOFN_NEAR && DofNoFocusWhy(1, DOF_F_NOFOCUS, 1, 1) == DOFN_NEAR, "first person");
+    CHECK(DofNoFocusWhy(1, 120.0f, 0, 1) == DOFN_OFFSCREEN, "v3.52 FX352: a close player off screen in a cut-scene: off screen");
     CHECK(DofNoFocusWhy(1, 1500.0f, 0, 1) == DOFN_OFFSCREEN, "a cut-scene with her off screen");
     for (k = 0; k < 2; ++k) {  // whatever DofNoFocusWhy says is a refusal, never "drawn" or a by-design skip
         const float ws[5] = { -1.0f, 0.0f, 100.0f, 1500.0f, 3.0e6f };
@@ -678,9 +764,12 @@ static void TestWhyNot(void)
                     const int src = DofPickFocus(ph, 0, 0.0f, fig || ph == 0, ws[i], &F);
                     if (src == DOFF_NONE) {
                         const int w = DofNoFocusWhy(1, ws[i], fig, ph);
-                        CHECK(w == DOFN_BEHIND || w == DOFN_NEAR || w == DOFN_OFFSCREEN, "w %.0f phase %d fig %d: %d", ws[i], ph, fig, w);
+                        CHECK(w == DOFN_BEHIND || w == DOFN_OFFSCREEN, "w %.0f phase %d fig %d: %d", ws[i], ph, fig, w);
+                        CHECK(!(ws[i] > 0.0f && ws[i] < 1.0e6f) || (ph == 1 && !fig), "v3.52 FX352: no focus only behind, too far or off "
+                              "screen (w %.0f)", ws[i]);
                     } else {
-                        CHECK(src == DOFF_PLAYER && ws[i] > DOF_F_NOFOCUS, "the player found at %.0f", ws[i]);
+                        CHECK((src == DOFF_PLAYER && ws[i] > DOF_F_NOFOCUS) || (src == DOFF_CLOSE && ws[i] > 0.0f && ws[i] <= DOF_F_NOFOCUS),
+                              "the player found at %.0f (%d)", ws[i], src);
                     }
                 }
     }
@@ -738,6 +827,7 @@ int main(void)
     TestFocus();
     TestGate();
     TestPick();
+    TestClose();  // v3.52 FX352
     TestProbe();
     TestPreview();
     TestSizes();

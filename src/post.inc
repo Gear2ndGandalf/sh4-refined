@@ -28,6 +28,11 @@
 // pixel check PxCheck (a fixed test draw through the real shader and constants into a tiny target of ours, read back),
 // run by the grade at each new preset and by shadows.inc at each new Darkness: the log shows what reached the pixels.
 // Hidden [ScreenEffects] PixelCheck=0 turns the checks off.
+// v3.52 FX352 (USER_FEEDBACK_v351 D6 / D7): Bloom Off / Low / Medium / High / Ultra, recalibrated (post_sim.h kPpBloom: each
+// step about 1.5x the one below; the composite's k may exceed 1 through kPsPpComp's mul_x2), a v3.43 .. v3.51 value
+// migrated once (Low -> Low, High -> Medium, Very High -> High; hidden marker [ScreenEffects] BloomV=352, written in
+// PpBloomWriteOrder's order). The lens' base 40 -> 70 % (hidden LensBase), its description says when it shows, a room
+// line says how long and how strong it showed (the preview's full-strength look unchanged).
 #include "post_sim.h"
 
 typedef HRESULT(STDMETHODCALLTYPE *PpSetRT_t)(void *, void *, void *);
@@ -43,6 +48,10 @@ static int g_ppFailed[PPE_N];            // off for this session
 static int g_ppDead;                     // a fault: all three off for this session
 static int g_ppLensAlways, g_ppLensOw;   // hidden [ScreenEffects] LensAlways / LensOtherworld
 static float g_ppLensS, g_ppLensTarget, g_ppLensT = -1.0f;  // the lens' strength now, its target, the last update (s)
+static float g_ppLensBase = PP_LENS_BASE;  // v3.52 FX352: hidden [ScreenEffects] LensBase (%)
+static PpLensRoom g_ppLensRoom;            // v3.52 FX352: this room's lens time (the room line)
+static DWORD g_ppLensRoomKey = 0xFFFFFFFFu;
+static volatile LONG g_ppLensRoomQ;
 static int g_ppCopyKey = -1;             // PpKey of the settings when the pause copy was taken (-1: none yet)
 static int g_ppState[PPE_N] = { -1, -1, -1 }, g_ppStateF[PPE_N] = { -1, -1, -1 };  // the last state logged (and its filter)
 static volatile LONG g_ppLogQ, g_ppLensQ, g_ppNanQ;
@@ -72,9 +81,9 @@ static void PpTexts(void)
     Encode(g_txtPp[PPM_BLOOM_L], 72, "Bloom");
     Encode(g_txtPp[PPM_GRADE_L], 72, "Colour Grading");
     Encode(g_txtPp[PPM_LENS_L], 72, "Otherworld Lens");
-    Encode(g_txtPp[PPM_BLOOM_D], 72, "Bright lights glow: lamps, windows, flames, the hole (Very High: most).");  // v3.44 CS344
+    Encode(g_txtPp[PPM_BLOOM_D], 72, "Bright lights glow: lamps, windows, flames (Ultra: the most).");  // v3.52 FX352 (Encode keeps 68 characters)
     Encode(g_txtPp[PPM_GRADE_D], 72, "PS2 greener and foggy, Otherworld cold, Apartment warm, Bleach hard.");
-    Encode(g_txtPp[PPM_LENS_D], 72, "Near ghosts and hauntings: a slight warp and colour fringe.");
+    Encode(g_txtPp[PPM_LENS_D], 72, "Warp and colour fringe while a ghost or haunting is in the room.");  // v3.52 FX352
     Encode(g_txtPp[PPM_NA_D], 72, "Off this session (see SH4Refined.log).");
     Encode(g_txtPp[PPM_BLOOM_FD], 72, "Not with this Filter (it has its own light).");
     Encode(g_txtPp[PPM_GRADE_FD], 72, "Not with this Filter (it sets the colours itself).");
@@ -87,11 +96,38 @@ static void PpTexts(void)
         }
 }
 static int PpKeyNow(void) { return PpKey((int)g_pp[PPE_BLOOM], (int)g_pp[PPE_GRADE], (int)g_pp[PPE_LENS]); }
+// v3.52 FX352: Bloom written in post_sim.h PpBloomWriteOrder's order (the BloomV marker); NULL = written, else what failed
+static int g_ppBloomMarked;  // the marker is on disk (read at the start or written since)
+static const char *PpBloomWrite(int v)
+{
+    const char *const val = kPpName[PPE_BLOOM][v];
+    const int order = PpBloomWriteOrder(v, g_ppBloomMarked);
+    if (order == PPBW_VALUE) return WritePrivateProfileStringA("ScreenEffects", "Bloom", val, g_iniPath) ? NULL : "the value";
+    if (order == PPBW_VALUE_MARK) {
+        if (!WritePrivateProfileStringA("ScreenEffects", "Bloom", val, g_iniPath)) return "the value";
+        // (a marker that fails here is harmless: this value reads the same without it; tried again with the next write)
+        if (WritePrivateProfileStringA("ScreenEffects", "BloomV", PP_BLOOM_VER_S, g_iniPath)) g_ppBloomMarked = 1;
+        return NULL;
+    }
+    if (!WritePrivateProfileStringA("ScreenEffects", "BloomV", PP_BLOOM_VER_S, g_iniPath)) return "the marker BloomV (the value not written)";
+    if (!WritePrivateProfileStringA("ScreenEffects", "Bloom", val, g_iniPath)) {
+        const BOOL back = WritePrivateProfileStringA("ScreenEffects", "BloomV", NULL, g_iniPath);  // taken back
+        return back ? "the value (the marker taken back)" : "the value, and the marker could not be taken back";
+    }
+    g_ppBloomMarked = 1;
+    return NULL;
+}
 static void PpSet(int k, int v, int save)
 {
     if (k < 0 || k >= PPE_N || v < 0 || v >= kPpCount[k]) return;
     InterlockedExchange(&g_pp[k], v);
-    if (save && !g_iniFallback) WritePrivateProfileStringA("ScreenEffects", kPpIniKey[k], kPpName[k][v], g_iniPath);
+    if (save && !g_iniFallback && k == PPE_BLOOM) {  // v3.52 FX352: the marker's order
+        static volatile LONG s_q;
+        const char *fail = PpBloomWrite(v);
+        if (fail && LogQuota(&s_q, 5))
+            Log("post effects: [ScreenEffects] Bloom=%s: %s could not be written to SH4Refined.ini (error %lu): it applies for this "
+                "session only", kPpName[k][v], fail, GetLastError());
+    } else if (save && !g_iniFallback) WritePrivateProfileStringA("ScreenEffects", kPpIniKey[k], kPpName[k][v], g_iniPath);
     Log("screen effects: %s %s%s", kPpIniKey[k], kPpName[k][v],
         g_ppDead || g_ppFailed[k] ? " (off this session: see the post effects lines)" :
         k == PPE_BLOOM && v && !g_ppResetHook ? " (no bloom: the device reset hook is not in place)" : "");
@@ -800,7 +836,7 @@ static int PpDraw(void *dev, int bloom, int grade, float lensS)
         ((SpSetDW_t)VT(dev, SPV_SETVS))(dev, 0x444);
         ((SpSetDW_t)VT(dev, SPV_SETPS))(dev, g_fxPs[FXT_PPCOMP]);
         PpPsc(dev, 0, 0.5f, 0.5f, 0.5f, 0.5f);
-        PpPsc(dev, 1, L->k, L->k, L->k, 0.0f);
+        PpPsc(dev, 1, L->k * 0.5f, L->k * 0.5f, L->k * 0.5f, 0.0f);  // v3.52 FX352: k / 2 (kPsPpComp's mul_x2: k up to 2)
         PpTex4(dev, g_ppRt[PPR_L1].tex);
         hr = PpQuad4(dev, (int)w, (int)h, s->du, s->dv);
         PpTex4(dev, NULL);
@@ -885,6 +921,15 @@ static int PpSceneGate(void)  // gameplay, real-time cut-scenes (the page's Cut-
     if (phase != 2 || *(volatile int *)0x12E3E2C == 2) return 0;  // a menu over the frozen copy: it has them already
     return *(volatile int *)0x107BF54 == 1 && *(volatile DWORD *)0x107BF5C == 0x50A5A0;
 }
+// v3.52 FX352: a room's lens line (when it shows, how strong): at a room change, for a room where it showed at all
+static void PpLensRoomLine(void)
+{
+    const PpLensRoom *r = &g_ppLensRoom;
+    if (g_ppLensRoomKey != 0xFFFFFFFFu && r->shown > 0.0f && LogQuota(&g_ppLensRoomQ, 300))
+        LogV("post effects: the Otherworld lens in stage %lX room %lX: shown %.0f of %.0f s (%.0f %%), at most %.0f %% strength (haunting "
+             "strength up to %.2f, nearness up to %.2f; the base %.0f %%)", g_ppLensRoomKey >> 16, g_ppLensRoomKey & 0xFFFF, r->shown, r->secs,
+             r->secs > 0.0f ? 100.0f * r->shown / r->secs : 0.0f, r->maxS * 100.0f, r->maxSum, r->maxNear, g_ppLensBase * 100.0f);
+}
 static void PpLensFrame(void)
 {
     const float now = FxSecs();
@@ -900,13 +945,22 @@ static void PpLensFrame(void)
             if (LogQuota(&g_ppNanQ, 3)) LogAnomaly("post", "the haunting sums are not numbers (%g, %g): the lens ignores them", sum, fall);
             sum = fall = 0.0f;
         }
-        target = PpLensTarget(sum, fall, stage, g_ppLensOw, g_ppLensAlways);
+        target = PpLensTargetB(sum, fall, stage, g_ppLensOw, g_ppLensAlways, g_ppLensBase);  // v3.52 FX352: the base (LensBase)
     }
     if ((target > 0.0f) != (g_ppLensTarget > 0.0f) && LogQuota(&g_ppLensQ, 300))
         LogV("post effects: the Otherworld lens fades %s (stage %X room %X; haunting strength %.2f, nearness %.2f: %.0f %%)",
              target > 0.0f ? "in" : "out", stage, *(volatile int *)0xFD5A94, sum, sum > 0.0f ? fall / sum : 0.0f, target * 100.0f);
     g_ppLensTarget = target;
     g_ppLensS = PpLensStep(g_ppLensS, target, dt);
+    if (g_pp[PPE_LENS] == PPL_ON && FxGameplay() && *(volatile int *)0xFD5C20 != 2) {  // v3.52 FX352: the room's lens time (not paused)
+        const DWORD key = *(volatile DWORD *)0xFD5A90 << 16 | (*(volatile DWORD *)0xFD5A94 & 0xFFFF);
+        if (key != g_ppLensRoomKey) {
+            PpLensRoomLine();
+            memset(&g_ppLensRoom, 0, sizeof g_ppLensRoom);
+            g_ppLensRoomKey = key;
+        }
+        PpLensRoomAdd(&g_ppLensRoom, dt, target, g_ppLensS, sum, sum > 0.0f ? fall / sum : 0.0f);
+    }
 }
 // FxSceneFrame, every scene frame (before the filter); capture = the frame whose copy becomes the pause picture
 static void PpScene(int capture)
@@ -938,10 +992,33 @@ static void PpInstall(void)
     char buf[32];
     int k, v;
     for (k = 0; k < PPE_N; ++k) {
+        int rewrite = 0, mark = 0, marker = 0;
         IniStr("ScreenEffects", kPpIniKey[k], buf, sizeof buf);
-        v = PpParse(k, buf);
+        if (k == PPE_BLOOM) {  // v3.52 FX352: Off / Low / Medium / High / Ultra; a v3.43 .. v3.51 value migrated once (BloomV)
+            // (under the ini fallback the value reads with the legacy meaning and nothing is written, as DoF's DofStrength)
+            marker = g_iniFallback ? 0 : GetPrivateProfileIntA("ScreenEffects", "BloomV", 0, g_iniPath);
+            v = PpBloomMigrate(buf, marker, &rewrite, &mark);
+            g_ppBloomMarked = marker >= PP_BLOOM_VER;
+            if (g_iniFallback) rewrite = mark = 0;
+        } else {
+            v = PpParse(k, buf);
+        }
         g_pp[k] = v >= 0 ? v : 0;
         if (v < 0 && buf[0]) Log("screen effects: [ScreenEffects] %s=%s is not a value of this version: Off", kPpIniKey[k], buf);
+        if (k == PPE_BLOOM && v >= 0 && (rewrite || mark)) {  // v3.52 FX352: once (the marker is on disk from then on)
+            const char *fail = PpBloomWrite(v);
+            if (rewrite || fail)  // (an unchanged Off / Low only gets the marker, silently)
+                Log("post effects: [ScreenEffects] Bloom=%s (v3.43 .. v3.51) is v3.52's %s (v3.52: Off, Low, Medium, High, Ultra; the old "
+                    "High is the new Medium, the old Very High the new High): %s%s%s", buf, kPpName[PPE_BLOOM][v],
+                    fail ? "could not be written to SH4Refined.ini (used for this start; tried again at the next): " : "written as ",
+                    fail ? fail : kPpName[PPE_BLOOM][v], fail ? "" : g_ppBloomMarked ? " (marker BloomV=" PP_BLOOM_VER_S ")" : " (the marker not yet)");
+        }
+    }
+    {   // v3.52 FX352: hidden LensBase (percent): the lens' strength while a haunting is registered (70; v3.51: 40)
+        int ok;
+        const int pct = GetPrivateProfileIntA("ScreenEffects", "LensBase", (int)(PP_LENS_BASE * 100.0f + 0.5f), g_iniPath);
+        g_ppLensBase = PpLensBaseParse(pct, &ok);
+        if (!ok) Log("post effects: [ScreenEffects] LensBase=%d is not 10..100: %.0f", pct, PP_LENS_BASE * 100.0f);
     }
     g_pxOn = GetPrivateProfileIntA("ScreenEffects", "PixelCheck", 1, g_iniPath) != 0;
     RfShaderLint();  // v3.44 CS344 / CS344-LINT-1: every Refined pixel shader (screen, shadows, depth of field): dof.inc
@@ -960,7 +1037,8 @@ static void PpInstall(void)
              "released before a reset); Colour Grading and the Otherworld Lens work");
     g_ppOn = 1;
     Log("post effects: in place (drawn in the scene pass before the filter; device reset 00402DF4 %s); Bloom %s, Colour Grading %s, "
-        "Otherworld Lens %s%s%s", g_ppResetHook ? "hooked" : "NOT hooked", kPpName[0][g_pp[0]], kPpName[1][g_pp[1]],
+        "Otherworld Lens %s%s%s (the lens at %.0f %% while a ghost or haunting is in the room, full halfway into its aura)",
+        g_ppResetHook ? "hooked" : "NOT hooked", kPpName[0][g_pp[0]], kPpName[1][g_pp[1]],
         kPpName[2][g_pp[2]], g_ppLensAlways ? " (LensAlways=1: the lens everywhere, a test)" : "",
-        g_ppLensOw ? " (LensOtherworld=1: also faintly in every Otherworld stage)" : "");
+        g_ppLensOw ? " (LensOtherworld=1: also faintly in every Otherworld stage)" : "", g_ppLensBase * 100.0f);  // v3.52 FX352: + the base
 }

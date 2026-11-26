@@ -29,6 +29,7 @@
 #include <math.h>
 #include <stdlib.h>  // v3.42 SM342: abs (ShDarkIndex)
 #include <string.h>
+#include <stdio.h>  // v3.52 SH352: _snprintf_s (ShNsText)
 #include "post_sim.h"  // v3.44 CS344: the ps.1.1 tokens and PsLint (kShCompPs below)
 
 enum { SH_STOCK, SH_SOFT, SH_EDGE_N };  // v3.41 SH341: Softer is gone (v3.40's Soft / Softer both read as the new Soft)
@@ -449,10 +450,13 @@ static unsigned ShPeScale(unsigned tf, float k)  // Playable Eileen's [Lighting]
 //          1 - (1 - a s)^2 = d (1 - (1 - a)^2) for s = (1 - sqrt(1 - d K)) / a. The one-copy 2 px fringe scales by about s.
 // [Shadows] Darkness is a percentage 0..100 (the row's four values, any other one from the ini is used as it is and the
 // row shows the nearest; "85", "85%", "85 %"); not a number: 85.
+// v3.52 SH352 (USER_FEEDBACK_v351 D5: "Darkness scrolls the wrong way"): the row runs 25 -> 100 %, so Left is lighter and
+// Right darker (StepValue: Right = the next index). The ini keeps the percentage, so every old value reads unchanged; the
+// value texts are made from this table at start (ShTexts), so the text ids keep their slots.
 #define SH_DARK_N   6  // v3.43 SH343: + 40 and 25 % (the host / the user: 55 % still dark in play); ids appended
 #define SH_DARK_DEF 85
-static const int kShDarkPct[SH_DARK_N] = { 100, 85, 70, 55, 40, 25 };  // v3.43 SH343: + 40, 25
-static int ShDarkIndex(int pct)  // the row's value nearest pct (a tie: the lighter one)
+static const int kShDarkPct[SH_DARK_N] = { 25, 40, 55, 70, 85, 100 };  // v3.52 SH352: lightest first (was 100 .. 25)
+static int ShDarkIndex(int pct)  // the row's value nearest pct (a tie: the lighter one, the first in the row)
 {
     int k, best = 0;
     for (k = 1; k < SH_DARK_N; ++k)
@@ -599,6 +603,80 @@ enum { SHF_NONE, SHF_STATE, SHF_SHADER, SHF_RT, SHF_TARGET, SHF_DRAW, SHF_FAULT,
 static const char *const kShFail[SHF_N] = { "", "a device state query failed", "a pixel shader could not be made",
                                             "a render target could not be made", "a render target could not be set",
                                             "a draw failed", "a fault" };
+
+// ---------------------------------------------------------------- v3.52 SH352: why a composite is not soft (D8)
+// USER_FEEDBACK_v351 D8: room 4:1F drew 0 soft composites of 85,000 while every other room was 100 % soft. The cause is
+// the game's own darkness: ShadowCompositeDraw 0x55F660 (SH4Decomp src/model/shadow_55e610.c:278-281) sets
+// TEXTUREFACTOR 0 for stage 4 room 0x1F (and cut-scene 0x43, :316), so the mask quad writes colour 0 alpha 0 over a mask
+// cleared to 0, and the game's two copies blend with alpha 0: the picture is unchanged, no real-time shadow shows there,
+// with Refined or without (Playable Eileen's ShadowDarkness scales 0 to 0; the pause copy logged darkness 00000000 there).
+// ShDrawBody forwarded that empty draw, and the room line counted it as "not soft". Not a hard edge: nothing is drawn.
+// Every composite now carries a reason; the room line says how many were hard and why, and how many had no darkness.
+enum { SHN_SOFT, SHN_NODARK, SHN_STOCK, SHN_OFF, SHN_CALL, SHN_MASK, SHN_PLAN, SHN_RT, SHN_FAIL, SHN_N };
+static const char *const kShNsName[SHN_N] = { "soft", "no darkness", "Stock", "off", "not the stock draw", "not the mask",
+                                              "no plan", "render targets", "failed" };
+static const char *const kShNsWhy[SHN_N] = {
+    "soft",
+    "the game's darkness is 0 here (TEXTUREFACTOR alpha 0: the mask is empty, the game's own draw leaves the picture as it is: no "
+    "shadow shows, so there is nothing to soften)",
+    "Edge Stock is chosen: the game's own hard edge",
+    "soft shadows are off for this session (see the off line): the game's own hard edge",
+    "the draw is not the stock one (4, 0, 4): the game's own hard edge",
+    "stage 0 does not hold the shadow mask: the game's own hard edge",
+    "no soft plan for the mask's size: the game's own hard edge",
+    "our render targets could not be made this time: the game's own hard edge, soft again at the next composite",
+    "the soft composite failed (soft shadows off from now on): the game's own hard edge" };
+// a hard edge on screen (Stock chosen included); SHN_NODARK draws nothing, SHN_SOFT is soft
+static int ShNsHard(int why) { return why > SHN_NODARK && why < SHN_N; }
+// the gate before the soft path: SHN_SOFT = go on; no darkness first (nothing shows whatever the edge), then the chosen
+// Stock, then the session's fallback
+static int ShNsGate(int tfAlpha, int edge, int failed)
+{
+    return !tfAlpha ? SHN_NODARK : edge != SH_SOFT ? SHN_STOCK : failed ? SHN_OFF : SHN_SOFT;
+}
+typedef struct { unsigned n[SHN_N]; unsigned seen; } ShNsRoom;  // seen: a bit per reason already logged in this room
+static void ShNsReset(ShNsRoom *r) { memset(r, 0, sizeof *r); }
+// counts a composite; 1 = the reason's first non-soft composite in this room (its once-per-room line is due)
+static int ShNsAdd(ShNsRoom *r, int why)
+{
+    if (why < 0 || why >= SHN_N) why = SHN_FAIL;
+    ++r->n[why];
+    if (why == SHN_SOFT || (r->seen & (1u << why))) return 0;
+    r->seen |= 1u << why;
+    return 1;
+}
+static unsigned ShNsHardN(const ShNsRoom *r)
+{
+    unsigned s = 0;
+    int k;
+    for (k = 0; k < SHN_N; ++k)
+        if (ShNsHard(k)) s += r->n[k];
+    return s;
+}
+// the room line's tail: "" when every composite was soft, else
+// "; not soft: H hard (Stock 3, render targets 2), Z with no darkness (the game's own 0: nothing drawn)"
+// (truncated, never the CRT's abort, when cap is short; SH_NS_TEXT_MAX holds the longest: every reason at 10 digits)
+#define SH_NS_TEXT_MAX 256
+static int ShNsText(char *o, size_t cap, const ShNsRoom *r)
+{
+    const unsigned hard = ShNsHardN(r);
+    size_t len = 0;
+    int k, a, first = 1;
+    if (!o || cap < 2) return 0;
+    o[0] = 0;
+    if (!hard && !r->n[SHN_NODARK]) return 0;
+#define SH_NS_PUT(...) do { if (len + 1 < cap) { a = _snprintf_s(o + len, cap - len, _TRUNCATE, __VA_ARGS__); len = a < 0 ? cap - 1 : len + (size_t)a; } } while (0)
+    SH_NS_PUT("; not soft: %u hard", hard);
+    for (k = 0; k < SHN_N; ++k)
+        if (ShNsHard(k) && r->n[k]) {
+            SH_NS_PUT("%s%s %u", first ? " (" : ", ", kShNsName[k], r->n[k]);
+            first = 0;
+        }
+    if (!first) SH_NS_PUT(")");
+    SH_NS_PUT(", %u with no darkness (the game's own 0: nothing drawn)", r->n[SHN_NODARK]);
+#undef SH_NS_PUT
+    return (int)len;
+}
 
 // ---------------------------------------------------------------- the preview (the Shadows page)
 enum { SHP_NONE, SHP_SCENE, SHP_CARD };

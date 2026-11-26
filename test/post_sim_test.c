@@ -4,7 +4,9 @@
 // looks' directions: PS2 greener with lifted blacks, Otherworld cold and drained, Apartment warm, Bleach harder; no
 // value leaves 0..1), the lens' strength from the haunting sums and its fades, the warp (centre fixed, samples inside
 // the frame, red further in than blue, Off = identity). v3.44 CS344: Bloom Very High (1.6x High), the grade's proven-forms
-// shader (PsLint, the same formula as v3.43's), the pixel check's verdicts.
+// shader (PsLint, the same formula as v3.43's), the pixel check's verdicts. v3.52 FX352: Bloom Off / Low / Medium / High /
+// Ultra (each step clearly stronger, High at least v3.51's Very High), the one-time migration of a v3.51 value (BloomV),
+// its write order, the lens' base 70 % (LensBase) and the room line's tally.
 #define _CRT_SECURE_NO_WARNINGS
 #include <stdio.h>
 #include <stdlib.h>
@@ -23,15 +25,14 @@ static void TestParse(void)
     CHECK(PpParse(PPE_GRADE, "PS2") == PPG_PS2 && PpParse(PPE_GRADE, "otherworld") == PPG_OTHER &&
           PpParse(PPE_GRADE, "Apartment") == PPG_APT && PpParse(PPE_GRADE, "bleach") == PPG_BLEACH, "grading names");
     CHECK(PpParse(PPE_LENS, "On") == PPL_ON && PpParse(PPE_LENS, "off") == PPL_OFF, "lens names");
-    CHECK(PpParse(PPE_BLOOM, "2") == PPB_HIGH && PpParse(PPE_GRADE, "4") == PPG_BLEACH && PpParse(PPE_LENS, "1") == PPL_ON,
+    CHECK(PpParse(PPE_BLOOM, "3") == PPB_HIGH && PpParse(PPE_GRADE, "4") == PPG_BLEACH && PpParse(PPE_LENS, "1") == PPL_ON,
           "digits");
-    CHECK(PpParse(PPE_BLOOM, "Very High") == PPB_VHIGH && PpParse(PPE_BLOOM, "veryhigh") == PPB_VHIGH &&
-          PpParse(PPE_BLOOM, " VERY  HIGH ") == PPB_VHIGH && PpParse(PPE_BLOOM, "3") == PPB_VHIGH && PpParse(PPE_BLOOM, "Very") == -1,
-          "v3.44: Bloom Very High (blanks inside ignored)");
-    CHECK(PpParse(PPE_BLOOM, "4") == -1 && PpParse(PPE_LENS, "2") == -1 && PpParse(PPE_GRADE, "") == -1 &&
+    CHECK(PpParse(PPE_BLOOM, "Medium") == PPB_MED && PpParse(PPE_BLOOM, "ultra") == PPB_ULTRA && PpParse(PPE_BLOOM, "4") == PPB_ULTRA &&
+          PpParse(PPE_BLOOM, "Very High") == -1, "v3.52: Bloom Medium / Ultra (the generic parser: new names only)");
+    CHECK(PpParse(PPE_BLOOM, "5") == -1 && PpParse(PPE_LENS, "2") == -1 && PpParse(PPE_GRADE, "") == -1 &&
           PpParse(PPE_GRADE, NULL) == -1 && PpParse(PPE_GRADE, "PS") == -1 && PpParse(PPE_GRADE, "PS22") == -1 &&
-          PpParse(PPE_BLOOM, "Medium") == -1 && PpParse(3, "Off") == -1 && PpParse(-1, "Off") == -1, "not values");
-    CHECK(kPpCount[PPE_BLOOM] == 4 && kPpCount[PPE_GRADE] == 5 && kPpCount[PPE_LENS] == 2 && PP_VMAX >= 5, "the value counts");
+          PpParse(PPE_BLOOM, "Med") == -1 && PpParse(3, "Off") == -1 && PpParse(-1, "Off") == -1, "not values");
+    CHECK(kPpCount[PPE_BLOOM] == 5 && kPpCount[PPE_GRADE] == 5 && kPpCount[PPE_LENS] == 2 && PP_VMAX >= 5, "the value counts");
     {
         int k, v;
         for (k = 0; k < PPE_N; ++k)
@@ -40,17 +41,18 @@ static void TestParse(void)
                 CHECK(PpParse(k, kPpName[k][v]) == v, "each name reads back %d %d", k, v);
             }
         {   // the pause-copy keys are distinct
-            int seen[64], b, g, l, dup = 0;
+            int seen[128], b, g, l, dup = 0;
             memset(seen, 0, sizeof seen);
             for (b = 0; b < PPB_N; ++b)
                 for (g = 0; g < PPG_N; ++g)
                     for (l = 0; l < PPL_N; ++l) {
                         const int key = PpKey(b, g, l);
-                        if (key < 0 || key >= 64 || seen[key]++) dup = 1;
+                        if (key < 0 || key >= 128 || seen[key]++) dup = 1;
                     }
             CHECK(!dup, "every combination its own pause key");
         }
-        CHECK(PpKey(0, 0, 0) == 0 && PpKey(2, 4, 1) > 0 && PpKey(3, 0, 0) != PpKey(0, 0, 0), "all Off = key 0");
+        CHECK(PpKey(0, 0, 0) == 0 && PpKey(2, 4, 1) > 0 && PpKey(4, 0, 0) != PpKey(0, 0, 0) && PpKey(4, 0, 0) != PpKey(0, 0, 1),
+              "all Off = key 0; v3.52 FX352: Ultra its own key");
     }
 }
 
@@ -126,25 +128,105 @@ static void TestPlan(void)
 static void TestBright(void)
 {
     int b;
+    float e[PPB_N];
     for (b = PPB_LOW; b < PPB_N; ++b) {
         const PpBloomLook *L = &kPpBloom[b];
         CHECK(PpBright(L, 0.0f) == 0.0f && PpBright(L, L->th) == 0.0f && PpBright(L, L->th - 0.1f) == 0.0f, "dark and mid tones never bloom (%d)", b);
         CHECK(PpBright(L, 1.0f) > 0.9f, "white blooms fully (%d: %.2f)", b, PpBright(L, 1.0f));
-        CHECK(PpBright(L, 0.9f) >= PpBright(L, 0.8f) && PpBright(L, 0.8f) >= PpBright(L, 0.7f) && PpBright(L, 0.7f) > PpBright(L, 0.6f),
-              "rises with brightness (%d; v3.44: Very High saturates from 0.70)", b);
-        CHECK(L->th > 0.4f && L->th < 0.8f && L->gain * 0.25f <= 1.0f && L->k > 0.0f && L->k <= 1.0f && L->up > 0.0f && L->up < 1.0f,
+        CHECK(PpBright(L, 0.9f) >= PpBright(L, 0.8f) && PpBright(L, 0.8f) >= PpBright(L, 0.7f) && PpBright(L, 0.7f) >= PpBright(L, 0.6f) &&
+              PpBright(L, 0.6f) > PpBright(L, 0.4f) - 1e-6f, "rises with brightness (%d)", b);
+        // v3.52 FX352: k / 2 is the composite's constant (kPsPpComp mul_x2), gain / 4 the bright pass's
+        CHECK(L->th > 0.25f && L->th < 0.8f && L->gain * 0.25f <= 1.0f && L->k > 0.0f && L->k * 0.5f <= 1.0f && L->up > 0.0f && L->up < 1.0f,
               "constants inside ps.1.1's -1..1 (%d)", b);
         CHECK(PpScreen(0.5f, 0.5f) == 0.75f && PpScreen(1.0f, 1.0f) == 1.0f && PpScreen(0.2f, 0.0f) == 0.2f, "screen blend");
+        e[b] = PpBloomEnergy(L);
     }
-    CHECK(kPpBloom[PPB_HIGH].th < kPpBloom[PPB_LOW].th && kPpBloom[PPB_HIGH].k >= kPpBloom[PPB_LOW].k &&
-          kPpBloom[PPB_HIGH].up >= kPpBloom[PPB_LOW].up, "High: more light, more glow, wider");
-    {   // v3.44 CS344: Very High about 1.6x High (USER_FEEDBACK_v343 item 5)
-        const float lo = PpBloomEnergy(&kPpBloom[PPB_LOW]), hi = PpBloomEnergy(&kPpBloom[PPB_HIGH]), vh = PpBloomEnergy(&kPpBloom[PPB_VHIGH]);
-        CHECK(lo < hi && vh / hi >= 1.45f && vh / hi <= 1.75f, "Very High's glow %.3f = %.2fx High's %.3f (Low %.3f)", vh, vh / hi, hi, lo);
-        CHECK(kPpBloom[PPB_VHIGH].th < kPpBloom[PPB_HIGH].th && kPpBloom[PPB_VHIGH].up >= kPpBloom[PPB_HIGH].up &&
-              kPpBloom[PPB_VHIGH].k >= kPpBloom[PPB_HIGH].k, "Very High: more light, wider");
-        CHECK(PpBright(&kPpBloom[PPB_VHIGH], 0.35f) == 0.0f, "Very High: the dark third of the picture never blooms");
-        printf("bloom (v3.44): glow Low %.3f, High %.3f, Very High %.3f (%.2fx High)\n", lo, hi, vh, vh / hi);
+    e[PPB_OFF] = PpBloomEnergy(&kPpBloom[PPB_OFF]);
+    CHECK(e[PPB_OFF] == 0.0f, "Off: no glow");
+    for (b = PPB_MED; b < PPB_N; ++b) {  // v3.52 FX352 (USER_FEEDBACK_v351 D7): each step clearly stronger
+        const PpBloomLook *L = &kPpBloom[b], *P = &kPpBloom[b - 1];
+        CHECK(L->th < P->th && L->up >= P->up && L->k >= P->k && L->gain >= P->gain, "level %d: more light, wider, no weaker", b);
+        CHECK(e[b] >= 1.3f * e[b - 1], "level %d's glow %.3f is at least 1.3x the one below (%.3f)", b, e[b], e[b - 1]);
+    }
+    {   // v3.51's looks (post_sim.h before v3.52) for the migration's promise
+        static const PpBloomLook kOld[3] = { { 0.62f, 3.0f, 0.90f, 0.80f }, { 0.52f, 2.6f, 1.00f, 0.85f }, { 0.41f, 3.5f, 1.00f, 0.90f } };
+        const float oLow = PpBloomEnergy(&kOld[0]), oHigh = PpBloomEnergy(&kOld[1]), oVh = PpBloomEnergy(&kOld[2]);
+        CHECK(e[PPB_HIGH] >= oVh * 1.2f && kPpBloom[PPB_HIGH].th <= kOld[2].th && kPpBloom[PPB_HIGH].up >= kOld[2].up,
+              "the new High (v3.51's Very High migrated) is at least as strong: %.3f vs %.3f", e[PPB_HIGH], oVh);
+        CHECK(e[PPB_MED] >= oHigh * 1.3f && kPpBloom[PPB_MED].th < kOld[1].th, "the new Medium (v3.51's High migrated) is stronger: %.3f vs %.3f",
+              e[PPB_MED], oHigh);
+        CHECK(e[PPB_LOW] > oLow * 1.3f && kPpBloom[PPB_LOW].th < kOld[0].th, "the new Low is more than v3.51's Low (\"hardly any\"): %.3f vs %.3f",
+              e[PPB_LOW], oLow);
+        CHECK(e[PPB_ULTRA] >= 1.8f * oVh, "Ultra clearly beyond v3.51's Very High: %.3f vs %.3f", e[PPB_ULTRA], oVh);
+        printf("bloom (v3.52): glow Low %.3f, Medium %.3f, High %.3f, Ultra %.3f (v3.51: Low %.3f, High %.3f, Very High %.3f)\n", e[PPB_LOW],
+               e[PPB_MED], e[PPB_HIGH], e[PPB_ULTRA], oLow, oHigh, oVh);
+    }
+    CHECK(PpBright(&kPpBloom[PPB_ULTRA], 0.25f) == 0.0f, "Ultra: the dark quarter of the picture never blooms");
+}
+
+// v3.52 FX352: the one-time migration of a v3.43 .. v3.51 Bloom value and the write order
+static void TestBloomMigrate(void)
+{
+    static const struct { const char *s; int legacy, v; } kRead[] = {
+        { "Off", 1, PPB_OFF }, { "Low", 1, PPB_LOW }, { "High", 1, PPB_MED }, { "Very High", 1, PPB_HIGH }, { "veryhigh", 1, PPB_HIGH },
+        { " VERY  HIGH ", 1, PPB_HIGH }, { "0", 1, PPB_OFF }, { "1", 1, PPB_LOW }, { "2", 1, PPB_MED }, { "3", 1, PPB_HIGH },
+        { "4", 1, PPB_ULTRA }, { "Medium", 1, PPB_MED }, { "Ultra", 1, PPB_ULTRA },
+        { "Off", 0, PPB_OFF }, { "Low", 0, PPB_LOW }, { "Medium", 0, PPB_MED }, { "High", 0, PPB_HIGH }, { "HIGH\r\n", 0, PPB_HIGH },
+        { "Ultra", 0, PPB_ULTRA }, { "Very High", 0, PPB_HIGH }, { "2", 0, PPB_MED }, { "3", 0, PPB_HIGH }, { "4", 0, PPB_ULTRA },
+        { "", 1, -1 }, { "Very", 1, -1 }, { "5", 0, -1 }, { "Med", 0, -1 }, { "Highest", 1, -1 }, { "\t ", 0, -1 },
+    };
+    int i, rw, mk, v;
+    for (i = 0; i < (int)(sizeof kRead / sizeof kRead[0]); ++i)
+        CHECK(PpBloomParse(kRead[i].s, kRead[i].legacy) == kRead[i].v, "Bloom=\"%s\" (%s) -> %d (got %d)", kRead[i].s,
+              kRead[i].legacy ? "legacy" : "marked", kRead[i].v, PpBloomParse(kRead[i].s, kRead[i].legacy));
+    CHECK(PpBloomParse(NULL, 1) == -1, "NULL");
+    // the user's v3.51 ini: Bloom=Very High, no marker -> High, rewritten, marked
+    v = PpBloomMigrate("Very High", 0, &rw, &mk);
+    CHECK(v == PPB_HIGH && rw && mk, "v3.51 Very High -> High, rewritten, marked");
+    v = PpBloomMigrate("High", 0, &rw, &mk);
+    CHECK(v == PPB_MED && rw && mk, "v3.51 High -> Medium, rewritten, marked");
+    v = PpBloomMigrate("Low", 0, &rw, &mk);
+    CHECK(v == PPB_LOW && !rw && mk, "v3.51 Low -> Low: the text stays, marked");
+    v = PpBloomMigrate("Off", 0, &rw, &mk);
+    CHECK(v == PPB_OFF && !rw && mk, "Off stays Off, marked");
+    v = PpBloomMigrate("High", PP_BLOOM_VER, &rw, &mk);
+    CHECK(v == PPB_HIGH && !rw && !mk, "marked: High is High, nothing written (once only)");
+    v = PpBloomMigrate("High", 351, &rw, &mk);
+    CHECK(v == PPB_MED && rw && mk, "an older marker number: legacy");
+    v = PpBloomMigrate("Ultra", 0, &rw, &mk);
+    CHECK(v == PPB_ULTRA && !rw && mk, "Ultra without the marker (a marker write that failed): Ultra");
+    v = PpBloomMigrate("nonsense", 0, &rw, &mk);
+    CHECK(v == -1 && !rw && !mk, "not a value: nothing written (the caller keeps Off and logs it)");
+    // every v3.52 name reads back as itself with and without the marker, except High (only with the marker): the write
+    // order puts the marker first for High
+    for (v = 0; v < PPB_N; ++v) {
+        const int same = PpBloomParse(kPpName[PPE_BLOOM][v], 1) == v && PpBloomParse(kPpName[PPE_BLOOM][v], 0) == v;
+        CHECK(same == (v != PPB_HIGH), "%s reads the same either way: %d", kPpName[PPE_BLOOM][v], same);
+        CHECK(PpBloomWriteOrder(v, 1) == PPBW_VALUE, "marked: the value only (%d)", v);
+        CHECK(PpBloomWriteOrder(v, 0) == (v == PPB_HIGH ? PPBW_MARK_VALUE : PPBW_VALUE_MARK), "unmarked: the order (%d)", v);
+    }
+    {   // whatever step fails, the ini left on disk reads as the level chosen or as the level it held before
+        int prev, want, failAt;
+        for (prev = 0; prev < PPB_N; ++prev)
+            for (want = 0; want < PPB_N; ++want)
+                for (failAt = 0; failAt < 3; ++failAt) {  // 0: nothing fails, 1: the first write fails, 2: the second
+                    const char *val = kPpName[PPE_BLOOM][prev];
+                    int marker = 0;
+                    const int order = PpBloomWriteOrder(want, 0);
+                    if (order == PPBW_VALUE_MARK) {
+                        if (failAt != 1) val = kPpName[PPE_BLOOM][want];
+                        if (failAt == 0) marker = PP_BLOOM_VER;
+                    } else {
+                        if (failAt != 1) marker = PP_BLOOM_VER;
+                        if (failAt == 0) val = kPpName[PPE_BLOOM][want];
+                        if (failAt == 2) marker = 0;  // the value failed: the marker taken back
+                    }
+                    {
+                        const int got = PpBloomParse(val, marker < PP_BLOOM_VER);
+                        const int before = PpBloomParse(kPpName[PPE_BLOOM][prev], 1);  // the old line, legacy (no marker yet)
+                        CHECK(got == want || got == before, "prev %d want %d fail %d: reads %d", prev, want, failAt, got);
+                    }
+                }
     }
 }
 
@@ -298,6 +380,41 @@ static void TestLens(void)
     int i;
     CHECK(PpLensTarget(0.0f, 0.0f, 3, 0, 0) == 0.0f, "no haunting: no lens");
     CHECK(PpLensTarget(0.0f, 0.0f, 3, 0, 1) == 1.0f, "LensAlways: full");
+    CHECK(PP_LENS_BASE >= 0.65f && PP_LENS_BASE > PP_LENS_BASE_V351, "v3.52 FX352: the base raised (%.2f; v3.51 %.2f)", PP_LENS_BASE,
+          PP_LENS_BASE_V351);
+    CHECK(fabsf(PpLensTargetB(2.0f, 0.0f, 3, 0, 0, 0.40f) - 0.40f) < 1e-6f && fabsf(PpLensTargetB(2.0f, 0.0f, 3, 0, 0, 1.0f) - 1.0f) < 1e-6f,
+          "LensBase: the base as given");
+    CHECK(PpLensTargetB(2.0f, 0.0f, 3, 0, 0, 0.0f) == PpLensTarget(2.0f, 0.0f, 3, 0, 0) &&
+          PpLensTargetB(2.0f, 0.0f, 3, 0, 0, 2.0f) == PpLensTarget(2.0f, 0.0f, 3, 0, 0) &&
+          PpLensTargetB(2.0f, 0.0f, 3, 0, 0, sqrtf(-1.0f)) == PpLensTarget(2.0f, 0.0f, 3, 0, 0), "LensBase out of range / NaN: the default");
+    CHECK(PpLensTargetB(2.0f, 1.0f, 3, 0, 0, 0.40f) > 0.99f && PpLensTargetB(0.0f, 0.0f, 3, 0, 0, 0.9f) == 0.0f,
+          "any base: full halfway in, nothing without a haunting");
+    {
+        int ok;
+        CHECK(fabsf(PpLensBaseParse(70, &ok) - 0.70f) < 1e-6f && ok && fabsf(PpLensBaseParse(40, &ok) - 0.40f) < 1e-6f && ok &&
+              PpLensBaseParse(100, &ok) == 1.0f && ok && PpLensBaseParse(10, &ok) > 0.09f && ok, "LensBase 10..100");
+        CHECK(PpLensBaseParse(9, &ok) == PP_LENS_BASE && !ok && PpLensBaseParse(101, &ok) == PP_LENS_BASE && !ok &&
+              PpLensBaseParse(-5, &ok) == PP_LENS_BASE && !ok, "LensBase out of range: the default, reported");
+    }
+    {   // v3.52 FX352: the room line's tally (when it shows)
+        PpLensRoom r;
+        int i;
+        float s2 = 0.0f;
+        memset(&r, 0, sizeof r);
+        for (i = 0; i < 600; ++i) {  // 10 s at 60 fps: a haunting registered for the last 4 s, the player at its edge
+            const float tg = i >= 360 ? PpLensTarget(2.0f, 0.0f, 2, 0, 0) : 0.0f;
+            s2 = PpLensStep(s2, tg, 1.0f / 60.0f);
+            PpLensRoomAdd(&r, 1.0f / 60.0f, tg, s2, i >= 360 ? 2.0f : 0.0f, 0.0f);
+        }
+        CHECK(fabsf(r.secs - 10.0f) < 0.05f && fabsf(r.shown - 4.0f) < 0.05f, "shown 4 of 10 s (%.2f of %.2f)", r.shown, r.secs);
+        CHECK(fabsf(r.maxS - PP_LENS_BASE) < 1e-4f && r.maxSum == 2.0f && r.maxNear == 0.0f, "at most the base (%.2f)", r.maxS);
+        PpLensRoomAdd(&r, 5.0f, 0.0f, 0.0f, sqrtf(-1.0f), sqrtf(-1.0f));
+        CHECK(fabsf(r.secs - 10.25f) < 0.05f && r.maxSum == 2.0f, "a hitch counts 0.25 s; NaN sums ignored");
+        PpLensRoomAdd(&r, 0.0f, 1.0f, 1.0f, 1.0f, 3.0f);
+        CHECK(r.maxS < 0.99f, "dt 0: nothing counted");
+        PpLensRoomAdd(&r, 0.01f, 1.0f, 0.5f, 1.0f, 3.0f);
+        CHECK(r.maxNear == 1.0f, "nearness clamped to 1");
+    }
     CHECK(fabsf(PpLensTarget(2.0f, 0.0f, 3, 0, 0) - PP_LENS_BASE) < 1e-6f, "a haunting registered, far: the base");
     CHECK(PpLensTarget(2.0f, 1.0f, 3, 0, 0) > 0.99f, "halfway into the aura: full");
     CHECK(PpLensTarget(2.0f, 0.4f, 3, 0, 0) > PP_LENS_BASE && PpLensTarget(2.0f, 0.4f, 3, 0, 0) < 1.0f, "between: between");
@@ -531,6 +648,7 @@ int main(void)
     TestFilters();
     TestPlan();
     TestBright();
+    TestBloomMigrate();  // v3.52 FX352
     TestGrade();
     TestGrade344();  // v3.44 CS344
     TestLens();

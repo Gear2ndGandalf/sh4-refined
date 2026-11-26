@@ -49,6 +49,11 @@
 // silently (the draw then ran without a shader: the coverage, black, at any Darkness); a pixel check (post.inc PxCheck:
 // a fixed test draw through the composite and the real c1 into a tiny target of ours, read back) runs at each new
 // (darkness, Darkness) on the page and in play, so the log proves the pixels.
+// v3.52 SH352 (USER_FEEDBACK_v351 D5, D8): the Darkness row runs 25 -> 100 % (Left lighter, Right darker; the ini's
+// percentage unchanged). D8: room 4:1F's "0 soft" was the game's own darkness 0 there (0x55F660 sets TEXTUREFACTOR 0
+// for stage 4 room 0x1F): an empty mask, no shadow on screen, nothing to soften. Every composite now carries a reason
+// (shadows_sim.h SHN_*): the room line ends with the hard count and its reasons and the count with no darkness, the
+// first composite of each reason in a room is logged once (bounded), and the Stock / off path is counted too.
 #include "shadows_sim.h"
 
 typedef HRESULT(STDMETHODCALLTYPE *ShDP_t)(void *, DWORD, UINT, UINT);
@@ -60,7 +65,7 @@ enum { SHV_COPYRECTS = 28, SHV_SETRT = 31, SHV_GETRT = 32, SHV_GETDS = 33, SHV_D
 // ---------------------------------------------------------------- settings and state
 static volatile LONG g_shEdge;          // [Shadows] Edge: 0 Stock, 1 Soft (v3.41 SH341: v3.40's Softer reads as Soft)
 static LONG g_snapShEdge;               // as Options opened
-static volatile LONG g_shDark = SH_DARK_DEF;  // v3.42 SM342: [Shadows] Darkness, percent 0..100 (the row: 100 / 85 / 70 / 55; v3.43 SH343: + 40 / 25)
+static volatile LONG g_shDark = SH_DARK_DEF;  // v3.42 SM342: [Shadows] Darkness, percent 0..100 (the row: 100 / 85 / 70 / 55; v3.43 SH343: + 40 / 25; v3.52 SH352: 25 .. 100, left to right)
 static LONG g_snapShDark;               // v3.42 SM342: as Options opened
 static float g_shSoftPx = SH_SOFT_PX720;  // hidden [Shadows] SoftPx (at 720 lines; v3.41 SH341: 12, SofterPx is no longer read)
 static int g_shPrevOn = 1;              // hidden [Shadows] Preview (0: the page has no preview, nothing is kept at a pause)
@@ -664,26 +669,48 @@ static void ShFail(int kind, HRESULT hr, const char *where)
     g_shFailed = kind > SHF_NONE && kind < SHF_N ? kind : SHF_FAULT;
     Log("shadows: off for this session: %s (hr %08lX, %s): the game's own shadow edge from now on", kShFail[g_shFailed], (unsigned long)hr, where);
 }
-static void ShRoomTick(int soft, float ms)
+// v3.52 SH352 (D8): why = the composite's SHN_ reason (SHN_SOFT = drawn soft), tf = the darkness it saw; the room line
+// ends with "; not soft: H hard (...), Z with no darkness ..." when any was not soft, and each reason's first composite
+// in a room is logged once (bounded: by design 32 lines a session, the hard fallbacks 32)
+static ShNsRoom g_shRoomNs;  // v3.52 SH352
+static void ShNsNote(DWORD key, int why, DWORD tf)
+{
+    static volatile LONG s_qDesign, s_qHard;
+    const int design = why == SHN_NODARK || why == SHN_STOCK;
+    if (!LogQuota(design ? &s_qDesign : &s_qHard, 32)) return;
+    if (design)
+        LogV("shadows: room %lX:%02lX: a composite not soft: %s (darkness %08lX, edge %s, Darkness %d %%; once a room)", key >> 16,
+             key & 0xFFFF, kShNsWhy[why], tf, kShEdgeName[ShEdgeGet()], (int)g_shDark);
+    else
+        Log("shadows: room %lX:%02lX: a composite not soft: %s (darkness %08lX, edge %s, Darkness %d %%; once a room)", key >> 16,
+            key & 0xFFFF, kShNsWhy[why], tf, kShEdgeName[ShEdgeGet()], (int)g_shDark);
+}
+static void ShRoomTick(int why, DWORD tf, float ms)  // v3.52 SH352: why / tf (was soft)
 {
     const DWORD key = (DWORD)*(volatile int *)0xFD5A90 << 16 | ((DWORD)*(volatile int *)0xFD5A94 & 0xFFFF);
+    if (why < 0 || why >= SHN_N) why = SHN_FAIL;  // v3.52 SH352
     if (key != g_shRoomKey) {
-        if (g_shRoomCalls && g_shRoomKey != 0xFFFFFFFFu)
+        if (g_shRoomCalls && g_shRoomKey != 0xFFFFFFFFu) {
+            char tail[SH_NS_TEXT_MAX];
+            ShNsText(tail, sizeof tail, &g_shRoomNs);  // v3.52 SH352
             LogV("shadows: room %lX:%02lX: %u composites over %u frames (at most %u in a frame), %u soft; ours %.3f ms a composite on "
-                 "average, %.3f at most; edge %s; render targets %.1f MB; darkness %d %%", g_shRoomKey >> 16, g_shRoomKey & 0xFFFF, g_shRoomCalls,
+                 "average, %.3f at most; edge %s; render targets %.1f MB; darkness %d %%%s", g_shRoomKey >> 16, g_shRoomKey & 0xFFFF, g_shRoomCalls,
                  g_shRoomFrames, g_shRoomMaxN, g_shRoomSoft, g_shRoomCalls ? g_shRoomMs / g_shRoomCalls : 0.0, g_shRoomMsMax,
-                 kShEdgeName[ShEdgeGet()], ShMb(g_shVram), (int)g_shDark);  // v3.42 SM342: + darkness
+                 kShEdgeName[ShEdgeGet()], ShMb(g_shVram), (int)g_shDark, tail);  // v3.42 SM342: + darkness  // v3.52 SH352: + the tail
+        }
         g_shRoomKey = key;
         g_shRoomCalls = g_shRoomSoft = g_shRoomFrames = g_shRoomMaxN = 0;
         g_shRoomMs = 0.0;
         g_shRoomMsMax = 0.0f;
+        ShNsReset(&g_shRoomNs);  // v3.52 SH352
     }
     if (g_shFrameSeen != g_fxFrame) g_shFrameSeen = g_fxFrame, g_shFrameN = 0, ++g_shRoomFrames;
     if (++g_shFrameN > g_shRoomMaxN) g_shRoomMaxN = g_shFrameN;
     ++g_shRoomCalls;
-    g_shRoomSoft += soft != 0;
+    g_shRoomSoft += why == SHN_SOFT;
     g_shRoomMs += ms;
     if (ms > g_shRoomMsMax) g_shRoomMsMax = ms;
+    if (ShNsAdd(&g_shRoomNs, why)) ShNsNote(key, why, tf);  // v3.52 SH352: the reason's first composite in this room
 }
 // the capture frame's first composite: the frame so far (no shadow) and the mask, for the Shadows page
 static float ShMsSince(const LARGE_INTEGER *t0)  // v3.41 SH341
@@ -886,43 +913,53 @@ static void ShCtxRelease(void)
     g_shCtx.rt = g_shCtx.ds = NULL;
 }
 // 1 = drawn by us; 0 = the caller draws the stock call
-static int ShDrawBody(void *dev, DWORD type, UINT start, UINT count, int edge, int cap)
+// v3.52 SH352 (D8): *why = the reason a composite is not soft (SHN_SOFT when drawn), *tfOut = the darkness it saw
+static int ShDrawBody(void *dev, DWORD type, UINT start, UINT count, int edge, int cap, int *why, DWORD *tfOut)
 {
     void *mask = NULL, *low;
     FxSurfDesc8 d;
     DWORD tf = 0, cwe = 0xF;
     const ShPlan *pl;
-    int w, h, fail = SHF_NONE, ok;
+    int w, h, fail = SHF_NONE, ok, gate;
+    *why = SHN_FAIL, *tfOut = 0;  // v3.52 SH352: until proven otherwise
     if (!ShCallOk(type, start, count)) {
         static volatile LONG s_q;
         if (LogQuota(&s_q, 5)) LogAnomaly("shadows", "0x55FE43 drew type %lu start %u count %u (stock: 4 0 4): left stock", type, start, count);
+        *why = SHN_CALL;  // v3.52 SH352
         return 0;
     }
     ShDevCheck(dev);
-    if (FAILED(((SpGetTex_t)VT(dev, SPV_GETTEX))(dev, 0, &mask)) || !mask) return 0;
+    if (FAILED(((SpGetTex_t)VT(dev, SPV_GETTEX))(dev, 0, &mask)) || !mask) {
+        *why = SHN_MASK;  // v3.52 SH352
+        return 0;
+    }
     if (mask != *(void *volatile *)0x12E7C40) {
         static volatile LONG s_q;
         if (LogQuota(&s_q, 5)) LogAnomaly("shadows", "stage 0 holds %p, not the shadow mask %p: left stock", mask, *(void *volatile *)0x12E7C40);
         ((Release_t)VT(mask, VT_RELEASE))(mask);
+        *why = SHN_MASK;  // v3.52 SH352
         return 0;
     }
     if (FAILED(((ShTexDesc_t)VT(mask, 14))(mask, 0, &d)) || d.w < 2 * SH_RT_MIN || d.h < 2 * SH_RT_MIN ||
         FAILED(((SpGetRS_t)VT(dev, SPV_GETRS))(dev, 60 /*TEXTUREFACTOR*/, &tf))) {
         ((Release_t)VT(mask, VT_RELEASE))(mask);
         ShFail(SHF_STATE, E_FAIL, "the mask's size / TEXTUREFACTOR");
-        return 0;
+        return 0;  // v3.52 SH352: SHN_FAIL
     }
+    *tfOut = tf;  // v3.52 SH352
     w = (int)d.w, h = (int)d.h;
     if (ShTfAlpha(tf)) g_shLastTf = tf;
     if (cap) ShCapture(dev, mask, w, h, tf);
-    if (edge == SH_STOCK || g_shFailed || !ShTfAlpha(tf)) {
+    if ((gate = ShNsGate(ShTfAlpha(tf), edge, g_shFailed)) != SHN_SOFT) {  // v3.52 SH352: the reason kept (was edge / failed / no darkness)
         ((Release_t)VT(mask, VT_RELEASE))(mask);
+        *why = gate;
         return 0;
     }
     if ((pl = ShPlanFor(edge, w, h)) == NULL) {
         static volatile LONG s_q;
         if (LogQuota(&s_q, 3)) LogAnomaly("shadows", "no plan for %s at %dx%d (a size the chain holds): stock", kShEdgeName[edge], w, h);
         ((Release_t)VT(mask, VT_RELEASE))(mask);
+        *why = SHN_PLAN;  // v3.52 SH352
         return 0;
     }
     if (!ShShaders(dev)) fail = SHF_SHADER;
@@ -930,18 +967,19 @@ static int ShDrawBody(void *dev, DWORD type, UINT start, UINT count, int edge, i
     if (fail == SHF_RT && ++g_shRtFails < 3) {  // a lost device, a full video memory for a moment: stock now, tried again
         ((Release_t)VT(mask, VT_RELEASE))(mask);
         Log("shadows: our render targets could not be made (%d in a row): the stock edge this time, tried again", g_shRtFails);
+        *why = SHN_RT;  // v3.52 SH352
         return 0;
     }
     if (fail) {
         ((Release_t)VT(mask, VT_RELEASE))(mask);
         ShFail(fail, E_FAIL, "making our objects");
-        return 0;
+        return 0;  // v3.52 SH352: SHN_FAIL
     }
     g_shRtFails = 0;
     if (!FxSave(dev, &g_shCtx.sv, 3)) {
         ((Release_t)VT(mask, VT_RELEASE))(mask);
         ShFail(SHF_STATE, E_FAIL, "saving the device state");
-        return 0;
+        return 0;  // v3.52 SH352: SHN_FAIL
     }
     g_shCtx.saved = 1;
     cwe = g_shCtx.sv.rs[12];  // kFxRs[12] = COLORWRITEENABLE: the game's own mask for the composite
@@ -974,7 +1012,18 @@ static int ShDrawBody(void *dev, DWORD type, UINT start, UINT count, int edge, i
         LogV("shadows: composite %s at %dx%d, darkness %08lX, %d draws, frame %ld (%u this frame), stage %X room %X", kShEdgeName[edge],
              w, h, tf, pl->nsteps, g_fxFrame, g_shFrameN + 1, *(volatile int *)0xFD5A90, *(volatile int *)0xFD5A94);
     }
+    *why = SHN_SOFT;  // v3.52 SH352
     return 1;
+}
+// v3.52 SH352 (D8): the Stock / off path's room count: its reason (no darkness, Stock, off), never a fault
+static void ShStockTick(void *dev, int edge)
+{
+    __try {
+        DWORD tf = 0;
+        if (FAILED(((SpGetRS_t)VT(dev, SPV_GETRS))(dev, 60 /*TEXTUREFACTOR*/, &tf))) tf = 0xFF000000u;  // unknown: counted as a shadow
+        ShRoomTick(ShNsGate(ShTfAlpha(tf), edge, 1), tf, 0.0f);
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+    }
 }
 static HRESULT __stdcall ShDrawHook(void *dev, DWORD type, UINT start, UINT count)
 {
@@ -982,9 +1031,11 @@ static HRESULT __stdcall ShDrawHook(void *dev, DWORD type, UINT start, UINT coun
     const int edge = ShEdgeGet();
     LARGE_INTEGER t0, t1;
     HRESULT hr = S_OK;
-    int cap, drawn = 0;
+    DWORD tf = 0;  // v3.52 SH352
+    int cap, drawn = 0, why = SHN_FAIL;  // v3.52 SH352: + why
     cap = g_shPrevOn && g_fxPrevHook && g_shMenu && *(volatile int *)0x12E3E2C == 1 && g_shCapFrame != g_fxFrame;
     if ((edge == SH_STOCK || g_shFailed) && !cap) {  // Stock: no work (v3.42 SM342: but the Darkness below 100 %)
+        ShStockTick(dev, edge);  // v3.52 SH352: counted in the room line with its reason (was not counted)
         if (g_shDark >= 100) return dp(dev, type, start, count);
         __try {
             if (ShStockDark(dev, type, start, count, &hr)) return hr;
@@ -1003,7 +1054,7 @@ static HRESULT __stdcall ShDrawHook(void *dev, DWORD type, UINT start, UINT coun
     QueryPerformanceCounter(&t0);
     BgPush(BGC_SHADOW);
     __try {
-        drawn = ShDrawBody(dev, type, start, count, edge, cap);
+        drawn = ShDrawBody(dev, type, start, count, edge, cap, &why, &tf);  // v3.52 SH352: + why, tf
     } __except (EXCEPTION_EXECUTE_HANDLER) {
         __try {  // put the game's target and states back before its own draw
             if (g_shCtx.saved) {
@@ -1017,6 +1068,7 @@ static HRESULT __stdcall ShDrawHook(void *dev, DWORD type, UINT start, UINT coun
         g_shCtx.saved = 0;
         ShFail(SHF_FAULT, E_FAIL, "inside the composite hook");
         drawn = 0;
+        why = SHN_FAIL;  // v3.52 SH352
     }
     BgPop();
     if (!drawn) {  // v3.42 SM342: the stock draw at the Darkness (Stock with the preview's capture, a soft fallback)
@@ -1031,7 +1083,8 @@ static HRESULT __stdcall ShDrawHook(void *dev, DWORD type, UINT start, UINT coun
         if (!sd) hr = dp(dev, type, start, count);
     }
     QueryPerformanceCounter(&t1);
-    ShRoomTick(drawn, g_shQf.QuadPart ? (float)((double)(t1.QuadPart - t0.QuadPart) * 1000.0 / (double)g_shQf.QuadPart) : 0.0f);
+    ShRoomTick(drawn ? SHN_SOFT : why == SHN_SOFT ? SHN_FAIL : why, tf,
+               g_shQf.QuadPart ? (float)((double)(t1.QuadPart - t0.QuadPart) * 1000.0 / (double)g_shQf.QuadPart) : 0.0f);  // v3.52 SH352: + the reason
     InterlockedExchange(&g_shInHook, 0);
     return hr;
 }
@@ -1426,6 +1479,7 @@ static void ShadowsInstall(void)
         "mask a composite (the player and the weapon in hand, Eileen, Cynthia, enemies, ghosts, Room 302's hauntings, the boss room's "
         "spears, event and cut-scene "
         "figures), Edge and Darkness; the Tremers' wall shadows: %s; the shadows baked into the room textures (furniture, doors, "
-        "items, Room 302) are not drawn as shadows (left as painted)",
+        "items, Room 302) are not drawn as shadows (left as painted); where the game's darkness is 0 (stage 4 room 0x1F, "
+        "cut-scene 0x43) no real-time shadow shows, with any edge: nothing to soften there",  // v3.52 SH352
         g_shRibOn ? "the Darkness (hook 0045F4CA; their edge is their texture's)" : "the game's own (no hook)");  // v3.49 SH349
 }

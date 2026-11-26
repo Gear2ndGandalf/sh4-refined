@@ -382,7 +382,14 @@ static int DofRestorePlan(DofRestoreIn *f, int steps[DOFR_N])
 // ---------------------------------------------------------------- the focus
 #define DOF_F_MIN 200.0f        // the focus is never nearer (the slices would crowd the camera)
 #define DOF_F_MAX 20000.0f
-#define DOF_F_NOFOCUS 150.0f    // the player nearer than this: a first-person view (Room 302): no focus, no blur
+// v3.43 .. v3.51: the player nearer than DOF_F_NOFOCUS was taken for a first-person view: no focus, no blur. v3.52 FX352
+// (USER_FEEDBACK_v351 D3: 10639 frames of "nearer than 150" were close third-person cameras, e.g. the Subway World's,
+// the companion Eileen filling the frame): first person is the game's own state only (the gate: Room 302's camera
+// CameraFp, stages 1 / 0x0A by the camera dispatch 0x4FF900; a view of another place: the room's geometry off). A close
+// player (0 < w <= DOF_F_NOFOCUS) is DOFF_CLOSE: the focus on her (DofFocusStep clamps it to DOF_F_MIN), the far side
+// only (nothing between her and the near plane 50 is blurred: DofPlanFarOnly). A cut-scene's own focus still needs
+// more than DOF_F_NOFOCUS (its small values are not proven to be distances).
+#define DOF_F_NOFOCUS 150.0f    // v3.52 FX352: the player nearer than this: close to the camera (DOFF_CLOSE), not first person
 #define DOF_F_TAU 0.25f         // s: the focus follows in log space (no pumping on a camera cut: a 3x jump snaps)
 static float DofClampF(float f) { return f < DOF_F_MIN ? DOF_F_MIN : f > DOF_F_MAX ? DOF_F_MAX : f; }
 static float DofFocusStep(float cur, float target, float dt, int snap)
@@ -404,6 +411,9 @@ static const char *const kDofGateWhy[DOFG_N] = {
     "Room 302's first-person view (no focus)" };
 // mode, the running game (engine mode 6 / sub-mode 2), the game phase [0xFD5C20] (0 play, 1 cut-scene, 2 paused),
 // the room's geometry drawn ([0xFD6C78]), Room 302 (stages 1 / 0x0A: its play is first person, the player is the camera)
+// v3.52 FX352: these are the game's only first-person states in play: the camera task 0x4FF900 (and the start 0x4FF8D0)
+// runs CameraFpUpdate 0x500C10 exactly when gGame.stage is 1 or 10, CameraWorldUpdate 0x5025D0 otherwise; the peepholes,
+// the door scope, the wall hole and the window look-outs turn the room's geometry off (DOFG_VIEW).
 static int DofIsRoom302(unsigned stage) { return stage == 1u || stage == 0x0Au; }
 static int DofGate(int mode, int gameplay, int phase, int roomDrawn, int room302)
 {
@@ -415,11 +425,13 @@ static int DofGate(int mode, int gameplay, int phase, int roomDrawn, int room302
     if (phase == 0 && room302) return DOFG_FP;
     return DOFG_ON;
 }
-// the focus source in this frame
-enum { DOFF_NONE, DOFF_PLAYER, DOFF_SCENE, DOFF_N };
-static const char *const kDofFocusName[DOFF_N] = { "none", "the player", "the cut-scene's own focus" };
+// the focus source in this frame (v3.52 FX352: + DOFF_CLOSE)
+enum { DOFF_NONE, DOFF_PLAYER, DOFF_SCENE, DOFF_CLOSE, DOFF_N };
+static const char *const kDofFocusName[DOFF_N] = { "none", "the player", "the cut-scene's own focus",
+                                                   "the player close to the camera" };
 // cut-scene: the scene's own focus distance (0x566A10's centre, [0x137FA04], when its camera track turns the game's
 // depth of field on: [0x137FA1C] sides and [0x137FA10] planes both set), else the player; play: the player. *F out.
+// v3.52 FX352: a player in front of the camera but nearer than DOF_F_NOFOCUS is DOFF_CLOSE (was DOFF_NONE: no blur).
 static int DofPickFocus(int phase, int sceneOn, float sceneF, int playerOk, float playerW, float *F)
 {
     if (phase == 1 && sceneOn && sceneF > DOF_F_NOFOCUS && sceneF == sceneF && sceneF < 1.0e6f) {
@@ -430,22 +442,42 @@ static int DofPickFocus(int phase, int sceneOn, float sceneF, int playerOk, floa
         *F = playerW;
         return DOFF_PLAYER;
     }
+    if (playerOk && playerW > 0.0f && playerW <= DOF_F_NOFOCUS) {  // v3.52 FX352 (NaN fails both tests)
+        *F = playerW;
+        return DOFF_CLOSE;
+    }
     *F = 0.0f;
     return DOFF_NONE;
+}
+// v3.52 FX352: the same subject (the player, at any distance): no snap of the focus and no "focus" log line between
+// DOFF_PLAYER and DOFF_CLOSE (a camera that swings close and back would otherwise snap and fill the log)
+static int DofSameSubject(int a, int b)
+{
+    return a == b || (a == DOFF_PLAYER && b == DOFF_CLOSE) || (a == DOFF_CLOSE && b == DOFF_PLAYER);
+}
+// v3.52 FX352: a close player's plan: the far side only (the near side's slices lie between her and the near plane, or
+// on her; DofMakePlan's near side would blur her). 1 = something is left to draw.
+static int DofPlanFarOnly(DofPlanT *pl, int strength)
+{
+    memset(&pl->side[DOF_NEAR], 0, sizeof pl->side[DOF_NEAR]);
+    pl->side[DOF_NEAR].codes = 1u;  // code 0 only (nothing marked)
+    DofPlanSum(strength, pl);
+    return pl->n > 0;
 }
 
 // ---------------------------------------------------------------- v3.44 DF344: why a frame was not drawn
 // v3.43 drew in 0 of 16593 asked frames and said why only once ("focus none"): every frame the effect is asked for now
 // gets one reason, counted per room (the room line lists them), and the first of each kind in a room is logged. The
 // gate's by-design skips (paused, Cut-scenes in play, a view of another place, Room 302) are counted apart.
+// v3.52 FX352: DOFN_NEAR ("the player is nearer than 150 (a first-person view)") is gone: a close player is a focus now
 enum { DOFN_DRAWN, DOFN_PHASE, DOFN_CUTMODE, DOFN_VIEW, DOFN_FP, DOFN_FAILED, DOFN_NOTBACK, DOFN_NOVP, DOFN_READ, DOFN_BEHIND,
-       DOFN_NEAR, DOFN_OFFSCREEN, DOFN_PROBEWAIT, DOFN_PROBEOFF, DOFN_NOPLAN, DOFN_NOSTATE, DOFN_NODS, DOFN_NORT, DOFN_N };
+       DOFN_OFFSCREEN, DOFN_PROBEWAIT, DOFN_PROBEOFF, DOFN_NOPLAN, DOFN_NOSTATE, DOFN_NODS, DOFN_NORT, DOFN_N };
 #define DOFN_DESIGN_END DOFN_FP  // DOFN_PHASE .. DOFN_FP: by design (the gate); after it: a refusal
 static const char *const kDofWhyNot[DOFN_N] = {
     "drawn", "paused or an overlay", "in play (DepthOfField = Cut-scenes)", "a view of another place (peephole or window)",
     "Room 302's first-person view", "off this session", "not drawing to the back buffer", "no viewport",
     "the player's position could not be projected", "the player is behind the camera or too far",
-    "the player is nearer than 150 (a first-person view)", "the player is off screen (a cut-scene without its own focus)",
+    "the player is off screen (a cut-scene without its own focus)",
     "the room's depth probe is pending", "the room's depth probe turned it off", "no slice between the near and far planes",
     "a device state could not be read", "no depth-stencil surface", "our render targets are not ready" };
 // the gate's verdict as a reason (-1: Off or not in play: not counted)
@@ -465,8 +497,7 @@ static int DofNoFocusWhy(int readOk, float w, int figOk, int phase)
 {
     if (!readOk) return DOFN_READ;
     if (!(w > 0.0f) || !(w < 1.0e6f)) return DOFN_BEHIND;  // (NaN too)
-    if (w <= DOF_F_NOFOCUS) return DOFN_NEAR;
-    if (phase == 1 && !figOk) return DOFN_OFFSCREEN;
+    if (phase == 1 && !figOk) return DOFN_OFFSCREEN;  // v3.52 FX352: also a close player (no first-person guess)
     return DOFN_BEHIND;
 }
 typedef struct { unsigned n[DOFN_N]; } DofTally;

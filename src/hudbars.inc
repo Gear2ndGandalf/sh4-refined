@@ -79,6 +79,15 @@
 // draws the player's ring again, whatever Playable Eileen version (said once at the start). The ini writes "Companion"
 // for On (every older build reads it as her ring); its old On / Player read as Off, Both / Companion as On (HbCmvParse).
 // No greyed values any more (HbValueIdGreyed returns 0); the v3.37 / v3.41 texts of Player / Both stay allocated, unused.
+// v3.52 HB352 (staging/v352_feedback/w2_hud/PLAN.md; USER_FEEDBACK_v351 D1, D2): a bar only for an enemy the game draws
+// and that has a place in the room. D2's bars over the player were arriving victims' ghosts: state 0x0D / 0x0E, not drawn,
+// sliding through the walls onto her while the game looks for a wall spot to bring them in (none in a tiny room: the
+// elevators, the conductor's cab); no bar for the states 0, 0x0D..0x0F or a position at the origin / parked away
+// (hudbars_sim.h HbRefuseWhy; verbose lines "no bar for", a room line). D1: a boss's bar (Walter / the Bodies 0x10, the
+// Wall boss) shows at any distance while it is up and in view (HbWantBoss), a tall body whose top is above the view keeps
+// its bar at the top edge (HbBarPlace), a boss is also in view by its centre; a verbose line says when a boss's bar first
+// came up or why it has none 5 s after the boss became active. A new being in a reused task slot is told by its spawn id.
+// Still draw only: no exe byte is patched, no ini key, no text id (V52 + 24..27 unused).
 #include "hudbars_sim.h"
 
 enum { HB_K_BARS, HB_K_CURSE, HB_K_N };
@@ -444,6 +453,8 @@ typedef struct {
     float y;          // the anchor's smoothed height (world Y, down)
     float rise;       // ghosts: the share of health it gets back when it rises (-1 = none)
     int yOk, gstate, downShow, alive;
+    unsigned id;      // v3.52 HB352: its spawn id (a new being in a reused task slot has the same work pointer)
+    int refSaid;      // v3.52 HB352: the refusal reasons already counted / logged this room visit (bit per HB_RF_*)
 } HbEnt;
 static HbEnt g_hbE[HB_MAXE];
 static int g_hbEN;
@@ -500,21 +511,85 @@ static int HbTop(const BYTE *work, const float *pos, float *top, int *hidden)
     *top = t;
     return 1;
 }
-static HbEnt *HbFind(const BYTE *task, const BYTE *work)
+static HbEnt *HbFind(const BYTE *task, const BYTE *work, unsigned id)
 {
     int i;
     for (i = 0; i < g_hbEN; ++i)
         if (g_hbE[i].task == task) {
-            if (g_hbE[i].work != work) {  // the slot holds a new being
+            if (g_hbE[i].work != work || g_hbE[i].id != id) {  // the slot holds a new being (v3.52 HB352: + its spawn id)
                 memset(&g_hbE[i], 0, sizeof g_hbE[i]);
-                g_hbE[i].task = task, g_hbE[i].work = work, g_hbE[i].rise = -1.0f;
+                g_hbE[i].task = task, g_hbE[i].work = work, g_hbE[i].id = id, g_hbE[i].rise = -1.0f;
             }
             return &g_hbE[i];
         }
     if (g_hbEN >= HB_MAXE) return NULL;
     memset(&g_hbE[g_hbEN], 0, sizeof g_hbE[0]);
-    g_hbE[g_hbEN].task = task, g_hbE[g_hbEN].work = work, g_hbE[g_hbEN].rise = -1.0f;
+    g_hbE[g_hbEN].task = task, g_hbE[g_hbEN].work = work, g_hbE[g_hbEN].id = id, g_hbE[g_hbEN].rise = -1.0f;
     return &g_hbE[g_hbEN++];
+}
+// ---------------------------------------------------------------- v3.52 HB352: refusals and the bosses' first bar (logs)
+// A bar refused for an enemy that is not in the room yet or has no place in it (hudbars_sim.h HbRefuseWhy): one verbose
+// line per being and reason a room visit (60 a session), and one verbose room line when the room is left (or the bars are
+// turned off) with the count of beings by reason (tools\logcheck.py sums them). The bosses (Walter / the Bodies 0x10, the
+// Wall boss): one verbose line when a boss's bar is first up in a room visit (how long after the boss became active), or,
+// if it has none 5 s after it became active, why (D1's proof in the next QA). Bounded: 40 a session.
+static HbRefCount g_hbRef;                 // this room visit's refused beings by reason
+static DWORD g_hbRefRoom = 0xFFFFFFFFu;    // the room g_hbRef counts (stage << 16 | room)
+static volatile LONG g_hbRefQ, g_hbBossQ;  // the per-being and the boss line quotas
+static int g_hbRefTot[HB_RF_N];            // this session (the line at a room end says them too)
+#define HB_BOSS_N 4
+typedef struct { const BYTE *task; unsigned id; float tActive; int active, said; } HbBossNote;
+static HbBossNote g_hbBoss[HB_BOSS_N];
+static int g_hbBossN;
+static void HbRefRoomEnd(void)  // the room visit counted in g_hbRef ends (room change, bars off)
+{
+    if (g_hbRefRoom != 0xFFFFFFFFu && (g_hbRef.n[HB_RF_HIDDEN] || g_hbRef.n[HB_RF_PLACE]))
+        LogV("hud bars: room %lu:%lX: no bar for %d enemy(ies) not in the room yet (hidden, arriving or a placeholder), %d not at a "
+             "place in the room; this session %d / %d", g_hbRefRoom >> 16, g_hbRefRoom & 0xFFFF, g_hbRef.n[HB_RF_HIDDEN],
+             g_hbRef.n[HB_RF_PLACE], g_hbRefTot[HB_RF_HIDDEN], g_hbRefTot[HB_RF_PLACE]);
+    memset(&g_hbRef, 0, sizeof g_hbRef);
+    g_hbRefRoom = 0xFFFFFFFFu;
+    g_hbBossN = 0;
+}
+static void HbRefuseNote(HbEnt *e, int why, int type, int cls, const float *pos, float dist)
+{
+    if (!HbRefNote(&g_hbRef, &e->refSaid, why)) return;
+    ++g_hbRefTot[why];
+    if (LogQuota(&g_hbRefQ, 60))
+        LogV("hud bars: no bar for %08X (type %02X) in room %lu:%lX: %s (state %X, at %.0f %.0f %.0f, %.0f from you)", e->id, type,
+             g_hbRefRoom >> 16, g_hbRefRoom & 0xFFFF, kHbRfName[why], cls, pos[0], pos[1], pos[2], dist);
+}
+static HbBossNote *HbBossOf(const BYTE *task, unsigned id)
+{
+    int i;
+    for (i = 0; i < g_hbBossN; ++i)
+        if (g_hbBoss[i].task == task && g_hbBoss[i].id == id) return &g_hbBoss[i];
+    if (g_hbBossN >= HB_BOSS_N) return NULL;
+    memset(&g_hbBoss[g_hbBossN], 0, sizeof g_hbBoss[0]);
+    g_hbBoss[g_hbBossN].task = task, g_hbBoss[g_hbBossN].id = id;
+    return &g_hbBoss[g_hbBossN++];
+}
+// one frame of a boss in the list: active = drawn by the game and alive; drawn = its bar is drawn this frame
+static void HbBossFrame(const BYTE *task, unsigned id, int type, int cls, int active, int drawn, const char *why,
+                        const float *hp, float dist)
+{
+    HbBossNote *b = HbBossOf(task, id);
+    const char *name = type == 0x10 ? "Walter" : "the Wall boss";
+    if (!b || b->said >= 2) return;
+    if (active && !b->active) b->active = 1, b->tActive = g_hbNow;
+    if (!b->active) return;
+    if (drawn) {
+        b->said = 2;
+        if (LogQuota(&g_hbBossQ, 40))
+            LogV("hud bars: boss %s %08X (type %02X) in room %lu:%lX: its bar is up %.1f s after it became active (state %X, %.0f from "
+                 "you, hp %.0f / %.0f)", name, id, type, g_hbRefRoom >> 16, g_hbRefRoom & 0xFFFF, g_hbNow - b->tActive, cls, dist,
+                 hp[0], hp[1]);
+    } else if (!b->said && g_hbNow - b->tActive >= 5.0f) {
+        b->said = 1;
+        if (LogQuota(&g_hbBossQ, 40))
+            LogV("hud bars: boss %s %08X (type %02X) in room %lu:%lX: active 5 s and no bar yet: %s (state %X, %.0f from you, hp %.0f / "
+                 "%.0f)", name, id, type, g_hbRefRoom >> 16, g_hbRefRoom & 0xFFFF, why, cls, dist, hp[0], hp[1]);
+    }
 }
 typedef struct {
     float x, y, dist, a, shown, trail, heat;
@@ -621,7 +696,8 @@ static void HbEnemies(int mode, const Viewport8 *vp, float dt)
         const BYTE *w = *(const BYTE *const *)(t + 0x408), *pr;
         const float *hp;
         float pos[3], anc[3], top, frac, want, h[4], sx = 0.0f, sy = 0.0f, dx, dy, dz, dist, cd = 0.0f;
-        int type, cls, ghost, gs = HB_GS_STAND, gone, boss = 0, hidden = 0, seen = 0, onScreen;
+        float hm[4], tx = 0.0f, ty = 0.0f, mx = 0.0f, my = 0.0f;  // v3.52 HB352: the top's and the middle's projections
+        int type, cls, ghost, gs = HB_GS_STAND, gone, boss = 0, hidden = 0, seen = 0, onScreen, why, okTop, okMid;
         HbEnt *e;
         if (!w) continue;
         type = *(const int *)(w + 0x20);
@@ -630,9 +706,25 @@ static void HbEnemies(int mode, const Viewport8 *vp, float dt)
         if (!hp || !(hp[1] > 0.0f) || !_finite(hp[0])) continue;
         memcpy(pos, w, sizeof pos);
         if (!_finite(pos[0] + pos[1] + pos[2])) continue;
-        if ((e = HbFind(t, w)) == NULL) continue;
+        if ((e = HbFind(t, w, ((unsigned(__cdecl *)(const BYTE *))0x45B6D0)(t))) == NULL) continue;  // v3.52 HB352: + the spawn id (ENM_ID)
         e->alive = 1;
         cls = *(const int *)(w + 0x3C);
+        pr = *(const BYTE *const *)(t + 0x41C);  // the Wall boss: type 5, placement mode 8 (as One-Hit Kill's lookup)
+        if (type == 0x10) boss = 1;
+        else if (type == 5 && (ULONG_PTR)(pr + 0x2C) >= 0x10000) boss = (*(const unsigned *)(pr + 0x40) & 0xF) == 8;
+        dx = pos[0] - pp[0], dy = pos[1] - pp[1], dz = pos[2] - pp[2];
+        dist = sqrtf(dx * dx + dy * dy + dz * dz);
+        frac = hp[0] / hp[1];
+        // v3.52 HB352 (D2): no bar at all for an enemy the game does not draw yet (state 0 / 0x0D..0x0F: hidden, an arriving
+        // ghost sliding onto the player, a placeholder) or with no place in the room; its bar's clocks go on, the anchor
+        // starts afresh when it appears (hudbars_sim.h HbRefuseWhy)
+        if ((why = HbRefuseWhy(cls, pos)) != HB_RF_NONE) {
+            HbRefuseNote(e, why, type, cls, pos, dist);
+            HbBarStep(&e->bar, frac, 0.0f, 0, dt);
+            e->bar.alpha = 0.0f, e->yOk = 0;
+            if (boss) HbBossFrame(t, e->id, type, cls, 0, 0, kHbRfName[why], hp, dist);
+            continue;
+        }
         ghost = HbIsGhostType(type);
         if (ghost) {
             const BYTE *gw = *(const BYTE *const *)(w + 0x28);
@@ -643,11 +735,8 @@ static void HbEnemies(int mode, const Viewport8 *vp, float dt)
             // dead, removed, scripted, or a monster at 0 health (its death plays): the bar fades out, the lost part draining
             gone = cls == 0x0B || cls >= 0x10 || !(hp[0] > 0.0f);
         }
-        pr = *(const BYTE *const *)(t + 0x41C);  // the Wall boss: type 5, placement mode 8 (as One-Hit Kill's lookup)
-        if (type == 0x10) boss = 1;
-        else if (type == 5 && (ULONG_PTR)(pr + 0x2C) >= 0x10000) boss = (*(const unsigned *)(pr + 0x40) & 0xF) == 8;
-        // v3.30 HB330: the bar is the health, always (RE_GHOST_HEALTH.md: a stumble keeps it, a real down is 0)
-        frac = hp[0] / hp[1];
+        // v3.30 HB330: the bar is the health, always (RE_GHOST_HEALTH.md: a stumble keeps it, a real down is 0) (v3.52 HB352: frac,
+        // the boss test and the distance are read above)
         if (ghost) {
             const int wasDown = e->gstate == HB_GS_DOWN || e->gstate == HB_GS_PINNED;
             if (gs == HB_GS_STUMBLE || gs == HB_GS_DOWN) {  // the rise preview (the get-up heal; none with an aura on it)
@@ -676,21 +765,30 @@ static void HbEnemies(int mode, const Viewport8 *vp, float dt)
         if (!e->yOk) e->y = top, e->yOk = 1;
         else e->y += (top - e->y) * (dt >= 0.12f ? 1.0f : dt / 0.12f);
         anc[0] = pos[0], anc[1] = e->y, anc[2] = pos[2];
-        dx = pos[0] - pp[0], dy = pos[1] - pp[1], dz = pos[2] - pp[2];
-        dist = sqrtf(dx * dx + dy * dy + dz * dz);
-        GvXform(anc, h);
-        onScreen = GvScreen(h, vp, &sx, &sy) && sx > (float)vp->x - 40.0f && sx < (float)(vp->x + vp->w) + 40.0f &&
-                   sy > (float)vp->y && sy < (float)(vp->y + vp->h) + 40.0f;
-        want = gone ? 0.0f : HbWant(mode, t == lock, e->bar.sinceHit, dist);
-        if (gs == HB_GS_DOWN && e->downShow && !gone) want = 1.0f;  // a ghost seen going down keeps its timer up
-        if (ghost && HbPinShow(&e->rev)) want = 1.0f;  // v3.30 MERGE: the sealed bar 4 s after the pin (the user's choice)
-        // in view: on screen, drawn, and not walled off (the bar or the body's middle visible); the two collision
-        // queries only for a bar that shows or wants to (a drop this frame is caught by the next frame's test)
-        if (onScreen && !hidden && (want > 0.0f || e->bar.alpha > 0.0f || hp[0] < e->bar.shown * hp[1])) {
+        {
             const float mid[3] = { pos[0], 0.5f * (pos[1] + e->y), pos[2] };
-            seen = !HbBlocked(eye, anc) || !HbBlocked(eye, mid);
+            GvXform(anc, h);
+            GvXform(mid, hm);
+            okTop = GvScreen(h, vp, &tx, &ty);
+            okMid = GvScreen(hm, vp, &mx, &my);
+            // v3.52 HB352 (D1): a body whose top is above the 3D view while its middle is in it gets the bar at the top edge
+            onScreen = HbBarPlace(okTop, tx, ty, okMid, mx, my, (float)vp->x, (float)vp->y, (float)vp->w, (float)vp->h, &sx, &sy);
+            want = gone ? 0.0f : HbWantBoss(mode, boss, t == lock, e->bar.sinceHit, dist);  // v3.52 HB352 (D1): a boss's bar at any distance
+            if (gs == HB_GS_DOWN && e->downShow && !gone) want = 1.0f;  // a ghost seen going down keeps its timer up
+            if (ghost && HbPinShow(&e->rev)) want = 1.0f;  // v3.30 MERGE: the sealed bar 4 s after the pin (the user's choice)
+            // in view: on screen, drawn, and not walled off (the bar or the body's middle visible; v3.52 HB352: a boss also by its
+            // centre); the collision queries only for a bar that shows or wants to (a drop this frame is caught by the next frame's test)
+            if (onScreen && !hidden && (want > 0.0f || e->bar.alpha > 0.0f || hp[0] < e->bar.shown * hp[1])) {
+                seen = !HbBlocked(eye, anc) || !HbBlocked(eye, mid);
+                if (!seen && boss) seen = !HbBlocked(eye, pos);
+            }
         }
         HbBarStep(&e->bar, frac, want, seen, dt);
+        if (boss)  // v3.52 HB352 (D1's proof): the boss's first bar of the room visit, or why it has none 5 s after it became active
+            HbBossFrame(t, e->id, type, cls, HbStateDrawn(cls) && !gone, onScreen && e->bar.alpha > 0.004f,
+                        gone ? "down, dead or scripted" : !onScreen ? "its bar's place is outside the 3D view" :
+                        hidden ? "its model is not drawn (no-draw bit)" : !seen ? "walled off from the camera" : "fading in",
+                        hp, dist);
         if (onScreen && e->bar.alpha > 0.004f && n < HB_MAXE) {
             HbDraw *d = &dl[n++];
             d->x = sx, d->y = sy - H * 0.012f, d->dist = dist;
@@ -1343,6 +1441,7 @@ static void HbFrameC(void)
     DWORD room;
     g_hbLabelA = 0.0f;
     if (!mode) g_hbEN = 0;  // off: forget every bar (none pops up from an old state later)
+    if (!mode && g_hbRefRoom != 0xFFFFFFFFu) HbRefRoomEnd();  // v3.52 HB352: the visit's refusal line (bars off)
     if (!cm) memset(&g_hbMeter, 0, sizeof g_hbMeter), g_hbSrc = -1, g_hbStageLog = -1;
     if (!cm) memset(&g_hbMeter2, 0, sizeof g_hbMeter2), g_hbSrc2 = -1, g_hbStageLog2 = -1;  // v3.32 DHS332
     if (!cm) g_hbLockK = 0.0f, g_hbLockLog = -1;  // v3.32 MERGE
@@ -1357,6 +1456,10 @@ static void HbFrameC(void)
     if (room != g_hbRoom) {
         g_hbRoom = room;
         g_hbEN = 0;
+    }
+    if (mode && room != g_hbRefRoom) {  // v3.52 HB352: a new room visit for the refusal count and the boss notes
+        HbRefRoomEnd();
+        g_hbRefRoom = room;
     }
     if (!FxOnBackBuffer(dev) || !FxSave(dev, &sv, 0)) return;
     g_hbNow += dt > HB_DT_MAX ? HB_DT_MAX : dt;
@@ -1382,6 +1485,7 @@ static void HbFrame(void)
     } __except (HbFaultNote(GetExceptionInformation())) {
         g_hbVn = 0;
         g_hbEN = 0;
+        g_hbBossN = 0;  // v3.52 HB352
         if (++g_hbFaults == 1) Log("hud bars: the draw faulted (code %08lX at %p); it stops after 3 more", g_hbFaultCode, g_hbFaultAt);
         if (g_hbFaults > 3) Log("hud bars: off for this session (faults)");
     }

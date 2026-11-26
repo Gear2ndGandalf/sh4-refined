@@ -534,7 +534,7 @@ static const DWORD kPsGvBlood[] = { PS_VER, PS_TEX(0),
 // v3.43 PP343: post.inc's shaders (proven forms only: tex, lrp, sub, mul / mul_x2, add / add_sat, mad, dp3; one constant
 // each; at most 8 arithmetic). BRIGHT: the mean of 4 bilinear taps (16 texels), sat((m - th) gain): c0 0.5, c1 th,
 // c2 gain / 4. MEAN: the mean of 4 taps (down / Kawase): c0 0.5. UP: the mean, alpha = up (blended SRCALPHA over the
-// level's own content): c0 0.5, c1 (1, 1, 1, 0), c2 (0, 0, 0, up). COMP: the mean x k (screen-blended): c0 0.5, c1 k.
+// level's own content): c0 0.5, c1 (1, 1, 1, 0), c2 (0, 0, 0, up). COMP: the mean x k (screen-blended): c0 0.5, c1 k / 2 (v3.52 FX352).
 static const DWORD kPsPpBright[] = { PS_VER, PS_TEX(0), PS_TEX(1), PS_TEX(2), PS_TEX(3),
     I_LRP, D_R(0), S_C(0), S_T(0), S_T(1),
     I_LRP, D_R(1), S_C(0), S_T(2), S_T(3),
@@ -559,7 +559,7 @@ static const DWORD kPsPpComp[] = { PS_VER, PS_TEX(0), PS_TEX(1), PS_TEX(2), PS_T
     I_LRP, D_R(0), S_C(0), S_T(0), S_T(1),
     I_LRP, D_R(1), S_C(0), S_T(2), S_T(3),
     I_LRP, D_R(0), S_C(0), S_R(0), S_R(1),
-    I_MUL, D_R(0), S_R(0), S_C(1),                 // x k
+    I_MUL, D_R(0) | D_X2, S_R(0), S_C(1),          // x k (v3.52 FX352: c1 = k / 2, _x2: k up to 2; mul_x2 as BRIGHT's)
     PS_END };
 // GRADE: v3.44 CS344: post_sim.h's kPpGradePs (proven forms only: v3.43's `mad r0, 1-r1, c4, r0` was dropped silently by
 // GOG's translator, the frame came through unchanged); post_sim.h is pure (included again by post.inc: guarded)
