@@ -1,6 +1,6 @@
 # SH4 Refined
 
-**Current version: v3.51.0 (new, not yet tested in game; v3.50.0 was play-tested 2026-11-25 and passed everything except Enemy Pursuit, which v3.51.0 fixes; see Versions below)**
+**Current version: v3.51.0 (play-tested 2026-11-26: everything in it passed; see Versions below)**
 
 SH4 Refined is a fan-made enhancement mod for the PC version of **Silent Hill 4: The Room** sold by GOG. It is a
 single `winmm.dll` that the game loads from its own folder: no loader, no installer and no changes to the game's exe
@@ -120,8 +120,7 @@ history of [docs/FULL_README.md](docs/FULL_README.md#history). v3.51.0 makes Ene
 (monsters and victims' ghosts give up and go back to their routine), gives Fade In's arriving ghosts the game's own tar
 portal (it slows them for a moment), randomizes the first Sniffer Dogs once their scene has played, keeps Ghost
 Teleport from warping behind an enemy on the other side of a wall, and keeps the level music paused in the Extra Menu's
-Load / Save / Storage Chest lists; it has passed its tests and code review but not yet a play test. To stay on v3.50.0,
-take the repository as of the commit "SH4 Refined v3.50.0". v3.50.0 adds Ghost Teleport through walls and behind
+Load / Save / Storage Chest lists; its play test passed (2026-11-26). v3.50.0 adds Ghost Teleport through walls and behind
 the enemy you face, a working monster randomizer in saved games (plus All Worlds), the outfit per room, ghost spots you
 can see, Fade In, followers across saves, Enemy Pursuit and a Room 302 page (live once Playable Eileen v1.25.0 hands it
 over); its play test passed everything but Enemy Pursuit (enemies still chase you inside a room). v3.49.0 was partly play-tested (its save list,
