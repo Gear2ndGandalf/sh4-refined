@@ -1,6 +1,6 @@
 # SH4 Refined
 
-**Current version: v3.52.0 (play-tested 2026-11-26: everything passed; the Otherworld Lens is still subtle; see Versions below)**
+**Current version: v3.55.0 (new, not yet tested in game; v3.52.0 was play-tested 2026-11-26 and passed; see Versions below)**
 
 SH4 Refined is a fan-made enhancement mod for the PC version of **Silent Hill 4: The Room** sold by GOG. It is a
 single `winmm.dll` that the game loads from its own folder: no loader, no installer and no changes to the game's exe
@@ -30,14 +30,17 @@ randomizer, all switched from new pages in the game's own Options menu and saved
 - Depth of field, bloom (Low / Medium / High / Ultra), colour grading and an Otherworld lens; ten blood colours.
 
 **Sound**
-- Option 1 > Sound: Mono, Stereo (a smooth pan law), Headphones or Surround (3D); a Sound page with Stereo Width,
-  the game's room reverb (off in the PC port, back on) and Night Mode.
+- Options > Sound: Mono, Stereo (a smooth pan law), Headphones or Surround (3D), the game's Music and Effects
+  volumes, Stereo Width, the game's room reverb (off in the PC port, back on) and Night Mode.
 
 **Shadows**
 - A Shadows page with soft shadow edges, shadow darkness and a split-view preview, for every real-time shadow the game
   draws (characters, enemies, ghosts, hauntings, figures in cut-scenes); Darkness also on the Tremers' wall shadows.
 
 **Menus and fonts**
+- A themed Options menu: six pages (Display, Controls, Interface, Sound, Effects, Gameplay) with a page strip you can
+  click, folders marked in blue, rows that depend on a switch greyed while it is off, a short name and a one-line
+  description for every row; the game's own rows sit on the same pages.
 - HD menu font: EB Garamond, Cormorant Garamond or Crimson Text (or the game's own).
 - Subtitle Style: size, colour, edge, box and animated effects (typewriter, fade, wave, glitch, blood drip, embers ...).
 - Button Config shows readable pad names and Xbox / PlayStation / Nintendo button glyphs.
@@ -94,7 +97,7 @@ Every option, its ini key and its limits are described in [docs/FULL_README.md](
 1. Close the game.
 2. Copy everything inside [`Install\`](Install) into your Silent Hill 4 folder (the one that holds
    `SILENT HILL 4.exe`) and say yes to replace.
-3. Start the game. The new rows and pages are in the game's Options (Option 1 to Option 6); `SH4Refined.ini` is written on the first start.
+3. Start the game. The new rows and pages are in the game's Options (six pages: Display to Gameplay); `SH4Refined.ini` is written on the first start.
 
 To play without dgVoodoo2, copy only `winmm.dll` and the `fonts` folder. Details, the file list and uninstalling:
 [INSTALL.md](INSTALL.md).
@@ -120,7 +123,11 @@ Python tools need Python 3 (some previews use NumPy, Pillow and SciPy). Build no
 ## Versions
 
 The current version is named at the top of this page. Every release, newest changes included, is described in the
-history of [docs/FULL_README.md](docs/FULL_README.md#history). v3.52.0 adds the sound options, Bloom levels, Depth of
+history of [docs/FULL_README.md](docs/FULL_README.md#history). v3.55.0 (with v3.53.0 and v3.54.0, which were not
+released on their own) reorganises the whole Options menu into six themed pages, the game's own rows included, with
+shorter names and descriptions, folders, greyed rows and a clickable page strip; no setting or save changes. It has
+passed its tests and code review but not yet a play test. To stay on the tested v3.52.0, take the repository as of
+the commit "SH4 Refined v3.52.0 (not yet tested in game)" (tested since). v3.52.0 adds the sound options, Bloom levels, Depth of
 Field with a close camera, a stronger Otherworld Lens, health bars only for enemies really in the room, Ghost Teleport
 landings that never end inside a wall, Quick Load from the pause and ghosts that really give up on Forgetful; its play
 test passed (2026-11-26). v3.51.0 makes Enemy Pursuit work inside a room

@@ -63,14 +63,15 @@ static const BYTE *RzlText(int id)
 }
 static void RzlTexts(void)  // randomizer.inc RzTexts
 {
-    Encode(g_txtRzl[RZLM_LO], 64, "Eileen Outfit");
-    Encode(g_txtRzl[RZLM_VR], 64, "Random");
-    Encode(g_txtRzl[RZLM_DO0], 64, "Off: companion Eileen's outfit as set.");  // (widths: 331 / 392 / 396 / 380 px of 416)
-    Encode(g_txtRzl[RZLM_DO1], 64, "Random: Dress or Nurse, new in every room.");  // v3.50 RL350 (was "an unlocked outfit each world visit")
-    Encode(g_txtRzl[RZLM_LG], 64, "Ghosts");
-    Encode(g_txtRzl[RZLM_VS], 64, "Spots");
-    Encode(g_txtRzl[RZLM_DG0], 64, "Off: victims start where the game puts them.");  // (<= 405 px: tools/desc_measure.py)
-    Encode(g_txtRzl[RZLM_DG1], 64, "Spots: a new spot in their room. Next door.");
+    // v3.53 OL1: the plan's lines (+ "Next room.")
+    Encode(g_txtRzl[RZLM_LO], 64, OLW_RANDO_EILEEN_OUTFIT_L);
+    Encode(g_txtRzl[RZLM_VR], 64, OLW_RANDO_EILEEN_OUTFIT_V_RANDOM);
+    Encode(g_txtRzl[RZLM_DO0], 64, OLW_RANDO_EILEEN_OUTFIT_DT);
+    Encode(g_txtRzl[RZLM_DO1], 64, OLW_RANDO_EILEEN_OUTFIT_VDT_RANDOM);  // v3.50 RL350 (was "an unlocked outfit each world visit")
+    Encode(g_txtRzl[RZLM_LG], 64, OLW_RANDO_GHOSTS_L);
+    Encode(g_txtRzl[RZLM_VS], 64, OLW_RANDO_GHOSTS_V_SPOTS);
+    Encode(g_txtRzl[RZLM_DG0], 64, OLW_RANDO_GHOSTS_DT);
+    Encode(g_txtRzl[RZLM_DG1], 64, OLW_RANDO_GHOSTS_VDT_SPOTS);
     g_rzoIds[0] = g_rzgIds[0] = MSG_RZ0 + RZM_VK0;  // "Off" (the Keep Specials row's)
     g_rzoIds[1] = MSG_RZL0 + RZLM_VR;
     g_rzgIds[1] = MSG_RZL0 + RZLM_VS;

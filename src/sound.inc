@@ -85,56 +85,47 @@ static const BYTE *SndText(int id)
     return g_txtSnd[i >= 0 && i < SNDM_N ? i : SNDM_D_BACK];
 }
 static void SndTextsDynamic(void)  // the texts that follow the settings (one id each: the row shows the current one)
-{
-    static const char *const kModeD[SND_MODE_N] = {
-        "Mono: every sound in the middle; stereo music and streams are folded to one channel.",
-        "Stereo: sounds placed smoothly left and right (Stereo Width).",
-        "Headphones: Stereo, and every sound also reaches the other ear (at most %d dB down).",
-        "Surround (3D): the game's Dolby Digital 3D sound, for 5.1 / 7.1 speakers or Windows spatial sound.",
-    };
-    char t[192], d[160];
+{   // v3.53 OL1: the plan's words, one line a value (PLAN section 5, Sound); the Enter part while the row opens the page
+    static const char *const kModeD[SND_MODE_N] = { OLW_SOUND_SOUND_MODE_VD_MONO, OLW_SOUND_SOUND_MODE_VD_STEREO,
+                                                    OLW_SOUND_SOUND_MODE_VD_HEADPHONES, OLW_SOUND_SOUND_MODE_VD_SURROUND };
+    static const char *const kNightD[SND_NIGHT_N] = { OLW_SOUND_NIGHT_MODE_VD_OFF, OLW_SOUND_NIGHT_MODE_VD_LOW,
+                                                      OLW_SOUND_NIGHT_MODE_VD_HIGH };
+    char t[192];
     const int m = (unsigned)g_sndMode < SND_MODE_N ? (int)g_sndMode : SND_MODE_STEREO;
-    sprintf_s(d, sizeof d, kModeD[m], g_sndFloor / 100);
-    if (!g_sndPanOn && (m == SND_MODE_STEREO || m == SND_MODE_HEADPHONES))
-        sprintf_s(d, sizeof d, "%s: the game's own steep pan (%s).", kSndModeLabel[m], g_sndLawStock ? "PanLaw=Stock" : "see SH4Refined.log");
-    sprintf_s(t, sizeof t, "%s%s", d, g_sndMenu ? " Enter: the Sound page." : "");
+    const char *d = kModeD[m];
+    if (!g_sndPanOn && (m == SND_MODE_STEREO || m == SND_MODE_HEADPHONES)) d = g_sndLawStock ? OLW_SND_PAN_STOCK : OLW_SND_PAN_NA;
+    sprintf_s(t, sizeof t, "%s%s", d, g_sndMenu ? OLW_SND_ENTER : "");
     Encode(g_txtSnd[SNDM_D_MODE], sizeof g_txtSnd[0], t);
     sprintf_s(t, sizeof t, "%d %%", (int)g_sndWidth);
     Encode(g_txtSnd[SNDM_V_WIDTH], sizeof g_txtSnd[0], t);
-    if (!g_sndPanOn)
-        strcpy_s(t, sizeof t, g_sndLawStock ? "PanLaw=Stock in SH4Refined.ini: the game's own steep pan; Width does nothing."
-                                            : "Not available this session (see SH4Refined.log): the game's own pan.");
-    else
-        strcpy_s(t, sizeof t, m == SND_MODE_MONO ? "How far sounds spread left and right (100 % full, 0 % all in the middle). Not in Mono."
-                                                 : "How far sounds spread left and right: 100 % full, 0 % all in the middle.");
-    Encode(g_txtSnd[SNDM_D_WIDTH], sizeof g_txtSnd[0], t);
-    if (!g_sndRevOn) strcpy_s(t, sizeof t, "Not available this session (see SH4Refined.log): no reverb, as the PC port.");
-    else if (g_sndRevProbe == 0) strcpy_s(t, sizeof t, "DirectSound could not add the reverb on this PC (see SH4Refined.log): no reverb.");
-    else strcpy_s(t, sizeof t, "The game's own room echo (12 area presets), off in the PC port until now. Off: dry sound.");
-    Encode(g_txtSnd[SNDM_D_REV], sizeof g_txtSnd[0], t);
-    if (!g_sndVolOn) strcpy_s(t, sizeof t, "Not available this session (see SH4Refined.log): the game's own loudness.");
-    else if (g_sndNight == 0) strcpy_s(t, sizeof t, "Off: the game's own loudness range.");
-    else if (g_sndNight == 1) strcpy_s(t, sizeof t, "Low: loud sounds a little quieter, quiet ones louder.");
-    else strcpy_s(t, sizeof t, "High: the loudest sounds much quieter, quiet ones louder: for low volume at night.");
-    Encode(g_txtSnd[SNDM_D_NIGHT], sizeof g_txtSnd[0], t);
+    if (!g_sndPanOn) d = g_sndLawStock ? OLW_SND_WIDTH_STOCK : OLW_NA_SESSION;
+    else d = g_sndWidth >= 100 ? OLW_SOUND_STEREO_WIDTH_VD_100 : OLW_SOUND_STEREO_WIDTH_D;  // (Mono: OL2's grey line)
+    Encode(g_txtSnd[SNDM_D_WIDTH], sizeof g_txtSnd[0], d);
+    if (!g_sndRevOn) d = OLW_NA_SESSION;
+    else if (g_sndRevProbe == 0) d = OLW_SND_REV_NOPROBE;
+    else d = g_sndReverb ? OLW_SOUND_ROOM_REVERB_VD_ON : OLW_SOUND_ROOM_REVERB_VD_OFF;
+    Encode(g_txtSnd[SNDM_D_REV], sizeof g_txtSnd[0], d);
+    Encode(g_txtSnd[SNDM_D_NIGHT], sizeof g_txtSnd[0], !g_sndVolOn ? OLW_NA_SESSION : kNightD[(unsigned)g_sndNight < SND_NIGHT_N ? (int)g_sndNight : 0]);
 }
 static void SndTexts(void)
 {
     int k;
-    Encode(g_txtSnd[SNDM_T], sizeof g_txtSnd[0], "Sound");
-    Encode(g_txtSnd[SNDM_L_WIDTH], sizeof g_txtSnd[0], "Stereo Width");
-    Encode(g_txtSnd[SNDM_L_REV], sizeof g_txtSnd[0], "Room Reverb");
-    Encode(g_txtSnd[SNDM_L_NIGHT], sizeof g_txtSnd[0], "Night Mode");
-    Encode(g_txtSnd[SNDM_L_BACK], sizeof g_txtSnd[0], "Back");
-    Encode(g_txtSnd[SNDM_D_BACK], sizeof g_txtSnd[0], "Back to Option 1.");
+    static const char *const kModeV[SND_MODE_N] = { OLW_SOUND_SOUND_MODE_V_MONO, OLW_SOUND_SOUND_MODE_V_STEREO,
+                                                    OLW_SOUND_SOUND_MODE_V_HEADPHONES, OLW_SOUND_SOUND_MODE_V_SURROUND };  // v3.53 OL1: Surround (was "Surround (3D)")
+    Encode(g_txtSnd[SNDM_T], sizeof g_txtSnd[0], OLW_T_SOUND);  // v3.53 OL1
+    Encode(g_txtSnd[SNDM_L_WIDTH], sizeof g_txtSnd[0], OLW_SOUND_STEREO_WIDTH_L);
+    Encode(g_txtSnd[SNDM_L_REV], sizeof g_txtSnd[0], OLW_SOUND_ROOM_REVERB_L);
+    Encode(g_txtSnd[SNDM_L_NIGHT], sizeof g_txtSnd[0], OLW_SOUND_NIGHT_MODE_L);
+    Encode(g_txtSnd[SNDM_L_BACK], sizeof g_txtSnd[0], OLW_BACK);
+    Encode(g_txtSnd[SNDM_D_BACK], sizeof g_txtSnd[0], OLW_BACK_DISPLAY);  // v3.53 OL1: was "Back to Option 1."
     for (k = 0; k < SND_MODE_N; ++k) {
-        Encode(g_txtSnd[SNDM_V_MODE0 + k], sizeof g_txtSnd[0], kSndModeLabel[k]);
+        Encode(g_txtSnd[SNDM_V_MODE0 + k], sizeof g_txtSnd[0], kModeV[k]);
         g_sndModeIds[k] = MSG_V52 + SNDM_V_MODE0 + k;
     }
-    Encode(g_txtSnd[SNDM_V_OFF], sizeof g_txtSnd[0], "Off");
-    Encode(g_txtSnd[SNDM_V_ON], sizeof g_txtSnd[0], "On");
-    Encode(g_txtSnd[SNDM_V_LOW], sizeof g_txtSnd[0], "Low");
-    Encode(g_txtSnd[SNDM_V_HIGH], sizeof g_txtSnd[0], "High");
+    Encode(g_txtSnd[SNDM_V_OFF], sizeof g_txtSnd[0], OLW_SOUND_ROOM_REVERB_V_OFF);  // v3.53 OL1
+    Encode(g_txtSnd[SNDM_V_ON], sizeof g_txtSnd[0], OLW_SOUND_ROOM_REVERB_V_ON);
+    Encode(g_txtSnd[SNDM_V_LOW], sizeof g_txtSnd[0], OLW_SOUND_NIGHT_MODE_V_LOW);
+    Encode(g_txtSnd[SNDM_V_HIGH], sizeof g_txtSnd[0], OLW_SOUND_NIGHT_MODE_V_HIGH);
     for (k = 0; k < 11; ++k) g_sndWidthIds[k] = MSG_V52 + SNDM_V_WIDTH;  // one text: the current width (SndTextsDynamic)
     g_sndRevIds[0] = MSG_V52 + SNDM_V_OFF, g_sndRevIds[1] = MSG_V52 + SNDM_V_ON;
     g_sndNightIds[0] = MSG_V52 + SNDM_V_OFF, g_sndNightIds[1] = MSG_V52 + SNDM_V_LOW, g_sndNightIds[2] = MSG_V52 + SNDM_V_HIGH;
@@ -795,16 +786,11 @@ static int __cdecl SndModeGet(void)
     return SndModeFromByte(SND_BYTE, -1);
 }
 static int __cdecl SndRowDesc(void) { return MSG_V52 + SNDM_D_MODE; }
-static int __cdecl SndRowIn(BYTE *cfg, int count)  // Option 1 row 5: Left / Right / the arrows step the mode; Enter opens the page
+static int __cdecl SndRowIn(BYTE *cfg, int count)  // Sound Mode: Left / Right / the arrows step the mode  // v3.54 OL34: a plain value row (no Enter: the Sound page is top page 3)
 {
     int v;
     (void)cfg;
     (void)count;
-    if (g_sndMenu && g_subScreenOn && ((Fn2)0x4F84A0)(0, 0x11)) {
-        InterlockedExchange(&g_subReq, REQ_OPEN | LP_SND);
-        ((Fn1)0x56CC40)(0xA411);  // the stock sub-screen sound (Button Config, 52495B)
-        return SubPageExit();
-    }
     v = StepValue(SndModeGet(), SND_MODE_N);
     if (v >= 0) {
         if (g_sndMode < 0) InterlockedExchange(&g_sndMode, SndModeGet());
@@ -864,9 +850,9 @@ static void SndBuildPage(const DWORD *stockRows)
     g_rowsSnd[21 + 5] = MSG_V52 + SNDM_L_BACK;
     g_rowsSnd[21 + 6] = (DWORD)(ULONG_PTR)SndBackDesc;
     g_rowsSnd[28] = 0;
-    g_lpTable[LP_SND] = g_rowsSnd;
-    g_lpCount[LP_SND] = 4;
-    g_lpTitle[LP_SND] = MSG_V52 + SNDM_T;
+    g_opTable[OP_SND] = g_rowsSnd;
+    g_opCount[OP_SND] = 4;
+    g_opTitle[OP_SND] = MSG_V52 + SNDM_T;
     g_sndPageBuilt = 1;
 }
 // ApplyAspectMenu, after InstallPages and FnRowInstall (which may have made Option 1 a copy with the Menu Font row): row 5
@@ -874,24 +860,24 @@ static void SndBuildPage(const DWORD *stockRows)
 // 0x525460) gets the four modes and Enter
 static void SndRowInstall(void)
 {
-    DWORD *t = g_lpTable[0], *r;
+    DWORD *t = g_opTable[0], *r;
     if (!g_sndOn) return;
     if (!g_pagesOn) {
         Log("sound: no Options pages (see above): the stock Sound row; [Sound] in SH4Refined.ini still applies");
         return;
     }
     r = t ? t + 5 * 7 : NULL;
-    if (!t || g_lpCount[0] < 7 || r[0] != 0x524B60 || r[1] != 0x413C70 || r[3] != 0x654C20 || r[4] != 3 || r[5] != 0x24 ||
+    if (!t || g_opCount[0] < 7 || r[0] != 0x524B60 || r[1] != 0x413C70 || r[3] != 0x654C20 || r[4] != 3 || r[5] != 0x24 ||
         r[6] != 0x525460) {
         Log("sound: Option 1's Sound row is not the stock one (%p, %d rows): it stays Monaural / Stereo / Dolby Digital (the "
-            "byte decides the mode; Headphones only from the ini)", (const void *)t, g_lpCount[0]);
+            "byte decides the mode; Headphones only from the ini)", (const void *)t, g_opCount[0]);
         return;
     }
     if (t == (DWORD *)0x654CC0) {  // no Menu Font copy: our own copy (the stock table has no terminator: by count)
         memcpy(g_rowsSnd1, t, 7 * 7 * 4);
         g_rowsSnd1[7 * 7] = 0;
         t = g_rowsSnd1;
-        g_lpTable[0] = t;
+        g_opTable[0] = t;
         r = t + 5 * 7;
     }
     r[0] = (DWORD)(ULONG_PTR)SndRowIn;
@@ -900,14 +886,10 @@ static void SndRowInstall(void)
     r[4] = SND_MODE_N;
     r[6] = (DWORD)(ULONG_PTR)SndRowDesc;
     g_sndRowOn = 1;
-    if (g_sndPageBuilt && g_subScreenOn) {
-        g_sndMenu = 1;
-        g_lpParent[LP_SND] = 0;
-        g_lpParentRow[LP_SND] = 5;
-    }
+    g_sndMenu = 0;  // v3.54 OL34: no Enter (PLAN section 6: the Sound page is top page 3, never a hidden page)
     SndTextsDynamic();
-    LogV("sound: Options > Option 1 > Sound: Mono / Stereo / Headphones / Surround (3D)%s",
-         g_sndMenu ? "; Enter opens the Sound page (Stereo Width, Room Reverb, Night Mode)" : " (no sub-screen fade: no Sound page)");
+    LogV("sound: Options > Display > Sound Mode: Mono / Stereo / Headphones / Surround (3D)%s",
+         g_sndPageBuilt ? "; the Sound page (Stereo Width, Room Reverb, Night Mode) is top page 3" : " (no Sound page)");
 }
 static int SndMenuOn(void) { return g_sndMenu; }
 static void SndSnapshot(void)

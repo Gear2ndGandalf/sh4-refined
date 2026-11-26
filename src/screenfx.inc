@@ -1812,7 +1812,7 @@ static void *FxPrevLoad(void *dev)
 }
 // v3.21.0 (review V321-004): the Screen Effects page is on screen when it is the committed page or the target of the
 // slide that runs (g_lpage changes only at SlideCommit); the backdrop and its filter share this gate.
-static int FxPageShown(void) { return g_lpage == LP_FX || g_pending == LP_FX; }
+static int FxPageShown(void) { return OlFxPage(g_lpage) || OlFxPage(g_pending); }  // v3.54 OL34: Effects and Effects > Film Grain (layout.inc)
 // v3.22.0 (item 3a): Options opened from a gameplay pause: the page shows the clean picture of that pause (FxCaptureClean)
 static void *g_fxPauseTex, *g_fxPauseDev;
 static LONG g_fxPauseTexSeq = -1;
@@ -2052,7 +2052,7 @@ static void FxPanels(void)
     FxTextPanels(dev, DescRowsBottom() + 2.0f);  // v3.44 DF344: the title and the rows' two columns (v3.43: one 72 % panel)
     {   // the description line (font 1, about y 360..380); v3.32 DESC332: grown to a wrapped description's box
         float x1 = 472.0f, y0 = 352.0f, y1 = 392.0f;
-        DescPanelBox(LP_FX, &x1, &y0, &y1);
+        DescPanelBox(g_lpage, &x1, &y0, &y1);  // v3.54 OL34: the page shown
         FxPanel(dev, 40.0f, y0 + 4.0f, x1, y1 - 4.0f);
     }
     FxRestore(dev, &sv);
@@ -2273,14 +2273,15 @@ static void FxCaptureClean(void)
 // v3.39 REV339 (Codex PR339-001): no migration. F7 is the default only for an ini without the key (IniStr adds it); an
 // existing PreviewKey=None stays None, since it may be the user's own choice (the installer sets this user's ini to F7).
 // The Filter row's description names the key (sh4windowmod.c ApplyAspectMenu, after ScreenFxInstall read it)
+// v3.53 OL1: only the key's sentence ("" without a key); sh4windowmod.c puts it after the row's and each filter's line
 static const char *FxFilterDesc(void)
 {
     static char s[64];
     if (g_fxKeyVk >= VK_F1 && g_fxKeyVk <= VK_F12) {
-        sprintf_s(s, sizeof s, "A look for the scene. F%d in play: new preview.", g_fxKeyVk - VK_F1 + 1);
+        sprintf_s(s, sizeof s, OLW_FILTER_F7, g_fxKeyVk - VK_F1 + 1);  // v3.53 OL1: " F%d in play: new preview."
         return s;
     }
-    return "A look for the scene. HUD and text stay clean.";
+    return "";
 }
 // any other gameplay frame (0x4EFBFD, before the filter): PreviewKey pressed -> this clean frame is saved
 static void FxPreviewKeyFrame(void)

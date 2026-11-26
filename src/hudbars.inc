@@ -100,11 +100,10 @@ static const char *const kHbName[HB_K_N][HB_VMAX4] = { { "Off", "Locked Target",
 // v3.37 MN337: the names the menu shows; v3.42 SM342: Curse Meter Off / On (slots 2 / 3 unused)
 static const char *const kHbShown[HB_K_N][HB_VMAX4] = { { "Off", "Locked Target", "All Near", "" },
                                                        { "Off", "On", "Companion", "Both" } };
-static const char *const kHbLabel[HB_K_N] = { "Enemy Health Bars", "Curse Meter" };
+static const char *const kHbLabel[HB_K_N] = { OLW_INTERFACE_ENEMY_HEALTH_L, OLW_INTERFACE_CURSE_METER_L };  // v3.53 OL1: Enemy Health (was Enemy Health Bars)
 static const char *const kHbDescTxt[HB_K_N][HB_VMAX4] = {  // one line per value (Off: what the row is); Encode keeps 52 characters
-    { "Health bars over the monsters you fight.", "A bar over your target and monsters you just hit.",
-      "Bars over every monster near you, and your target.", "" },
-    { "A ring of companion Eileen's curse, in its stages.", "Companion Eileen's ring; yours is Playable Eileen's.",  // v3.42 SM342
+    { OLW_INTERFACE_ENEMY_HEALTH_VD_OFF, OLW_INTERFACE_ENEMY_HEALTH_VD_TARGET, OLW_INTERFACE_ENEMY_HEALTH_VD_ALL_NEAR, "" },  // v3.53 OL1
+    { OLW_INTERFACE_CURSE_METER_VD_OFF, OLW_INTERFACE_CURSE_METER_VD_ON,  // v3.53 OL1  // v3.42 SM342
       "Companion Eileen's own curse, as the game keeps it.",
       "Your ring plus a small ring for companion Eileen." } };  // v3.32 DHS332 (49 characters)
 static const char *const kHbStageName[HB_STAGES] = { "Clear", "Haunted", "Cursed", "Possessed" };  // v3.37 MN337: Untouched -> Clear
@@ -120,7 +119,7 @@ static volatile LONG g_hb[HB_K_N];
 static LONG g_hbSnap[HB_K_N];
 static int g_hbUnsaved[HB_K_N];
 static int g_hbPlayerRow = -1, g_hbEnemyRow = -1;  // where the rows are on their pages (-1 = not there)
-#define HB_CURSE_PAGE 4  // v3.37 MN337: the Curse Meter row is on Option 5's top level (logical page 4; was LP_PLAYER)
+#define HB_CURSE_PAGE 4  // v3.37 MN337: the Curse Meter row is on Option 5's top level (logical page 4; was OP_PLAYER)
 
 static const BYTE *HbText(int id) { return id >= MSG_HB0 && id < MSG_HB0 + HBM_N ? g_txtHb[id - MSG_HB0] : g_txtHb[0]; }
 
@@ -231,8 +230,8 @@ static int HbChanged(void)
 static int HbRowChanged(int page, int row)  // -1 = not one of our rows
 {
     int k;
-    if (page == HB_CURSE_PAGE && row == g_hbPlayerRow && row >= 0 && g_gpMenu) k = HB_K_CURSE;  // v3.37 MN337: was LP_PLAYER (no row without the folders: GpNoFadeLayout)
-    else if (page == LP_ENEMY && row == g_hbEnemyRow && row >= 0) k = HB_K_BARS;
+    if (page == HB_CURSE_PAGE && row == g_hbPlayerRow && row >= 0 && g_gpMenu) k = HB_K_CURSE;  // v3.37 MN337: was OP_PLAYER (no row without the folders: GpNoFadeLayout)
+    else if (page == OP_ENEMY && row == g_hbEnemyRow && row >= 0) k = HB_K_BARS;
     else return -1;
     return g_snapOn && g_hb[k] != g_hbSnap[k];
 }
@@ -283,7 +282,7 @@ static void HbInit(void)  // gameplay.inc GameplayInstall (Init, before the Opti
         Encode(g_txtHb[HBM_L0 + k], 56, kHbLabel[k]);
         for (v = 0; v < HB_VN; ++v) {
             Encode(g_txtHb[HBM_D0 + k * HB_VN + v], 56, kHbDescTxt[k][v]);
-            Encode(g_txtHb[HBM_V0 + k * HB_VN + v], 56, kHbShown[k][v]);  // v3.37 MN337: the shown name (Player)
+            Encode(g_txtHb[HBM_V0 + k * HB_VN + v], 56, k == HB_K_BARS ? OlShow(OLM_INTERFACE_ENEMY_HEALTH, kHbShown[k][v]) : kHbShown[k][v]);  // v3.37 MN337: the shown name (Player)  // v3.53 OL1: Locked Target shows Target (the ini keeps it)
             g_hbIds[k][v] = MSG_HB0 + HBM_V0 + k * HB_VN + v;
         }
     }

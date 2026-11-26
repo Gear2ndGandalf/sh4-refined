@@ -25,9 +25,8 @@ Refined and dgVoodoo2 work on top of them.
    - Without the dgVoodoo2 renderer (Steam Deck / Linux, an older graphics card, or your own dgVoodoo2 setup): copy only
      `winmm.dll` and the `fonts` folder.
 3. Start the game. On the first start SH4 Refined writes `SH4Refined.ini` (all settings) and `SH4Refined.log`.
-   The new rows are in Options: Option 1 (Aspect Ratio, Menu Font), Option 2 (Control), Option 3 (Screen Effects,
-   Subtitle Style, Shadows: press Enter on Noise Effect, Subtitles or Realtime Shadow), Option 4 (Presentation:
-   Display Mode, Monitor, Frame Rate, FOV, Renderer, Opening), Option 5 (Gameplay) and Option 6 (Extra Menu).
+   The rows are on six Options pages: Display, Controls, Interface, Sound, Effects and Gameplay (the strip under the
+   title names them; click one to go there). Blue rows with an arrow open a folder (for example Effects > Shadows).
 
 Notes:
 - If you used **SH4Windowed.asi** (with Ultimate ASI Loader), remove `scripts\SH4Windowed.asi` first; SH4 Refined

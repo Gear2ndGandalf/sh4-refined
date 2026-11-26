@@ -490,7 +490,7 @@ static void pm_text(int bank, int id, int x, int y, int align)
 // changes when play resumes: the world is not drawn under the pause).
 static void pm_cam_draw(void)
 {
-    int i, r, yl = pm_y0;
+    int i, r, yl = pm_y0, grey;  // v3.53 OL2: + grey
     pm_col = pm_hdr_col;
     pm_text(-1, EM_RAW(CamPauseTitle()), 0x100, pm_y0 - PM_CAM_HDR, 1);
     for (i = 0; i < pm_n; ++i) {
@@ -499,6 +499,8 @@ static void pm_cam_draw(void)
         yl = y;
         r = pm_vis[i] - PM_CAMR0;
         pm_col = sel ? 0x808080 : 0x404040;
+        grey = r >= 0 && r < CAMR_N && LkCamRowGrey(r) >= 0;  // v3.53 OL2: a setting while the camera is Game (Wall Margin: Wall Zoom off)
+        if (grey) pm_col = sel ? 0x303060 : 0x242424;  // v3.53 OL2: grey (a dull red under the cursor), as the Options rows
         if (r < 0 || r >= CAMR_N) {  // Back
             pm_text(-1, EM_RAW(CamPauseLabel(CAMR_N)), 0x100, y, 1);
             continue;
@@ -507,17 +509,18 @@ static void pm_cam_draw(void)
         v = CamPauseValue(r);
         if (!v) continue;
         pm_text(-1, EM_RAW(v), pm_eo_x + 0x12, y, 0);
-        if (sel) {
+        if (sel && !grey) {  // v3.53 OL2: no < > on a grey row (it cannot change)
             pm_col = 0x606060;
             pm_text(-1, EM_RAW(pm_str_lt), pm_eo_x - 4, y, 0);
             pm_text(-1, EM_RAW(pm_str_gt), pm_eo_x + 0x12 + (int)(LabelW(v) + 0.5f) + 6, y, 0);
         }
     }
     r = (unsigned)EM_CUR < (unsigned)pm_n ? pm_vis[EM_CUR] - PM_CAMR0 : CAMR_N;
+    grey = r >= 0 && r < CAMR_N ? LkCamRowGrey(r) : -1;  // v3.53 OL2: a grey row's line starts with the reason
     pm_col = 0x505050;
-    pm_text(-1, EM_RAW(CamPauseDesc(r)), 0x100, yl + 0x22, 1);
+    pm_text(-1, EM_RAW(grey >= 0 ? LkCamReason(grey) : CamPauseDesc(r)), 0x100, yl + 0x22, 1);
     pm_col = 0x383838;
-    pm_text(-1, EM_RAW(pm_str_camhint), 0x100, yl + 0x22 + 0x18, 1);
+    pm_text(-1, EM_RAW(grey >= 0 ? CamPauseDesc(r) : pm_str_camhint), 0x100, yl + 0x22 + 0x18, 1);  // v3.53 OL2: then its own line
     pm_text(-1, EM_RAW(pm_str_camhint2), 0x100, yl + 0x22 + 0x30, 1);
 }
 
@@ -547,7 +550,7 @@ static void pm_draw_body(void)
         rid = pm_vis[i];
         y = pm_y0 + i * 0x1C;
         pm_col = i == EM_CUR ? 0x808080 : pm_okt[rid] ? 0x404040 : 0x101010;
-        if (rid == PM_EILEEN && pm_eo_label) {  // pm_draw_eo: "Eileen" right-aligned at pm_eo_x + the value after it
+        if (rid == PM_EILEEN && pm_eo_label) {  // pm_draw_eo: "Eileen" right-aligned at pm_eo_x + the value after it  // v3.55 OL56: "Eileen Outfit"
             int vb = -1, vid = 0, c;
             if (pm_eo4()) {
                 vid = EM_RAW(pm_eo_strs[pm_eo_val() + 1]);
@@ -787,6 +790,10 @@ static void pm_cam_confirm(int id)
     }
     if (id == PM_CAMERA) {
         pm_cam_open();
+        return;
+    }
+    if (id >= PM_CAMR0 && id < PM_CAMR0 + CAMR_N && LkCamRowGrey(id - PM_CAMR0) >= 0) {  // v3.53 OL2: a grey row is inert
+        pm_buzz();
         return;
     }
     if (CamPauseStep(id - PM_CAMR0, 1, 1)) EM_SOUND(0x9C40);
@@ -1539,7 +1546,7 @@ static void pm_cam_lr(void)
     }
     if (!d || (unsigned)cur >= (unsigned)pm_n) return;
     r = pm_vis[cur] - PM_CAMR0;
-    if (r < 0 || r >= CAMR_N || !CamPauseOn()) return;
+    if (r < 0 || r >= CAMR_N || !CamPauseOn() || LkCamRowGrey(r) >= 0) return;  // v3.53 OL2: + a grey row is inert
     if (CamPauseStep(r, d, 0)) EM_SOUND(0x9C40);
 }
 
@@ -1848,7 +1855,7 @@ static void ExtraInstall(void)
     Encode(pm_str_qsave, sizeof pm_str_qsave, "Quick Save");
     Encode(pm_str_qload, sizeof pm_str_qload, "Quick Load");
     Encode(pm_str_pe, sizeof pm_str_pe, "Playable Eileen");
-    Encode(pm_str_eileen, sizeof pm_str_eileen, "Eileen");
+    Encode(pm_str_eileen, sizeof pm_str_eileen, OLW_PAUSE_EILEEN_OUTFIT_L);  // v3.55 OL56 (R6, PLAN section 8): "Eileen Outfit" (was "Eileen")
     Encode(pm_str_def, sizeof pm_str_def, "Default");
     Encode(pm_str_dress, sizeof pm_str_dress, "Dress");
     Encode(pm_str_nurse, sizeof pm_str_nurse, "Nurse");
@@ -1860,7 +1867,8 @@ static void ExtraInstall(void)
     {
         static const int kStock[6][2] = { { 0, 0x7A }, { -1, 0 }, { 0, 0x7B }, { 0, 0x7C }, { 0, 0x7D }, { 0, 0x7E } };
         const BYTE *raw[PM_IDS] = { NULL, pm_str_cheats, NULL, NULL, NULL, NULL, pm_str_chest, pm_str_save,
-                                    pm_str_load, NULL, pm_str_back, pm_str_qsave, pm_str_qload, pm_str_pe, pm_str_camera };
+                                    pm_str_load, pm_str_eileen, pm_str_back, pm_str_qsave, pm_str_qload, pm_str_pe, pm_str_camera };  // v3.55 OL56: PM_EILEEN's
+                                    // own row (no outfit value to show) says Eileen Outfit too (was the game's 0CAh "Eileen Costume")
         for (i = PM_CAMR0; i <= PM_CAMBACK; ++i) raw[i] = pm_str_back;  // v3.37 CP337 (the page draws its own rows)
         for (i = 0; i < PM_IDS; ++i) {
             pm_rows[i][0] = raw[i] ? -1 : 0;

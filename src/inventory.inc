@@ -434,7 +434,7 @@ static void InvIds(void)  // Off / On: One-Hit Kill's value texts (as No Clip's 
 static void InvToolbeltFillRow(DWORD *r)  // a complete 7-dword row (W1 places it on Option 5 above Item Shine)
 {
     InvIds();
-    FillRow(r, InvTbIn, InvTbGet, g_invIds, 2, MSG_INV0 + INVM_TBL, InvTbDesc);
+    FillRow(r, InvTbIn, InvTbGet, g_olTbIds, 2, MSG_INV0 + INVM_TBL, InvTbDesc);  // v3.53 OL1: 10 Items / 20 Items (the ini keeps Off / On)
 }
 static void InvStackFillRow(DWORD *r)
 {
@@ -447,13 +447,14 @@ static const BYTE *InvText(int id)
 }
 static void InvTexts(void)
 {
-    Encode(g_txtInv[INVM_TBL], 64, "Extended Toolbelt");
-    Encode(g_txtInv[INVM_TBD0], 64, "A second belt page: 20 items on two pages.");
-    Encode(g_txtInv[INVM_TBD1], 64, "On: Left / Right past the belt's ends flips the page.");
-    Encode(g_txtInv[INVM_STL], 64, "Stackable Items");
-    Encode(g_txtInv[INVM_STD0], 64, "The same items stack, up to 99 an entry.");
-    Encode(g_txtInv[INVM_STD1], 64, "On: pickups, gifts and the chest join a stack.");
-    Encode(g_txtInv[INVM_NA], 64, "Not available in this game (see SH4Refined.log).");
+    // v3.53 OL1: the plan's words (Extended Toolbelt -> Toolbelt, Stackable Items -> Item Stacks)
+    Encode(g_txtInv[INVM_TBL], 64, OLW_ITEMS_TOOLBELT_L);
+    Encode(g_txtInv[INVM_TBD0], 64, OLW_ITEMS_TOOLBELT_VD_10_ITEMS);
+    Encode(g_txtInv[INVM_TBD1], 64, OLW_ITEMS_TOOLBELT_VD_20_ITEMS);
+    Encode(g_txtInv[INVM_STL], 64, OLW_ITEMS_ITEM_STACKS_L);
+    Encode(g_txtInv[INVM_STD0], 64, OLW_ITEMS_ITEM_STACKS_D);
+    Encode(g_txtInv[INVM_STD1], 64, OLW_ITEMS_ITEM_STACKS_VD_ON);
+    Encode(g_txtInv[INVM_NA], 64, OLW_NA_GAME);
 }
 static int InvParse(const char *s) { return !_stricmp(s, "On") || !strcmp(s, "1"); }
 static void InvReadIni(void)

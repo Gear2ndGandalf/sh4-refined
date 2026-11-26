@@ -406,35 +406,40 @@ static void FnDiscard(void)
 // Menu Font row above Exit (only when the table is the stock one: 7 rows, Resolution first, Sound row 5, Exit row 6).
 static void FnRowInstall(void)
 {
-    const DWORD *s = g_lpTable[0];
+    const DWORD *s = g_opTable[0];
     int v;
     FnReadIni();
     if (!g_pagesOn) {
         Log("font: no Options pages (see above): no Menu Font row; [Textures] MenuFont still applies at the start");
         return;
     }
-    if (s != (const DWORD *)0x654CC0 || g_lpCount[0] != 7 || s[0] != 0x525030 || s[5 * 7 + 5] != 0x24 || s[6 * 7 + 5] != 0x30) {
+    if (s != (const DWORD *)0x654CC0 || g_opCount[0] != 7 || s[0] != 0x525030 || s[5 * 7 + 5] != 0x24 || s[6 * 7 + 5] != 0x30) {
         Log("font: Option 1's table is not the stock one (%p, %d rows): no Menu Font row; [Textures] MenuFont still applies at the "
-            "start", (const void *)s, g_lpCount[0]);
+            "start", (const void *)s, g_opCount[0]);
         return;
     }
-    Encode(g_txtFn[FNM_L], sizeof g_txtFn[0], "Menu Font");
-    for (v = 0; v < FN_ROW_N; ++v) Encode(g_txtFn[FNM_V0 + v], sizeof g_txtFn[0], kFnRowLabel[v]);
-    Encode(g_txtFn[FNM_V0 + FN_ROW_CUSTOM], sizeof g_txtFn[0], "Custom");
-    Encode(g_txtFn[FNM_D0 + 0], sizeof g_txtFn[0], "The game's own font. Changes at once.");
-    Encode(g_txtFn[FNM_D0 + 1], sizeof g_txtFn[0], "EB Garamond in HD, the closest to the game's own serif. Changes at once; no text moves.");
-    Encode(g_txtFn[FNM_D0 + 2], sizeof g_txtFn[0], "Cormorant Garamond in HD: lighter and finer. Changes at once; no text moves.");
-    Encode(g_txtFn[FNM_D0 + 3], sizeof g_txtFn[0], "Crimson Text in HD: a heavier book serif. Changes at once; no text moves.");
-    Encode(g_txtFn[FNM_D0 + FN_ROW_CUSTOM], sizeof g_txtFn[0], "The sheet SH4Refined.ini names (in the fonts folder). Changes at once.");
-    Encode(g_txtFn[FNM_DMISS], sizeof g_txtFn[0], "This font could not be loaded (see SH4Refined.log): the stock font is shown.");
-    Encode(g_txtFn[FNM_DFAIL], sizeof g_txtFn[0], "The HD font failed this session (see SH4Refined.log): it applies at the next start.");
+    {   // v3.53 OL1: the plan's words (Cormorant / Crimson on screen; the ini keeps CormorantGaramond / CrimsonText)
+        static const char *const kV[FN_ROW_N] = { OLW_INTERFACE_MENU_FONT_V_STOCK, OLW_INTERFACE_MENU_FONT_V_EB_GARAMOND,
+                                                  OLW_INTERFACE_MENU_FONT_V_CORMORANT, OLW_INTERFACE_MENU_FONT_V_CRIMSON };
+        static const char *const kD[FN_ROW_N] = { OLW_INTERFACE_MENU_FONT_VD_STOCK, OLW_INTERFACE_MENU_FONT_VD_EB_GARAMOND,
+                                                  OLW_INTERFACE_MENU_FONT_VD_CORMORANT, OLW_INTERFACE_MENU_FONT_VD_CRIMSON };
+        Encode(g_txtFn[FNM_L], sizeof g_txtFn[0], OLW_INTERFACE_MENU_FONT_L);
+        for (v = 0; v < FN_ROW_N; ++v) {
+            Encode(g_txtFn[FNM_V0 + v], sizeof g_txtFn[0], kV[v]);
+            Encode(g_txtFn[FNM_D0 + v], sizeof g_txtFn[0], kD[v]);
+        }
+        Encode(g_txtFn[FNM_V0 + FN_ROW_CUSTOM], sizeof g_txtFn[0], OLW_INTERFACE_MENU_FONT_V_CUSTOM);
+        Encode(g_txtFn[FNM_D0 + FN_ROW_CUSTOM], sizeof g_txtFn[0], OLW_INTERFACE_MENU_FONT_VD_CUSTOM);
+        Encode(g_txtFn[FNM_DMISS], sizeof g_txtFn[0], OLW_FONT_MISSING);
+        Encode(g_txtFn[FNM_DFAIL], sizeof g_txtFn[0], OLW_FONT_FAILED);
+    }
     for (v = 0; v < FN_ROW_MAX; ++v) g_fnIds[v] = MSG_FN0 + FNM_V0 + v;
     memcpy(g_rowsVideo, s, 6 * 7 * 4);  // Resolution (its labels already g_resIds), Brightness, Gamma, BGM, SE, Sound
     FillRow(g_rowsVideo + 6 * 7, FnIn, FnGet, g_fnIds, g_fnRowN, MSG_FN0 + FNM_L, FnDesc);
     memcpy(g_rowsVideo + 7 * 7, s + 6 * 7, 7 * 4);  // Exit
     g_rowsVideo[8 * 7] = 0;
-    g_lpTable[0] = g_rowsVideo;
-    g_lpCount[0] = 8;
+    g_opTable[0] = g_rowsVideo;
+    g_opCount[0] = 8;
     g_fnRow = 6;
     LogV("font: Options > Option 1 has a Menu Font row (row 7 of 8, above Exit; %d values%s; it switches live): %s", g_fnRowN,
          g_fnCustom[0] ? ", Custom = the ini's own sheet" : "", FnValueLabel((int)g_fnSel));

@@ -930,6 +930,46 @@ V352SND1 = V333_END + """10:00:00.005 sound: volume (004090A6 / 00409285 / 0040B
 10:00:01.000 ANOMALY: sound: Room Reverb: DirectSound would not make a buffer with the Waves Reverb (3D buffer hr 88780078, SetFX hr 80004005 result 0, reverb object hr 80004005; -): no reverb this session
 10:00:01.000 """ + SND_START % ('Mono', 0, 0, 'Stock', 100, 'On', 'PROBE FAILED: none', 'Off') + """
 """
+# v3.53 OL2: the Options look: the install line, the glyph lines (a page logged twice, the larger kept), a key on a grey
+# v3.54 OL34: the Options layout's lines (install, a row left out, two openings)
+V354LY = ("10:00:00.030 options layout: R3 + R4 (OL34): the cycle Display, Controls, Interface, Sound, Effects, Gameplay; 19 "
+          "pages (folders: Subtitles, Menus, Film Grain, Shadows, Player, Camera, Room 302, Combat, Enemies, Items, Powers, "
+          "Randomizer, Steering); 112 rows placed, 15 folder rows, 1 left out: Monitor (not built this session); 75 of 128 texts\n"
+          "10:00:00.025 [v] options layout: page 0 (Display): no Monitor row: not built this session\n"
+          "10:01:00.000 [v] options layout: open: the cycle Display, Controls, Interface, Sound, Effects, Gameplay; pages: 0 Display 10\n"
+          "10:05:00.000 [v] options layout: open: the cycle Display, Controls, Interface, Sound, Effects, Gameplay; pages: 0 Display 10, "
+          "1 Controls 10, 21 Camera > Steering 7 (from 11 row 7)\n")
+# v3.55 OL56: R5's install line (stock moves on / off), the 0x525672 lines
+V355LY = ("10:00:00.029 options layout: the volume bars by record (0x525672, 6 bytes: a call to the stub; BGM / SE Volume's inputs "
+          "0x524C00 / 0x524CD0): Music Volume and Effects Volume have the plan's names\n"
+          "10:00:00.030 options layout: R5 + R6 (OL56), stock moves on: the cycle Display, Controls, Interface, Sound, Effects, Gameplay; "
+          "19 pages (folders: Subtitles, Pause Menu, Film Grain, Shadows, Player, Camera, Room 302, Combat, Enemies, Items, Powers, "
+          "Randomizer, Steering); 112 rows placed, 16 folder rows, 0 left out; 80 of 192 texts\n"
+          "10:01:00.000 [v] options layout: open: the cycle Display, Controls, Interface, Sound, Effects, Gameplay; pages: 0 Display 9, "
+          "7 Interface > Pause Menu 8 (from 2 row 8)\n")
+V355LY_OFF = ("10:00:00.030 options layout: R5 + R6 (OL56), stock moves off ([Options] StockMoves=0: v3.54's places): the cycle Display, "
+              "Controls, Interface, Sound, Effects, Gameplay; 19 pages (folders: Subtitles, Menus, Film Grain, Shadows, Player, Camera, "
+              "Room 302, Combat, Enemies, Items, Powers, Randomizer, Steering); 112 rows placed, 15 folder rows, 0 left out; 75 of 192 texts\n")
+V355LY_BYTES = ("10:00:00.029 options layout: 0x525672 is E9 11 22 33 44 90, not the stock 8B 41 14 83 F8 25 (another mod?): the volume "
+                "bars stay by label id; Music / Effects Volume keep the names BGM / SE Volume\n"
+                "10:00:00.030 options layout: R5 + R6 (OL56), stock moves on: the cycle Display, Controls, Interface, Sound, Effects, "
+                "Gameplay; 19 pages (folders: Subtitles, Pause Menu, Film Grain, Shadows, Player, Camera, Room 302, Combat, Enemies, Items, "
+                "Powers, Randomizer, Steering); 112 rows placed, 16 folder rows, 0 left out; 78 of 192 texts\n")
+V355LY_FAIL = ("10:00:00.029 ANOMALY: options: layout: writing 0x525672 failed (the stock bytes are back): rolled back; Music / Effects "
+               "Volume keep the names BGM / SE Volume\n" + V355LY_BYTES.split(chr(10))[1] + chr(10))
+# row, one page over the 800
+OL_G = ("[v] options: page %d (%s): about %d menu glyphs (title %d, page strip %d, rows %d, description %d, each twice with its "
+        "shadow; the cursor's flash %d); measured %d of the 800 the text queue holds")
+V353OL = V333_END + """10:00:00.020 options look: in (the page strip under the title, a blue triangle on folder rows, "Parent > Page" titles; grey while their switch is off: Noise Strength / Type / Colour, DoF Strength, Echo Count, Stereo Width, Shadow Edge / Darkness, the pause camera's settings)
+10:00:30.000 [v] options look: page 0: 2 folder row(s) with the triangle, 0 row(s) greyed while their switch is off
+10:00:31.000 """ + OL_G % (0, 'Option 1 (Video&Sound)', 420, 22, 53, 120, 30, 20, 401) + """
+10:00:35.000 """ + OL_G % (7, 'Others > Screen Effects', 610, 23, 53, 190, 40, 24, 598) + """
+10:00:36.000 [v] options look: Noise Strength is grey (Needs Film Grain on.): the key did nothing
+10:00:37.000 [v] options look: Noise Strength is grey (Needs Film Grain on.): the key did nothing
+10:01:35.000 """ + OL_G % (7, 'Others > Screen Effects', 640, 23, 53, 205, 40, 24, 612) + """
+10:01:40.000 """ + OL_G % (11, 'Gameplay > Special', 820, 20, 53, 300, 40, 26, 800) + """
+10:01:40.000 ANOMALY: options: page 11 (Gameplay > Special): 820 menu glyphs (measured 800): over the 800 the text queue holds, its last rows or description may not draw
+"""
 # v3.51 MU351: PauseSound=0 (v3.50's sound): quiet music is no fault; and a load list opened from play (Seamless=0)
 V351MU0 = V333_END + """10:00:00.010 extra menu: sound in the Storage Chest / Save Game / Load Game: plays quietly as in v3.50 ([ExtraMenu] PauseSound=0)
 10:00:05.000 """ + MU_S + """load list: opened from the pause: pause mode 2, master 0.20, fade 0: the level music PLAYS quietly (PauseSound=0: v3.50)
@@ -2209,6 +2249,59 @@ def main():
     s, r = run(V347D)
     check(s.dof_close == 0 and not s.dof_close_rooms and 'close to the camera' not in r and s.pp_mig is None and not s.pp_lens_rooms,
           'v3.52 FX352: an older log: no close camera, no migration, no lens rooms')
+    s, r = run(V353OL)  # v3.53 OL2: the Options look
+    print(r)
+    ol = [x for x in r.splitlines() if x.startswith('  options look: ')]
+    check(s.ol_set == 'in' and list(s.ol_pages) == [0, 7, 11] and s.ol_pages[7][1:3] == [640, 612] and s.ol_pages[7][4] == 2 and
+          s.ol_inert == {'Noise Strength': 2} and s.ol_over == 1, 'v3.53 OL2: the Options look lines read (%r %r %r)' % (
+              s.ol_set, s.ol_pages, dict(s.ol_inert)))
+    check(len(ol) == 1 and 'options look: in; menu glyphs on 3 page(s): the busiest page 11 (Gameplay > Special) about 820, measured '
+          '800 of the 800 [10:01:40], the most measured 800 (0 Option 1 (Video&Sound) 420, 7 Others > Screen Effects 640, 11 Gameplay > '
+          'Special 820); keys on grey rows ignored: Noise Strength 2; 1 page(s) OVER the 800 glyphs (ANOMALY)' in ol[0],
+          'v3.53 OL2: the Options look summary line (%r)' % ol)
+    check(not [v for v in s.warnings.values() if v[3].startswith('options')], 'v3.53 OL2: no Options look line lands in the warnings')
+    s, r = run(V333_END + '10:00:00.020 options look: off ([Options] Look=0): no page strip, folder triangles, Parent > Page titles or new grey rows' + chr(10))
+    check(s.ol_set == 'off' and 'options look: off ([Options] Look=0)' in r and 'menu glyphs' not in r, 'v3.53 OL2: Look=0')
+    s, r = run(V333_END)
+    check(s.ol_set is None and not s.ol_pages and 'options look:' not in r, 'v3.53 OL2: no Options look lines, no summary line')
+    # v3.54 OL34: the Options layout lines
+    s, r = run(V333_END + V354LY)
+    ly = [x for x in r.splitlines() if x.startswith('  options layout: ')]
+    check(s.ly_in and s.ly_in[1:8] == ('Display, Controls, Interface, Sound, Effects, Gameplay', 19, 112, 15, 1, 75, 128) and
+          not s.ly_in[8] and s.ly_miss == [(0, 'Display', 'Monitor', 'not built this session')] and len(s.ly_open) == 2,
+          'v3.54 OL34: the Options layout lines read (%r %r %r)' % (s.ly_in, s.ly_miss, s.ly_open))
+    check(len(ly) == 1 and 'options layout: the cycle Display, Controls, Interface, Sound, Effects, Gameplay; 19 pages, 112 rows '
+          'placed (15 folder rows), 1 left out; 75 of 128 texts [10:00:00]; left out: Monitor on 0 Display (not built '
+          'this session); Options opened 2 time(s), the last [10:05:00]: 3 pages (0 Display 10, 1 Controls 10, '
+          '21 Camera > Steering 7 (from 11 row 7))' in ly[0], 'v3.54 OL34: the Options layout summary line (%r)' % ly)
+    check(not [v for v in s.warnings.values() if v[3].startswith('options layout')], 'v3.54 OL34: no layout line lands in the warnings')
+    check(s.ly_moves is None and 'stock moves' not in ly[0], 'v3.55 OL56: a v3.54 line has no layout mode')
+    # v3.55 OL56: R5's lines
+    s, r = run(V333_END + V355LY)
+    ly = [x for x in r.splitlines() if x.startswith('  options layout: ')]
+    check(s.ly_moves == 'on' and s.ly_vb == 'in' and s.ly_in and s.ly_in[1:8] == ('Display, Controls, Interface, Sound, Effects, Gameplay', 19,
+          112, 16, 0, 80, 192), 'v3.55 OL56: the R5 install line read (%r %r %r)' % (s.ly_moves, s.ly_vb, s.ly_in))
+    check(len(ly) == 1 and ly[0].startswith('  options layout: stock moves on; the cycle Display') and
+          '; volume bars by record (0x525672)' in ly[0] and
+          '7 Interface > Pause Menu 8 (from 2 row 8)' in ly[0], 'v3.55 OL56: the summary names the layout and the bars (%r)' % ly)
+    check(not [v for v in s.warnings.values() if v[3].startswith('options layout')], 'v3.55 OL56: no layout line lands in the warnings')
+    s, r = run(V333_END + V355LY_OFF)
+    ly = [x for x in r.splitlines() if x.startswith('  options layout: ')]
+    check(s.ly_moves == 'off' and s.ly_moves_why == "[Options] StockMoves=0: v3.54's places" and s.ly_in[5] == 0 and s.ly_in[6] == 75 and
+          len(ly) == 1 and "stock moves off ([Options] StockMoves=0: v3.54's places); the cycle" in ly[0] and 'volume bars' not in ly[0],
+          'v3.55 OL56: StockMoves=0 (%r %r)' % (s.ly_moves_why, ly))
+    s, r = run(V333_END + V355LY_BYTES)
+    ly = [x for x in r.splitlines() if x.startswith('  options layout: ')]
+    check(s.ly_vb == 'bytes E9 11 22 33 44 90' and len(ly) == 1 and
+          'volume bars by label: 0x525672 is E9 11 22 33 44 90 (another mod?)' in ly[0], 'v3.55 OL56: the site differs (%r %r)' % (s.ly_vb, ly))
+    s, r = run(V333_END + V355LY_FAIL)
+    ly = [x for x in r.splitlines() if x.startswith('  options layout: ')]
+    check(s.ly_vb == 'failed' and len(ly) == 1 and 'volume bars by label: writing 0x525672 FAILED' in ly[0],
+          'v3.55 OL56: a failed write (%r %r)' % (s.ly_vb, ly))
+    s, r = run(V333_END + '10:00:00.030 options layout: no Options pages (see above): the game\'s own three pages' + chr(10))
+    check(s.ly_off and 'options layout: off' in r, 'v3.54 OL34: no Options pages')
+    s, r = run(V333_END)
+    check(s.ly_in is None and not s.ly_open and 'options layout:' not in r, 'v3.54 OL34: no layout lines, no summary line')
     test_compare()  # v3.40 LG340
     print('%d failure(s)' % len(FAILS))
     return 1 if FAILS else 0

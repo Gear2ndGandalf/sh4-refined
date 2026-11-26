@@ -75,15 +75,15 @@ static const BYTE *RmText(int id)
 }
 static void RmTexts(void)
 {
-    Encode(g_txtRm[RMT_LABEL], 64, "Monsters");
+    Encode(g_txtRm[RMT_LABEL], 64, OLW_RANDO_MONSTERS_L);  // v3.53 OL1: the plan's lines (+ "Next room.")
     Encode(g_txtRm[RMT_ROOM], 64, kRmMonName[RMM_ROOM]);
     Encode(g_txtRm[RMT_WORLD], 64, kRmMonName[RMM_WORLD]);
-    Encode(g_txtRm[RMT_D0 + RMM_OFF], 64, "Monsters as the game places them. Next door.");
-    Encode(g_txtRm[RMT_D0 + RMM_ROOM], 64, "Each rolls a type its room loads. Next door.");
-    Encode(g_txtRm[RMT_D0 + RMM_WORLD], 64, "Each rolls a type of this world. Next door.");
-    Encode(g_txtRm[RMT_CT], 64, "Off: the cheat table's randomizer is on.");
+    Encode(g_txtRm[RMT_D0 + RMM_OFF], 64, OLW_RANDO_MONSTERS_DT);
+    Encode(g_txtRm[RMT_D0 + RMM_ROOM], 64, OLW_RANDO_MONSTERS_VDT_THIS_ROOM);
+    Encode(g_txtRm[RMT_D0 + RMM_WORLD], 64, OLW_RANDO_MONSTERS_VDT_THIS_WORLD);
+    Encode(g_txtRm[RMT_CT], 64, OLW_RANDO_CT);
     Encode(g_txtRm[RMT_ALL], 64, kRmMonName[RMM_ALL]);                            // v3.50 RM350
-    Encode(g_txtRm[RMT_DALL], 64, "Each rolls a type of any world. Next door.");  // v3.50 RM350
+    Encode(g_txtRm[RMT_DALL], 64, OLW_RANDO_MONSTERS_VDT_ALL_WORLDS);  // v3.50 RM350  // v3.53 OL1
     g_rmIdsMon[RMM_OFF] = MSG_RZ0 + RZM_VK0;  // randomizer.inc's "Off"
     g_rmIdsMon[RMM_ROOM] = (DWORD)RmTextId(RMT_ROOM);
     g_rmIdsMon[RMM_WORLD] = (DWORD)RmTextId(RMT_WORLD);

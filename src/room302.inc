@@ -17,7 +17,7 @@
 // "Playable Eileen does this for now.". Without Playable Eileen, or with one that yields a group (and does not list its
 // sites), the group is Refined's. A yield not yet decided at Init is decided again on the first game tick. The export
 // SH4R_Room302 (winmm.def @200, DATA) tells Playable Eileen what Refined offers and took, and the look's last deltas.
-// Rows: Options > Option 4 (Presentation) > Room 302 (a folder row above Exit) -> the hidden page LP_R302: Look Down,
+// Rows: Options > Option 4 (Presentation) > Room 302 (a folder row above Exit) -> the hidden page OP_R302: Look Down,
 // Look Up, Look Feel, Walk Speed, Back. SH4Refined.ini [Room302] LookDownLimit / LookUpLimit / LookFeel / WalkSpeed;
 // a missing key is seeded once from SH4PlayableEileen.ini [Room302] (the user's values today), else 85 / 85 / 1 / 0.65.
 
@@ -318,9 +318,11 @@ static void R3Decide(int atTick, const char *when)
 // Init (DllMain thread), after GameplayInstall (Movement Speed's sites) and CameraInstall, before the Options tables
 static void R3Install(void)
 {
-    static const char *const kLabel[R3K_N] = { "Look Down", "Look Up", "Look Feel", "Walk Speed" };
-    static const char *const kDesc[R3K_N] = { "How far down the view goes. Game: 50 degrees.", "How far up the view goes. Game: 25 degrees.",
-                                              "Smooths the turning. Off: the game's own.", "Room 302's walking speed. Game: the stock one." };
+    // v3.53 OL1: the plan's words (Look Feel -> Look Smoothing; the ini keys stay kR3Key)
+    static const char *const kLabel[R3K_N] = { OLW_ROOM302_LOOK_DOWN_L, OLW_ROOM302_LOOK_UP_L, OLW_ROOM302_LOOK_SMOOTHING_L,
+                                               OLW_ROOM302_WALK_SPEED_L };
+    static const char *const kDesc[R3K_N] = { OLW_ROOM302_LOOK_DOWN_D, OLW_ROOM302_LOOK_UP_D, OLW_ROOM302_LOOK_SMOOTHING_D,
+                                              OLW_ROOM302_WALK_SPEED_D };
     static const struct { int id; const char *s; } kVal[] = {
         { R3M_GAME, "Game" }, { R3M_V35, "35" }, { R3M_V45, "45" }, { R3M_F05, "0.5" }, { R3M_F1, "1" }, { R3M_F15, "1.5" },
         { R3M_F2, "2" }, { R3M_W055, "0.55" }, { R3M_W06, "0.6" }, { R3M_W065, "0.65" }, { R3M_W07, "0.7" }, { R3M_W075, "0.75" },
@@ -329,16 +331,16 @@ static void R3Install(void)
                                             R3M_W11, R3M_W12 };
     static const int kFeelId[R3_FEEL_N] = { -1, R3M_F05, R3M_F1, R3M_F15, R3M_F2 };  // -1: the stock "Off" (MSG_ITEM0)
     int k, i;
-    Encode(g_txtR3[R3M_ROW], sizeof g_txtR3[0], "Room 302");
-    Encode(g_txtR3[R3M_ROWD], sizeof g_txtR3[0], "Look and walk in Room 302, Henry and Eileen.");
-    Encode(g_txtR3[R3M_ROWD_PE], sizeof g_txtR3[0], "Playable Eileen sets these for now.");
-    Encode(g_txtR3[R3M_TITLE], sizeof g_txtR3[0], "Presentation: Room 302");
+    Encode(g_txtR3[R3M_ROW], sizeof g_txtR3[0], OLW_CONTROLS_ROOM_302_L);
+    Encode(g_txtR3[R3M_ROWD], sizeof g_txtR3[0], OLW_CONTROLS_ROOM_302_D);  // v3.53 OL1
+    Encode(g_txtR3[R3M_ROWD_PE], sizeof g_txtR3[0], OLW_R302_FOLDER_PE);
+    Encode(g_txtR3[R3M_TITLE], sizeof g_txtR3[0], OLW_T_ROOM302);  // v3.53 OL1: the page name (was "Presentation: Room 302"; OL2 draws the breadcrumb)
     for (k = 0; k < R3K_N; ++k) {
         Encode(g_txtR3[R3M_L0 + k], sizeof g_txtR3[0], kLabel[k]);
         Encode(g_txtR3[R3M_D0 + k], sizeof g_txtR3[0], kDesc[k]);
     }
     Encode(g_txtR3[R3M_DPE], sizeof g_txtR3[0], "Playable Eileen does this for now.");
-    Encode(g_txtR3[R3M_DNA], sizeof g_txtR3[0], "Not available (see SH4Refined.log).");
+    Encode(g_txtR3[R3M_DNA], sizeof g_txtR3[0], OLW_R302_NA);
     for (i = 0; i < (int)(sizeof kVal / sizeof kVal[0]); ++i) Encode(g_txtR3[kVal[i].id], sizeof g_txtR3[0], kVal[i].s);
     // the value ids: Look Down / Up share 1st / 3rd Person FOV's number texts (60 .. 85), Look Feel the stock "Off"
     for (k = 0; k < 2; ++k)
@@ -400,7 +402,7 @@ static void R3Tick(void)
     }
 }
 
-// ---------------------------------------------------------------- the rows (Option 4's folder, the page LP_R302)
+// ---------------------------------------------------------------- the rows (Option 4's folder, the page OP_R302)
 static int R3RowLive(int k) { return k >= 0 && k < R3K_N && g_r3Own[kR3Group[k] == R302F_LOOK ? R3G_LOOK : R3G_WALK] == R3_OWN_REFINED; }
 static int R3Step(int k, int count)
 {
@@ -434,7 +436,8 @@ static int __cdecl R3DescFolder(void)
 {
     return MSG_R3 + (g_r3Own[R3G_LOOK] == R3_OWN_REFINED || g_r3Own[R3G_WALK] == R3_OWN_REFINED ? R3M_ROWD : R3M_ROWD_PE);
 }
-static int __cdecl R3FolderIn(BYTE *cfg, int count) { (void)cfg; (void)count; return GpOpen(LP_R302); }
+static int __cdecl R3FolderIn(BYTE *cfg, int count) { (void)cfg; (void)count; return GpOpen(LP_R302); }  // v3.54 OL34: Controls > Room 302 (layout.inc opens it through its own folder row)
+static int __cdecl R3DescBack(void) { return MSG_V53 + OLT_BACK_PRES; }  // v3.53 OL1: "Back to Presentation." (GpBackRow's line said "Back to Option 5 (Gameplay).")
 // Option 4's table builder (sh4windowmod.c): the folder row at t + 7 * n (above Exit) and the page; the next free row
 static int R3PresRow(DWORD *t, int n, const DWORD *stockRows)
 {
@@ -451,32 +454,33 @@ static int R3PresRow(DWORD *t, int n, const DWORD *stockRows)
     for (k = 0; k < R3K_N; ++k)
         FillRow(g_rowsR302 + 7 * k, kIn[k], kGet[k], g_r3Ids[k], kR3Count[k], MSG_R3 + R3M_L0 + k, kDesc[k]);
     GpBackRow(g_rowsR302, R3K_N, stockRows);
-    g_lpTable[LP_R302] = g_rowsR302;
-    g_lpCount[LP_R302] = R3K_N + 1;
-    g_lpTitle[LP_R302] = MSG_R3 + R3M_TITLE;
-    g_lpParent[LP_R302] = 3;
+    g_rowsR302[7 * R3K_N + 6] = (DWORD)(ULONG_PTR)R3DescBack;  // v3.53 OL1: its own parent's Back line
+    g_opTable[OP_R302] = g_rowsR302;
+    g_opCount[OP_R302] = R3K_N + 1;
+    g_opTitle[OP_R302] = MSG_R3 + R3M_TITLE;
+    g_opParent[OP_R302] = 3;
     g_r3Row = n;
-    g_lpParentRow[LP_R302] = n;
+    g_opParentRow[OP_R302] = n;
     GpFolderRow(t + 7 * n, (const DWORD *)0x654D88, R3FolderIn, MSG_R3 + R3M_ROW, R3DescFolder);
     return n + 1;
 }
 // without the sub-screen fade the page cannot open: the folder row leaves Option 4 (it is the last row above Exit)
 static void R3MenuOff(void)
 {
-    DWORD *t = g_lpTable[3];
-    const int n = g_lpCount[3];
+    DWORD *t = g_opTable[3];
+    const int n = g_opCount[3];
     if (g_r3Row < 0 || !t || g_r3Row >= n - 1) return;
     memmove(t + 7 * g_r3Row, t + 7 * (g_r3Row + 1), (size_t)(n - 1 - g_r3Row) * 7 * 4);
     t[7 * (n - 1)] = 0;
-    g_lpCount[3] = n - 1;
-    g_lpParent[LP_R302] = -1;
+    g_opCount[3] = n - 1;
+    g_opParent[OP_R302] = -1;
     g_r3Row = -1;
     Log("room 302: no sub-screen fade: no Room 302 page ([Room302] in the ini still applies)");
 }
 static int R3SubmenuRow(int row) { return g_r3Row >= 0 && row == g_r3Row; }  // the blue cue (sh4windowmod.c SubmenuRow, page 3)
-static int R3RowGrey(int slot, int row)  // RowLabelC / RowValueC: a row of the page whose group is not Refined's
+static int R3RowGrey(int page, int row)  // RowLabelC / RowValueC: a row of the page whose group is not Refined's  // v3.54 OL34: by the row's origin page and row
 {
-    return (unsigned)slot < 3 && g_slotPage[slot] == LP_R302 && row >= 0 && row < R3K_N && !R3RowLive(row);
+    return page == OP_R302 && row >= 0 && row < R3K_N && !R3RowLive(row);
 }
 // snapshot / changed / discard (ResetPages, PadChanged, RowChangedDraw, DiscardOwn)
 static void R3Snapshot(void)

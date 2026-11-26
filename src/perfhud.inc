@@ -86,10 +86,17 @@ static void PerfBackendDetect(void)
         GetModuleHandleA("d3d12.dll") ? "loaded" : "not loaded", GetModuleHandleA("d3d11.dll") ? "loaded" : "not loaded");
 }
 // Display Mode's (which 0) / Aspect Ratio's (which 1) description id: with the chain once it is known
+// (v3.53 OL1: no longer asked: the Renderer row's line names the backend, PerfBackendLine)
 static int PerfDescId(int stockId, int which)
 {
     PerfBackendDetect();
     return g_perfBackDone ? MSG_PERF0 + (which ? PERFT_ASPD : PERFT_DISPD) : stockId;
+}
+// v3.53 OL1: the backend text for the Renderer row (presentation.inc RendDesc; "" until d3d9.dll is loaded)
+static const char *PerfBackendLine(void)
+{
+    PerfBackendDetect();
+    return g_perfBackDone ? g_perfBackend : "";
 }
 
 // (v3.39 PR339: the Options row Option 4 > Performance is gone; the readout is the hidden key's)

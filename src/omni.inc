@@ -566,17 +566,17 @@ static void OmFillRow(DWORD *r)  // v3.47 CT347: Option 2 (Control), above Exit 
 }
 static void OmTexts(void)
 {
-    int v;
     // v3.48 OM348: the label (font 0: 286.4 canvas px from x 40 = 326.4, inside the left value arrow at 344; the stock
     // Spanish "Movimiento Primera persona" on this page is 288.4) and On's lines (font 1: 416.0 / 384.8 px of the 448)
-    Encode(g_txtOm[OMM_L], sizeof g_txtOm[0], "Omni-Directional Movement");  // v3.48 OM348 (was "Stick Movement")
-    for (v = 0; v < OM_MODES; ++v) Encode(g_txtOm[OMM_V0 + v], sizeof g_txtOm[0], kOmModeName[v]);
-    Encode(g_txtOm[OMM_D0 + OM_OFF], sizeof g_txtOm[0], "Off: the left stick walks in 8 directions.");
-    Encode(g_txtOm[OMM_D0 + OM_ON], sizeof g_txtOm[0], "On: walk at any angle; a light push walks slower.");  // v3.48 OM348 (Direction's line gone)
-    Encode(g_txtOm[OMM_DPE], sizeof g_txtOm[0], "On: any angle (Eileen keeps her own speed).");  // v3.48 OM348 (was "Analog: ...")
-    Encode(g_txtOm[OMM_NA], sizeof g_txtOm[0], "Not available in this game (see SH4Refined.log).");
-    Encode(g_txtOm[OMM_BIND], sizeof g_txtOm[0], "Movement is not on a stick: no effect.");
-    Encode(g_txtOm[OMM_NOSRC], sizeof g_txtOm[0], "The stick could not be read: no effect.");
+    Encode(g_txtOm[OMM_L], sizeof g_txtOm[0], OLW_CONTROLS_ANALOG_MOVEMENT_L);  // v3.48 OM348 (was "Stick Movement")  // v3.53 OL1: Analog Movement (was "Omni-Directional Movement", 25 characters)
+    Encode(g_txtOm[OMM_V0 + OM_OFF], sizeof g_txtOm[0], OLW_CONTROLS_ANALOG_MOVEMENT_V_OFF);  // v3.53 OL1 (the ini words stay kOmModeName)
+    Encode(g_txtOm[OMM_V0 + OM_ON], sizeof g_txtOm[0], OLW_CONTROLS_ANALOG_MOVEMENT_V_ON);
+    Encode(g_txtOm[OMM_D0 + OM_OFF], sizeof g_txtOm[0], OLW_CONTROLS_ANALOG_MOVEMENT_VD_OFF);  // v3.53 OL1
+    Encode(g_txtOm[OMM_D0 + OM_ON], sizeof g_txtOm[0], OLW_CONTROLS_ANALOG_MOVEMENT_VD_ON);  // v3.48 OM348 (Direction's line gone)
+    Encode(g_txtOm[OMM_DPE], sizeof g_txtOm[0], OLW_OMNI_PE);  // v3.48 OM348 (was "Analog: ...")
+    Encode(g_txtOm[OMM_NA], sizeof g_txtOm[0], OLW_NA_GAME);
+    Encode(g_txtOm[OMM_BIND], sizeof g_txtOm[0], OLW_OMNI_BIND);
+    Encode(g_txtOm[OMM_NOSRC], sizeof g_txtOm[0], OLW_OMNI_NOSRC);
 }
 // v3.47 CT347 (the user: "Move this to Option 2 (Control)"): ApplyAspectMenu, after InstallPages and FnRowInstall: Option 2
 // becomes a copy of its table (the stock 0x654D88, or Refined's Vibration copy) with Stick Movement above Exit (row 7 of 8,
@@ -585,23 +585,23 @@ static void OmTexts(void)
 // (also edited while the game runs).
 static void OmRowInstall(void)
 {
-    const DWORD *const s = g_lpTable[1];
+    const DWORD *const s = g_opTable[1];
     if (!g_pagesOn) {
         Log("omni: no Options pages (see above): no Omni-Directional Movement row; [Input] OmniMove still applies (also edited while "
             "the game runs)");  // v3.48 OM348: the name
         return;
     }
-    if (!OmControlTableOk(s, g_lpCount[1])) {
+    if (!OmControlTableOk(s, g_opCount[1])) {
         Log("omni: Option 2's table is not the stock one (%p, %d rows): no Omni-Directional Movement row; [Input] OmniMove still applies",  // v3.48 OM348: the name
-            (const void *)s, g_lpCount[1]);
+            (const void *)s, g_opCount[1]);
         return;
     }
     memcpy(g_omRowsControl, s, OM_CTL_ROW * 7 * 4);  // Button Config, Default Control, Vibration, Head Motion, First Person Movement / Camera
     OmFillRow(g_omRowsControl + OM_CTL_ROW * 7);
     memcpy(g_omRowsControl + (OM_CTL_ROW + 1) * 7, s + OM_CTL_ROW * 7, 7 * 4);  // Exit (Option 2's own record)
     g_omRowsControl[(OM_CTL_ROW + 2) * 7] = 0;
-    g_lpTable[1] = g_omRowsControl;
-    g_lpCount[1] = OM_CTL_ROWS + 1;
+    g_opTable[1] = g_omRowsControl;
+    g_opCount[1] = OM_CTL_ROWS + 1;
     g_omRow = OM_CTL_ROW;
     Log("omni: the Omni-Directional Movement row is on Option 2 (Control), row %d of %d above Exit%s: %s", OM_CTL_ROW + 1, OM_CTL_ROWS + 1,  // v3.48 OM348: the name
         s == (const DWORD *)0x654D88 ? "" : " (with Refined's Vibration levels)", kOmModeName[OmGet()]);

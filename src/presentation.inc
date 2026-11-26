@@ -39,21 +39,17 @@ static unsigned g_openSites;        // the patches in place (OpSites bits)
 static DWORD g_openT0;              // GetTickCount at the install (the log's "after N ms")
 static volatile LONG g_openFired;
 
+// v3.53 OL1: the plan's one-line words (the 16-bit line no longer loses its end: it was 110 characters in 108)
 static const char *const kRdDescTxt[RD_DK_N] = {
-    "dgVoodoo2 on Direct3D 11 (the default). Restart the game to apply.",
-    "Direct3D 11 with a 16-bit render target: about 1.7 ms more lag, tested on AMD only. Restart the game to apply.",
-    "Direct3D 12: 260-530 ms freezes entering rooms, 200 MB more memory. Restart the game to apply.",
-    "The game's own Direct3D 9 (dgVoodoo2 passes it through). Restart the game to apply.",
-    "An SH4 Graphics Plus renderer. Restart the game to apply.",
-    "A Graphics Plus test renderer is in use. Pick another to replace it; restart to apply.",
-    "Custom: dgVoodoo.conf is not one of SH4 Graphics Plus's, so it is left as it is.",
-    "Renderer: needs SH4 Graphics Plus (its dgVoodoo2 d3d9.dll and dgVoodoo_variants).",
+    OLW_DISPLAY_RENDERER_VD_DIRECT3D_11, OLW_REND_16BIT, OLW_DISPLAY_RENDERER_VD_DIRECT3D_12, OLW_DISPLAY_RENDERER_VD_STOCK,
+    OLW_REND_OTHER, OLW_REND_TEST, OLW_DISPLAY_RENDERER_VD_CUSTOM, OLW_DISPLAY_RENDERER_VD_UNAVAILABLE,
 };
-static const char *const kOpDescTxt[OP_N] = {
-    "The game's own start: the KONAMI logos, the notice and the title intro. Applies at the next start.",
-    "Straight to the title: no KONAMI logos and no notice. Applies at the next start.",
-    "No logos, no first-start movie, the short title intro. Applies at the next start.",
+static const char *const kOpDescTxt[OP_N] = {  // v3.53 OL1: Opening -> Start-Up
+    OLW_INTERFACE_START_UP_VD_FULL, OLW_INTERFACE_START_UP_VD_SKIP_LOGOS, OLW_INTERFACE_START_UP_VD_FAST,
 };
+static const char *const kOpShown[OP_N] = { OLW_INTERFACE_START_UP_V_FULL, OLW_INTERFACE_START_UP_V_SKIP_LOGOS,
+                                            OLW_INTERFACE_START_UP_V_FAST };  // v3.53 OL1 (the ini words stay kOpName: the same words)
+static const char *PerfBackendLine(void);  // v3.53 OL1: perfhud.inc: the running backend ("" while not known)
 
 static const BYTE *PresText(int id)
 {
@@ -143,7 +139,23 @@ static void RendSnapshot(void)
              g_rd.s.cur + 1, g_rd.s.nVal, vals);
 }
 static int __cdecl RendGet(void) { return (int)g_rendSel; }
-static int __cdecl RendDesc(void) { return MSG_GFX0 + PRT_RDESC0 + RdDescKind(&g_rd.m, &g_rd.s, (int)g_rendSel); }
+// v3.53 OL1: the value's line, then the running backend (PLAN: it was Display Mode's second line); composed on a change only
+static int __cdecl RendDesc(void)
+{
+    static int s_kind = -1;
+    static char s_back[96];
+    const int k = RdDescKind(&g_rd.m, &g_rd.s, (int)g_rendSel);
+    const char *const b = PerfBackendLine();
+    if (!b[0] || (unsigned)k >= RD_DK_N) return MSG_GFX0 + PRT_RDESC0 + k;
+    if (k != s_kind || strcmp(b, s_back)) {
+        char t[192];
+        sprintf_s(t, sizeof t, "%s %s.", kRdDescTxt[k], b);
+        Encode(g_txtOlRend, sizeof g_txtOlRend, t);
+        s_kind = k;
+        strcpy_s(s_back, sizeof s_back, b);
+    }
+    return MSG_V53 + OLT_REND;
+}
 static int __cdecl RendIn(BYTE *cfg, int count)
 {
     int d;
@@ -234,10 +246,10 @@ static void OpeningInstall(void)
         g_openIni = OP_DEFAULT;
     }
     g_openSel = g_openSnap = g_openIni;
-    Encode(g_txtPres[PRT_OLABEL], sizeof g_txtPres[0], "Opening");
+    Encode(g_txtPres[PRT_OLABEL], sizeof g_txtPres[0], OLW_INTERFACE_START_UP_L);  // v3.53 OL1: Start-Up (was Opening)
     for (i = 0; i < OP_N; ++i) {
         Encode(g_txtPres[PRT_ODESC0 + i], sizeof g_txtPres[0], kOpDescTxt[i]);
-        Encode(g_txtPres[PRT_OVAL0 + i], sizeof g_txtPres[0], kOpName[i]);
+        Encode(g_txtPres[PRT_OVAL0 + i], sizeof g_txtPres[0], kOpShown[i]);  // v3.53 OL1
         g_openIds[i] = MSG_GFX0 + PRT_OVAL0 + i;
     }
     want = OpSites(g_openIni);
@@ -310,7 +322,7 @@ static void OpApply(void)
 static int PresFillRows(DWORD *t, int n)  // ApplyAspectMenu: Renderer and Opening at t + 7 * n; the next free row
 {
     int v;
-    Encode(g_txtPres[PRT_RLABEL], sizeof g_txtPres[0], "Renderer");
+    Encode(g_txtPres[PRT_RLABEL], sizeof g_txtPres[0], OLW_DISPLAY_RENDERER_L);  // v3.53 OL1
     for (v = 0; v < RD_DK_N; ++v) Encode(g_txtPres[PRT_RDESC0 + v], sizeof g_txtPres[0], kRdDescTxt[v]);
     for (v = 0; v < RD_VALS; ++v) g_rendIds[v] = MSG_GFX0 + PRT_RVAL0 + v;
     g_presRend = n;
@@ -344,9 +356,9 @@ static void PresDiscard(void)  // DiscardOwn ("No")
     InterlockedExchange(&g_rendSel, g_rendSnap);
     InterlockedExchange(&g_openSel, g_openSnap);
 }
-static int PresRowGrey(int slot, int row)
+static int PresRowGrey(int page, int row)  // v3.54 OL34: by the row's origin page (Option 4 = 3) and row
 {
-    return (unsigned)slot < 3 && g_slotPage[slot] == 3 && row >= 0 && row == g_presRend && g_rdRead && g_rd.s.greyed;
+    return page == 3 && row >= 0 && row == g_presRend && g_rdRead && g_rd.s.greyed;
 }
 static int PresValueIdGreyed(int id)
 {

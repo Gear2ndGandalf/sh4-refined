@@ -32,7 +32,7 @@
 // GPU copy into a kept target of ours (ShPauseGrab / ShPauseTex for screenfx.inc): nothing is read back at a pause.
 // The preview: in the frame whose picture becomes the pause picture ([0x12E3E2C] == 1) the first composite keeps a copy
 // of the frame so far (no shadow yet) and of the mask; on the Shadows page (Option 3 > Realtime Shadow, Enter; hidden
-// logical page LP_SHD) that frame is the backdrop (0x526A53, screenfx.inc FxBackdropC) and the mask is laid over it twice:
+// logical page OP_SHD) that frame is the backdrop (0x526A53, screenfx.inc FxBackdropC) and the mask is laid over it twice:
 // the stock way left of a split line, through the chosen edge right, live as the row changes. Opened from the title (or
 // with no copy of this pause): a figure's shadow (hard-edged triangles drawn into a mask of our own) on preview.dds / the
 // hallway, split the same way, with the last darkness seen. The copies end when play resumes or the game leaves play
@@ -120,23 +120,24 @@ static const BYTE *ShText(int id)
 static void ShTexts(void)
 {
     int v;
-    Encode(g_txtSh[SHM_T], 64, "Shadows");
-    Encode(g_txtSh[SHM_EDGE_L], 64, "Shadow Edge");
-    Encode(g_txtSh[SHM_BACK_L], 64, "Back");
-    Encode(g_txtSh[SHM_EDGE_D], 64, "The shadows' edge. Left of the line: the game's own.");  // v3.42 SM342 (was "...: Stock.")
-    Encode(g_txtSh[SHM_EDGE_DP], 64, "The shadows' edge: Stock or Soft.");  // v3.41 SH341 (was "Stock, Soft or Softer.")
-    Encode(g_txtSh[SHM_EDGE_NA], 64, "Off this session (see SH4Refined.log): Stock.");
-    Encode(g_txtSh[SHM_BACK_D], 64, "Back to Option 3.");
-    Encode(g_txtSh[SHM_ROW_D], 64, "Shadows on or off; Enter opens Shadow Edge.");
+    // v3.53 OL1: the plan's words (Shadow Edge -> Edge, Shadow Darkness -> Darkness; the row's Enter names the page's rows)
+    Encode(g_txtSh[SHM_T], 64, OLW_T_SHADOWS);
+    Encode(g_txtSh[SHM_EDGE_L], 64, OLW_SHADOWS_EDGE_L);
+    Encode(g_txtSh[SHM_BACK_L], 64, OLW_BACK);
+    Encode(g_txtSh[SHM_EDGE_D], 64, OLW_SHADOWS_EDGE_D);  // v3.42 SM342 (was "...: Stock.")
+    Encode(g_txtSh[SHM_EDGE_DP], 64, OLW_SHD_EDGE_NOPREVIEW);  // v3.41 SH341 (was "Stock, Soft or Softer.")
+    Encode(g_txtSh[SHM_EDGE_NA], 64, OLW_SHD_EDGE_FAILED);
+    Encode(g_txtSh[SHM_BACK_D], 64, OLW_BACK_INTERFACE);
+    Encode(g_txtSh[SHM_ROW_D], 64, OLW_COMBO_SHADOWS);
     for (v = 0; v < SH_EDGE_N; ++v) {
         Encode(g_txtSh[SHM_V0 + v], 64, kShEdgeName[v]);
         g_shIds[v] = MSG_SHD0 + SHM_V0 + v;
     }
     Encode(g_txtSh[SHM_V0 + 2], 64, kShEdgeName[SH_SOFT]);  // v3.41 SH341: v3.40's Softer slot (not in the row) reads Soft
     // v3.42 SM342: the Darkness row (label, two descriptions, the four values)
-    Encode(g_txtSh[SHM_DARK_L], 64, "Shadow Darkness");
-    Encode(g_txtSh[SHM_DARK_D], 64, "On top of Playable Eileen's. Left of the line: 100 %.");
-    Encode(g_txtSh[SHM_DARK_DP], 64, "How dark shadows are, on top of Playable Eileen's.");
+    Encode(g_txtSh[SHM_DARK_L], 64, OLW_SHADOWS_DARKNESS_L);  // v3.53 OL1
+    Encode(g_txtSh[SHM_DARK_D], 64, OLW_SHADOWS_DARKNESS_D);
+    Encode(g_txtSh[SHM_DARK_DP], 64, OLW_SHD_DARK_NOPREVIEW);
     for (v = 0; v < SH_DARK_N; ++v) {
         char t[8];
         sprintf_s(t, sizeof t, "%d %%", kShDarkPct[v]);
@@ -183,7 +184,7 @@ static int __cdecl ShEdgeGet(void) { return (int)g_shEdge >= 0 && (int)g_shEdge 
 static int __cdecl ShEdgeDesc(void)
 {
     if (g_shFailed) return MSG_SHD0 + SHM_EDGE_NA;
-    return MSG_SHD0 + (g_shPrevOn && g_fxPrevHook ? SHM_EDGE_D : SHM_EDGE_DP);
+    return MSG_V53 + (ShEdgeGet() == SH_SOFT ? OLT_SHE_VD_SOFT : OLT_SHE_VD_STOCK);  // v3.53 OL1: a line per value (the plan's; both have one)
 }
 static int __cdecl ShBackDesc(void) { return MSG_SHD0 + SHM_BACK_D; }
 static int __cdecl ShBackIn(BYTE *cfg, int count)  // Enter fades back to Option 3, on Realtime Shadow
@@ -200,7 +201,7 @@ static int __cdecl ShBackIn(BYTE *cfg, int count)  // Enter fades back to Option
 static int __cdecl ShRowInput(BYTE *cfg, int count)
 {
     if (g_shMenu && g_subScreenOn && ((Fn2)0x4F84A0)(0, 0x11)) {
-        InterlockedExchange(&g_subReq, REQ_OPEN | LP_SHD);
+        InterlockedExchange(&g_subReq, REQ_OPEN | LP_SHADOWS);  // v3.54 OL34: (not on a page any more: Interface keeps the stock input)
         ((Fn1)0x56CC40)(0xA411);  // the stock sub-screen sound (Button Config, 52495B)
         return SubPageExit();
     }
@@ -214,8 +215,8 @@ static void ShRowInstall(DWORD *row)  // InstallPages: the copied Option 3 table
     row[0] = (DWORD)(ULONG_PTR)ShRowInput;
     row[6] = (DWORD)(ULONG_PTR)ShRowDesc;
     g_shMenu = 1;
-    g_lpParent[LP_SHD] = 2;
-    g_lpParentRow[LP_SHD] = 6;
+    g_opParent[OP_SHD] = 2;
+    g_opParentRow[OP_SHD] = 6;
     LogV("shadows: Option 3's Realtime Shadow row (row 6) opens the Shadows page (Enter; Left / Right stay On / Off)");
 }
 static int ShMenuOn(void) { return g_shMenu; }
@@ -223,7 +224,7 @@ static void ShMenuOff(const char *why)
 {
     if (!g_shMenu) return;
     g_shMenu = 0;
-    g_lpParent[LP_SHD] = -1;
+    g_opParent[OP_SHD] = -1;
     Log("shadows: no Shadows page (%s); Enter on Realtime Shadow is stock; [Shadows] Edge in SH4Refined.ini still applies", why);
 }
 // ApplyAspectMenu: the page's table (Shadow Edge, Back), from Option 1's stock rows (Exit at row 6)
@@ -238,11 +239,11 @@ static void ShBuildPage(const DWORD *stockRows)
     g_rowsShd[14 + 5] = MSG_SHD0 + SHM_BACK_L;
     g_rowsShd[14 + 6] = (DWORD)(ULONG_PTR)ShBackDesc;
     g_rowsShd[21] = 0;
-    g_lpTable[LP_SHD] = g_rowsShd;
-    g_lpCount[LP_SHD] = 3;  // v3.42 SM342: + Darkness
-    g_lpTitle[LP_SHD] = MSG_SHD0 + SHM_T;
+    g_opTable[OP_SHD] = g_rowsShd;
+    g_opCount[OP_SHD] = 3;  // v3.42 SM342: + Darkness
+    g_opTitle[OP_SHD] = MSG_SHD0 + SHM_T;
 }
-static int ShPageShown(void) { return g_shMenu && (g_lpage == LP_SHD || g_pending == LP_SHD); }
+static int ShPageShown(void) { return g_shMenu && (g_lpage == LP_SHADOWS || g_pending == LP_SHADOWS); }  // v3.54 OL34: Effects > Shadows
 static void ShSnapshot(void) { g_snapShEdge = g_shEdge, g_snapShDark = g_shDark; }  // v3.42 SM342: + Darkness
 static int ShChanged(void) { return g_snapOn && g_shMenu && (g_shEdge != g_snapShEdge || g_shDark != g_snapShDark); }
 static int ShRowChanged(int row)  // v3.42 SM342: row 1 = Darkness
@@ -1324,7 +1325,7 @@ static void ShPreviewDraw(void)
             float x1 = 472.0f, y0 = 352.0f, y1 = 392.0f;
             FxBase(dev);
             FxTextPanels(dev, DescRowsBottom() + 2.0f);  // v3.44 DF344: light, behind the title / labels / values only (was FxPanel 28, 40, 484, 200)
-            DescPanelBox(LP_SHD, &x1, &y0, &y1);
+            DescPanelBox(LP_SHADOWS, &x1, &y0, &y1);  // v3.54 OL34
             FxPanel(dev, 40.0f, y0, x1, y1);
             FxRestore(dev, &sv);
         }

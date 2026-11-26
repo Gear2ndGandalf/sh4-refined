@@ -44,13 +44,13 @@ static const BYTE *EfText(int id)
 static void EfTexts(void)  // gameplay.inc GpTexts
 {
     int v;
-    Encode(g_txtEf[EFM_L], 64, "Enemy Pursuit");
+    Encode(g_txtEf[EFM_L], 64, OLW_ENEMIES_PURSUIT_L);  // v3.53 OL1: Pursuit (was Enemy Pursuit)
     for (v = 0; v < EF_PURSUIT_N; ++v) Encode(g_txtEf[EFM_V0 + v], 64, kEfPursuitName[v]);
-    Encode(g_txtEf[EFM_D0 + EF_PURSUIT_RELENTLESS], 64, "Relentless: they spot you once, never give up.");
+    Encode(g_txtEf[EFM_D0 + EF_PURSUIT_RELENTLESS], 64, OLW_ENEMIES_PURSUIT_VD_RELENTLESS);
     // v3.51 EP351: they give up inside the room too (font 1: 395.2 / 404.0 of 416 px; were "... they lose you.")
-    Encode(g_txtEf[EFM_D0 + EF_PURSUIT_NORMAL], 64, "Normal: unseen 10 s, they quit, in rooms too.");
-    Encode(g_txtEf[EFM_D0 + EF_PURSUIT_FORGETFUL], 64, "Forgetful: unseen 4 s, they quit, in rooms too.");
-    Encode(g_txtEf[EFM_NA], 64, "Not available in this game (see SH4Refined.log).");
+    Encode(g_txtEf[EFM_D0 + EF_PURSUIT_NORMAL], 64, OLW_ENEMIES_PURSUIT_VD_NORMAL);  // v3.53 OL1
+    Encode(g_txtEf[EFM_D0 + EF_PURSUIT_FORGETFUL], 64, OLW_ENEMIES_PURSUIT_VD_FORGETFUL);
+    Encode(g_txtEf[EFM_NA], 64, OLW_NA_GAME);
 }
 static void EfSetLocked(int v)
 {

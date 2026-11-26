@@ -7,7 +7,7 @@
 // `call 5230C0` -> jmp hkBldSplash), the burst switch (0x430AC3 -> jmp hkBldBurst) and the pool's two colour tables
 // (the `lea` disp32 at 0x4777C4 / 0x4777EE -> g_bldPool1 / 2). Entries 0..2 are the stock colours.
 //
-// Option 5 (Gameplay): Item Shine, Player >, Enemies >, Exit. The two hidden pages (LP_PLAYER, LP_ENEMY) open and close
+// Option 5 (Gameplay): Item Shine, Player >, Enemies >, Exit. The two hidden pages (OP_PLAYER, OP_ENEMY) open and close
 // with the stock sub-screen fade (as Subtitle Style / Screen Effects) through the generalised requests REQ_OPEN | lp /
 // REQ_BACK (SubScreen). Values apply at once, are kept in [Gameplay] (Regeneration: Playable Eileen's own ini keys).
 // v3.37 MN337 (staging/v337_feedback/w1_menu/PLAN.md; the user's requests 3, 8, 9, 10, 11): Option 5 = No Clip, Curse
@@ -386,23 +386,18 @@ static const char *const kGpName[GP_N][GP_VMAX] = {
     { "Off", "Rare", "Normal", "Abundant" },  // SUPPLY DROPS (v3.38 DR338: + Rare, Generous -> Abundant; drops.inc kDropLevelName, same order)
     { "Off", "On" },  // v3.30 EN330: Revive Enemies
 };
-static const char *const kGpLabel[GP_N] = { "Movement Speed", "Medallion Durability", "Regeneration", "One-Hit Kill",
-                                            "Death Presence", "After Shock",  // v3.29 AFTERIMAGE: + After-image (v3.30 AS330: renamed After Shock)
-                                            "Echo Doubles", "Echo Count",  // v3.30 ECHO330 (was Echo Double)
-                                            "Enemy Copies", "Enemies Follow",  // v3.31 ENEMIES
-                                            "Supply Drops",  // SUPPLY DROPS
-                                            "Revive Enemies" };  // v3.30 EN330
-static const char *const kGpDescTxt[GP_N] = { "How fast the player walks and runs.", "How long the Saint Medallion lasts.",  // v3.45 QS345: was "she"
+// v3.53 OL1: the plan's names (Movement Speed -> Move Speed, Medallion Durability -> Medallion, Enemy Copies -> Extra
+// Enemies, Enemies Follow -> Door Chase, Revive Enemies -> Enemies Return); the ini keys stay kGpIniKey
+static const char *const kGpLabel[GP_N] = { OLW_PLAYER_MOVE_SPEED_L, OLW_PLAYER_MEDALLION_L, OLW_PLAYER_REGENERATION_L,
+                                            OLW_COMBAT_ONE_HIT_KILL_L, OLW_POWERS_DEATH_PRESENCE_L, OLW_POWERS_AFTER_SHOCK_L,
+                                            OLW_POWERS_ECHO_DOUBLES_L, OLW_POWERS_ECHO_COUNT_L, OLW_ENEMIES_EXTRA_ENEMIES_L,
+                                            OLW_ENEMIES_DOOR_CHASE_L, OLW_ITEMS_SUPPLY_DROPS_L, OLW_ENEMIES_ENEMIES_RETURN_L };
+static const char *const kGpDescTxt[GP_N] = { OLW_PLAYER_MOVE_SPEED_D, OLW_PLAYER_MEDALLION_D,  // v3.53 OL1: the plan's lines
                                               "Playable Eileen's healing after time unhurt.",  // review REV-010: GpSnapshot puts in PE's RegenDelay
-                                              "Your hits kill monsters; ghosts fall down.",
-                                              "A dark fog around you drains every being.",
-                                              "Electric copies of you trail behind, tasing foes.",  // v3.29 AFTERIMAGE (v3.30 AS330)
-                                              "Shadow soldiers of you fight at your side.",  // v3.30 ECHO330
-                                              "How many shadows: 1, 2 or 3, each in its own place.",  // v3.30 ECHO330
-                                              "More of every monster and ghost; limited by memory.",  // v3.31 ENEMIES  // v3.31 EN331: + the story ghosts
-                                              "Enemies that spotted you follow you through doors.",  // v3.38 EN338 (was "Enemies near you come after you through doors.")
-                                              "Kills leave items: Off, Rare, Normal, Abundant.",  // SUPPLY DROPS (v3.38 DR338: names the four levels; 414 of 416 px, one line)
-                                              "Leave a room: its killed monsters return." };  // v3.30 EN330
+                                              OLW_COMBAT_ONE_HIT_KILL_D, OLW_POWERS_DEATH_PRESENCE_D, OLW_POWERS_AFTER_SHOCK_D,
+                                              OLW_POWERS_ECHO_DOUBLES_D, OLW_POWERS_ECHO_COUNT_D,
+                                              OLW_EXTRA_ENEMIES_R1_D,  // v3.53 OL1: + "Next room." (it applies at the next room)
+                                              OLW_ENEMIES_DOOR_CHASE_D, OLW_ITEMS_SUPPLY_DROPS_D, OLW_ENEMIES_ENEMIES_RETURN_D };
 static const float kMoveK[4] = { 1.0f, 1.25f, 1.5f, 2.0f };
 static const float kMedK[4] = { 1.0f, 2.0f, 3.0f, 4.0f };
 static const char *const kRegenRate[4] = { NULL, "15", "18.75", "30" };  // Playable Eileen [Defense] RegenRate
@@ -584,14 +579,14 @@ static int __cdecl GpGetCopies(void) { return (int)g_gp[GP_COPIES]; }  // v3.31 
 static int __cdecl GpGetFollow(void) { return (int)g_gp[GP_FOLLOW]; }  // v3.31 ENEMIES
 static int __cdecl GpGetDrop(void) { return (int)g_gp[GP_DROP]; }  // SUPPLY DROPS (v3.29 merge: GpGet5 -> GpGetDrop)
 static int __cdecl GpGetRevive(void) { return (int)g_gp[GP_REVIVE]; }  // v3.30 EN330
-static int __cdecl GpDesc0(void) { return MSG_GP0 + GPM_D0 + 0; }
+static int __cdecl GpDesc0(void) { return g_gp[GP_MOVE] == 3 ? MSG_V53 + OLT_MS_VD_X2 : MSG_GP0 + GPM_D0 + 0; }  // v3.53 OL1: x2's own line
 static int __cdecl GpDesc1(void) { return MSG_GP0 + GPM_D0 + 1; }
 static int __cdecl GpDesc2(void)  // v3.47 RG347: by the row's mode
 {
     const int m = RgRowModeNow();
     return m == RGR_OWN ? RgRowDesc() : m == RGR_PE ? RgRowDescPe() : MSG_GP0 + GPM_D0 + 2;
 }
-static int __cdecl GpDesc3(void) { return MSG_GP0 + GPM_D0 + 3; }
+static int __cdecl GpDesc3(void) { return g_gp[GP_OHK] ? MSG_V53 + OLT_OHK_VD_ON : MSG_GP0 + GPM_D0 + 3; }  // v3.53 OL1: On's own line
 static int g_dpReady;  // deathpresence.inc: the feature is installed (else the row says it is unavailable)
 static int __cdecl GpDesc4(void)  // v3.27.0: one line per value (Off: what it is)
 {
@@ -651,9 +646,9 @@ static int GpOpen(int lp)
     ((Fn1)0x56CC40)(0xA411);  // the stock sub-screen sound (Button Config, 52495B)
     return SubPageExit();
 }
-static int __cdecl GpPlayerIn(BYTE *cfg, int count) { (void)cfg; (void)count; return GpOpen(LP_PLAYER); }
-static int __cdecl GpEnemyIn(BYTE *cfg, int count) { (void)cfg; (void)count; return GpOpen(LP_ENEMY); }
-static int __cdecl GpSpecialIn(BYTE *cfg, int count) { (void)cfg; (void)count; return GpOpen(LP_SPECIAL); }  // v3.27.0
+static int __cdecl GpPlayerIn(BYTE *cfg, int count) { (void)cfg; (void)count; return GpOpen(LP_PLAYER); }  // v3.54 OL34: the new ids (layout.inc opens the folders itself)
+static int __cdecl GpEnemyIn(BYTE *cfg, int count) { (void)cfg; (void)count; return GpOpen(LP_ENEMIES); }  // v3.54 OL34
+static int __cdecl GpSpecialIn(BYTE *cfg, int count) { (void)cfg; (void)count; return GpOpen(LP_POWERS); }  // v3.27.0  // v3.54 OL34
 
 // snapshot / changed / discard (ResetPages, PadChanged, RowChangedDraw, DiscardOwn)
 static void GpBuildPlayer(void);
@@ -717,17 +712,17 @@ static int GpRowChanged(int page, int row)  // -1 = not one of these pages
         if (row == g_gpTop[GPT_STACK]) return InvRowChanged(1);  // v3.37 MERGE: 1 = Stackable Items
         return -1;
     }
-    if (page == LP_RANDO) return RzRowChanged(row);  // v3.48 RZ348
-    if (page == LP_PLAYER) {
+    if (page == OP_RANDO) return RzRowChanged(row);  // v3.48 RZ348
+    if (page == OP_PLAYER) {
         if (row < 0 || row >= g_gpPlayerN) return 0;
         k = g_gpPlayerRow[row];
         if (k < 0) return 0;  // v3.46 OM346 (v3.47 CT347: no mark today; Stick Movement left this page)
         if (k >= GP_N) return PcRowChanged(k - GP_N);  // PLAYER PACK
-    } else if (page == LP_ENEMY) {  // v3.37 MN337: by the table GpBuildPages recorded (was a fixed kRow[6] with One-Hit Kill at row 0)
+    } else if (page == OP_ENEMY) {  // v3.37 MN337: by the table GpBuildPages recorded (was a fixed kRow[6] with One-Hit Kill at row 0)
         if (row >= 0 && row == g_efPursuitRow) return EfRowChanged();  // v3.50 EF350
         if (row < 0 || row >= g_gpEnemyN || g_gpEnemyRow[row] < 0) return 0;
         k = g_gpEnemyRow[row];
-    } else if (page == LP_SPECIAL) {  // v3.27.0; v3.37 MN337: by the recorded table (No Clip left this page)
+    } else if (page == OP_SPECIAL) {  // v3.27.0; v3.37 MN337: by the recorded table (No Clip left this page)
         if (row >= 0 && row == g_gpSpecialGt) return GtRowChanged();  // v3.43 GT343
         if (row < 0 || row >= g_gpSpecialN || g_gpSpecialRow[row] < 0) return 0;
         k = g_gpSpecialRow[row];
@@ -778,35 +773,37 @@ static int GpSubmenuRow(int page, int row)  // v3.27.0: + Special; v3.37 MN337: 
 static void GpTexts(void)
 {
     int k, v;
-    Encode(g_txtGp[GPM_T_PLAYER], 56, "Gameplay: Player");
-    Encode(g_txtGp[GPM_T_ENEMY], 56, "Gameplay: Enemies");
-    Encode(g_txtGp[GPM_R_PLAYER], 56, "Player");
-    Encode(g_txtGp[GPM_R_ENEMY], 56, "Enemies");
-    Encode(g_txtGp[GPM_D_PLAYER], 56, "Movement, healing, combat and stamina cheats.");  // PLAYER PACK (was: Movement, medallion and healing cheats.)
-    Encode(g_txtGp[GPM_D_ENEMY], 56, "More enemies, drops, health bars and revivals.");  // v3.37 MN337 (One-Hit Kill moved to Player)
-    Encode(g_txtGp[GPM_BACK], 56, "Back");
-    Encode(g_txtGp[GPM_D_BACK], 56, "Back to Option 5 (Gameplay).");
-    Encode(g_txtGp[GPM_T_SPECIAL], 56, "Gameplay: Special");  // v3.27.0
-    Encode(g_txtGp[GPM_R_SPECIAL], 56, "Special");
-    Encode(g_txtGp[GPM_D_SPECIAL], 56, "Special powers and curses.");
-    Encode(g_txtGp[GPM_DPD1], 56, "Weak: a small fog; 2-8 % of health a second.");
-    Encode(g_txtGp[GPM_DPD2], 56, "Strong: a wide fog; 5-20 % of health a second.");
-    Encode(g_txtGp[GPM_DPNA], 56, "Not available in this game (see SH4Refined.log).");
-    Encode(g_txtGp[GPM_AID1], 56, "Short: 3 copies over 0.2 s tase what they touch.");  // v3.29 AFTERIMAGE (v3.30 AS330)
-    Encode(g_txtGp[GPM_AID2], 56, "Medium: 5 copies over 0.35 s tase what they touch.");  // v3.30 AS330
-    Encode(g_txtGp[GPM_AID3], 56, "Long: 8 copies over 0.6 s tase what they touch.");  // v3.30 AS330
-    Encode(g_txtGp[GPM_ECD1], 56, "Shadow Copy: your moves, each a little late.");  // v3.30 ECHO330 (was the three v3.29 lines)
-    Encode(g_txtGp[GPM_ECD2], 56, "Shadow Cast: as you attack they strike your foes.");
-    Encode(g_txtGp[GPM_ECD3], 56, "How many shadows (turn Echo Doubles on first).");
-    Encode(g_txtGp[GPM_DRD1], 56, "Normal: about 1 kill in 8 leaves an item.");  // SUPPLY DROPS
-    Encode(g_txtGp[GPM_DRD2], 56, "Abundant: about 1 kill in 4 leaves an item.");  // v3.38 DR338 (was Generous)
-    Encode(g_txtGp[GPM_DRD3], 56, "Rare: about 1 kill in 16 leaves an item.");      // v3.38 DR338
-    Encode(g_txtGp[GPM_DRNA], 56, "Not available in this game (see SH4Refined.log).");
+    // v3.53 OL1: the plan's words; the titles are the page names (OL2 draws "Gameplay > ..."); Special -> Powers
+    Encode(g_txtGp[GPM_T_PLAYER], 56, OLW_T_PLAYER);
+    Encode(g_txtGp[GPM_T_ENEMY], 56, OLW_T_ENEMIES);
+    Encode(g_txtGp[GPM_R_PLAYER], 56, OLW_GAMEPLAY_PLAYER_L);
+    Encode(g_txtGp[GPM_R_ENEMY], 56, OLW_GAMEPLAY_ENEMIES_L);
+    Encode(g_txtGp[GPM_D_PLAYER], 56, OLW_PLAYER_FOLDER_R1_D);  // PLAYER PACK (was: Movement, medallion and healing cheats.)  // v3.53 OL1: the plan's Player + Combat
+    Encode(g_txtGp[GPM_D_ENEMY], 56, OLW_GAMEPLAY_ENEMIES_D);  // v3.37 MN337 (One-Hit Kill moved to Player)
+    Encode(g_txtGp[GPM_BACK], 56, OLW_BACK);
+    Encode(g_txtGp[GPM_D_BACK], 56, OLW_BACK_GAMEPLAY);  // v3.53 OL1: was "Back to Option 5 (Gameplay)."
+    Encode(g_txtGp[GPM_T_SPECIAL], 56, OLW_T_POWERS);  // v3.27.0
+    Encode(g_txtGp[GPM_R_SPECIAL], 56, OLW_GAMEPLAY_POWERS_L);
+    Encode(g_txtGp[GPM_D_SPECIAL], 56, OLW_GAMEPLAY_POWERS_D);
+    Encode(g_txtGp[GPM_DPD1], 56, OLW_POWERS_DEATH_PRESENCE_VD_WEAK);
+    Encode(g_txtGp[GPM_DPD2], 56, OLW_POWERS_DEATH_PRESENCE_VD_STRONG);
+    Encode(g_txtGp[GPM_DPNA], 56, OLW_NA_GAME);
+    Encode(g_txtGp[GPM_AID1], 56, OLW_POWERS_AFTER_SHOCK_VD_SHORT);  // v3.29 AFTERIMAGE (v3.30 AS330)
+    Encode(g_txtGp[GPM_AID2], 56, OLW_POWERS_AFTER_SHOCK_VD_MEDIUM);  // v3.30 AS330
+    Encode(g_txtGp[GPM_AID3], 56, OLW_POWERS_AFTER_SHOCK_VD_LONG);  // v3.30 AS330
+    Encode(g_txtGp[GPM_ECD1], 56, OLW_POWERS_ECHO_DOUBLES_VD_COPY);  // v3.30 ECHO330 (was the three v3.29 lines)
+    Encode(g_txtGp[GPM_ECD2], 56, OLW_POWERS_ECHO_DOUBLES_VD_CAST);
+    Encode(g_txtGp[GPM_ECD3], 56, "How many shadows (turn Echo Doubles on first).");  // v3.53 OL1: kept (OL2 owns the grey rows' reason lines)
+    Encode(g_txtGp[GPM_DRD1], 56, OLW_ITEMS_SUPPLY_DROPS_VD_NORMAL);  // SUPPLY DROPS
+    Encode(g_txtGp[GPM_DRD2], 56, OLW_ITEMS_SUPPLY_DROPS_VD_ABUNDANT);  // v3.38 DR338 (was Generous)
+    Encode(g_txtGp[GPM_DRD3], 56, OLW_ITEMS_SUPPLY_DROPS_VD_RARE);      // v3.38 DR338
+    Encode(g_txtGp[GPM_DRNA], 56, OLW_NA_GAME);
     for (k = 0; k < GP_N; ++k) {
+        const int map = k == GP_ECHO ? OLM_POWERS_ECHO_DOUBLES : k == GP_FOLLOW ? OLM_ENEMIES_DOOR_CHASE : -1;  // v3.53 OL1: Copy / Cast, Both on screen
         Encode(g_txtGp[GPM_L0 + k], 56, kGpLabel[k]);
         Encode(g_txtGp[GPM_D0 + k], 56, kGpDescTxt[k]);
         for (v = 0; v < GP_VMAX; ++v) {
-            Encode(g_txtGp[GPM_V0 + k * GP_VMAX + v], 56, kGpName[k][v] ? kGpName[k][v] : "");
+            Encode(g_txtGp[GPM_V0 + k * GP_VMAX + v], 56, kGpName[k][v] ? OlShow(map, kGpName[k][v]) : "");
             g_gpIds[k][v] = MSG_GP0 + GPM_V0 + k * GP_VMAX + v;
         }
     }
@@ -968,9 +965,9 @@ static void GpBuildPlayer(void)
     t[7 * n + 6] = (DWORD)(ULONG_PTR)GpDescBack;
     t[7 * (n + 1)] = 0;
     g_gpPlayerN = n;
-    g_lpTable[LP_PLAYER] = t;
-    g_lpCount[LP_PLAYER] = n + 1;
-    g_lpTitle[LP_PLAYER] = MSG_GP0 + GPM_T_PLAYER;
+    g_opTable[OP_PLAYER] = t;
+    g_opCount[OP_PLAYER] = n + 1;
+    g_opTitle[OP_PLAYER] = MSG_GP0 + GPM_T_PLAYER;
 }
 // v3.37 MN337: the tables hold every row (Player with Regeneration: 10 of 11; Enemies 6 of 7; Special 5 of 6; Option 5: 9)
 typedef char GpPlayerFits[(1 + 3 + PC_COUNT + 1) * 7 + 1 <= sizeof g_rowsPlayer / sizeof g_rowsPlayer[0] ? 1 : -1];  // v3.47 CT347: 4 -> 3 again (Stick Movement left)
@@ -1055,10 +1052,10 @@ static int GpBuildPages(const DWORD *stockRows, const DWORD *bcRow, const DWORD 
         nE = FiEnemyRow(enemy, nE);
         g_gpEnemyN = nE;
         GpBackRow(enemy, nE, stockRows);
-        g_lpCount[LP_ENEMY] = nE + 1;  // v3.37 MN337: 6 (was 7 with One-Hit Kill)  // v3.50 EF350: 7  // v3.50 MERGE: 8 with FI350's Fade In (row step 32: <= 8 rows)
+        g_opCount[OP_ENEMY] = nE + 1;  // v3.37 MN337: 6 (was 7 with One-Hit Kill)  // v3.50 EF350: 7  // v3.50 MERGE: 8 with FI350's Fade In (row step 32: <= 8 rows)
     }
-    g_lpTable[LP_ENEMY] = enemy;
-    g_lpTitle[LP_ENEMY] = MSG_GP0 + GPM_T_ENEMY;
+    g_opTable[OP_ENEMY] = enemy;
+    g_opTitle[OP_ENEMY] = MSG_GP0 + GPM_T_ENEMY;
     // Special: Death Presence (v3.27.0), After Shock (v3.29 AFTERIMAGE), Echo Doubles, Echo Count (v3.30 ECHO330), Back
     // (v3.37 MN337: No Clip left for Option 5)
     {
@@ -1072,20 +1069,20 @@ static int GpBuildPages(const DWORD *stockRows, const DWORD *bcRow, const DWORD 
         GtFillRow(special + 7 * nS++);
         g_gpSpecialN = nS;
         GpBackRow(special, nS, stockRows);
-        g_lpCount[LP_SPECIAL] = nS + 1;  // v3.37 MN337: 5 (was 6 with No Clip)
+        g_opCount[OP_SPECIAL] = nS + 1;  // v3.37 MN337: 5 (was 6 with No Clip)
     }
-    g_lpTable[LP_SPECIAL] = special;
-    g_lpTitle[LP_SPECIAL] = MSG_GP0 + GPM_T_SPECIAL;
-    g_lpParent[LP_PLAYER] = g_lpParent[LP_ENEMY] = g_lpParent[LP_SPECIAL] = 4;
-    g_lpParentRow[LP_PLAYER] = g_gpTop[GPT_PLAYER];  // v3.37 MN337: Back lands on the row that opened the folder
-    g_lpParentRow[LP_ENEMY] = g_gpTop[GPT_ENEMY];
-    g_lpParentRow[LP_SPECIAL] = g_gpTop[GPT_SPECIAL];
-    RzBuildPage(stockRows, bcRow, g_rowsRando, g_gpTop[GPT_RANDO]);  // v3.48 RZ348: the Randomizer page (LP_RANDO, parent Option 5)
+    g_opTable[OP_SPECIAL] = special;
+    g_opTitle[OP_SPECIAL] = MSG_GP0 + GPM_T_SPECIAL;
+    g_opParent[OP_PLAYER] = g_opParent[OP_ENEMY] = g_opParent[OP_SPECIAL] = 4;
+    g_opParentRow[OP_PLAYER] = g_gpTop[GPT_PLAYER];  // v3.37 MN337: Back lands on the row that opened the folder
+    g_opParentRow[OP_ENEMY] = g_gpTop[GPT_ENEMY];
+    g_opParentRow[OP_SPECIAL] = g_gpTop[GPT_SPECIAL];
+    RzBuildPage(stockRows, bcRow, g_rowsRando, g_gpTop[GPT_RANDO]);  // v3.48 RZ348: the Randomizer page (OP_RANDO, parent Option 5)
     LogV("gameplay: Option 5 = No Clip %d, Curse Meter %d, Extended Toolbelt %d, Stackable Items %d, Item Shine %d, Player %d, "
          "Enemies %d, Special %d, Randomizer %d, Exit %d; Player %d rows, Enemies %d, Special %d, Randomizer %d (with Back)",
          g_gpTop[GPT_NC], g_gpTop[GPT_CURSE], g_gpTop[GPT_TB], g_gpTop[GPT_STACK], g_gpTop[GPT_SHINE], g_gpTop[GPT_PLAYER],
-         g_gpTop[GPT_ENEMY], g_gpTop[GPT_SPECIAL], g_gpTop[GPT_RANDO], g_gpTop[GPT_EXIT], g_lpCount[LP_PLAYER], g_lpCount[LP_ENEMY],
-         g_lpCount[LP_SPECIAL], g_lpCount[LP_RANDO]);  // v3.37 MN337  // v3.48 RZ348: + Randomizer
+         g_gpTop[GPT_ENEMY], g_gpTop[GPT_SPECIAL], g_gpTop[GPT_RANDO], g_gpTop[GPT_EXIT], g_opCount[OP_PLAYER], g_opCount[OP_ENEMY],
+         g_opCount[OP_SPECIAL], g_opCount[OP_RANDO]);  // v3.37 MN337  // v3.48 RZ348: + Randomizer
     return n;
 }
 // v3.37 MN337: without the sub-screen fade the folders cannot open: Option 5 = Item Shine + Exit (as before); the rows
@@ -1099,8 +1096,8 @@ static int GpNoFadeLayout(const DWORD *stockRows, DWORD *play)
     g_playShineRow = 0;
     for (k = 0; k < GPT_N; ++k) g_gpTop[k] = -1;
     g_gpTop[GPT_SHINE] = 0, g_gpTop[GPT_EXIT] = 1;
-    g_lpParent[LP_PLAYER] = g_lpParent[LP_ENEMY] = g_lpParent[LP_SPECIAL] = -1;
-    g_lpParent[LP_RANDO] = -1;  // v3.48 RZ348 (the Randomizer's settings still apply from the ini)
+    g_opParent[OP_PLAYER] = g_opParent[OP_ENEMY] = g_opParent[OP_SPECIAL] = -1;
+    g_opParent[OP_RANDO] = -1;  // v3.48 RZ348 (the Randomizer's settings still apply from the ini)
     g_gpMenu = 0;
     return 2;
 }
@@ -1111,9 +1108,9 @@ typedef char GpTextsFit[GPM_N <= MSG_PC0 - MSG_GP0 ? 1 : -1];  // the id block i
 static int GpLongValW(int page, int row)
 {
     int v;
-    if (page != LP_ENEMY || row != g_gpEnemyFollow || row < 0 || !g_gpMenu) return 0;  // v3.37 MN337: its recorded row (was 2)
+    if (page != OP_ENEMY || row != g_gpEnemyFollow || row < 0 || !g_gpMenu) return 0;  // v3.37 MN337: its recorded row (was 2)
     v = (int)g_gp[GP_FOLLOW];
-    if (v < 0 || v >= kGpCount[GP_FOLLOW] || (int)strlen(kGpName[GP_FOLLOW][v]) <= LONGVAL_CHARS) return 0;
+    if (v < 0 || v >= kGpCount[GP_FOLLOW] || (int)strlen(OlShow(OLM_ENEMIES_DOOR_CHASE, kGpName[GP_FOLLOW][v])) <= LONGVAL_CHARS) return 0;  // v3.53 OL1: the shown word (Both: no move)
     return (int)(LabelW(g_txtGp[GPM_V0 + GP_FOLLOW * GP_VMAX + v]) + 0.5f);
 }
 

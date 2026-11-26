@@ -105,9 +105,10 @@
 #include <intrin.h>
 #pragma intrinsic(_ReturnAddress)
 #include "interp.h"  // v2.1: FRAME INTERPOLATION
+#include "ol_words.h"  // v3.53 OL1: the Options words (generated from the plan's layout_data.py; test\ol_words_test.c)
 
 #ifndef SH4WM_VERSION  // a test build may name itself (cl /DSH4WM_VERSION=...)
-#define SH4WM_VERSION "3.52.0"  // v3.52 MERGE: 3.52.0 (SH352 Shadows: the Darkness row 25 -> 100 % (Left lighter), a reason logged for every composite that is not soft (4:1F and cut-scene 0x43 have no real-time shadow in the game); EP352 Enemy Pursuit: Forgetful's victims' ghosts give up at 1200 u / 3 s, after 8 s or 3 s out of sight, both levels keep a ghost calm after its rest and set its dives back; HB352 Enemy Health Bars only for enemies the game draws in the room, a boss's bar at any distance; TP352 Ghost Teleport: every landing proven by her body and the floor map, freed from a wall after a warp; QL352 the Extra Menu's Quick Load inside the pause (hidden [ExtraMenu] QuickLoadInPause); FX352 Depth of Field with a close camera, Bloom Off / Low / Medium / High / Ultra (migrated once), the Otherworld Lens at 70 % (hidden LensBase); SND352 Sound: Mono / Stereo / Headphones / Surround, the Sound page (Stereo Width, Room Reverb, Night Mode), eleven exe sites; MERGE the sound keeper waits while Quick Load from the pause holds the sound (sound_sim.h SndKeepStep); the MSG_V52 block, SND352 V52 + 0 .. 18); v3.51 MERGE: 3.51.0 (MU351 the level music stays paused in the Extra Menu's Storage Chest / Save Game / Load Game (hidden [ExtraMenu] PauseSound); SN351 Randomizer Monsters: the Subway's first Sniffer Dogs (room 2:2's event dogs) roll once story flag 130 is set, a roll of the own type rolls once more (hidden [Randomizer] MonsterRollAgain); TP351 Ghost Teleport never behind an enemy on the other side of collision (hidden GhostTeleportBehindCollision); EP351 Enemy Pursuit inside the room: monsters give up after 10 / 4 s unsensed, victims' ghosts when far or after a long chase, then rest (hidden PursuitInRoom); PT351 Fade + Portal's tar portal: the game's own wall-portal draws and the ghost's own strands (data site 0x62BC98), the arriving ghost held 2.5 s (hidden FadeInPortalDraw / FadeInHold); MERGE a ghost in the tar portal's hold is not judged by Enemy Pursuit (its timers start when the hold ends); the MSG_V51 text block, none used); v3.50 MERGE: 3.50.0 (RM350 Randomizer Monsters: a save's own stock records are adopted and rolled (This World now works in a save-based game) + the All Worlds value; RL350 Eileen Outfit: every companion outfit, a draw per room load (at most two rooms alike, the final fight keeps its outfit), Ghosts Spots 800 + away, never at another ghost's place, their records moved with them; R302 Room 302's look / walk rows for Henry and Eileen (Option 4 > Room 302, export SH4R_Room302 @200; the hand-over with Playable Eileen: inert until PE v1.25.0 yields, its look sites 0x52DF74 / 0x52DCC6 / 0x52DD14 only then); TP350 Ghost Teleport behind the enemy she faces only, from 5000, and ahead through walls onto reachable floor; EF350 Enemies Follow "Victims" (was Victims Only), Enemy Pursuit Relentless / Normal / Forgetful, the followers kept across a save / load (side file; 0x4FC1A4 / 0x4FC6ED); FI350 Fade In: monsters and victims fade in over 0.8 s, arriving ghosts from a blood portal; the MSG_V50 text block); v3.49 MERGE: 3.49.0 (GT349 Ghost Teleport held = continuous warps after each fade-in, no cooldown, never across or into a walk-in event zone, no warp at a door / room change / fade / script; SH349 Shadow Darkness on the Tremers' wall shadows ([Shadows] TremerShadows, hook 0x45F4CA); SB349 the save / load list's highlight bar in the game's blue ([SaveBanks] ListBar, 11 bytes at 0x56FDCF) + the pointer kept on the Bank row; LK349 [Input] OmniLook: Room 302's analog right-stick look; EF349 Enemies Follow Victims Only (values 0 Off / 1 Monsters / 2 Victims Only / 3 Monsters + Victims); RZ349 Randomizer Monsters Off / This Room / This World + the save filter 0x465468; RZ349L Randomizer Eileen Outfit (companion) and Ghosts Spots; the MSG_RZ1 text block); v3.48 MERGE: 3.48.0 (OM348 Option 2's row is Omni-Directional Movement Off / On, On = v3.47's Analog, Direction removed and migrated to On; SB348 the save list's Bank row: Left / Right 1 bank, Q / E and the shoulders 10 banks (round 2: not the triggers), the mouse held on an arrow repeats, one log line per settled change; RZ348 the Randomizer folder on Option 5: Seed, New Seed, Items Off / Shuffle / Random, Keep Specials, Room 302; round 2: weapons in the pool, the pickup looks like its new item, Change Each Visit); v3.47 MERGE: 3.47.0 (PX347 the pixel checks read each cell at its centre + the source, DF347 the depth of field eases in, SB347 the save list's Bank row in the Menu Font + clickable arrows, CT347 Stick Movement on Option 2 (Control) + SH4R_StickAmount export 199 + the focus-loss line, RG347 Refined's own Regeneration); v3.46 OM346 (Stick Movement: 360-degree / analog left stick); v3.45 MERGE (QS345 the player texts + DoF Low / Medium / High + items log once, RB345 a read back that works under dgVoodoo2); v3.44 MERGE (CS344 shader forms + pixel check + Bloom Very High, DF344 DoF alignment + Screen Effects rows + lighter panels, GT344 Run+Action / Richard fade / forward warp, FN344 Menu Font row + 16-bit renderer removed); v3.43 MERGE: 3.43.0 (SH343 shadow c1 read-back + Darkness 40 / 25 %, GT343 Ghost Teleport, QC343 Quick Charge (replaces Tireless; export 198), DF343 Depth of Field, PP343 Bloom / Colour Grading / Otherworld Lens, FN343 HD menu font); v3.42 MERGE (EG342 2D pixel alignment + edge quads, SM342 Room 302 DP off / Curse Meter Off-On / shadow Darkness / peep gate); v3.41 MERGE: 3.41.0 (SH341 one Soft + pause picture on the GPU, EN341 ghost copies, VW341 window views / edges, DP341 Death Presence gate); v3.40 MERGE: 3.40.0 (SH340 shadows + LG340 logs); v3.39 PR339: 3.39.0; v3.39 PR339 (Presentation clean-up, Renderer, Opening, F7 preview); v3.38.1 HF3381: 3.38.1; v3.38.1 HF3381 (the curse meter fades under Hide Gauge: no wake on a drift); v3.38 MERGE: 3.38.0 (HB338 + EN338 + DR338; v3.37 MERGE: 3.37.0, MN337 + INV337 + CP337; v3.36.1 TL3361: 3.36.1; v3.36 MERGE: 3.36.0; v3.35.1 HF3351: 3.35.1; v3.35 W0: 3.35.0; v3.34 PEC334: 3.34.0; v3.33 LOG333: 3.33.0; v3.32 MERGE: 3.32.0; v3.31 MERGE: 3.31.0; v3.30 MERGE: 3.30.0; v3.29 merge: was still "3.27.2" in v3.28.0)
+#define SH4WM_VERSION "3.55.0"  // v3.55 OL56: 3.55.0 (the Options layout, rounds R5 + R6: the stock rows on their plan pages (the sound three on Sound, Music / Effects Volume by name through the one exe patch 0x525672 (the bar test by the record's input), Invert Look / Head Bob / Left / Right in Controls > Room 302, the Subtitles / Film Grain / Shadows switches row 0 of their folders (pure folders), Blood Colour on Gameplay; Renderer back on Display, Menu Font / Start-Up on Interface, Interface > Pause Menu again; every page at the plan's count, 10 rows at most); hidden [Options] StockMoves=0 = v3.54's interim layout; the pause Extra Menu's Eileen Outfit and its Camera page in the Options names; one text block MSG_V55; no ini key or written value changes)  // v3.54 OL34: 3.54.0 (the Options layout, rounds R3 + R4: the six pages Display, Controls, Interface, Sound, Effects, Gameplay and their folders (PLAN section 6's ids, LP_MAX 22, a third level Controls > Camera > Steering); Option 5 = Gameplay with Player / Combat / Items / Enemies / Powers / Randomizer; Option 4's rows on Display / Controls > Camera / Room 302; Option 6 = Interface > Menus with Menu Font and Start-Up; Screen Effects = the top page Effects with Film Grain > and Shadows >; v3.52's Sound page = top page 3; the stock rows stay on their stock pages until R5 (PLAN section 4's fallbacks: 11 rows at most); every row keeps its record, ini key and words; one text block MSG_V54; no new exe site)  // // v3.53 MERGE: 3.53.0 (the Options layout, rounds R1 + R2: OL1 every Options label, value and description in the plan's words on the rows where they are (ol_words.h from layout_data.py; stock rows renamed through Refined's copies of their records, BGM / SE Volume keep their labels; page titles are plain names; no ini key or word changes); OL2 the look: a page strip under the title, a blue triangle on folder rows, "Parent > Page" titles on hidden pages, the dependent rows grey and inert while their switch is off with the reason first, the glyph lines (hidden [Options] Look); MERGE the grey line is one line of at most 52 characters (the reason, then the row's own line, else the reason alone), the reasons and crumbs read OL1's names, titles are taken whole, value-less rows are not measured; one MSG_V53 block, OL1 V53 + 0 .. 89 / 400 .. 409 / 420, OL2 + 512 .. 551; no new exe site); v3.52 MERGE: 3.52.0 (SH352 Shadows: the Darkness row 25 -> 100 % (Left lighter), a reason logged for every composite that is not soft (4:1F and cut-scene 0x43 have no real-time shadow in the game); EP352 Enemy Pursuit: Forgetful's victims' ghosts give up at 1200 u / 3 s, after 8 s or 3 s out of sight, both levels keep a ghost calm after its rest and set its dives back; HB352 Enemy Health Bars only for enemies the game draws in the room, a boss's bar at any distance; TP352 Ghost Teleport: every landing proven by her body and the floor map, freed from a wall after a warp; QL352 the Extra Menu's Quick Load inside the pause (hidden [ExtraMenu] QuickLoadInPause); FX352 Depth of Field with a close camera, Bloom Off / Low / Medium / High / Ultra (migrated once), the Otherworld Lens at 70 % (hidden LensBase); SND352 Sound: Mono / Stereo / Headphones / Surround, the Sound page (Stereo Width, Room Reverb, Night Mode), eleven exe sites; MERGE the sound keeper waits while Quick Load from the pause holds the sound (sound_sim.h SndKeepStep); the MSG_V52 block, SND352 V52 + 0 .. 18); v3.51 MERGE: 3.51.0 (MU351 the level music stays paused in the Extra Menu's Storage Chest / Save Game / Load Game (hidden [ExtraMenu] PauseSound); SN351 Randomizer Monsters: the Subway's first Sniffer Dogs (room 2:2's event dogs) roll once story flag 130 is set, a roll of the own type rolls once more (hidden [Randomizer] MonsterRollAgain); TP351 Ghost Teleport never behind an enemy on the other side of collision (hidden GhostTeleportBehindCollision); EP351 Enemy Pursuit inside the room: monsters give up after 10 / 4 s unsensed, victims' ghosts when far or after a long chase, then rest (hidden PursuitInRoom); PT351 Fade + Portal's tar portal: the game's own wall-portal draws and the ghost's own strands (data site 0x62BC98), the arriving ghost held 2.5 s (hidden FadeInPortalDraw / FadeInHold); MERGE a ghost in the tar portal's hold is not judged by Enemy Pursuit (its timers start when the hold ends); the MSG_V51 text block, none used); v3.50 MERGE: 3.50.0 (RM350 Randomizer Monsters: a save's own stock records are adopted and rolled (This World now works in a save-based game) + the All Worlds value; RL350 Eileen Outfit: every companion outfit, a draw per room load (at most two rooms alike, the final fight keeps its outfit), Ghosts Spots 800 + away, never at another ghost's place, their records moved with them; R302 Room 302's look / walk rows for Henry and Eileen (Option 4 > Room 302, export SH4R_Room302 @200; the hand-over with Playable Eileen: inert until PE v1.25.0 yields, its look sites 0x52DF74 / 0x52DCC6 / 0x52DD14 only then); TP350 Ghost Teleport behind the enemy she faces only, from 5000, and ahead through walls onto reachable floor; EF350 Enemies Follow "Victims" (was Victims Only), Enemy Pursuit Relentless / Normal / Forgetful, the followers kept across a save / load (side file; 0x4FC1A4 / 0x4FC6ED); FI350 Fade In: monsters and victims fade in over 0.8 s, arriving ghosts from a blood portal; the MSG_V50 text block); v3.49 MERGE: 3.49.0 (GT349 Ghost Teleport held = continuous warps after each fade-in, no cooldown, never across or into a walk-in event zone, no warp at a door / room change / fade / script; SH349 Shadow Darkness on the Tremers' wall shadows ([Shadows] TremerShadows, hook 0x45F4CA); SB349 the save / load list's highlight bar in the game's blue ([SaveBanks] ListBar, 11 bytes at 0x56FDCF) + the pointer kept on the Bank row; LK349 [Input] OmniLook: Room 302's analog right-stick look; EF349 Enemies Follow Victims Only (values 0 Off / 1 Monsters / 2 Victims Only / 3 Monsters + Victims); RZ349 Randomizer Monsters Off / This Room / This World + the save filter 0x465468; RZ349L Randomizer Eileen Outfit (companion) and Ghosts Spots; the MSG_RZ1 text block); v3.48 MERGE: 3.48.0 (OM348 Option 2's row is Omni-Directional Movement Off / On, On = v3.47's Analog, Direction removed and migrated to On; SB348 the save list's Bank row: Left / Right 1 bank, Q / E and the shoulders 10 banks (round 2: not the triggers), the mouse held on an arrow repeats, one log line per settled change; RZ348 the Randomizer folder on Option 5: Seed, New Seed, Items Off / Shuffle / Random, Keep Specials, Room 302; round 2: weapons in the pool, the pickup looks like its new item, Change Each Visit); v3.47 MERGE: 3.47.0 (PX347 the pixel checks read each cell at its centre + the source, DF347 the depth of field eases in, SB347 the save list's Bank row in the Menu Font + clickable arrows, CT347 Stick Movement on Option 2 (Control) + SH4R_StickAmount export 199 + the focus-loss line, RG347 Refined's own Regeneration); v3.46 OM346 (Stick Movement: 360-degree / analog left stick); v3.45 MERGE (QS345 the player texts + DoF Low / Medium / High + items log once, RB345 a read back that works under dgVoodoo2); v3.44 MERGE (CS344 shader forms + pixel check + Bloom Very High, DF344 DoF alignment + Screen Effects rows + lighter panels, GT344 Run+Action / Richard fade / forward warp, FN344 Menu Font row + 16-bit renderer removed); v3.43 MERGE: 3.43.0 (SH343 shadow c1 read-back + Darkness 40 / 25 %, GT343 Ghost Teleport, QC343 Quick Charge (replaces Tireless; export 198), DF343 Depth of Field, PP343 Bloom / Colour Grading / Otherworld Lens, FN343 HD menu font); v3.42 MERGE (EG342 2D pixel alignment + edge quads, SM342 Room 302 DP off / Curse Meter Off-On / shadow Darkness / peep gate); v3.41 MERGE: 3.41.0 (SH341 one Soft + pause picture on the GPU, EN341 ghost copies, VW341 window views / edges, DP341 Death Presence gate); v3.40 MERGE: 3.40.0 (SH340 shadows + LG340 logs); v3.39 PR339: 3.39.0; v3.39 PR339 (Presentation clean-up, Renderer, Opening, F7 preview); v3.38.1 HF3381: 3.38.1; v3.38.1 HF3381 (the curse meter fades under Hide Gauge: no wake on a drift); v3.38 MERGE: 3.38.0 (HB338 + EN338 + DR338; v3.37 MERGE: 3.37.0, MN337 + INV337 + CP337; v3.36.1 TL3361: 3.36.1; v3.36 MERGE: 3.36.0; v3.35.1 HF3351: 3.35.1; v3.35 W0: 3.35.0; v3.34 PEC334: 3.34.0; v3.33 LOG333: 3.33.0; v3.32 MERGE: 3.32.0; v3.31 MERGE: 3.31.0; v3.30 MERGE: 3.30.0; v3.29 merge: was still "3.27.2" in v3.28.0)
 #endif
 
 static HMODULE g_self;
@@ -559,7 +560,7 @@ static const DWORD kSubRgb[SUB_VMAX] = { 0x808080, 0x008080, 0x808000, 0x208020,
 static volatile LONG g_sub[SUB_N] = { 1, 0, 0, 0, 0, 0 };
 static LONG g_snapSub[SUB_N];
 static int g_subOn;            // the hooks are installed
-#define LP_SUB 6                   // the Subtitle Style page: outside the Option 1..6 cycle (LP_N), slot 0
+#define OP_SUB 6                   // the Subtitle Style page: outside the Option 1..6 cycle (LP_N), slot 0  // v3.54 OL34: an origin page (below)
 static volatile LONG g_subReq;     // 1 = open the Subtitle Style page, 2 = back to Option 3 (3 / 4: Screen Effects)
 static int g_subMenu;              // Option 3's Subtitles row opens the page
 // v3.16.0 (staging/screen_effects_v2/RE_fade.md): the hidden pages open and close through the stock sub-screen exit
@@ -594,21 +595,33 @@ static volatile LONG g_fx[FX_N] = { 1, 0, 0, 0, 0 };
 static LONG g_snapFx[FX_N];
 static int g_fxOn;                 // the three core calls are patched (all or nothing)
 static int g_fxMenu;               // Option 3's Noise Effect row opens the page
-#define LP_FX 7                    // the Screen Effects page: outside the cycle, slot 1 (7 % 3; Option 3 is slot 2)
+#define OP_FX 7                    // the Screen Effects page: outside the cycle, slot 1 (7 % 3; Option 3 is slot 2)  // v3.54 OL34: an origin page
 // v3.25.0 (staging/feedback_v325/PLAN.md 4.1): Option 5's hidden pages, in slots other than Option 5's (slot 1); lp 10 / 13
 // would be slot 1 too. Their requests: REQ_OPEN | lp opens lp from its parent, REQ_BACK returns to the parent.
-#define LP_PLAYER 8                // slot 2
-#define LP_ENEMY 9                 // slot 0
-#define LP_SPECIAL 11              // v3.27.0: Option 5 > Special (slot 2; its parent Option 5 is slot 1)
-#define LP_SHD 10                  // v3.40 SH340: Option 3 > Realtime Shadow > Shadows (slot 1; its parent Option 3 is slot 2)
+// v3.54 OL34 (the Options layout, rounds R3 + R4: staging/options_layout/PLAN.md sections 2, 5, 6, 9; layout.inc): the
+// v3.53 pages are built as before but as ORIGIN pages (OP_*, g_opTable ...: Options 1-6 = 0..5, their hidden pages below).
+// layout.inc then builds the live pages of the plan (LP_*, layout_sim.h: Display, Controls, Interface, Sound, Effects,
+// Gameplay and their folders, PLAN section 6's ids, LP_MAX 22) from those records, found by their input function, and
+// keeps each row's origin (page, row): the per-row answers of v3.53 (the yellow mark, the greys, the long values, the
+// arrow rules) ask in origin terms, so they work unchanged on the moved rows.
+#define OP_PLAYER 8                // slot 2
+#define OP_ENEMY 9                 // slot 0
+#define OP_SPECIAL 11              // v3.27.0: Option 5 > Special (slot 2; its parent Option 5 is slot 1)
+#define OP_SHD 10                  // v3.40 SH340: Option 3 > Realtime Shadow > Shadows (slot 1; its parent Option 3 is slot 2)
 // (10: v3.33 CAM333's Option 6 > Camera page; v3.37 CP337: its settings moved to the pause menu, the page is gone)
-#define LP_DOF 12                  // v3.43 DF343: Option 3 > Hide Icon > Depth of Field (slot 0; its parent Option 3 is slot 2)
-#define LP_RANDO 14                // v3.48 RZ348: Option 5 > Randomizer (slot 2; its parent Option 5 is slot 1; 13 would be slot 1)
-#define LP_R302 13                 // v3.50 R302: Option 4 > Room 302 (slot 1; its parent Option 4 is slot 0)
-#define LP_SND 16                  // v3.52 SND352: Option 1 > Sound > the Sound page (slot 1; its parent Option 1 is slot 0; 15 would be slot 0)
-#define LP_MAX 17                  // the page arrays (v3.43 DF343: + LP_DOF; was 12)  // v3.48 RZ348: 13 -> 15 (+ LP_RANDO)  // v3.52 SND352: 15 -> 17 (+ LP_SND)
+#define OP_DOF 12                  // v3.43 DF343: Option 3 > Hide Icon > Depth of Field (slot 0; its parent Option 3 is slot 2)
+#define OP_RANDO 14                // v3.48 RZ348: Option 5 > Randomizer (slot 2; its parent Option 5 is slot 1; 13 would be slot 1)
+#define OP_R302 13                 // v3.50 R302: Option 4 > Room 302 (slot 1; its parent Option 4 is slot 0)
+#define OP_SND 16                  // v3.52 SND352: Option 1 > Sound > the Sound page (slot 1; its parent Option 1 is slot 0; 15 would be slot 0)
+#define OP_PRES 3                  // v3.54 OL34: Option 4 (Presentation), Option 5 (Gameplay), Option 6 (Extra Menu) as origin pages
+#define OP_PLAY 4
+#define OP_EXTRA 5
+#define OP_MAX 17                  // the origin page arrays (v3.52's LP_MAX)
+#include "layout_sim.h"            // v3.54 OL34: the live page ids (LP_DISPLAY .. LP_STEER, LP_MAX 22, LP_N 6) and the rows
+#include "volbar_sim.h"            // v3.55 OL56: the volume-bar rule by record (0x525672; layout.inc VbInstall)
 #define REQ_OPEN 0x100
 #define REQ_BACK 0x200
+#define REQ_JUMP 0x400  // v3.55 OL56 (R6): | a top page: the page strip's click through the fade route (SubScreen)
 // review FX-002 / FX-003: the preview gate. The post-pass wrapper counts its calls (g_fxFrame, incremented at the END
 // of each call); the page's row-0 draw stores the count (g_fxStamp); the preview applies only when they are equal (the
 // page was drawn in this same frame). -1 = never drawn (set again when Options opens); the counter skips -1.
@@ -1197,7 +1210,8 @@ static int MonModeSize(int k, DWORD *w, DWORD *h)
 
 static const char *MonLabel(int k)  // v3.19.0: by rank: Main / Secondary / Tertiary / Quaternary Display, then "Display n"
 {
-    static const char *const kRank[4] = { "Main Display", "Secondary Display", "Tertiary Display", "Quaternary Display" };
+    static const char *const kRank[4] = { OLW_DISPLAY_MONITOR_V_MAIN, OLW_DISPLAY_MONITOR_V_SECOND, OLW_DISPLAY_MONITOR_V_THIRD,
+                                          OLW_DISPLAY_MONITOR_V_FOURTH };  // v3.53 OL1: Main / Second / Third / Fourth (were "Main Display" ..., 18 characters)
     static char s[MON_MAX][32];
     if (k < 0 || k >= g_monN) return "the primary monitor";
     if (k < 4) return kRank[k];
@@ -1365,10 +1379,10 @@ enum { MSG_ASPECT = MSG_BASE, MSG_ASPECT_DESC, MSG_ASP0, MSG_RES0 = MSG_ASP0 + A
        MSG_VIBV0, MSG_VIBD = MSG_VIBV0 + 4,  // v3.14.0
        MSG_FXT, MSG_FXL0, MSG_FXD0 = MSG_FXL0 + FX_N + 1, MSG_FXV0 = MSG_FXD0 + FX_N + 1,  // v3.15.0: + Back
        MSG_FXROWD = MSG_FXV0 + FX_N * FX_VMAX,
-       MSG_GP0, MSG_PC0 = MSG_GP0 + 128, MSG_HB0 = MSG_PC0 + 48, MSG_CAM0 = MSG_HB0 + 32, MSG_PERF0 = MSG_CAM0 + 256, MSG_INV0 = MSG_PERF0 + 8, MSG_SHD0 = MSG_INV0 + 16, MSG_DOF0 = MSG_SHD0 + 32, MSG_PP0 = MSG_DOF0 + 32, MSG_GT0 = MSG_PP0 + 48, MSG_FN0 = MSG_GT0 + 16, MSG_OM0 = MSG_FN0 + 16, MSG_RG0 = MSG_OM0 + 16, MSG_SB0 = MSG_RG0 + 16, MSG_RZ0 = MSG_SB0 + 16, MSG_RZ1 = MSG_RZ0 + 32, MSG_V50 = MSG_RZ1 + 32, MSG_V51 = MSG_V50 + 64, MSG_V52 = MSG_V51 + 32, MSG_END = MSG_V52 + 64 };  // v3.52 EP352: + the MSG_V52 block (BRIEF_COMMON: w1 V52 + 0..23, w2 + 24..27, w3 + 28..39, w4 + 40..43, w5 + 44..47, w6 + 48..51, w7 EP352 + 52..55 (none used: the Enemy Pursuit row keeps its V50 ids), + 56..63 unused; the merge writes it once)  // v3.52 HB352: + the MSG_V52 block (BRIEF_COMMON: w1 V52 + 0..23, w2 HB352 + 24..27 (none used), w3 + 28..39, w4 + 40..43, w5 + 44..47, w6 + 48..51, w7 + 52..55, + 56..63 unused; the merge writes it once)  // v3.52 TP352: + the MSG_V52 block (BRIEF_COMMON: w5 teleport V52 + 44..47, TP352 uses none; the merge writes it once)  // v3.52 QL352: + the MSG_V52 block (BRIEF_COMMON: w1 V52 + 0..23, w2 + 24..27, w3 + 28..39, w4 + 40..43, w5 + 44..47, w6 QL352 + 48..51 (none used), w7 + 52..55; the merge writes it once)  // v3.52 FX352: + the MSG_V52 block (BRIEF_COMMON: w1 V52 + 0..23, w2 + 24..27, w3 FX352 + 28..39 (none used: the Bloom, Otherworld Lens and Depth of Field rows keep their MSG_PP0 / MSG_DOF0 texts), w4 + 40..43, w5 + 44..47, w6 + 48..51, w7 + 52..55; the merge writes it once)  // v3.52 SND352: + the MSG_V52 block (BRIEF_COMMON: w1 SND352 sound.inc SNDM_* V52 + 0..23 (19 used), w2 + 24..27, w3 + 28..39, w4 + 40..43, w5 + 44..47, w6 + 48..51, w7 + 52..55, + 56..63 unused; the merge writes it once)  // v3.51 MERGE: one MSG_V51 block for all five (w5 MU351, w1 TP351, w2 EP351, w3 PT351 wrote it; w4 SN351 did not edit this file): V51 + 0 .. 3 TP351, + 4 .. 15 EP351, + 16 .. 23 PT351, + 24 .. 27 SN351, + 28 .. 31 MU351, none used (the Enemy Pursuit and Fade In rows keep their V50 ids); the unused ids reach ShText's catch-all range as the unused blocks before; MSG_END 29907 (probe351)  // v3.51 MU351: + the MSG_V51 block (BRIEF_COMMON: w1 V51 + 0..3, w2 + 4..15, w3 + 16..23, w4 + 24..27, w5 MU351 + 28..31 (none used); the merge writes it once)  // v3.51 TP351: + the MSG_V51 block (BRIEF_COMMON: w1 teleport V51 + 0..3 (TP351 uses none), w2 + 4..15, w3 + 16..23, w4 + 24..27, w5 + 28..31; the merge writes it once)  // v3.51 EP351: + the MSG_V51 block (BRIEF_COMMON: w1 V51 + 0..3, w2 EP351 + 4..15 (none used: the Enemy Pursuit row keeps its V50 ids), w3 + 16..23, w4 + 24..27, w5 + 28..31; the merge writes it once)  // v3.51 PT351: + the MSG_V51 block (BRIEF_COMMON: w1 V51 + 0..3, w2 + 4..15, w3 PT351 + 16..23 (none used: the Fade In row keeps its V50 texts), w4 + 24..27, w5 + 28..31; the merge writes it once)  // v3.50 MERGE: one MSG_V50 block for all six (every worker wrote it): V50 + 0 .. 7 TP350 (none used), + 8 .. 15 FI350 fadein.inc FIM_* (8 of 8), + 16 .. 31 EF350 enmfollow.inc EFM_* (8 of 16), + 32 .. 63 R302 room302.inc R3M_* (30 of 32); RM350 RMT_ALL / RMT_DALL = RZ1 + 5 / + 6 (its RZ1 + 0 .. 15), RL350 none (RZ0 + 30 .. 31 and RZ1 + 24 .. 31 still free); MSG_END 29875 (probe350)  // v3.50 RM350: the v3.50 block (BRIEF_COMMON; the merge writes it once; RM350 uses none of it: rzmon.inc RMT_ALL / RMT_DALL = RZ1 + 5 / + 6)  // v3.50 RL350: + the MSG_V50 block (BRIEF_COMMON: w1 + 0..7, w4 + 8..15, w5 + 16..31, w6 + 32..63; the merge writes it once; RL350 uses none of it)  // v3.50 R302: + the MSG_V50 block (BRIEF_COMMON: w1 V50 + 0..7, w4 + 8..15, w5 + 16..31, w6 R302 room302.inc R3M_* + 32..63)  // v3.50 TP350: + the MSG_V50 block (BRIEF_COMMON: w1 teleport V50 + 0..7 (TP350 uses none), w4 + 8..15, w5 + 16..31, w6 + 32..63)  // v3.50 EF350: + the MSG_V50 block (BRIEF_COMMON; EF350 enmfollow.inc EFM_*: V50 + 16 .. 23 of its V50 + 16 .. 31)  // v3.50 FI350: the v3.50 block (BRIEF_COMMON: w1 V50 + 0..7, w4 FI350 fadein.inc FIM_* V50 + 8..15, w5 V50 + 16..31, w6 V50 + 32..63)  // v3.49 MERGE: one MSG_RZ1 block for both (RZ349 rzmon.inc RMT_*: RZ0 + 28 .. 29 and RZ1 + 0 .. 4 of its RZ1 + 0 .. 15; RZ349L rzlooks.inc RZLM_*: RZ1 + 16 .. 23 of its RZ1 + 16 .. 31; RZ0 + 30 .. 31 unused)  // v3.49 RZ349: + the MSG_RZ1 block (w3 RZ349 rzmon.inc: RZ0 + 28 .. 29 and RZ1 + 0 .. 15; w4: RZ0 + 30 .. 31 and RZ1 + 16 .. 31)  // v3.49 RZ349L: + the MSG_RZ1 block (BRIEF_COMMON: w3 RZ1 + 0..15, w4 rzlooks.inc RZLM_* at RZ1 + 16.., 8 of 16)  // v3.48 RZ348: + the MSG_RZ0 block (randomizer.inc RZM_*, 25 of 32)  // v3.47 MERGE: the v3.47 text-id chain (BRIEF_COMMON): MSG_OM0 (w1 CT347 omni.inc OMM_*, 11 of 16), MSG_RG0 (w4 RG347 regen.inc RGT_*, 6 of 16), MSG_SB0 (w3 SB347: reserved, no text used)  // v3.46 OM346: + the MSG_OM0 block (omni.inc OMM_*, 11 of 16)  // v3.43 MERGE: the v3.43 text-id chain (BRIEF_COMMON; DOF = DF343 dof.inc DFM_*, PP = PP343 post.inc PPM_*, GT = GT343 teleport.inc, FN = FN343: reserved, font.inc has no row)  // v3.42 SM342: the SHD block 16 -> 32 (the Shadows page's Darkness row: SHM_N 11 -> 18)  // v3.40 SH340: MSG_SHD0.. = shadows.inc's texts (SHM_*; was MSG_END = MSG_INV0 + 16)  // v3.37 MERGE: MSG_INV0.. = inventory.inc's texts (INVM_*, W2 INV337)  // v3.37 CP337: MSG_PERF0.. = perfhud.inc's texts (PERFT_*; was MSG_END = MSG_CAM0 + 256)  // v3.33 CAM333: MSG_CAM0.. = camera.inc's texts (CAMT_*; was MSG_END = MSG_HB0 + 32)  // v3.29 merge: the gameplay block 64 -> 128 (v3.29 AFTERIMAGE / v3.30 ECHO / v3.31 ENEMIES each raised it to 96, SUPPLY DROPS to 80; GPM_N is 105 with all of them); PLAYER PACK: MSG_PC0.. = playercheats.inc's texts (PCM_*); HUD BARS: MSG_HB0.. = hudbars.inc's texts  // v3.25.0: MSG_GP0.. = gameplay.inc's texts (GPM_*)  // v3.10.0: MSG_PAD0..+44 = Button Config pad names (buttoncfg.inc)  // v3.30 MERGE: unchanged; GPM_N 121 of 128 (AS330 + 2, ECHO330 + 7, EN330 + 7)  // v3.31 MERGE: unchanged (no new text id in v3.31)  // v3.32 MERGE: GPM_N 124 of 128 (NC332 + 3), HBM_N 16 of 32 (DHS332 + 2)
+       MSG_GP0, MSG_PC0 = MSG_GP0 + 128, MSG_HB0 = MSG_PC0 + 48, MSG_CAM0 = MSG_HB0 + 32, MSG_PERF0 = MSG_CAM0 + 256, MSG_INV0 = MSG_PERF0 + 8, MSG_SHD0 = MSG_INV0 + 16, MSG_DOF0 = MSG_SHD0 + 32, MSG_PP0 = MSG_DOF0 + 32, MSG_GT0 = MSG_PP0 + 48, MSG_FN0 = MSG_GT0 + 16, MSG_OM0 = MSG_FN0 + 16, MSG_RG0 = MSG_OM0 + 16, MSG_SB0 = MSG_RG0 + 16, MSG_RZ0 = MSG_SB0 + 16, MSG_RZ1 = MSG_RZ0 + 32, MSG_V50 = MSG_RZ1 + 32, MSG_V51 = MSG_V50 + 64, MSG_V52 = MSG_V51 + 32, MSG_V53 = MSG_V52 + 64, MSG_V54 = MSG_V53 + 576, MSG_V55 = MSG_V54 + 128, MSG_END = MSG_V55 + 64 };  // v3.55 OL56: one block MSG_V55 (64; layout.inc hands out MSG_V54 + 0 .. 127 and MSG_V55 + 0 .. 63 as one pool of 192: the stock moves' labels, lines and titles); MSG_END 30739 = 0x7813  // v3.54 OL34: one block MSG_V54 (layout.inc: the new pages' titles, rows and lines)  // v3.53 MERGE: one MSG_V53 block for both (w2 OL1 and w3 OL2 wrote it): V53 + 0 .. 89 OL1 OLT_* (90 texts), + 400 .. 409 the Filter lines, + 420 the Renderer line (+ 90 .. 399, 410 .. 419, 421 .. 511 free); + 512 .. 535 OL2 crumb titles, + 536 .. 542 the reasons, + 544 .. 551 the grey lines (+ 543, 552 .. 575 free); MsgText answers both above every catch-all (probe353); MSG_V53 29971, MSG_END 30547 = 0x7753  // v3.53 OL1: + the MSG_V53 block (BRIEF_COMMON: w2 OL1 V53 + 0..511 (the Options words: OlText, OLT_*), w3 OL2 + 512..575; w1 none; the merge writes it once)  // v3.53 OL2: + the MSG_V53 block (BRIEF_COMMON: w2 OL1 V53 + 0..511, w3 OL2 look.inc LK_* V53 + 512..575 (40 used: titles 512..535, reasons 536..543, grey descriptions 544..551), w1 none; MSG_END 30547 = 0x7753, under any 16-bit id limit; the merge writes it once)  // v3.52 EP352: + the MSG_V52 block (BRIEF_COMMON: w1 V52 + 0..23, w2 + 24..27, w3 + 28..39, w4 + 40..43, w5 + 44..47, w6 + 48..51, w7 EP352 + 52..55 (none used: the Enemy Pursuit row keeps its V50 ids), + 56..63 unused; the merge writes it once)  // v3.52 HB352: + the MSG_V52 block (BRIEF_COMMON: w1 V52 + 0..23, w2 HB352 + 24..27 (none used), w3 + 28..39, w4 + 40..43, w5 + 44..47, w6 + 48..51, w7 + 52..55, + 56..63 unused; the merge writes it once)  // v3.52 TP352: + the MSG_V52 block (BRIEF_COMMON: w5 teleport V52 + 44..47, TP352 uses none; the merge writes it once)  // v3.52 QL352: + the MSG_V52 block (BRIEF_COMMON: w1 V52 + 0..23, w2 + 24..27, w3 + 28..39, w4 + 40..43, w5 + 44..47, w6 QL352 + 48..51 (none used), w7 + 52..55; the merge writes it once)  // v3.52 FX352: + the MSG_V52 block (BRIEF_COMMON: w1 V52 + 0..23, w2 + 24..27, w3 FX352 + 28..39 (none used: the Bloom, Otherworld Lens and Depth of Field rows keep their MSG_PP0 / MSG_DOF0 texts), w4 + 40..43, w5 + 44..47, w6 + 48..51, w7 + 52..55; the merge writes it once)  // v3.52 SND352: + the MSG_V52 block (BRIEF_COMMON: w1 SND352 sound.inc SNDM_* V52 + 0..23 (19 used), w2 + 24..27, w3 + 28..39, w4 + 40..43, w5 + 44..47, w6 + 48..51, w7 + 52..55, + 56..63 unused; the merge writes it once)  // v3.51 MERGE: one MSG_V51 block for all five (w5 MU351, w1 TP351, w2 EP351, w3 PT351 wrote it; w4 SN351 did not edit this file): V51 + 0 .. 3 TP351, + 4 .. 15 EP351, + 16 .. 23 PT351, + 24 .. 27 SN351, + 28 .. 31 MU351, none used (the Enemy Pursuit and Fade In rows keep their V50 ids); the unused ids reach ShText's catch-all range as the unused blocks before; MSG_END 29907 (probe351)  // v3.51 MU351: + the MSG_V51 block (BRIEF_COMMON: w1 V51 + 0..3, w2 + 4..15, w3 + 16..23, w4 + 24..27, w5 MU351 + 28..31 (none used); the merge writes it once)  // v3.51 TP351: + the MSG_V51 block (BRIEF_COMMON: w1 teleport V51 + 0..3 (TP351 uses none), w2 + 4..15, w3 + 16..23, w4 + 24..27, w5 + 28..31; the merge writes it once)  // v3.51 EP351: + the MSG_V51 block (BRIEF_COMMON: w1 V51 + 0..3, w2 EP351 + 4..15 (none used: the Enemy Pursuit row keeps its V50 ids), w3 + 16..23, w4 + 24..27, w5 + 28..31; the merge writes it once)  // v3.51 PT351: + the MSG_V51 block (BRIEF_COMMON: w1 V51 + 0..3, w2 + 4..15, w3 PT351 + 16..23 (none used: the Fade In row keeps its V50 texts), w4 + 24..27, w5 + 28..31; the merge writes it once)  // v3.50 MERGE: one MSG_V50 block for all six (every worker wrote it): V50 + 0 .. 7 TP350 (none used), + 8 .. 15 FI350 fadein.inc FIM_* (8 of 8), + 16 .. 31 EF350 enmfollow.inc EFM_* (8 of 16), + 32 .. 63 R302 room302.inc R3M_* (30 of 32); RM350 RMT_ALL / RMT_DALL = RZ1 + 5 / + 6 (its RZ1 + 0 .. 15), RL350 none (RZ0 + 30 .. 31 and RZ1 + 24 .. 31 still free); MSG_END 29875 (probe350)  // v3.50 RM350: the v3.50 block (BRIEF_COMMON; the merge writes it once; RM350 uses none of it: rzmon.inc RMT_ALL / RMT_DALL = RZ1 + 5 / + 6)  // v3.50 RL350: + the MSG_V50 block (BRIEF_COMMON: w1 + 0..7, w4 + 8..15, w5 + 16..31, w6 + 32..63; the merge writes it once; RL350 uses none of it)  // v3.50 R302: + the MSG_V50 block (BRIEF_COMMON: w1 V50 + 0..7, w4 + 8..15, w5 + 16..31, w6 R302 room302.inc R3M_* + 32..63)  // v3.50 TP350: + the MSG_V50 block (BRIEF_COMMON: w1 teleport V50 + 0..7 (TP350 uses none), w4 + 8..15, w5 + 16..31, w6 + 32..63)  // v3.50 EF350: + the MSG_V50 block (BRIEF_COMMON; EF350 enmfollow.inc EFM_*: V50 + 16 .. 23 of its V50 + 16 .. 31)  // v3.50 FI350: the v3.50 block (BRIEF_COMMON: w1 V50 + 0..7, w4 FI350 fadein.inc FIM_* V50 + 8..15, w5 V50 + 16..31, w6 V50 + 32..63)  // v3.49 MERGE: one MSG_RZ1 block for both (RZ349 rzmon.inc RMT_*: RZ0 + 28 .. 29 and RZ1 + 0 .. 4 of its RZ1 + 0 .. 15; RZ349L rzlooks.inc RZLM_*: RZ1 + 16 .. 23 of its RZ1 + 16 .. 31; RZ0 + 30 .. 31 unused)  // v3.49 RZ349: + the MSG_RZ1 block (w3 RZ349 rzmon.inc: RZ0 + 28 .. 29 and RZ1 + 0 .. 15; w4: RZ0 + 30 .. 31 and RZ1 + 16 .. 31)  // v3.49 RZ349L: + the MSG_RZ1 block (BRIEF_COMMON: w3 RZ1 + 0..15, w4 rzlooks.inc RZLM_* at RZ1 + 16.., 8 of 16)  // v3.48 RZ348: + the MSG_RZ0 block (randomizer.inc RZM_*, 25 of 32)  // v3.47 MERGE: the v3.47 text-id chain (BRIEF_COMMON): MSG_OM0 (w1 CT347 omni.inc OMM_*, 11 of 16), MSG_RG0 (w4 RG347 regen.inc RGT_*, 6 of 16), MSG_SB0 (w3 SB347: reserved, no text used)  // v3.46 OM346: + the MSG_OM0 block (omni.inc OMM_*, 11 of 16)  // v3.43 MERGE: the v3.43 text-id chain (BRIEF_COMMON; DOF = DF343 dof.inc DFM_*, PP = PP343 post.inc PPM_*, GT = GT343 teleport.inc, FN = FN343: reserved, font.inc has no row)  // v3.42 SM342: the SHD block 16 -> 32 (the Shadows page's Darkness row: SHM_N 11 -> 18)  // v3.40 SH340: MSG_SHD0.. = shadows.inc's texts (SHM_*; was MSG_END = MSG_INV0 + 16)  // v3.37 MERGE: MSG_INV0.. = inventory.inc's texts (INVM_*, W2 INV337)  // v3.37 CP337: MSG_PERF0.. = perfhud.inc's texts (PERFT_*; was MSG_END = MSG_CAM0 + 256)  // v3.33 CAM333: MSG_CAM0.. = camera.inc's texts (CAMT_*; was MSG_END = MSG_HB0 + 32)  // v3.29 merge: the gameplay block 64 -> 128 (v3.29 AFTERIMAGE / v3.30 ECHO / v3.31 ENEMIES each raised it to 96, SUPPLY DROPS to 80; GPM_N is 105 with all of them); PLAYER PACK: MSG_PC0.. = playercheats.inc's texts (PCM_*); HUD BARS: MSG_HB0.. = hudbars.inc's texts  // v3.25.0: MSG_GP0.. = gameplay.inc's texts (GPM_*)  // v3.10.0: MSG_PAD0..+44 = Button Config pad names (buttoncfg.inc)  // v3.30 MERGE: unchanged; GPM_N 121 of 128 (AS330 + 2, ECHO330 + 7, EN330 + 7)  // v3.31 MERGE: unchanged (no new text id in v3.31)  // v3.32 MERGE: GPM_N 124 of 128 (NC332 + 3), HBM_N 16 of 32 (DHS332 + 2)
 static BYTE g_txtAspect[32], g_txtAspectDesc[48], g_txtAsp[ASP_N][16], g_txtRes[ASP_N][6][16];
 static BYTE g_resLen[ASP_N][6];  // v1.6: characters of each Resolution label (the arrow rule)
-static BYTE g_txtDisp[32], g_txtDispDesc[48], g_txtDm[DM_N][16];
+static BYTE g_txtDisp[32], g_txtDispDesc[64], g_txtDm[DM_N][16];  // v3.53 OL1: the description 48 -> 64 (47 characters)
 static BYTE g_txtMon[32], g_txtMonDesc[48], g_txtMons[MON_MAX][32];  // v1.7; v3.19.0 32 (rank names)
 static BYTE g_txtFov[32], g_txtFovDesc[48], g_txtFovs[FOV_N][16];  // v1.9
 static BYTE g_txtFovFp[32], g_txtFovFpDesc[48];                     // v3.3: the first-person row (same values)
@@ -1378,12 +1392,11 @@ static BYTE g_txtSubT[32], g_txtSubL[SUB_N + 1][32], g_txtSubD[SUB_N + 1][56], g
 static DWORD g_subIds[SUB_N][SUB_VMAX];
 static BYTE g_txtVibV[4][16], g_txtVibD[56];  // v3.14.0
 static DWORD g_vibIds[4];
-static BYTE g_txtFxT[32], g_txtFxL[FX_N + 1][32], g_txtFxD[FX_N + 1][56], g_txtFxV[FX_N][FX_VMAX][24], g_txtFxRowD[56];  // v3.15.0
+static BYTE g_txtFxT[32], g_txtFxL[FX_N + 1][32], g_txtFxD[FX_N + 1][64] /* v3.53 OL1: 56 -> 64 (the Filter line + " F12 ...": 53) */, g_txtFxV[FX_N][FX_VMAX][24], g_txtFxRowD[56];  // v3.15.0
 static DWORD g_fxIds[FX_N][FX_VMAX];
 static BYTE g_txtPg[3][32];                                         // v3.5.0: titles of Options 4, 5, 6
 static BYTE g_txtEm[EM_N][32], g_txtEmD[EM_N][56];                  // v3.7.0: Option 6 labels / descriptions
-static BYTE g_txtSb[2][32], g_txtSbD[2][56], g_txtSbv[SB_MAX + 1][8];  // v3.8.0: Save Banks rows, bank numbers, "-"
-static DWORD g_sbIds[SB_MAX + 1];  // [SB_MAX] = "-" (banks Off; review SB-002)
+static BYTE g_txtSb[1][32], g_txtSbD[1][56];  // v3.8.0: Save Banks rows  // v3.53 OL1: the unused Save Bank row's texts are gone (its ids stay, answered blank)
 static DWORD g_aspIds[ASP_N], g_resIds[6], g_dmIds[DM_N], g_monIds[MON_MAX], g_fovIds[FOV_N], g_fpsIds[FPS_N];
 static DWORD g_fovFpIds[FOVFP_N];          // v3.3.5: the first-person row's labels (kFovFpIdx entries of kFovName)
 static DWORD g_itemIds[2];                 // v3.3
@@ -1445,6 +1458,105 @@ static void Encode(BYTE *out, size_t n, const char *s)  // byte-mode game string
     out[k] = 0xFF;
 }
 
+// ================================================================ v3.53 OL1: the Options layout's words (round R1)
+// staging/options_layout/PLAN.md (sections 3, 5, 7, 9) and staging/v353_layout/w2_words/PLAN.md. Every text comes from
+// src/ol_words.h (generated from the plan's layout_data.py by tools/gen_ol_words.py; test/ol_words_test.c checks the
+// plan's limits and the screen / ini word round trip). Words that replace a row's old words go into that row's own
+// buffer (its id stays); the texts that need an id of their own live here: MSG_V53 + 0 .. OLT_N - 1 (OL1 owns V53 + 0 ..
+// 511; V53 + 512 .. 575 are OL2's). No ini key or written word changes: a screen word that differs is a display map.
+// (ol_words.h is included at the top: every file's tables use its words)
+#define OL_TEXTS(X) \
+    X(OLT_T_DISPLAY, OLW_T_DISPLAY) X(OLT_T_CONTROLS, OLW_T_CONTROLS) X(OLT_T_INTERFACE, OLW_T_INTERFACE) \
+    X(OLT_RES_D, OLW_DISPLAY_RESOLUTION_D) X(OLT_BRIGHT_D, OLW_DISPLAY_BRIGHTNESS_D) X(OLT_GAMMA_D, OLW_DISPLAY_GAMMA_D) \
+    X(OLT_MUSIC_D, OLW_SOUND_MUSIC_VOLUME_D) X(OLT_SFX_D, OLW_SOUND_EFFECTS_VOLUME_D) X(OLT_SNDMODE_L, OLW_SOUND_SOUND_MODE_L) \
+    X(OLT_BTN_L, OLW_CONTROLS_BUTTONS_L) X(OLT_BTN_D, OLW_CONTROLS_BUTTONS_D) \
+    X(OLT_DS_L, OLW_CONTROLS_DEFAULT_SPEED_L) X(OLT_DS_V_WALK, OLW_CONTROLS_DEFAULT_SPEED_V_WALK) \
+    X(OLT_DS_V_RUN, OLW_CONTROLS_DEFAULT_SPEED_V_RUN) X(OLT_DS_VD_WALK, OLW_CONTROLS_DEFAULT_SPEED_VD_WALK) \
+    X(OLT_DS_VD_RUN, OLW_CONTROLS_DEFAULT_SPEED_VD_RUN) \
+    X(OLT_VIB_VD_OFF, OLW_CONTROLS_VIBRATION_VD_OFF) X(OLT_VIB_VD_LOW, OLW_CONTROLS_VIBRATION_VD_LOW) \
+    X(OLT_HB_L, OLW_ROOM302_HEAD_BOB_L) X(OLT_HB_V_OFF, OLW_ROOM302_HEAD_BOB_V_OFF) X(OLT_HB_V_SLIGHT, OLW_ROOM302_HEAD_BOB_V_SLIGHT) \
+    X(OLT_HB_V_FULL, OLW_ROOM302_HEAD_BOB_V_FULL) X(OLT_HB_VD_OFF, OLW_ROOM302_HEAD_BOB_VD_OFF) \
+    X(OLT_HB_VD_SLIGHT, OLW_ROOM302_HEAD_BOB_VD_SLIGHT) X(OLT_HB_VD_FULL, OLW_ROOM302_HEAD_BOB_VD_FULL) \
+    X(OLT_LR_L, OLW_ROOM302_LEFT_RIGHT_L) X(OLT_LR_V_TURN, OLW_ROOM302_LEFT_RIGHT_V_TURN) \
+    X(OLT_LR_V_STRAFE, OLW_ROOM302_LEFT_RIGHT_V_STRAFE) X(OLT_LR_VD_TURN, OLW_ROOM302_LEFT_RIGHT_VD_TURN) \
+    X(OLT_LR_VD_STRAFE, OLW_ROOM302_LEFT_RIGHT_VD_STRAFE) \
+    X(OLT_IL_L, OLW_ROOM302_INVERT_LOOK_L) X(OLT_IL_V_OFF, OLW_ROOM302_INVERT_LOOK_V_OFF) X(OLT_IL_V_ON, OLW_ROOM302_INVERT_LOOK_V_ON) \
+    X(OLT_IL_VD_OFF, OLW_ROOM302_INVERT_LOOK_VD_OFF) X(OLT_IL_VD_ON, OLW_ROOM302_INVERT_LOOK_VD_ON) \
+    X(OLT_LANG_D, OLW_INTERFACE_LANGUAGE_D) \
+    X(OLT_COMBO_SUB_OFF, OLW_COMBO_SUB_OFF) X(OLT_COMBO_SUB_ON, OLW_COMBO_SUB_ON) \
+    X(OLT_SUB_VD_OFF, OLW_SUBTITLES_SUBTITLES_VD_OFF) X(OLT_SUB_VD_ON, OLW_SUBTITLES_SUBTITLES_VD_ON) \
+    X(OLT_GRAIN_L, OLW_L_FILM_GRAIN) X(OLT_GRAIN_D, OLW_GRAIN_FILM_GRAIN_D) \
+    X(OLT_BLOOD_D, OLW_GAMEPLAY_BLOOD_COLOUR_D) \
+    X(OLT_HG_L, OLW_INTERFACE_HEALTH_GAUGE_L) X(OLT_II_L, OLW_INTERFACE_ITEM_ICONS_L) \
+    X(OLT_V_ALWAYS, OLW_INTERFACE_HEALTH_GAUGE_V_ALWAYS) X(OLT_V_AUTOHIDE, OLW_INTERFACE_HEALTH_GAUGE_V_AUTO_HIDE) \
+    X(OLT_VD_ALWAYS, OLW_INTERFACE_HEALTH_GAUGE_VD_ALWAYS) X(OLT_VD_AUTOHIDE, OLW_INTERFACE_HEALTH_GAUGE_VD_AUTO_HIDE) \
+    X(OLT_SHD_L, OLW_L_SHADOWS) X(OLT_SHD_D, OLW_SHADOWS_SHADOWS_D) \
+    X(OLT_DM_VD_WIN, OLW_DISPLAY_DISPLAY_MODE_VD_WINDOWED) X(OLT_DM_VD_BORDER, OLW_DISPLAY_DISPLAY_MODE_VD_BORDERLESS) \
+    X(OLT_MON_VD_MAIN, OLW_DISPLAY_MONITOR_VD_MAIN) X(OLT_ASP_VD_43, OLW_DISPLAY_ASPECT_RATIO_VD_4_3) \
+    X(OLT_FOV_VD_DEF, OLW_CAMERA_FIELD_OF_VIEW_VD_DEFAULT) X(OLT_FOVFP_VD_DEF, OLW_ROOM302_FIELD_OF_VIEW_VD_DEFAULT) \
+    X(OLT_FPS_VD_30, OLW_DISPLAY_FRAME_RATE_VD_30) X(OLT_FPS_VD_60, OLW_DISPLAY_FRAME_RATE_VD_60) \
+    X(OLT_FPS_VD_60FM1, OLW_FPS_60_FM1) X(OLT_FPS_VD_120, OLW_DISPLAY_FRAME_RATE_VD_120) \
+    X(OLT_FPS_VD_180, OLW_DISPLAY_FRAME_RATE_VD_180) \
+    X(OLT_SHINE_VD_OFF, OLW_ITEMS_ITEM_SHINE_VD_OFF) X(OLT_SHINE_VD_ON, OLW_ITEMS_ITEM_SHINE_VD_ON) \
+    X(OLT_V_HIDDEN, OLW_PAUSE_STORAGE_CHEST_V_HIDDEN) X(OLT_V_SHOWN, OLW_PAUSE_STORAGE_CHEST_V_SHOWN) \
+    X(OLT_SB_VD_OFF, OLW_PAUSE_SAVE_BANKS_VD_OFF) X(OLT_SB_VD_ON, OLW_PAUSE_SAVE_BANKS_VD_ON) \
+    X(OLT_CAM_VD_GAME, OLW_CAMERA_CAMERA_VD_GAME OLW_CAM_SETTINGS) \
+    X(OLT_CAM_VD_SHOULDER, OLW_CAMERA_CAMERA_VD_SHOULDER OLW_CAM_SETTINGS) \
+    X(OLT_SUB_VD_BOTH, OLW_SUBTITLES_EDGE_VD_BOTH) \
+    X(OLT_CUT_VD_ON, OLW_EFFECTS_CUT_SCENE_FILTER_VD_ON) X(OLT_CUT_VD_OFF, OLW_EFFECTS_CUT_SCENE_FILTER_VD_OFF) \
+    X(OLT_GRADE_VD0, OLW_EFFECTS_COLOUR_GRADE_VD_OFF) X(OLT_GRADE_VD1, OLW_EFFECTS_COLOUR_GRADE_VD_PS2) \
+    X(OLT_GRADE_VD2, OLW_EFFECTS_COLOUR_GRADE_VD_OTHERWORLD) X(OLT_GRADE_VD3, OLW_EFFECTS_COLOUR_GRADE_VD_APARTMENT) \
+    X(OLT_GRADE_VD4, OLW_EFFECTS_COLOUR_GRADE_VD_BLEACH) \
+    X(OLT_LENS_VD_OFF, OLW_EFFECTS_OTHERWORLD_LENS_VD_OFF) X(OLT_LENS_VD_ON, OLW_EFFECTS_OTHERWORLD_LENS_VD_ON) \
+    X(OLT_DOF_VD_CUT, OLW_EFFECTS_DEPTH_OF_FIELD_VD_CUT_SCENES) X(OLT_DOF_VD_ALWAYS, OLW_EFFECTS_DEPTH_OF_FIELD_VD_ALWAYS) \
+    X(OLT_SHE_VD_STOCK, OLW_SHADOWS_EDGE_VD_STOCK) X(OLT_SHE_VD_SOFT, OLW_SHADOWS_EDGE_VD_SOFT) \
+    X(OLT_BACK_PRES, OLW_BACK_PRESENTATION) \
+    X(OLT_MS_VD_X2, OLW_PLAYER_MOVE_SPEED_VD_X2) X(OLT_OHK_VD_ON, OLW_COMBAT_ONE_HIT_KILL_VD_ON) \
+    X(OLT_TB_V10, OLW_ITEMS_TOOLBELT_V_10_ITEMS) X(OLT_TB_V20, OLW_ITEMS_TOOLBELT_V_20_ITEMS) \
+    X(OLT_NONE, OLW_RESERVED)
+#define OL_ID(id, s) id,
+enum { OL_TEXTS(OL_ID) OLT_N };
+#undef OL_ID
+typedef char OlTextsFit[OLT_N <= 512 ? 1 : -1];  // OL1's ids: V53 + 0 .. 511
+// (MSG_V53 = 29971, MSG_END = 30547 = 0x7753 by v3.51's probe (MSG_END 29907 then): every id still fits a signed 16-bit
+// word; the game's text calls take an int, the row records a dword, so no id limit binds below 0x7FFF)
+typedef char OlEndFits[MSG_END <= 0x7FFF && MSG_V53 == MSG_BASE + 1299 && MSG_V54 == MSG_V53 + 576 && MSG_V55 == MSG_V54 + 128 &&
+                       MSG_END == MSG_V55 + 64 ? 1 : -1];  // v3.54 OL34  // v3.55 OL56: + MSG_V55
+#define OL_FILTERS 10  // the Filter row's values (FX_FILTERS, defined below)
+static BYTE g_txtOl[OLT_N][96];
+static BYTE g_txtOlFilter[OL_FILTERS][128];  // the Filter row's value lines (+ the PreviewKey sentence): V53 + 400 ..
+static BYTE g_txtOlRend[160];                // the Renderer row's line + the running backend (perfhud.inc): V53 + 420
+#define OLT_FILTER0 400
+#define OLT_REND 420
+static DWORD g_olHsIds[2], g_olAlwaysIds[2], g_olHbIds[3], g_olLrIds[2], g_olIlIds[2], g_olDsIds[2], g_olTbIds[2];
+static const BYTE *OlText(int id)
+{
+    const int i = id - MSG_V53;
+    if (i >= OLT_FILTER0 && i < OLT_FILTER0 + OL_FILTERS) return g_txtOlFilter[i - OLT_FILTER0];
+    if (i == OLT_REND) return g_txtOlRend;
+    return g_txtOl[i >= 0 && i < OLT_N ? i : OLT_NONE];
+}
+typedef char OlFilterIdsFit[OLT_N <= OLT_FILTER0 && OLT_REND < 512 ? 1 : -1];
+static void OlTexts(void)  // ApplyAspectMenu, before the tables
+{
+    static const char *const kTxt[OLT_N] = {
+#define OL_S(id, s) s,
+        OL_TEXTS(OL_S)
+#undef OL_S
+    };
+    int i;
+    for (i = 0; i < OLT_N; ++i) Encode(g_txtOl[i], sizeof g_txtOl[0], kTxt[i]);
+    Encode(g_txtOlRend, sizeof g_txtOlRend, "");
+    g_olHsIds[0] = MSG_V53 + OLT_V_HIDDEN, g_olHsIds[1] = MSG_V53 + OLT_V_SHOWN;
+    g_olAlwaysIds[0] = MSG_V53 + OLT_V_ALWAYS, g_olAlwaysIds[1] = MSG_V53 + OLT_V_AUTOHIDE;
+    g_olHbIds[0] = MSG_V53 + OLT_HB_V_OFF, g_olHbIds[1] = MSG_V53 + OLT_HB_V_SLIGHT, g_olHbIds[2] = MSG_V53 + OLT_HB_V_FULL;
+    g_olLrIds[0] = MSG_V53 + OLT_LR_V_TURN, g_olLrIds[1] = MSG_V53 + OLT_LR_V_STRAFE;
+    g_olIlIds[0] = MSG_V53 + OLT_IL_V_OFF, g_olIlIds[1] = MSG_V53 + OLT_IL_V_ON;
+    g_olDsIds[0] = MSG_V53 + OLT_DS_V_WALK, g_olDsIds[1] = MSG_V53 + OLT_DS_V_RUN;
+    g_olTbIds[0] = MSG_V53 + OLT_TB_V10, g_olTbIds[1] = MSG_V53 + OLT_TB_V20;
+}
+static int OlLine(int k) { return MSG_V53 + k; }
+
 static int LiveDisp(void)
 {
     BYTE m = CFG[0x22];
@@ -1473,8 +1585,8 @@ static void CamSnapshot(void);
 static int CamChanged(void);
 static int CamRowChanged(int row);
 static void CamDiscard(void);
-static int CamRowGrey(int slot, int row);
-static int R3RowGrey(int slot, int row);  // v3.50 R302: room302.inc (the Room 302 page while Playable Eileen keeps a group)
+static int CamRowGrey(int page, int row);  // v3.54 OL34: the greys below take the row's origin page / row (OlRowAt), not a slot
+static int R3RowGrey(int page, int row);  // v3.50 R302: room302.inc (the Room 302 page while Playable Eileen keeps a group)
 static int R3SubmenuRow(int row);         // v3.50 R302: Option 4's Room 302 row (the blue cue)
 static int R3RowChanged(int row);         // v3.50 R302
 static int R3Changed(void);               // v3.50 R302
@@ -1498,7 +1610,7 @@ static int PresChanged(void);
 static int PresRowChanged(int row);
 static void PresApply(void);
 static void PresDiscard(void);
-static int PresRowGrey(int slot, int row);
+static int PresRowGrey(int page, int row);  // v3.54 OL34: the origin page / row
 static int PresValueIdGreyed(int id);
 static const char *FxFilterDesc(void);  // v3.39 PR339: screenfx.inc (the Filter row's description names PreviewKey)
 // v3.43 PP343: post.inc (at the end of screenfx.inc): the Screen Effects page's Bloom / Colour Grading / Otherworld Lens rows
@@ -1532,7 +1644,7 @@ static void SndDiscard(void);
 static int SndMenuOn(void);
 static void SndLoadKeep(void);
 static void SndFrameTick(void);
-static int RgRowGrey(int slot, int row);  // v3.47 RG347: the Regeneration row grey while Playable Eileen's own regeneration heals
+static int RgRowGrey(int page, int row);  // v3.54 OL34: the origin page / row  // v3.47 RG347: the Regeneration row grey while Playable Eileen's own regeneration heals
 static int RgValueIdGreyed(int id);  // v3.47 RG347: its value (Off) grey too
 static int FnChanged(void);         // v3.44 FN344
 static int FnRowChanged(int row);   // v3.44 FN344: -1 = not the Menu Font row
@@ -1569,8 +1681,33 @@ static void DofBuildPage(const DWORD *stockRows);
 static void DofInstall(void);
 static int DofBuildRows(DWORD *rows, int row0);  // v3.44 DF344: its rows on the Screen Effects page
 static int DofFxRowChanged(int row);             // v3.44 DF344: -1 = not one of its rows
+// v3.53 OL2: look.inc (included last): the Options look of the layout plan's round R2 (page strip, folder triangles,
+// "Parent > Page" titles, the dependent rows grey with their reason, the glyph lines)
+static const BYTE *LkText(int id);
+static int LkRowGrey(int slot, int row);
+static int LkCamRowGrey(int r);                  // extramenu.inc: the pause Camera page (-1 = live, else the reason)
+static const BYTE *LkCamReason(int rule);
+static DWORD LkTitleFor(int lp);                 // LoadSlot
+static void LkDecorate(int lp);                  // LoadSlot / ResetPages
+static void LkRowDraw(int row, int slot, const BYTE *obj, int xoff);  // RowChangedDraw
+static void LkReset(void);                       // ResetPages
+static void LkInstall(void);                     // InstallPages
+static void LkGlyphNote(int measured);           // descfit.inc DescText
+static int SubmenuRowPage(int page, int row);
+// v3.54 OL34: layout.inc (included last, after look.inc): the live pages of the plan's rounds R3 + R4 built from the origin
+// pages' records; each row's origin (page, row) for the per-row answers below
+static const BYTE *Ol4Text(int id);
+static int OlRowAt(int page, int row, int *op, int *orow, int *arg);  // the row's kind (OLK_*); its origin page / row (-1 = none)
+static int OlBlue(int page, int row);    // a folder / sub-screen / combo row (drawn blue)
+static int OlFxPage(int lp);             // Effects or Effects > Film Grain (the Screen Effects preview)
+static int OlCamGrey(int r);             // a camera row of Controls > Camera / Steering is grey
+static void OlLayoutBuild(void);         // ApplyAspectMenu, last
+static void OlOpenLog(void);             // ResetPages: the verbose line naming the cycle and the pages
+static int g_olOn;                       // the live pages are the plan's (layout.inc built them)
 static const BYTE *__cdecl MsgText(int id)
 {
+    if (id >= MSG_V54 && id < MSG_V55 + 64) return Ol4Text(id);  // v3.54 OL34: layout.inc (the newest block first, above every catch-all)  // v3.55 OL56: + MSG_V55 (one pool)
+    if (id >= MSG_V53 + 512 && id < MSG_V53 + 576) return LkText(id);  // v3.53 OL2: look.inc (the newest block first; w2 OL1 owns V53 + 0 .. 511)
     if (id == MSG_ASPECT) return g_txtAspect;
     if (id == MSG_ASPECT_DESC) return g_txtAspectDesc;
     if (id >= MSG_ASP0 && id < MSG_ASP0 + ASP_N) return g_txtAsp[id - MSG_ASP0];
@@ -1594,9 +1731,9 @@ static const BYTE *__cdecl MsgText(int id)
     if (id >= MSG_PG4 && id <= MSG_PG6) return g_txtPg[id - MSG_PG4];
     if (id >= MSG_EM0 && id < MSG_EM0 + EM_N) return g_txtEm[id - MSG_EM0];   // v3.7.0
     if (id >= MSG_EMD0 && id < MSG_EMD0 + EM_N) return g_txtEmD[id - MSG_EMD0];
-    if (id == MSG_SB || id == MSG_SBB) return g_txtSb[id == MSG_SBB];  // v3.8.0
-    if (id == MSG_SB_DESC || id == MSG_SBB_DESC) return g_txtSbD[id == MSG_SBB_DESC];
-    if (id >= MSG_SBV0 && id <= MSG_SBV0 + SB_MAX) return g_txtSbv[id - MSG_SBV0];
+    if (id == MSG_SB) return g_txtSb[0];  // v3.8.0
+    if (id == MSG_SB_DESC) return g_txtSbD[0];
+    if (id == MSG_SBB || id == MSG_SBB_DESC || (id >= MSG_SBV0 && id <= MSG_SBV0 + SB_MAX)) return g_txtOl[OLT_NONE];  // v3.53 OL1: the unused Save Bank ids (no row asks)
     if (id >= MSG_PAD0 && id < MSG_PAD0 + 45) return PadText(id - MSG_PAD0);  // v3.10.0
     if (id == MSG_SUBT) return g_txtSubT;  // v3.13.0
     if (id >= MSG_SUBL0 && id <= MSG_SUBL0 + SUB_N) return g_txtSubL[id - MSG_SUBL0];
@@ -1610,6 +1747,7 @@ static const BYTE *__cdecl MsgText(int id)
     if (id >= MSG_FXD0 && id <= MSG_FXD0 + FX_N) return g_txtFxD[id - MSG_FXD0];
     if (id >= MSG_FXV0 && id < MSG_FXV0 + FX_N * FX_VMAX) return g_txtFxV[(id - MSG_FXV0) / FX_VMAX][(id - MSG_FXV0) % FX_VMAX];
     if (id == MSG_FXROWD) return g_txtFxRowD;
+    if (id >= MSG_V53 && id < MSG_V53 + 512) return OlText(id);  // v3.53 OL1: the Options words (the newest block first)
     if (id >= MSG_V52 && id < MSG_V52 + 24) return SndText(id);  // v3.52 SND352: sound.inc (the Sound row and page; its V52 + 0 .. 23)
     if (id >= MSG_V50 + 32 && id < MSG_V50 + 64) return R3Text(id);  // v3.50 R302: room302.inc (the V50 block first)
     if (id >= MSG_V50 + 16 && id < MSG_V50 + 32) return EfText(id);  // v3.50 EF350 (before RzlText: its check runs to MSG_END)
@@ -1678,8 +1816,10 @@ static int GpRowChanged(int page, int row);
 static void GpSnapshot(void);
 static void GpDiscard(void);
 static int GpSubmenuRow(int page, int row);
-static int g_lpParent[LP_MAX] = { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 };  // v3.52 SND352: 17 entries  // v3.48 RZ348: 15 entries  // v3.43 DF343: 13 entries  // v3.25.0: hidden page -> its parent page
-static int g_lpParentRow[LP_MAX] = { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 };  // v3.52 SND352: 17 entries  // v3.48 RZ348: 15 entries  // v3.43 DF343: 13 entries  // and the row that opens it
+static int g_lpParent[LP_MAX] = { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 };  // v3.54 OL34: 22 entries (LP_MAX 22: R0 section 3, a shorter list leaves 0 = a child of Display)  // v3.52 SND352: 17 entries  // v3.48 RZ348: 15 entries  // v3.43 DF343: 13 entries  // v3.25.0: hidden page -> its parent page
+static int g_lpParentRow[LP_MAX] = { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 };  // v3.54 OL34: 22 entries
+typedef char OlParentListFits[sizeof g_lpParent / sizeof g_lpParent[0] == 22 && sizeof g_lpParentRow / sizeof g_lpParentRow[0] == 22 ? 1 : -1];  // v3.54 OL34
+static int g_opParent[OP_MAX], g_opParentRow[OP_MAX];  // v3.54 OL34: the origin pages' (the builders write them; nothing reads them)
 static int __cdecl PadChanged(const BYTE *obj)  // v3.5.1: also the ini-kept settings against their snapshot
 {
     return obj[0xB0 + 0x21] != obj[0xD4 + 0x21] || obj[0xB0 + 0x22] != obj[0xD4 + 0x22] ||
@@ -1706,36 +1846,60 @@ static __declspec(naked) void StockRowChanged(void)  // the stock 523AA0 as a su
 // yellow. A slot holding Option 4 / 5 must answer for its own rows, not for the stock page of that slot number (the
 // first build coloured Option 4's Display Mode by Option 1's Resolution test). -1 = let the stock test answer.
 static void SubmenuArrow(int row, int slot, const BYTE *obj, int xoff);
+// v3.54 OL34 (R0 section 2, R4-2): the stock test of a stock record answers by the record's own page and row (the cfg
+// byte the exit scan compares for that pair), wherever the record sits now (a stock record on another page or row would
+// otherwise be asked about the slot's stock page: it never turned yellow, or the wrong row did)
+static int StockRowChangedAt(int page, int row, const BYTE *obj)
+{
+    int r;
+    __asm {
+        mov eax, row
+        mov edx, page
+        mov ecx, obj
+        call StockRowChanged
+        mov r, eax
+    }
+    return r;
+}
 static int __cdecl RowChangedDraw(int row, int slot, const BYTE *obj, int xoff)
 {
-    int k = 0;
+    int k = 0, lp, op, orow, arg, kind;
     g_drawSlot = slot;  // v3.19.0 C2b: the 0x52570E stub asks about this row
     g_drawRow = row;
     SubmenuArrow(row, slot, obj, xoff);  // v3.19.0 C3; v3.21.0: + the slot's slide offset
-    if ((unsigned)slot < 3 && g_slotPage[slot] == 1 && row == 2 && VibChanged()) return 1;  // v3.14.0: the level
-    if ((unsigned)slot < 3 && g_slotPage[slot] == 1) {  // v3.47 CT347: Option 2's Stick Movement row
+    LkRowDraw(row, slot, obj, xoff);  // v3.53 OL2: the page strip (row 0) and a folder row's triangle
+    if ((unsigned)slot >= 3) return -1;
+    lp = g_slotPage[slot];
+    if (row == 0 && slot == *(volatile int *)0x1091B1C) {  // v3.54 OL34: the previews by the live page ids
+        if (lp == (g_olOn ? LP_SUBT : OP_SUB)) SubPreview();  // v3.13.0: Interface > Subtitles draws its preview once a frame
+        if (g_olOn ? OlFxPage(lp) : lp == OP_FX) InterlockedExchange(&g_fxStamp, g_fxFrame);  // v3.15.0 (FX-002): Effects / Film Grain mark the preview frame
+    }
+    // v3.54 OL34: every answer below is v3.53's, asked with the row's ORIGIN page and row (layout.inc keeps them); new rows
+    // (folders, Back, Exit) have none: never yellow; the camera rows: their own setting
+    kind = OlRowAt(lp, row, &op, &orow, &arg);
+    if (kind == OLK_CAM || kind == OLK_CAMSW) return CamRowChanged(arg);
+    if (op < 0) return 0;
+    row = orow;
+    if (op == 1 && row == 2 && VibChanged()) return 1;  // v3.14.0: the level
+    if (op == 1) {  // v3.47 CT347: Option 2's Stick Movement row
         const int o = OmPageRowChanged(1, row);
         if (o >= 0) return o;
     }
-    if ((unsigned)slot < 3 && g_slotPage[slot] == 0) {  // v3.44 FN344: Option 1's Menu Font row
+    if (op == 0) {  // v3.44 FN344: Option 1's Menu Font row
         const int f = FnRowChanged(row);
         if (f >= 0) return f;
     }
-    if ((unsigned)slot < 3 && g_slotPage[slot] == 0) {  // v3.52 SND352: Option 1's Sound row (Stereo / Headphones share the byte)
+    if (op == 0) {  // v3.52 SND352: Option 1's Sound row (Stereo / Headphones share the byte)
         const int s = SndRowChanged(row);
         if (s >= 0) return s;
     }
-    if ((unsigned)slot < 3 && g_slotPage[slot] == LP_SND) return SndPageRowChanged(row);  // v3.52 SND352: the Sound page
-    if ((unsigned)slot >= 3 || g_slotPage[slot] < 3) return -1;  // a stock page in its own slot: stock (gate included)
-    if (g_slotPage[slot] == LP_SUB) {  // v3.13.0: the Subtitle Style page; its row 0 draws the preview once a frame
-        if (row == 0 && slot == *(volatile int *)0x1091B1C) SubPreview();
-        return g_snapOn && row >= 0 && row < SUB_N && g_sub[row] != g_snapSub[row];
-    }
-    if (g_slotPage[slot] == LP_SHD) return ShRowChanged(row);  // v3.40 SH340: the Shadows page
-    if (g_slotPage[slot] == LP_DOF) return DofRowChanged(row);  // v3.43 DF343: the Depth of Field page
-    if (g_slotPage[slot] == LP_R302) return R3RowChanged(row);  // v3.50 R302: the Room 302 page
-    if (g_slotPage[slot] == LP_FX) {  // v3.15.0: the Screen Effects page; its row 0 marks the preview frame (FX-002)
-        if (row == 0 && slot == *(volatile int *)0x1091B1C) InterlockedExchange(&g_fxStamp, g_fxFrame);
+    if (op == OP_SND) return SndPageRowChanged(row);  // v3.52 SND352: the Sound page
+    if (op < 3) return g_olOn ? StockRowChangedAt(op, row, obj) : -1;  // a stock record: the stock test for its own page / row (gate included), wherever it sits now; no Refined pages: the stock call as it came
+    if (op == OP_SUB) return g_snapOn && row >= 0 && row < SUB_N && g_sub[row] != g_snapSub[row];  // v3.13.0: Subtitle Style
+    if (op == OP_SHD) return ShRowChanged(row);  // v3.40 SH340: the Shadows page
+    if (op == OP_DOF) return DofRowChanged(row);  // v3.43 DF343: the Depth of Field page
+    if (op == OP_R302) return R3RowChanged(row);  // v3.50 R302: the Room 302 page
+    if (op == OP_FX) {  // v3.15.0: the Screen Effects page
         {   // v3.44 DF344: Depth of Field / DoF Strength (after the post rows)
             const int d = DofFxRowChanged(row);
             if (d >= 0) return d;
@@ -1744,18 +1908,18 @@ static int __cdecl RowChangedDraw(int row, int slot, const BYTE *obj, int xoff)
         return g_snapOn && row >= 0 && row < FX_N && g_fx[row] != g_snapFx[row];
     }
     {   // v3.25.0: Option 5's Player / Enemies pages
-        const int c = GpRowChanged(g_slotPage[slot], row);
+        const int c = GpRowChanged(op, row);
         if (c >= 0) return c;
     }
-    if (g_slotPage[slot] == 4) return g_snapOn && row == g_playShineRow && (g_sparkleOn != 0) != (g_snapShine != 0);  // Item Shine (v3.37 MN337: its recorded row, was 0)
-    if (g_slotPage[slot] == 5) {  // v3.7.0; v3.8.0 rows EM_N / EM_N + 1 = Save Banks / Save Bank
+    if (op == OP_PLAY) return g_snapOn && row == g_playShineRow && (g_sparkleOn != 0) != (g_snapShine != 0);  // Item Shine (v3.37 MN337: its recorded row, was 0)
+    if (op == OP_EXTRA) {  // v3.7.0; v3.8.0 rows EM_N / EM_N + 1 = Save Banks / Save Bank
         if (!g_snapOn || row < 0) return 0;
         if (row < EM_N) return g_emOn[row] != g_snapEm[row];
         if (row == EM_N) return g_sbOn != g_snapSbOn;
         if (row == EM_N + 1) return CamChanged();  // v3.33 CAM333: the Camera row (was Save Bank)
         return 0;
     }
-    if (g_slotPage[slot] != 3) return 0;
+    if (op != OP_PRES) return 0;
     if (row == g_presAsp) k = 0x21;
     else if (row == g_presDisp) k = 0x22;
     else if (row == g_presMon) k = 0x23;
@@ -1826,11 +1990,11 @@ typedef int(__cdecl *Fn1)(int);
 typedef int(__cdecl *Fn2)(int, int);
 
 static int __cdecl AspectGet(void) { return LiveAspect(); }
-static int __cdecl AspectDesc(void) { return g_dispRow ? MSG_ASPECT_DESC : PerfDescId(MSG_ASPECT_DESC, 1); }  // v3.37 CP337: + the backend line when it is the first row
+static int __cdecl AspectDesc(void) { return LiveAspect() == 0 ? OlLine(OLT_ASP_VD_43) : MSG_ASPECT_DESC; }  // v3.53 OL1: 4:3's own line (the backend line is the Renderer's now)  // v3.37 CP337: + the backend line when it is the first row
 static int __cdecl DispGet(void) { return LiveDisp(); }
-static int __cdecl DispDesc(void) { return PerfDescId(MSG_DISP_DESC, 0); }  // v3.37 CP337: + the backend line (perfhud.inc)
+static int __cdecl DispDesc(void) { return OlLine(LiveDisp() == DM_BORDERLESS ? OLT_DM_VD_BORDER : OLT_DM_VD_WIN); }  // v3.53 OL1: a line per value (the backend line is the Renderer's now)  // v3.37 CP337: + the backend line (perfhud.inc)
 static int __cdecl MonRowGet(void) { return LiveMon(); }
-static int __cdecl MonDesc(void) { return MSG_MON_DESC; }
+static int __cdecl MonDesc(void) { return LiveMon() == 0 ? OlLine(OLT_MON_VD_MAIN) : MSG_MON_DESC; }  // v3.53 OL1
 
 // Row input, the same tests as the Sound row (524B60): confirm / arrow click / pad left (4) or right (8). Returns the
 // next value 0..count-1, or -1 when nothing was pressed.
@@ -1974,7 +2138,11 @@ static int FpsIndexOf(int fps)
 }
 
 static int __cdecl FpsGet(void) { return (int)g_fpsSel; }
-static int __cdecl FpsDesc(void) { return MSG_FPS_DESC; }
+static int __cdecl FpsDesc(void)  // v3.53 OL1: a line per value
+{
+    const int v = (int)g_fpsSel;
+    return OlLine(v == 1 ? (g_frameMode ? OLT_FPS_VD_60FM1 : OLT_FPS_VD_60) : v == 2 ? OLT_FPS_VD_120 : v == 3 ? OLT_FPS_VD_180 : OLT_FPS_VD_30);
+}
 static int __cdecl FpsInput(BYTE *cfg, int count)
 {
     const int v = StepValue(FpsGet(), count);
@@ -2017,7 +2185,7 @@ static int __cdecl SubGet4(void) { return (int)g_sub[4]; }
 static int __cdecl SubGet5(void) { return (int)g_sub[5]; }
 static int __cdecl SubDesc0(void) { return MSG_SUBD0 + 0; }
 static int __cdecl SubDesc1(void) { return MSG_SUBD0 + 1; }
-static int __cdecl SubDesc2(void) { return MSG_SUBD0 + 2; }
+static int __cdecl SubDesc2(void) { return g_sub[SUB_EDGE] == 3 ? OlLine(OLT_SUB_VD_BOTH) : MSG_SUBD0 + 2; }  // v3.53 OL1: Both's own line
 static int __cdecl SubDesc3(void) { return MSG_SUBD0 + 3; }
 static int __cdecl SubDesc4(void) { return MSG_SUBD0 + 4; }
 static int __cdecl SubDesc5(void) { return MSG_SUBD0 + 5; }
@@ -2038,14 +2206,14 @@ static int __cdecl SubBackIn(BYTE *cfg, int count)
 // Option 3 row 1 (Subtitles): Left / Right / arrow clicks as stock (0x524AF0); Enter opens the Subtitle Style page
 static int __cdecl SubRowInput(BYTE *cfg, int count)
 {
-    if (g_subOn && ((Fn2)0x4F84A0)(0, 0x11)) {
-        InterlockedExchange(&g_subReq, 1);
-        ((Fn1)0x56CC40)(g_subScreenOn ? 0xA411 : 0x9C42);  // v3.16.0: the stock sub-screen sound (Button Config, 52495B)
+    if (g_subOn && g_subScreenOn && ((Fn2)0x4F84A0)(0, 0x11)) {  // v3.54 OL34: opens Interface > Subtitles (REQ_OPEN; fade route only)
+        InterlockedExchange(&g_subReq, REQ_OPEN | LP_SUBT);
+        ((Fn1)0x56CC40)(0xA411);  // v3.16.0: the stock sub-screen sound (Button Config, 52495B)
         return SubPageExit();
     }
     return ((int(__cdecl *)(BYTE *, int))0x524AF0)(cfg, count);
 }
-static int __cdecl SubRowDesc(void) { return MSG_SUBROWD; }
+static int __cdecl SubRowDesc(void) { return OlLine(CFG[0x12] ? OLT_COMBO_SUB_ON : OLT_COMBO_SUB_OFF); }  // v3.53 OL1: a line per value + Enter
 
 // v3.14.0: Option 2 row 2 (Vibration): Off / Low / Medium / High. Mirrors the stock input 0x524980 (cfg+0x0B, the
 // 0x9C43 sound through StepValue, the preview script 0x4F7E20(0x654AF8) when it turns on or changes level, stop-all
@@ -2059,7 +2227,7 @@ static void VibSetLevel(int v)
     Log("vibration: %s", kVibName[v]);
 }
 static int __cdecl VibGet(void) { return CFG[0x0B] ? (int)g_vibLevel : 0; }
-static int __cdecl VibDesc(void) { return MSG_VIBD; }
+static int __cdecl VibDesc(void) { const int v = VibGet(); return v == 0 ? OlLine(OLT_VIB_VD_OFF) : v == 1 ? OlLine(OLT_VIB_VD_LOW) : MSG_VIBD; }  // v3.53 OL1: Off / Low have their own lines
 static int __cdecl VibIn(BYTE *cfg, int count)
 {
     const int v = StepValue(VibGet(), count);
@@ -2110,8 +2278,8 @@ static int __cdecl FxGet4(void) { return (int)g_fx[4]; }
 static int __cdecl FxDesc0(void) { return MSG_FXD0 + 0; }
 static int __cdecl FxDesc1(void) { return MSG_FXD0 + 1; }
 static int __cdecl FxDesc2(void) { return MSG_FXD0 + 2; }
-static int __cdecl FxDesc3(void) { return MSG_FXD0 + 3; }
-static int __cdecl FxDesc4(void) { return MSG_FXD0 + 4; }
+static int __cdecl FxDesc3(void) { return (unsigned)g_fx[FX_FILTER] < OL_FILTERS ? MSG_V53 + OLT_FILTER0 + (int)g_fx[FX_FILTER] : MSG_FXD0 + 3; }  // v3.53 OL1: a line per filter
+static int __cdecl FxDesc4(void) { return OlLine(g_fx[FX_CUT] ? OLT_CUT_VD_OFF : OLT_CUT_VD_ON); }  // v3.53 OL1: On / Off lines
 static int __cdecl FxDescBack(void) { return MSG_FXD0 + FX_N; }
 // Back: Enter fades (or slides) back to Option 3, cursor on Noise Effect (request 4)
 static int __cdecl FxBackIn(BYTE *cfg, int count)
@@ -2146,7 +2314,7 @@ static int FxChanged(void)
 }
 
 static int __cdecl FovGet(void) { return (int)g_fovSel; }
-static int __cdecl FovDesc(void) { return MSG_FOV_DESC; }
+static int __cdecl FovDesc(void) { return g_fovSel == 0 ? OlLine(OLT_FOV_VD_DEF) : MSG_FOV_DESC; }  // v3.53 OL1: Default's own line
 static int __cdecl FovInput(BYTE *cfg, int count)
 {
     const int v = StepValue(FovGet(), count);
@@ -2155,7 +2323,7 @@ static int __cdecl FovInput(BYTE *cfg, int count)
     return 0;
 }
 static int __cdecl ItemGet(void) { return g_sparkleOn ? 1 : 0; }  // v3.3: Item Sparkle, Off / On
-static int __cdecl ItemDesc(void) { return MSG_ITEM_DESC; }
+static int __cdecl ItemDesc(void) { return OlLine(ItemGet() ? OLT_SHINE_VD_ON : OLT_SHINE_VD_OFF); }  // v3.53 OL1: a line per value
 static int __cdecl ItemInput(BYTE *cfg, int count)
 {
     const int v = StepValue(ItemGet(), count);
@@ -2204,7 +2372,7 @@ static void SbSetBank(int bank)
     else if (LogQuota(&g_sbQStep, 100)) LogV("save banks: bank %d", bank);  // the list: savebanks.inc logs the settled change
 }
 static int __cdecl SbOnGet(void) { return g_sbOn ? 1 : 0; }
-static int __cdecl SbOnDesc(void) { return MSG_SB_DESC; }
+static int __cdecl SbOnDesc(void) { return OlLine(g_sbOn ? OLT_SB_VD_ON : OLT_SB_VD_OFF); }  // v3.53 OL1: a line per value
 static int __cdecl SbOnIn(BYTE *cfg, int count)
 {
     const int v = StepValue(g_sbOn ? 1 : 0, count);
@@ -2212,18 +2380,7 @@ static int __cdecl SbOnIn(BYTE *cfg, int count)
     if (v >= 0) SbSetOn(v);
     return 0;
 }
-static int __cdecl SbBankGet(void) { return g_sbOn ? (int)g_sbBank - 1 : SB_MAX; }  // Off: "-" (SB-002)
-static int __cdecl SbBankDesc(void) { return MSG_SBB_DESC; }
-static int __cdecl SbBankIn(BYTE *cfg, int count)
-{
-    int v;
-    (void)cfg;
-    if (!g_sbOn) return 0;  // review SB-002: no bank choice while banks are Off
-    (void)count;  // the row declares SB_MAX + 1 values ("-" for Off); a bank steps over 1..SB_MAX only
-    v = StepValue((int)g_sbBank - 1, SB_MAX);
-    if (v >= 0) SbSetBank(v + 1);
-    return 0;
-}
+// v3.53 OL1: (the v3.8.0 Save Bank row's functions are gone: Camera took its row in v3.33; the bank is Q / E in the lists)
 static int __cdecl FovFpGet(void)  // v3.3; v3.3.5: the position of g_fovFpSel in the row's own list (kFovFpIdx)
 {
     int r;
@@ -2231,7 +2388,7 @@ static int __cdecl FovFpGet(void)  // v3.3; v3.3.5: the position of g_fovFpSel i
         if (kFovFpIdx[r] == (int)g_fovFpSel) return r;
     return 0;
 }
-static int __cdecl FovFpDesc(void) { return MSG_FOVFP_DESC; }
+static int __cdecl FovFpDesc(void) { return FovFpGet() == 0 ? OlLine(OLT_FOVFP_VD_DEF) : MSG_FOVFP_DESC; }  // v3.53 OL1: Default's own line
 static int __cdecl FovFpInput(BYTE *cfg, int count)
 {
     const int v = StepValue(FovFpGet(), count);
@@ -2531,16 +2688,18 @@ static int GpLongValW(int page, int row);  // v3.31 ENEMIES: gameplay.inc (Enemi
 static int RowValWidths(int page, int row, float *w, int max, float *cur);  // v3.33 MENU333
 static int LongValW(int page, int row)
 {
+    int op, orow, arg;  // v3.54 OL34: the rules below by the row's origin; the measure (RowValWidths) by the live table
+    OlRowAt(page, row, &op, &orow, &arg);
     __try {
         {   // v3.31 ENEMIES
-            const int g = GpLongValW(page, row);
+            const int g = GpLongValW(op, orow);
             if (g) return g;
         }
         {  // v3.33 CAM333: "Playable Eileen" on Option 6's Camera row
-            const int c = CamLongValW(page, row);
+            const int c = CamLongValW(op, orow);
             if (c) return c;
         }
-        if (page == 3 && row >= 0 && row == g_presMon && g_monLongW) {
+        if (op == OP_PRES && orow >= 0 && orow == g_presMon && g_monLongW) {
             int a, w = 0;
             for (a = 0; a < g_monN; ++a) {
                 const int x = (int)(LabelW(g_txtMons[a]) + 0.5f);
@@ -2548,9 +2707,9 @@ static int LongValW(int page, int row)
             }
             return w;
         }
-        if (page == LP_FX && row == FX_FILTER) {
+        if (op == OP_FX && orow == FX_FILTER) {
             const int v = (int)g_fx[FX_FILTER];
-            return (int)strlen(kFxName[FX_FILTER][v]) > LONGVAL_CHARS ? (int)(LabelW(g_txtFxV[FX_FILTER][v]) + 0.5f) : 0;
+            return (int)strlen(OlShow(OLM_EFFECTS_FILTER, kFxName[FX_FILTER][v])) > LONGVAL_CHARS ? (int)(LabelW(g_txtFxV[FX_FILTER][v]) + 0.5f) : 0;  // v3.53 OL1: the shown word (Night Mono)
         }
         {   // v3.33 MENU333: any other value wider than the column's room (AF_COLW): the column moves for it too
             float w[64], now;
@@ -2561,15 +2720,17 @@ static int LongValW(int page, int row)
     return 0;
 }
 static int LongMove(int w) { return w - 130 > LONGVAL_MOVE ? w - 130 : LONGVAL_MOVE; }  // the arrow ends by x 508
-static int ArrowShiftOld(int cur, int entry);
+static int ArrowShiftOld(int op, int cur, int entry);
 static int ArrowShift(int page)
 {
     const int cur = ActiveCursor(), entry = (signed char)CFG[0x20];
     const int lw = LongValW(g_lpage, cur);
-    const int old = ArrowShiftOld(cur, entry);
+    int op, orow, arg, old;
+    OlRowAt(g_lpage, cur, &op, &orow, &arg);  // v3.54 OL34: the old rules by the row's origin page / row
+    old = ArrowShiftOld(op, orow, entry);
     (void)page;  // the stock page id (g_stockView) is 7 on our pages: the logical page decides
     if (lw) return lw - 100 + 6;  // v3.19.0 C2b: the column moved LongMove left; the arrow 6 px after the text
-    if (g_lpage == 0 && cur == 0) return old;  // v3.33 MENU333: Resolution keeps GOG's own per-label rule
+    if (op == 0 && orow == 0) return old;  // v3.33 MENU333: Resolution keeps GOG's own per-label rule  // v3.54 OL34: (still row 0 of Display)
     __try {  // v3.33 MENU333: every row measured (Echo Doubles "Shadow Cast" ran under the arrow)
         float w[64], now;
         const int n = RowValWidths(g_lpage, cur, w, 64, &now);
@@ -2591,26 +2752,26 @@ static int ArrowShift(int page)
     return old;
 }
 // the rules before v3.33 (by row, mostly by character count); the minimum ArrowShift keeps
-static int ArrowShiftOld(int cur, int entry)
+static int ArrowShiftOld(int op, int cur, int entry)  // v3.54 OL34: op / cur = the row's origin page / row
 {
     {  // v3.33 CAM333: the Camera page's Side row, Option 6's Camera row (v3.33 MERGE: in the old rule, the minimum)
-        const int c = CamArrowShift(g_lpage, cur);
+        const int c = CamArrowShift(op, cur);
         if (c >= 0) return c;
     }
-    if (g_lpage == 0)  // Option 1: the Resolution row (stock row 0)
+    if (op == 0)  // Option 1: the Resolution row (stock row 0)
         return cur == 0 && entry >= 0 && entry < 6 && g_resLen[LiveAspect()][entry] > 8 ? 20 : 0;
-    if (g_lpage == 3) {  // Option 4 (Presentation)
+    if (op == OP_PRES) {  // Option 4 (Presentation)
         if (cur == g_presDisp) return g_dmShift;
         if (cur == g_presMon) return g_monShift;
     }
-    if (g_lpage == LP_SUB && (cur == SUB_EDGE || cur == SUB_BOX)) return 36;  // v3.13.0: "Outline+Shadow", "Translucent"
-    if (g_lpage == LP_SUB && (cur == SUB_EFFECT || cur == SUB_EXIT))  // v3.20.0: "Typewriter", "Paper Peel"
+    if (op == OP_SUB && (cur == SUB_EDGE || cur == SUB_BOX)) return 36;  // v3.13.0: "Outline+Shadow", "Translucent"
+    if (op == OP_SUB && (cur == SUB_EFFECT || cur == SUB_EXIT))  // v3.20.0: "Typewriter", "Paper Peel"
         return ShiftFor((int)strlen(kSubName[cur][g_sub[cur]]));
-    if (g_lpage == LP_FX && cur == FX_NOISE) return 36;  // v3.15.0: "Very High"
-    if (g_lpage == LP_FX && (cur == FX_NTYPE || cur == FX_NCOLOUR))  // v3.18.0: "Scan Roll", "Full Colour"
+    if (op == OP_FX && cur == FX_NOISE) return 36;  // v3.15.0: "Very High"
+    if (op == OP_FX && (cur == FX_NTYPE || cur == FX_NCOLOUR))  // v3.18.0: "Scan Roll", "Full Colour"
         return strlen(kFxName[cur][g_fx[cur]]) > 8 ? 36 : 0;
-    if (g_lpage == LP_FX && cur == FX_FILTER)  // v3.16.0: "Night Vision" / "Ghost Vision" (12) as v3.15.0's "High Contrast"; "Night Vision Mono" more
-        return strlen(kFxName[FX_FILTER][g_fx[FX_FILTER]]) > 14 ? 60 : 36;
+    if (op == OP_FX && cur == FX_FILTER)  // v3.16.0: "Night Vision" / "Ghost Vision" (12) as v3.15.0's "High Contrast"; "Night Vision Mono" more
+        return strlen(OlShow(OLM_EFFECTS_FILTER, kFxName[FX_FILTER][g_fx[FX_FILTER]])) > 14 ? 60 : 36;  // v3.53 OL1: the shown word
     return 0;
 }
 // 5252B0 (the mouse rects 525D04, its only caller: 1 = `add eax, esi` with esi = 14h on the right arrow's rect x).
@@ -2663,9 +2824,12 @@ static __declspec(naked) void hkArrowDraw(void)  // 52587C: esi page, ebp arrow 
 //   523E4B  Options init (call 523D70): stock tables back in all three slots, SetLogicalPage(0)
 //   13 reads of the current page [0x1091B1C] in the stock special cases now read g_stockView (L for 0-2, else 7)
 // The change scan 523D20 walks pages 0-2 with the stock counts 0x655034 (never changed): it asks about stock rows only.
-#define LP_N 6  // v3.7.0: Option 6 (Extra Menu) is in the cycle (6 mod 3 = 0 is valid; 4 and 7 are not)
+// v3.7.0: Option 6 (Extra Menu) is in the cycle (6 mod 3 = 0 is valid; 4 and 7 are not)  // v3.54 OL34: LP_N 6 is layout_sim.h's (the six plan pages)
 typedef struct { int x, y, w, h, a, b; } RowRect;
-static DWORD *g_lpTable[LP_MAX];  // v3.13.0 (review SUB-001): + the hidden Subtitle Style page; v3.15.0: + Screen Effects
+static DWORD *g_lpTable[LP_MAX];  // v3.13.0 (review SUB-001): + the hidden Subtitle Style page; v3.15.0: + Screen Effects  // v3.54 OL34: the live pages (layout.inc)
+static DWORD *g_opTable[OP_MAX];  // v3.54 OL34: the origin pages (v3.53's Options 1-6 and their hidden pages: the builders' tables)
+static int g_opCount[OP_MAX];
+static DWORD g_opTitle[OP_MAX];
 static int g_lpCount[LP_MAX];
 static DWORD g_lpTitle[LP_MAX];
 static int g_lcursor[LP_MAX];
@@ -2682,8 +2846,9 @@ static int RowValWidths(int page, int row, float *w, int max, float *cur)
     r = g_lpTable[page] + 7 * row;
     ids = (const DWORD *)(ULONG_PTR)r[3];
     n = (int)r[4];
-    if (!ids || n <= 0 || n > max || r[5] == 0x25 || r[5] == 0x26 || !r[1]) return 0;
+    if (!ids || n <= 0 || n > max || VbBarRule(r[0], r[5]) || !r[1]) return 0;  // v3.55 OL56: a bar by its input too (Music / Effects Volume)
     v = ((int(__cdecl *)(void))(ULONG_PTR)r[1])();
+    if (v < 0) return 0;  // v3.53 MERGE: a value-less row (a folder: OL2 points its table at {0}; the stock "Press") has no value or arrows to measure
     for (i = 0; i < n; ++i) {
         w[i] = LabelW(((const BYTE *(__cdecl *)(int, int))0x50C440)(0, (int)ids[i]));
         if (i == v) *cur = w[i];
@@ -2736,17 +2901,8 @@ static float LabelW(const BYTE *s)
     return u / 1.25f;
 }
 // v3.22.0 (user item 15): the rows that open a sub-screen (the v3.19 arrow rule)
-static int SubmenuRow(int slot, int row)
-{
-    int page;
-    if ((unsigned)slot >= 3) return 0;
-    page = g_slotPage[slot];
-    if (page == 0) return row == 1 || row == 2 || (row == 5 && SndMenuOn());  // Brightness, Gamma; v3.52 SND352: Sound
-    if (page == 1) return row == 0;                       // Button Config
-    if (page == 2) return (row == 1 && g_subMenu) || (row == 2 && g_fxMenu) || (row == 6 && ShMenuOn()) || (row == 5 && DofMenuOn());  // Subtitles, Noise Effect; v3.40 SH340: Realtime Shadow; v3.43 DF343: Hide Icon
-    if (page == 3) return R3SubmenuRow(row);  // v3.50 R302: Option 4's Room 302 row
-    return GpSubmenuRow(page, row);  // v3.25.0: Option 5's Player / Enemies
-}
+static int SubmenuRowPage(int page, int row) { return OlBlue(page, row); }  // v3.53 OL2: by logical page (look.inc decorates a page's records with it)  // v3.54 OL34: by the row's own kind (layout.inc), not by (page, row) (R0 R4-3)
+static int SubmenuRow(int slot, int row) { return (unsigned)slot < 3 ? SubmenuRowPage(g_slotPage[slot], row) : 0; }  // v3.53 OL2: the slot's page
 // v3.22.0 (user item 15): no white arrows any more; a colour cue instead (RowLabelC). Kept behind g_subArrows.
 static int g_subArrows = 0;
 static void SubmenuArrow(int row, int slot, const BYTE *obj, int xoff)
@@ -2754,9 +2910,7 @@ static void SubmenuArrow(int row, int slot, const BYTE *obj, int xoff)
     int page, mark = 0;
     if (!g_subArrows || (unsigned)slot >= 3 || !obj) return;
     page = g_slotPage[slot];
-    if (page == 0) mark = row == 1 || row == 2 || (row == 5 && SndMenuOn());  // Brightness, Gamma; v3.52 SND352: Sound
-    else if (page == 1) mark = row == 0;                  // Button Config
-    else if (page == 2) mark = (row == 1 && g_subMenu) || (row == 2 && g_fxMenu) || (row == 6 && ShMenuOn()) || (row == 5 && DofMenuOn());  // Subtitles, Noise Effect; v3.40 SH340: Realtime Shadow; v3.43 DF343: Hide Icon
+    mark = SubmenuRow(slot, row);  // v3.54 OL34: the per-row flag
     if (!mark || !g_lpTable[page] || row >= g_lpCount[page]) return;
     __try {  // (the font table read inside LabelW is guarded here too)
         RowRect r;
@@ -2800,7 +2954,7 @@ static int __cdecl OutlineShadow(int bank, int id, int x, int y)  // was `call 5
     volatile const int *cnt = (volatile const int *)0x1261BF4;
     const int n0 = *cnt;
     const int r = ((int(__cdecl *)(int, int, int, int))0x50B580)(bank, id, x, y);
-    if (g_lpage == LP_FX || g_pending == LP_FX) {
+    if (OlFxPage(g_lpage) || OlFxPage(g_pending)) {  // v3.54 OL34: Effects and Effects > Film Grain
         const int n1 = *cnt, g = n1 - n0;
         static int s_logged;
         if (n0 < g_optRingEnd) {  // the queue was flushed since the last record without a glyph pass clearing the list
@@ -2821,11 +2975,23 @@ static int __cdecl OutlineShadow(int bank, int id, int x, int y)  // was `call 5
 }
 // 0x525553 (was `call 5239A0`): the row label
 static int OptTextRgb(int flash, int id, int y, int x, DWORD rgb);  // v3.33 MERGE: shared with RowValueC
+// v3.54 OL34: the v3.53 greys of the row drawn, asked with its origin page / row; label 0 = the value (only Room 302's
+// rows grey their value by row: the others grey their value ids); a camera row of Controls > Camera / Steering by its rule
+static int OlGreyDrawn(int label)
+{
+    int op, orow, arg, kind;
+    if ((unsigned)g_drawSlot >= 3) return 0;
+    kind = OlRowAt(g_slotPage[g_drawSlot], g_drawRow, &op, &orow, &arg);
+    if (kind == OLK_CAM) return OlCamGrey(arg);
+    if (op < 0) return 0;
+    if (!label) return R3RowGrey(op, orow);
+    return CamRowGrey(op, orow) || PresRowGrey(op, orow) || RgRowGrey(op, orow) || R3RowGrey(op, orow);
+}
 static int __cdecl RowLabelC(int flash, int id, int y, int x, int idx)
 {
     DWORD rgb;
-    const int grey = CamRowGrey(g_drawSlot, g_drawRow) || PresRowGrey(g_drawSlot, g_drawRow) ||
-                     RgRowGrey(g_drawSlot, g_drawRow) || R3RowGrey(g_drawSlot, g_drawRow);  // v3.50 R302: + the Room 302 page  // v3.47 RG347  // v3.33 CAM333: Option 6's Camera row while Playable Eileen's camera owns the view; v3.39 PR339: + a greyed Renderer row
+    const int grey = OlGreyDrawn(1) ||  // v3.54 OL34: Camera / Renderer / Regeneration / Room 302 by the row's origin, the camera rows
+                     LkRowGrey(g_drawSlot, g_drawRow);  // v3.53 OL2: + a dependent row whose switch is off  // v3.50 R302: + the Room 302 page  // v3.47 RG347  // v3.33 CAM333: Option 6's Camera row while Playable Eileen's camera owns the view; v3.39 PR339: + a greyed Renderer row
     if (!grey && !SubmenuRow(g_drawSlot, g_drawRow)) return 0;  // stock
     rgb = grey ? (idx == 2 ? 0x303060u : 0x484848u) : idx == 2 ? OPT_SUB_HOT : OPT_SUB_RGB;  // v3.33 CAM333: grey (a dull red under the cursor)
     return OptTextRgb(flash, id, y, x, rgb);
@@ -2835,7 +3001,7 @@ static int __cdecl RowLabelC(int flash, int id, int y, int x, int idx)
 static int __cdecl RowValueC(int flash, int id, int y, int x, int idx)
 {
     if (!NcValueIdGreyed(id) && !HbValueIdGreyed(id) && !PresValueIdGreyed(id) && !RgValueIdGreyed(id) &&
-        !R3RowGrey(g_drawSlot, g_drawRow)) return 0;  // v3.50 R302: + the Room 302 page's greyed rows (by row: its values share the FOV rows' ids)
+        !OlGreyDrawn(0) && !LkRowGrey(g_drawSlot, g_drawRow)) return 0;  // v3.54 OL34: Room 302 by its origin, the camera rows  // v3.53 OL2: + a dependent row whose switch is off  // v3.50 R302: + the Room 302 page's greyed rows (by row: its values share the FOV rows' ids)
      // v3.47 RG347: + Regeneration  // stock (v3.37 MN337: + Curse Meter's Player / Both; v3.39 PR339: + a greyed Renderer row's value)
     return OptTextRgb(flash, id, y, x, idx == 2 ? 0x303060u : 0x484848u);
 }
@@ -2963,7 +3129,10 @@ static int g_pagesOn;
 static void SetLogicalPage(int lp)  // the one place both identities change (review OPT-PAGE-003)
 {
     g_lpage = lp;
-    g_stockView = lp < 3 ? lp : 7;
+    g_stockView = lp < 3 && !g_olOn ? lp : 7;  // v3.54 OL34 (R0 R4-1): 7 on every page Refined rebuilt (all six: the stock (page, row)
+    // cases key on a row number: Sound = Surround would shift Renderer's value 40 px, the French / German row cases)
+    // v3.55 OL56: both layouts rebuild all six (StockMoves=0 is v3.54's reordered pages, not the stock tables): 7 in both, so no
+    // stock page / row / language case reaches a moved stock record (R0 R5-7's "lp for stock-shaped tables" has no page to apply to)
 }
 
 // Fills physical slot `slot` with logical page lp: the slot's table pointers / count / Exit row / title, then its
@@ -2976,19 +3145,21 @@ static void LoadSlot(int slot, int lp)
     DWORD *const t = g_lpTable[lp];
     const int n = g_lpCount[lp];
     const int top = 96, step = SlotRowStep(n);  // v3.32 DESC332
+    const DWORD title = LkTitleFor(lp);  // v3.53 OL2: a hidden page's "Parent > Page" (else g_lpTitle[lp])
     int i, cur;
+    LkDecorate(lp);  // v3.53 OL2: folder rows without "Press", the dependent rows' thunks (Refined's own records only)
     *(DWORD *)(ULONG_PTR)(0x655058 + 4 * slot) = (DWORD)(ULONG_PTR)t;
     *(DWORD *)(ULONG_PTR)(0x655074 + 4 * slot) = (DWORD)(ULONG_PTR)t;
     *(DWORD *)(ULONG_PTR)(0x655080 + 4 * slot) = (DWORD)(ULONG_PTR)t;
     *(int *)(ULONG_PTR)(0x655040 + 4 * slot) = n;
     *(int *)(ULONG_PTR)(0x655064 + 4 * slot) = n - 1;
-    *(DWORD *)(ULONG_PTR)(0x65504C + 4 * slot) = g_lpTitle[lp];
+    *(DWORD *)(ULONG_PTR)(0x65504C + 4 * slot) = title;  // v3.53 OL2 (was g_lpTitle[lp])
     g_slotPage[slot] = lp;
     ((void(__cdecl *)(void *))0x5521E0)(w);
     ((void(__cdecl *)(void *))0x5521B0)(w);
     *(int *)(w + 0x2C) = n;
     *(int *)(w + 0x30) = 0;
-    *(DWORD *)(w + 0x34) = g_lpTitle[lp];
+    *(DWORD *)(w + 0x34) = title;  // v3.53 OL2 (was g_lpTitle[lp])
     for (i = 0; i < n; ++i) {
         RowRect r;
         r.x = 40;
@@ -3028,7 +3199,9 @@ static void __cdecl ResetPages(void)
         *(int *)(ULONG_PTR)(0x655064 + 4 * p) = g_lpCount[p] - 1;
         *(DWORD *)(ULONG_PTR)(0x65504C + 4 * p) = g_lpTitle[p];
         g_slotPage[p] = p;
+        LkDecorate(p);  // v3.53 OL2: Brightness / Gamma / Button Config without "Press" (523D70 builds the widgets next)
     }
+    LkReset();  // v3.53 OL2: a new opening (the strip's names, the glyph lines' page state)
     for (p = 0; p < LP_MAX; ++p) g_lcursor[p] = 0;
     g_pending = -1;
     g_subReq = 0;
@@ -3054,6 +3227,7 @@ static void __cdecl ResetPages(void)
     R3Snapshot();  // v3.50 R302
     SndSnapshot();  // v3.52 SND352
     g_snapOn = 1;
+    OlOpenLog();  // v3.54 OL34: the cycle and the pages (verbose)
 }
 
 // v3.5.1: "No" at "Do you want to change the options?" (0x526B6F copies the backup back, then `call 524320` at
@@ -3103,27 +3277,43 @@ static __declspec(naked) void hkDiscard(void)  // 526B8D: call 524320 (apply the
         ret
     }
 }
+// v3.54 OL34: 523D70 builds the three widgets 32 px apart (0x523DB7); Display / Controls / Interface have 10 or 11 rows
+// now: LoadSlot builds them again at SlotRowStep's pitch (as every slide and fade does), the last row above the description
+static void __cdecl OlStockSlots(void)
+{
+    int p;
+    if (!g_olOn) return;
+    for (p = 0; p < 3; ++p) LoadSlot(p, p);
+}
 static __declspec(naked) void hkInitPages(void)
 {
     __asm {
         push eax
         call ResetPages
         pop eax
-        push 523D70h             // tail call: 523D70 returns to 523E50
-        ret
+        mov ecx, 523D70h         // v3.54 OL34: a call (was the tail call): eax = the menu object; 523D70 keeps ebx / esi / edi / ebp
+        call ecx
+        pushad
+        call OlStockSlots
+        popad
+        ret                      // to 523E50
     }
 }
 
 // 525B7A: a page arrow or pad bit 1000h / 4000h. Stock: target = FC -/+ 1 wrapping over 0..2, [obj+104] = +1 / -1.
+static int g_stripSlide = -1;  // v3.55 OL56: the top page the strip's click slides to (PageKeyFade; another slot than the one shown)
 static void __cdecl PageSwitch(BYTE *obj, int next)
 {
     const int from = *(int *)(obj + 0xFC);
-    const int lp = g_lpage == LP_SUB || g_lpage == LP_FX ? 2 :
-                   g_lpage >= LP_N && g_lpage < LP_MAX && g_lpParent[g_lpage] >= 0 ? g_lpParent[g_lpage] :  // v3.25.0
-                   next ? (g_lpage + 1) % LP_N : (g_lpage + LP_N - 1) % LP_N,
-              slot = lp % 3;  // v3.13.0; v3.15.0: the Screen Effects page too
+    int lp = g_lpage >= LP_N && g_lpage < LP_MAX && g_lpParent[g_lpage] >= 0 ? g_lpParent[g_lpage] :  // v3.25.0  // v3.54 OL34: LP_SUB / LP_FX's own codes are gone
+             next ? (g_lpage + 1) % LP_N : (g_lpage + LP_N - 1) % LP_N, slot;
+    if (g_stripSlide >= 0 && g_stripSlide < LP_N && g_lpage < LP_N && g_stripSlide % 3 != g_lpage % 3) {  // v3.55 OL56: the click's page
+        lp = g_stripSlide;
+        next = lp > g_lpage;  // the slide's direction: toward the name's side of the strip
+    }
+    g_stripSlide = -1;
+    slot = lp % 3;  // v3.13.0; v3.15.0: the Screen Effects page too
     if ((unsigned)from < 3) g_lcursor[g_lpage] = (short)((int(__cdecl *)(void *))0x552470)(obj + 0x38 * from);
-    if (g_lpage == LP_FX) g_lcursor[2] = 2;  // v3.15.0: back on Noise Effect
     if (g_lpage >= LP_N && g_lpage < LP_MAX && g_lpParent[g_lpage] >= 0) g_lcursor[g_lpParent[g_lpage]] = g_lpParentRow[g_lpage];
     LoadSlot(slot, lp);
     *(int *)(obj + 0x100) = slot;
@@ -3135,11 +3325,31 @@ static void __cdecl PageSwitch(BYTE *obj, int next)
 static int __cdecl HiddenBack(void)
 {
     if (!g_subScreenOn) return 0;
-    if (g_lpage >= LP_N && g_lpage < LP_MAX && g_lpParent[g_lpage] >= 0) InterlockedExchange(&g_subReq, REQ_BACK);  // v3.25.0
-    else if (g_lpage != LP_SUB && g_lpage != LP_FX) return 0;
-    else InterlockedExchange(&g_subReq, g_lpage == LP_SUB ? 2 : 4);
+    if (g_lpage < LP_N || g_lpage >= LP_MAX || g_lpParent[g_lpage] < 0) return 0;  // v3.54 OL34: every hidden page (no codes 2 / 4)
+    InterlockedExchange(&g_subReq, REQ_BACK);  // v3.25.0
     ((Fn1)0x56CC40)(0x9C42);  // the stock cancel / confirm sound (0x5261CB)
     return 1;
+}
+
+// v3.55 OL56 (R6): hkPageSwitch's first call (was HiddenBack): a click on the page strip (LkStripClick) slides to its page
+// (another slot: PageSwitch) or asks the fade route for it (REQ_JUMP: from a hidden page, or the top page in the same slot);
+// else a page key on a hidden page is Back, as before. 1 = the fade (525AA0 returns 5).
+static int LkStripTakeRoute(int *t);  // look.inc
+static int __cdecl PageKeyFade(void)
+{
+    int t;
+    const int go = LkStripTakeRoute(&t);
+    g_stripSlide = -1;
+    if (go == 1 /* LK_GO_SLIDE */) {
+        g_stripSlide = t;
+        return 0;
+    }
+    if (go == 2 /* LK_GO_FADE */) {
+        InterlockedExchange(&g_subReq, REQ_JUMP | t);
+        ((Fn1)0x56CC40)(0x9C42);  // the stock confirm sound (0x5261CB), as Back
+        return 1;
+    }
+    return HiddenBack();
 }
 
 // 0x526CD2 (`call 522FE0`, Options state 5, reached only by a row return 4: dead in GOG v7, RE_fade 2a): with our
@@ -3154,17 +3364,16 @@ static int __cdecl SubScreen(BYTE *cfg)
     const int from = *(int *)(obj + 0xFC);
     int lp, slot;
     if (!req) return ((int(__cdecl *)(BYTE *))0x522FE0)(cfg);
-    if (req == 1 && g_lpage == 2) lp = LP_SUB;
-    else if (req == 3 && g_lpage == 2) lp = LP_FX;
-    else if ((req == 2 && g_lpage == LP_SUB) || (req == 4 && g_lpage == LP_FX)) lp = 2;
-    else if ((req & REQ_OPEN) && (req & 0xFF) < LP_MAX && g_lpParent[req & 0xFF] == g_lpage) lp = req & 0xFF;  // v3.25.0
+    if ((req & REQ_OPEN)  // v3.54 OL34: the legacy codes 1 - 4 (Subtitle Style, Screen Effects) are gone: every page on REQ_OPEN / REQ_BACK
+              && (req & 0xFF) < LP_MAX && g_lpParent[req & 0xFF] == g_lpage) lp = req & 0xFF;  // v3.25.0
     else if (req == REQ_BACK && g_lpage >= LP_N && g_lpage < LP_MAX && g_lpParent[g_lpage] >= 0) lp = g_lpParent[g_lpage];
+    else if ((req & REQ_JUMP) && (req & 0xFF) < LP_N && (int)(req & 0xFF) != g_lpage) lp = req & 0xFF;  // v3.55 OL56: the strip's click
     else {  // a stale request: fade back in on the page that is there
         Log("options: page request %ld on page %d ignored", req, g_lpage);
         return 1;
     }
     if ((unsigned)from < 3) g_lcursor[g_lpage] = (short)((int(__cdecl *)(void *))0x552470)(obj + 0x38 * from);
-    g_lcursor[lp] = lp == 2 ? (req == 2 ? 1 : 2) : 0;  // back on Subtitles / Noise Effect; a hidden page's first row
+    if (!(req & REQ_JUMP)) g_lcursor[lp] = 0;  // a hidden page's first row  // v3.54 OL34: (the "lp == 2" rule went with the codes)  // v3.55 OL56: a top page by the strip keeps its own row
     if (req == REQ_BACK) g_lcursor[lp] = g_lpParentRow[g_lpage];  // v3.25.0: back on the row that opened the page
     slot = lp % 3;
     LoadSlot(slot, lp);
@@ -3202,7 +3411,7 @@ static const DWORD g_backSwitch = 0x525BF7;  // mov [esp+10h],ecx / [ebp+118h] =
 static __declspec(naked) void hkPageSwitch(void)  // ebp menu object, esi pad bits, edi 1
 {
     __asm {
-        call HiddenBack          // v3.16.0: on a hidden page a page key is Back with the fade (eax / ecx / edx are free)
+        call PageKeyFade         // v3.16.0: on a hidden page a page key is Back with the fade (eax / ecx / edx are free)  // v3.55 OL56: + the strip's click
         test eax, eax
         jz slide
         mov ecx, 5               // 525AA0 returns 5: row code 4, the sub-screen exit
@@ -3257,27 +3466,8 @@ static __declspec(naked) void hkSlideCommit(void)
 static void __cdecl Mode2Slide(int slot, BYTE *obj)
 {
     static int logged;
-    const LONG req = InterlockedExchange(&g_subReq, 0);
-    if (req == 1 || req == 2) {  // v3.13.0: the Subtitle Style page opens (Option 3's Subtitles row) or closes (Back)
-        const int to = req == 1 ? 0 : 2, lp = req == 1 ? LP_SUB : 2;
-        *(int *)(obj + 0x100) = to;
-        *(int *)(obj + 0x104) = req == 1 ? 1 : -1;
-        g_lcursor[lp] = req == 1 ? 0 : 1;           // the page's first row / back on Subtitles
-        *(int *)(ULONG_PTR)(0x1092238 + 4 * to) = g_lcursor[lp];  // the cursor the stock mode-2 code sets (0x5262BA)
-        LoadSlot(to, lp);
-        g_pending = lp;
-        return;
-    }
-    if (req == 3 || req == 4) {  // v3.15.0: the Screen Effects page opens (Option 3's Noise Effect row) or closes (Back)
-        const int lp = req == 3 ? LP_FX : 2, to = lp % 3;  // slot 1 (off screen: Option 3 is slot 2) / back to slot 2
-        *(int *)(obj + 0x100) = to;
-        *(int *)(obj + 0x104) = req == 3 ? 1 : -1;
-        g_lcursor[lp] = req == 3 ? 0 : 2;           // the page's first row / back on Noise Effect
-        *(int *)(ULONG_PTR)(0x1092238 + 4 * to) = g_lcursor[lp];  // the cursor the stock mode-2 code sets (0x5262BA)
-        LoadSlot(to, lp);
-        g_pending = lp;
-        return;
-    }
+    const LONG req = InterlockedExchange(&g_subReq, 0);  // v3.54 OL34: no row asks for a slide any more (codes 1 - 4 gone): a stale request is dropped
+    if (req) Log("options: page request %ld dropped (slide mode 2)", req);
     if ((unsigned)slot >= 3) return;
     if (!logged) {
         logged = 1;
@@ -3539,16 +3729,16 @@ static int InstallPages(void)
         return 0;
     }
     for (i = 0; i < 3; ++i) {
-        g_lpTable[i] = (DWORD *)(ULONG_PTR)*(const DWORD *)(ULONG_PTR)(0x655058 + 4 * i);
-        g_lpCount[i] = *(const int *)(ULONG_PTR)(0x655040 + 4 * i);
-        g_lpTitle[i] = *(const DWORD *)(ULONG_PTR)(0x65504C + 4 * i);
+        g_opTable[i] = (DWORD *)(ULONG_PTR)*(const DWORD *)(ULONG_PTR)(0x655058 + 4 * i);
+        g_opCount[i] = *(const int *)(ULONG_PTR)(0x655040 + 4 * i);
+        g_opTitle[i] = *(const DWORD *)(ULONG_PTR)(0x65504C + 4 * i);
     }
     {   // v3.13.0: Option 3 becomes a copy of its stock table whose Subtitles row (row 1) also opens Subtitle Style.
         // Only when the stock table is what the RE saw (8 rows; row 1 = input 0x524AF0, label 0x2B, 2 values).
         // v3.15.0: and whose Noise Effect row (row 2 = input 0x524E40, getter 0x413CD0, label 0x2F, 2 values) also opens
         // Screen Effects; each row is replaced only if it is the stock one.
-        const DWORD *s3 = g_lpTable[2];
-        const int stock3 = s3 == (const DWORD *)0x654E50 && g_lpCount[2] == 8;
+        const DWORD *s3 = g_opTable[2];
+        const int stock3 = s3 == (const DWORD *)0x654E50 && g_opCount[2] == 8;
         const int sub = stock3 && s3[7 + 0] == 0x524AF0 && s3[7 + 5] == 0x2B && s3[7 + 4] == 2;
         const int fx = stock3 && g_fxOn && s3[14 + 0] == 0x524E40 && s3[14 + 1] == 0x413CD0 && s3[14 + 5] == 0x2F && s3[14 + 4] == 2;
         // v3.25.0: and whose Blood Colour row (row 3, re_blood.md 1) has 10 values when the colour hooks are in
@@ -3585,25 +3775,25 @@ static int InstallPages(void)
                 g_bldRowOn = 1;  // (only takes effect when InstallPages succeeds; see below)
                 Log("blood colour: Option 3's Blood Colour row has %d values", BLD_N);
             }
-            g_lpTable[2] = g_rowsOthers;
+            g_opTable[2] = g_rowsOthers;
         }
         if (!sub)
-            Log("subtitles: Option 3's table is not the stock one (%p, %d rows): no Subtitle Style page", (const void *)s3, g_lpCount[2]);
+            Log("subtitles: Option 3's table is not the stock one (%p, %d rows): no Subtitle Style page", (const void *)s3, g_opCount[2]);
         if (g_bldOn && !bld)
             Log("blood colour: Option 3's Blood Colour row is not the stock one: it stays Red / Green / Purple (the hooks keep those)");
         if (DofRowWanted() && !dof)  // v3.43 DF343
             Log("depth of field: Option 3's Hide Icon row is not the stock one (%p, %d rows): no Depth of Field page; "
-                "[ScreenEffects] DepthOfField still applies", (const void *)s3, g_lpCount[2]);
+                "[ScreenEffects] DepthOfField still applies", (const void *)s3, g_opCount[2]);
         if (ShRowWanted() && !shd)  // v3.40 SH340
             Log("shadows: Option 3's Realtime Shadow row is not the stock one (%p, %d rows): no Shadows page; [Shadows] Edge still applies",
-                (const void *)s3, g_lpCount[2]);
+                (const void *)s3, g_opCount[2]);
         if (g_fxOn && !fx)
             Log("screen effects: Option 3's Noise Effect row is not the stock one (%p, %d rows): no Screen Effects page; the "
-                "[ScreenEffects] keys still apply", (const void *)s3, g_lpCount[2]);
+                "[ScreenEffects] keys still apply", (const void *)s3, g_opCount[2]);
     }
     {   // v3.14.0: Option 2 becomes a copy whose Vibration row (row 2) has Off / Low / Medium / High
-        const DWORD *s2 = g_lpTable[1];
-        if (g_vibOn && s2 == (const DWORD *)0x654D88 && g_lpCount[1] == 7 && s2[14 + 0] == 0x524980 && s2[14 + 1] == 0x413C60 &&
+        const DWORD *s2 = g_opTable[1];
+        if (g_vibOn && s2 == (const DWORD *)0x654D88 && g_opCount[1] == 7 && s2[14 + 0] == 0x524980 && s2[14 + 1] == 0x413C60 &&
             s2[14 + 5] == 0x23 && s2[14 + 4] == 2) {
             memcpy(g_rowsControl, s2, 7 * 7 * 4);
             g_rowsControl[7 * 7] = 0;
@@ -3612,10 +3802,10 @@ static int InstallPages(void)
             g_rowsControl[14 + 3] = (DWORD)(ULONG_PTR)g_vibIds;
             g_rowsControl[14 + 4] = 4;
             g_rowsControl[14 + 6] = (DWORD)(ULONG_PTR)VibDesc;
-            g_lpTable[1] = g_rowsControl;
+            g_opTable[1] = g_rowsControl;
             g_vibMenu = 1;
         } else if (g_vibOn) {
-            Log("vibration: Option 2's table is not the stock one (%p, %d rows): the row stays Off / On", (const void *)s2, g_lpCount[1]);
+            Log("vibration: Option 2's table is not the stock one (%p, %d rows): the row stays Off / On", (const void *)s2, g_opCount[1]);
         }
     }
     SetLogicalPage(0);
@@ -3628,7 +3818,7 @@ static int InstallPages(void)
     PokeBranch(0x523E4B, 0xE8, hkInitPages, 5);
     PokeBranch(0x526B8D, 0xE8, hkDiscard, 5);  // v3.5.1
     g_pagesOn = 1;
-    if (g_subMenu || g_fxMenu || g_gpMenu || ShMenuOn() || DofMenuOn()) {  // v3.43 DF343: + the Depth of Field page  // v3.40 SH340: + the Shadows page  // v3.16.0 (RE_fade 3): the hidden pages fade in and out (both hooks or neither)
+    {  // v3.54 OL34: always (the plan's folders all need it: Camera, Menus, Film Grain ...)  // v3.43 DF343: + the Depth of Field page  // v3.40 SH340: + the Shadows page  // v3.16.0 (RE_fade 3): the hidden pages fade in and out (both hooks or neither)
         static const Site kFade[] = {
             { 0x526CCD, { 0x68, 0xD0, 0x1A, 0x09, 0x01, 0xE8, 0x09, 0xC3, 0xFF, 0xFF, 0xEB, 0xE1 }, 12 },  // push cfg; call 522FE0; jmp 526CBA
             { 0x5261B4, { 0x8B, 0x85, 0xFC, 0x00, 0x00, 0x00, 0x33, 0xC9, 0x66, 0x8B, 0x0C, 0x85, 0x64, 0x50, 0x65, 0x00 }, 16 },
@@ -3649,8 +3839,8 @@ static int InstallPages(void)
         if (ok && PokeBranch(0x526CD2, 0xE8, SubScreen, 5)) {
             if (PokeBranch(0x5261B4, 0xE9, hkCancel, 6)) {
                 g_subScreenOn = 1;
-                Log("options: the hidden pages (Subtitle Style, Screen Effects, Player, Enemies) fade in and out like Button Config "
-                    "(00526CD2, Cancel 005261B4)");
+                Log("options: the folder pages (Subtitles, Menus, Film Grain, Shadows, Camera, Steering, Room 302, Gameplay's six) fade in "
+                    "and out like Button Config (00526CD2, Cancel 005261B4)");  // v3.54 OL34
             } else if (!Poke(0x526CD2, kCall, 5) || memcmp((const void *)0x526CD2, kCall, 5)) {
                 Log("options: 00526CD2 could not be put back (it forwards to the stock call): the hidden pages slide");
             } else {
@@ -3660,6 +3850,7 @@ static int InstallPages(void)
             Log("options: 00526CD2 could not be written: the hidden pages slide (no fade)");
         }
     }
+    LkInstall();  // v3.53 OL2: the Options look (no site of its own)
     return 1;
 }
 
@@ -4442,7 +4633,12 @@ static int CursorIn(float x0, float y0, float w, float h)
     return x >= x0 && x < x0 + w && y >= y0 && y < y0 + h;
 }
 // the Options page arrows at the top (512x448 space)
-static int __cdecl PrevPage(void) { return g_scale2d > 1.001f ? CursorIn(33.6f, 39.2f, 48.0f, 28.0f) : g_prevTramp(); }
+static int LkStripClick(DWORD ret);  // v3.55 OL56: look.inc (a click on the page strip's names)
+static int __cdecl PrevPage(void)
+{
+    if (LkStripClick((DWORD)(ULONG_PTR)_ReturnAddress())) return 1;  // v3.55 OL56: only for 525AA0's click test (0x525B5C)
+    return g_scale2d > 1.001f ? CursorIn(33.6f, 39.2f, 48.0f, 28.0f) : g_prevTramp();
+}
 static int __cdecl NextPage(void) { return g_scale2d > 1.001f ? CursorIn(429.6f, 39.2f, 48.0f, 28.0f) : g_nextTramp(); }
 
 // Copies n stolen bytes (no relative operands) into a trampoline that jumps back to va + n; then jmp va -> hook.
@@ -4573,6 +4769,99 @@ static void ApplyMenus43(void)
 
 #include "descfit.inc"  // v3.32 DESC332: Options descriptions fit the 4:3 canvas (wrap, else tighter, else shortened)
 
+// ================================================================ v3.53 OL1: the stock pages' words (PLAN section 4, tier S)
+// A stock row is renamed by pointing its record's label id (+0x14), value-id table (+0xC) and description getter (+0x18)
+// at private texts, as Blood Colour and Vibration do; its input, getter, count and cfg byte stay the game's. Rows are
+// found by their stock label id (unique on each page). Not renamed: BGM Volume / SE Volume's labels (0x525672 draws a row
+// as a volume bar by those two label ids: PLAN's Music / Effects Volume wait for R5; their lines are renamed). The getters
+// read the menu's cfg copy (CFG) as the game's own do.
+static int __cdecl OlResDesc(void) { return OlLine(OLT_RES_D); }
+static int __cdecl OlBrightDesc(void) { return OlLine(OLT_BRIGHT_D); }
+static int __cdecl OlGammaDesc(void) { return OlLine(OLT_GAMMA_D); }
+static int __cdecl OlMusicDesc(void) { return OlLine(OLT_MUSIC_D); }
+static int __cdecl OlSfxDesc(void) { return OlLine(OLT_SFX_D); }
+static int __cdecl OlBtnDesc(void) { return OlLine(OLT_BTN_D); }
+static int __cdecl OlDsDesc(void) { return OlLine(CFG[0x18] ? OLT_DS_VD_RUN : OLT_DS_VD_WALK); }
+static int __cdecl OlHbDesc(void) { return OlLine(CFG[0x08] == 0 ? OLT_HB_VD_OFF : CFG[0x08] == 1 ? OLT_HB_VD_SLIGHT : OLT_HB_VD_FULL); }
+static int __cdecl OlLrDesc(void) { return OlLine(CFG[0x17] ? OLT_LR_VD_STRAFE : OLT_LR_VD_TURN); }
+static int __cdecl OlIlDesc(void) { return OlLine(CFG[0x16] ? OLT_IL_VD_ON : OLT_IL_VD_OFF); }
+static int __cdecl OlLangDesc(void) { return OlLine(OLT_LANG_D); }
+static int __cdecl OlSubDesc(void) { return OlLine(CFG[0x12] ? OLT_SUB_VD_ON : OLT_SUB_VD_OFF); }
+static int __cdecl OlGrainDesc(void) { return OlLine(OLT_GRAIN_D); }
+static int __cdecl OlBloodDesc(void) { return OlLine(OLT_BLOOD_D); }
+static int __cdecl OlHgDesc(void) { return OlLine(CFG[0x09] ? OLT_VD_AUTOHIDE : OLT_VD_ALWAYS); }
+static int __cdecl OlIiDesc(void) { return OlLine(CFG[0x0A] ? OLT_VD_AUTOHIDE : OLT_VD_ALWAYS); }
+static int __cdecl OlShdDesc(void) { return OlLine(OLT_SHD_D); }
+#define OL_PAGE_ROWS 10  // a stock page Refined has not copied yet gets its own copy (7 or 8 rows today)
+static DWORD g_olRows[3][OL_PAGE_ROWS * 7 + 1];
+static DWORD *OlFind(int p, DWORD label)  // the row of page p with this stock label id (NULL = not there)
+{
+    DWORD *const t = g_opTable[p];
+    int i;
+    if (!t) return NULL;
+    for (i = 0; i < g_opCount[p]; ++i)
+        if (t[7 * i + 5] == label) return t + 7 * i;
+    return NULL;
+}
+static int g_olStockN;  // rows renamed (the log line)
+static void OlRow(int p, DWORD label, int count, int newLabel, const DWORD *ids, const void *desc)
+{
+    DWORD *const r = OlFind(p, label);
+    if (!r || (ids && (int)r[4] != count)) {
+        Log("options words: page %d has no stock row %03lX with %d values: it keeps the game's words", p + 1, label, count);
+        return;
+    }
+    if (newLabel >= 0) r[5] = (DWORD)(MSG_V53 + newLabel);
+    if (ids) r[3] = (DWORD)(ULONG_PTR)ids;
+    if (desc) r[6] = (DWORD)(ULONG_PTR)desc;
+    ++g_olStockN;
+}
+static void OlStockRows(void)  // ApplyAspectMenu, after every install that reads the stock pages
+{
+    static const DWORD kStock[3] = { 0x654CC0, 0x654D88, 0x654E50 };
+    int p;
+    if (!g_pagesOn) {
+        Log("options words: no Options pages (see above): the game's own pages keep their words");
+        return;
+    }
+    for (p = 0; p < 3; ++p) {
+        if (g_opTable[p] == (DWORD *)(ULONG_PTR)kStock[p]) {
+            if (g_opCount[p] < 1 || g_opCount[p] > OL_PAGE_ROWS) {
+                Log("options words: page %d has %d rows: it keeps the game's words", p + 1, g_opCount[p]);
+                continue;
+            }
+            memcpy(g_olRows[p], g_opTable[p], (size_t)g_opCount[p] * 7 * 4);  // (the stock tables have no end mark: by count)
+            g_olRows[p][g_opCount[p] * 7] = 0;
+            g_opTable[p] = g_olRows[p];
+        }
+    }
+    g_opTitle[0] = MSG_V53 + OLT_T_DISPLAY;  // were the game's "Option 1 (Video&Sound)" / "Option 2 (Control)" / "Option 3 (Others)"
+    g_opTitle[1] = MSG_V53 + OLT_T_CONTROLS;
+    g_opTitle[2] = MSG_V53 + OLT_T_INTERFACE;
+    g_olStockN = 0;
+    OlRow(0, 0x71, 6, -1, NULL, OlResDesc);
+    OlRow(0, 0x28, 1, -1, NULL, OlBrightDesc);
+    OlRow(0, 0x77, 1, -1, NULL, OlGammaDesc);
+    OlRow(0, 0x25, 11, -1, NULL, OlMusicDesc);  // (the label stays: the bar test)
+    OlRow(0, 0x26, 11, -1, NULL, OlSfxDesc);
+    OlRow(0, 0x24, 0, OLT_SNDMODE_L, NULL, NULL);  // Sound -> Sound Mode (the game's tests on this row go by its row number; sound.inc's line)
+    OlRow(1, 0x27, 1, OLT_BTN_L, NULL, OlBtnDesc);
+    OlRow(1, 0x6D, 2, OLT_DS_L, g_olDsIds, OlDsDesc);
+    OlRow(1, 0x20, 3, OLT_HB_L, g_olHbIds, OlHbDesc);
+    OlRow(1, 0x156, 2, OLT_LR_L, g_olLrIds, OlLrDesc);
+    OlRow(1, 0x157, 2, OLT_IL_L, g_olIlIds, OlIlDesc);
+    OlRow(2, 0x2A, 7, -1, NULL, OlLangDesc);
+    OlRow(2, 0x2B, 2, -1, NULL, g_subMenu ? NULL : OlSubDesc);  // (with its page: SubRowDesc, a line per value + Enter)
+    OlRow(2, 0x2F, 2, OLT_GRAIN_L, NULL, g_fxMenu ? NULL : OlGrainDesc);  // Noise Effect -> Film Grain (FxRowDesc: + Enter)
+    OlRow(2, 0x2C, g_bldRowOn ? BLD_N : 3, -1, NULL, OlBloodDesc);
+    OlRow(2, 0x21, 2, OLT_HG_L, g_olAlwaysIds, OlHgDesc);  // Hide Gauge -> Health Gauge: Always / Auto Hide
+    OlRow(2, 0x22, 2, OLT_II_L, g_olAlwaysIds, OlIiDesc);  // Hide Icon -> Item Icons
+    OlRow(2, 0x78, 2, OLT_SHD_L, NULL, ShMenuOn() ? NULL : OlShdDesc);  // Realtime Shadow -> Shadows (ShRowDesc: + Enter)
+    Log("options words: the stock pages are Display, Controls and Interface; %d stock rows have the plan's words (Buttons, "
+         "Default Speed, Head Bob, Left / Right, Invert Look, Sound Mode, Film Grain, Health Gauge, Item Icons, Shadows; BGM / SE Volume "
+         "keep their labels)", g_olStockN);
+}
+
 static void ApplyAspectMenu(void)
 {
     static const Site kSites[] = {
@@ -4633,16 +4922,17 @@ static void ApplyAspectMenu(void)
         if (!g_fovRow) Log("field of view: 004F70A0 is not the stock setter (another mod?): no Field of View row");
     }
     // strings
-    Encode(g_txtDisp, sizeof g_txtDisp, "Display Mode");
-    Encode(g_txtDispDesc, sizeof g_txtDispDesc, "A window, or the whole screen.");
+    OlTexts();  // v3.53 OL1: the Options words that have their own ids
+    Encode(g_txtDisp, sizeof g_txtDisp, OLW_DISPLAY_DISPLAY_MODE_L);
+    Encode(g_txtDispDesc, sizeof g_txtDispDesc, OLW_DISPLAY_DISPLAY_MODE_D);  // v3.53 OL1
     g_dmShift = 0;
     for (a = 0; a < DM_N; ++a) {
         Encode(g_txtDm[a], sizeof g_txtDm[a], kDmName[a]);
         g_dmIds[a] = MSG_DM0 + a;
         if (ShiftFor((int)strlen(kDmName[a])) > g_dmShift) g_dmShift = ShiftFor((int)strlen(kDmName[a]));
     }
-    Encode(g_txtMon, sizeof g_txtMon, "Monitor");
-    Encode(g_txtMonDesc, sizeof g_txtMonDesc, "The screen the game is shown on.");
+    Encode(g_txtMon, sizeof g_txtMon, OLW_DISPLAY_MONITOR_L);
+    Encode(g_txtMonDesc, sizeof g_txtMonDesc, OLW_DISPLAY_MONITOR_D);  // v3.53 OL1
     g_monShift = 0;
     g_monLongW = 0;
     for (a = 0; a < g_monN; ++a) {
@@ -4652,8 +4942,8 @@ static void ApplyAspectMenu(void)
         if (ShiftFor((int)strlen(s)) > g_monShift) g_monShift = ShiftFor((int)strlen(s));
         if (strlen(s) > LONGVAL_CHARS && TextW((int)strlen(s)) > g_monLongW) g_monLongW = TextW((int)strlen(s));  // C2b
     }
-    Encode(g_txtAspect, sizeof g_txtAspect, "Aspect Ratio");
-    Encode(g_txtAspectDesc, sizeof g_txtAspectDesc, "Sets the shape of the picture.");
+    Encode(g_txtAspect, sizeof g_txtAspect, OLW_DISPLAY_ASPECT_RATIO_L);
+    Encode(g_txtAspectDesc, sizeof g_txtAspectDesc, OLW_DISPLAY_ASPECT_RATIO_D);  // v3.53 OL1
     for (a = 0; a < ASP_N; ++a) {
         char s[16];
         Encode(g_txtAsp[a], sizeof g_txtAsp[a], kAspName[a]);
@@ -4665,17 +4955,17 @@ static void ApplyAspectMenu(void)
         }
     }
     for (k = 0; k < 6; ++k) g_resIds[k] = MSG_RES0 + k;
-    Encode(g_txtFov, sizeof g_txtFov, "3rd Person FOV");  // v1.9 Field of View; v3.3 split; v3.5.0 renamed
-    Encode(g_txtFovDesc, sizeof g_txtFovDesc, "View angle in the worlds, in degrees.");
-    Encode(g_txtFovFp, sizeof g_txtFovFp, "1st Person FOV");
-    Encode(g_txtFovFpDesc, sizeof g_txtFovFpDesc, "View angle in Room 302, in degrees.");
+    Encode(g_txtFov, sizeof g_txtFov, OLW_L_FOV_3RD);  // v1.9 Field of View; v3.3 split; v3.5.0 renamed  // v3.53 OL1: the plan's "Field of View" twice on one page reads alike: kept until R4 puts them in Camera / Room 302
+    Encode(g_txtFovDesc, sizeof g_txtFovDesc, OLW_CAMERA_FIELD_OF_VIEW_D);
+    Encode(g_txtFovFp, sizeof g_txtFovFp, OLW_L_FOV_1ST);
+    Encode(g_txtFovFpDesc, sizeof g_txtFovFpDesc, OLW_ROOM302_FIELD_OF_VIEW_D);  // v3.53 OL1
     for (a = 0; a < FOV_N; ++a) {
         Encode(g_txtFovs[a], sizeof g_txtFovs[a], kFovName[a]);
         g_fovIds[a] = MSG_FOV0 + a;
     }
     for (a = 0; a < FOVFP_N; ++a) g_fovFpIds[a] = MSG_FOV0 + kFovFpIdx[a];  // v3.3.5: Default, 100..120
-    Encode(g_txtFps, sizeof g_txtFps, "Frame Rate");  // v1.9
-    Encode(g_txtFpsDesc, sizeof g_txtFpsDesc, g_frameMode ? "Smoother picture. The game stays at 30." : "The game itself runs at this rate.");
+    Encode(g_txtFps, sizeof g_txtFps, OLW_DISPLAY_FRAME_RATE_L);  // v1.9
+    Encode(g_txtFpsDesc, sizeof g_txtFpsDesc, OLW_DISPLAY_FRAME_RATE_D);  // v3.53 OL1: the row line (FpsDesc: a line per value; FrameMode 1's 60 keeps its own)
     for (a = 0; a < FPS_N; ++a) {
         Encode(g_txtFpss[a], sizeof g_txtFpss[a], kFpsName[a]);
         g_fpsIds[a] = MSG_FPS0 + a;
@@ -4686,85 +4976,80 @@ static void ApplyAspectMenu(void)
             Encode(g_txtVibV[v], sizeof g_txtVibV[v], kVibName[v]);
             g_vibIds[v] = MSG_VIBV0 + v;
         }
-        Encode(g_txtVibD, sizeof g_txtVibD, "Off, or how strong. Low is the game's own.");
+        Encode(g_txtVibD, sizeof g_txtVibD, OLW_CONTROLS_VIBRATION_D);  // v3.53 OL1: Medium / High (Off / Low: VibDesc's own lines)
     }
     {   // v3.13.0: Subtitle Style
-        static const char *const kLabel[SUB_N + 1] = { "Size", "Colour", "Edge", "Box", "Effect", "Exit", "Back" };
-        static const char *const kDescTxt[SUB_N + 1] = { "Subtitle size. Long lines are fitted.",
-                                                         "Subtitle text colour.",
-                                                         "Shadow or outline around the letters.",
-                                                         "A dark box behind the subtitle.",
-                                                         "How a line appears and moves.",
-                                                         "How a line leaves.",
-                                                         "Back to Option 3." };
+        static const char *const kLabel[SUB_N + 1] = { OLW_SUBTITLES_SIZE_L, OLW_SUBTITLES_COLOUR_L, OLW_SUBTITLES_EDGE_L,
+                                                       OLW_SUBTITLES_BOX_L, OLW_SUBTITLES_APPEAR_L, OLW_SUBTITLES_VANISH_L, OLW_BACK };  // v3.53 OL1: Effect -> Appear, Exit -> Vanish (the ini keys stay Effect / Exit)
+        static const char *const kDescTxt[SUB_N + 1] = { OLW_SUBTITLES_SIZE_D, OLW_SUBTITLES_COLOUR_D, OLW_SUBTITLES_EDGE_D,
+                                                         OLW_SUBTITLES_BOX_D, OLW_SUBTITLES_APPEAR_D, OLW_SUBTITLES_VANISH_D,
+                                                         OLW_BACK_INTERFACE };  // v3.53 OL1
         int r, v;
-        Encode(g_txtSubT, sizeof g_txtSubT, "Subtitle Style");
-        Encode(g_txtSubRowD, sizeof g_txtSubRowD, "Subtitles on or off; Enter opens their style.");  // v3.19.0
+        Encode(g_txtSubT, sizeof g_txtSubT, OLW_T_SUBTITLES);  // v3.53 OL1: was Subtitle Style
+        Encode(g_txtSubRowD, sizeof g_txtSubRowD, OLW_COMBO_SUB_ON);  // v3.19.0  // v3.53 OL1: (SubRowDesc answers by value now)
         for (r = 0; r <= SUB_N; ++r) {
             Encode(g_txtSubL[r], sizeof g_txtSubL[r], kLabel[r]);
             Encode(g_txtSubD[r], sizeof g_txtSubD[r], kDescTxt[r]);
         }
         for (r = 0; r < SUB_N; ++r)
             for (v = 0; v < kSubCount[r]; ++v) {
-                Encode(g_txtSubV[r][v], sizeof g_txtSubV[r][v], kSubName[r][v]);
+                Encode(g_txtSubV[r][v], sizeof g_txtSubV[r][v], r == SUB_EDGE ? OlShow(OLM_SUBTITLES_EDGE, kSubName[r][v]) : kSubName[r][v]);  // v3.53 OL1: Outline+Shadow shows Both
                 g_subIds[r][v] = MSG_SUBV0 + r * SUB_VMAX + v;
             }
     }
     {   // v3.15.0: Screen Effects
-        static const char *const kLabel[FX_N + 1] = { "Noise Strength", "Noise Type", "Noise Colour", "Filter", "Cut-scenes", "Back" };  // v3.22.0
-        static const char *const kDescTxt[FX_N + 1] = { "Film grain amount. Normal is the game's.",
-                                                        "The grain's look. Stock is the game's.",
-                                                        "The grain's colour. Stock is each type's own.",
-                                                        "A look for the scene. HUD and text stay clean.",
-                                                        "The filter in cut-scenes too, or only in play.",
-                                                        "Back to Option 3." };
+        // v3.53 OL1: the plan's Film Grain folder names (Strength, Grain Type, Grain Colour); Strength says "Grain" while it
+        // shares this page with Blur Strength (until R4's Film Grain folder)
+        static const char *const kLabel[FX_N + 1] = { OLW_L_GRAIN_STRENGTH, OLW_GRAIN_GRAIN_TYPE_L, OLW_GRAIN_GRAIN_COLOUR_L,
+                                                      OLW_EFFECTS_FILTER_L, OLW_EFFECTS_CUT_SCENE_FILTER_L, OLW_BACK };  // v3.22.0
+        static const char *const kDescTxt[FX_N + 1] = { OLW_GRAIN_STRENGTH_D, OLW_GRAIN_GRAIN_TYPE_D, OLW_GRAIN_GRAIN_COLOUR_D,
+                                                        OLW_EFFECTS_FILTER_D, OLW_EFFECTS_CUT_SCENE_FILTER_D, OLW_BACK_INTERFACE };
+        static const char *const kFilterLine[OL_FILTERS] = {  // v3.53 OL1: one line per filter (the plan's drafts)
+            OLW_EFFECTS_FILTER_VD_NONE, OLW_EFFECTS_FILTER_VD_CRT, OLW_EFFECTS_FILTER_VD_VIVID, OLW_EFFECTS_FILTER_VD_SEPIA,
+            OLW_EFFECTS_FILTER_VD_OLD_FILM, OLW_EFFECTS_FILTER_VD_NIGHT_VISION, OLW_EFFECTS_FILTER_VD_NIGHT_MONO,
+            OLW_EFFECTS_FILTER_VD_THERMAL, OLW_EFFECTS_FILTER_VD_SPIRIT_VISION, OLW_EFFECTS_FILTER_VD_VIGNETTE };
+        typedef char OlFilterLinesFit[OL_FILTERS == FX_FILTERS ? 1 : -1];
         int r, v;
-        Encode(g_txtFxT, sizeof g_txtFxT, "Screen Effects");
-        Encode(g_txtFxRowD, sizeof g_txtFxRowD, "Film grain on or off; Enter opens Screen Effects.");  // v3.19.0
+        Encode(g_txtFxT, sizeof g_txtFxT, OLW_T_EFFECTS);  // v3.53 OL1: was Screen Effects
+        Encode(g_txtFxRowD, sizeof g_txtFxRowD, OLW_COMBO_GRAIN);  // v3.19.0  // v3.53 OL1
         for (r = 0; r <= FX_N; ++r) {
+            char d[128];
+            sprintf_s(d, sizeof d, "%s%s", kDescTxt[r], r == FX_FILTER ? FxFilterDesc() : "");  // v3.39 PR339: names PreviewKey  // v3.53 OL1: its sentence after the row line
             Encode(g_txtFxL[r], sizeof g_txtFxL[r], kLabel[r]);
-            Encode(g_txtFxD[r], sizeof g_txtFxD[r], r == FX_FILTER ? FxFilterDesc() : kDescTxt[r]);  // v3.39 PR339: names PreviewKey
+            Encode(g_txtFxD[r], sizeof g_txtFxD[r], d);
+        }
+        for (v = 0; v < OL_FILTERS; ++v) {  // v3.53 OL1: the value lines, the PreviewKey sentence after each
+            char d[128];
+            sprintf_s(d, sizeof d, "%s%s", kFilterLine[v], FxFilterDesc());
+            Encode(g_txtOlFilter[v], sizeof g_txtOlFilter[v], d);
         }
         for (r = 0; r < FX_N; ++r)
             for (v = 0; v < kFxCount[r]; ++v) {
-                Encode(g_txtFxV[r][v], sizeof g_txtFxV[r][v], kFxName[r][v]);
+                Encode(g_txtFxV[r][v], sizeof g_txtFxV[r][v], r == FX_FILTER ? OlShow(OLM_EFFECTS_FILTER, kFxName[r][v]) : kFxName[r][v]);  // v3.53 OL1: Night Vision Mono shows Night Mono
                 g_fxIds[r][v] = MSG_FXV0 + r * FX_VMAX + v;
             }
     }
-    Encode(g_txtItem, sizeof g_txtItem, "Item Shine");  // v3.3; v3.3.5: was "Item Sparkle"
-    Encode(g_txtItemDesc, sizeof g_txtItemDesc, "A shine shows where items lie.");
+    Encode(g_txtItem, sizeof g_txtItem, OLW_ITEMS_ITEM_SHINE_L);  // v3.3; v3.3.5: was "Item Sparkle"
+    Encode(g_txtItemDesc, sizeof g_txtItemDesc, OLW_ITEMS_ITEM_SHINE_D);  // v3.53 OL1
     Encode(g_txtItems[0], sizeof g_txtItems[0], "Off");
     Encode(g_txtItems[1], sizeof g_txtItems[1], "On");
     g_itemIds[0] = MSG_ITEM0;
     g_itemIds[1] = MSG_ITEM0 + 1;
-    Encode(g_txtPg[0], sizeof g_txtPg[0], "Option 4 (Presentation)");  // v3.5.0
-    Encode(g_txtPg[1], sizeof g_txtPg[1], "Option 5 (Gameplay)");
-    Encode(g_txtPg[2], sizeof g_txtPg[2], "Option 6 (Extra Menu)");
+    Encode(g_txtPg[0], sizeof g_txtPg[0], OLW_T_PRESENTATION);  // v3.5.0  // v3.53 OL1: the page names (were "Option 4 (Presentation)" ...)
+    Encode(g_txtPg[1], sizeof g_txtPg[1], OLW_T_GAMEPLAY);
+    Encode(g_txtPg[2], sizeof g_txtPg[2], OLW_T_PAUSE);  // v3.53 OL1: Option 6's rows are the plan's Interface > Pause Menu
     {   // v3.7.0
-        static const char *const kEmLabel[EM_N] = { "Storage Chest", "Save Game", "Load Game", "Quick Save", "Quick Load",
-                                                     "Eileen Outfit" };
-        static const char *const kEmDesc[EM_N] = { "Extra Menu row: the item box anywhere.",
-                                                    "Extra Menu row: save anywhere.", "Extra Menu row: load anywhere.",
-                                                    "Extra Menu row: a quick save (as the key).",
-                                                    "Extra Menu row: the newest quick save.",
-                                                    "Extra Menu row: Eileen's outfit." };
+        static const char *const kEmLabel[EM_N] = { OLW_PAUSE_STORAGE_CHEST_L, OLW_PAUSE_SAVE_GAME_L, OLW_PAUSE_LOAD_GAME_L,
+                                                     OLW_PAUSE_QUICK_SAVE_L, OLW_PAUSE_QUICK_LOAD_L, OLW_PAUSE_EILEEN_OUTFIT_L };  // v3.53 OL1
+        static const char *const kEmDesc[EM_N] = { OLW_PAUSE_STORAGE_CHEST_D, OLW_PAUSE_SAVE_GAME_D, OLW_PAUSE_LOAD_GAME_D,
+                                                    OLW_PAUSE_QUICK_SAVE_D, OLW_PAUSE_QUICK_LOAD_D, OLW_PAUSE_EILEEN_OUTFIT_D };  // v3.53 OL1
         int k;
         for (k = 0; k < EM_N; ++k) {
             Encode(g_txtEm[k], sizeof g_txtEm[k], kEmLabel[k]);
             Encode(g_txtEmD[k], sizeof g_txtEmD[k], kEmDesc[k]);
         }
-        Encode(g_txtSb[0], sizeof g_txtSb[0], "Save Banks");  // v3.8.0
-        Encode(g_txtSb[1], sizeof g_txtSb[1], "Save Bank");
-        Encode(g_txtSbD[0], sizeof g_txtSbD[0], "More save files (Q / E in the save list).");
-        Encode(g_txtSbD[1], sizeof g_txtSbD[1], "The bank the save and load lists open on.");
-        for (k = 0; k < SB_MAX; ++k) {
-            char n[8];
-            sprintf_s(n, sizeof n, "%d", k + 1);
-            Encode(g_txtSbv[k], sizeof g_txtSbv[k], n);
-            g_sbIds[k] = MSG_SBV0 + k;
-        }
-        Encode(g_txtSbv[SB_MAX], sizeof g_txtSbv[SB_MAX], "-");
-        g_sbIds[SB_MAX] = MSG_SBV0 + SB_MAX;
+        Encode(g_txtSb[0], sizeof g_txtSb[0], OLW_PAUSE_SAVE_BANKS_L);  // v3.8.0
+        Encode(g_txtSbD[0], sizeof g_txtSbD[0], OLW_PAUSE_SAVE_BANKS_D);  // v3.53 OL1: (the unused Save Bank row's label, line and 1-99 / "-" values are no longer encoded)
     }
     // v3.5.0 (user, session 9b): Options 1-3 are the stock pages again; Resolution keeps its six sizes per shape (its
     // value labels: row 0's value-table pointer, 0x654CCC, in place). Display Mode, Monitor, Aspect Ratio, 1st / 3rd
@@ -4797,33 +5082,33 @@ static void ApplyAspectMenu(void)
         n = R3PresRow(t, n, stockRows);  // v3.50 R302: Room 302 (a folder row; the last above Exit) and its page
         memcpy(t + 7 * n++, stockRows + 6 * 7, 7 * 4);  // Exit (Option 1's record)
         t[7 * n] = 0;
-        g_lpTable[3] = t;
-        g_lpCount[3] = n;
-        g_lpTitle[3] = MSG_PG4;
+        g_opTable[3] = t;
+        g_opCount[3] = n;
+        g_opTitle[3] = MSG_PG4;
         FillRow(g_rowShine, ItemInput, ItemGet, g_itemIds, 2, MSG_ITEM, ItemDesc);  // v3.37 MN337: laid out by GpBuildPages
         memcpy(g_rowsPlay, g_rowShine, 7 * 4);  // (alone with Exit without the folders)
         memcpy(g_rowsPlay + 7, stockRows + 6 * 7, 7 * 4);
         g_rowsPlay[14] = 0;
         g_playShineRow = 0;  // v3.37 MN337
-        g_lpTable[4] = g_rowsPlay;
-        g_lpCount[4] = 2;
+        g_opTable[4] = g_rowsPlay;
+        g_opCount[4] = 2;
         {   // v3.25.0: + Player / Enemies (hidden pages), when Option 2's Button Config record is the stock one (their shape)
             static const DWORD kBc[7] = { 0x524940, 0x51EB10, 0, 0x654C54, 1, 0x27, 0x523130 };
             if (!memcmp((const void *)0x654D88, kBc, sizeof kBc)) {
-                g_lpCount[4] = GpBuildPages(stockRows, (const DWORD *)0x654D88, g_rowShine, g_rowsPlay, g_rowsPlayer, g_rowsEnemy,
+                g_opCount[4] = GpBuildPages(stockRows, (const DWORD *)0x654D88, g_rowShine, g_rowsPlay, g_rowsPlayer, g_rowsEnemy,
                                             g_rowsSpecial);  // v3.27.0: + Special; v3.37 MN337: 9 rows, Item Shine 5th
                 g_gpMenu = 1;
             } else {
                 Log("gameplay: Option 2's Button Config record is not the stock one: no Player / Enemies pages ([Gameplay] in the ini)");
             }
         }
-        g_lpTitle[4] = MSG_PG5;
+        g_opTitle[4] = MSG_PG5;
         {   // v3.7.0: Option 6 (Extra Menu): one Off / On row per pause Extra Menu row, then Exit
             static const void *const kIn[EM_N] = { EmIn0, EmIn1, EmIn2, EmIn3, EmIn4, EmIn5 };
             static const void *const kGet[EM_N] = { EmGet0, EmGet1, EmGet2, EmGet3, EmGet4, EmGet5 };
             static const void *const kDesc[EM_N] = { EmDesc0, EmDesc1, EmDesc2, EmDesc3, EmDesc4, EmDesc5 };
             int k;
-            for (k = 0; k < EM_N; ++k) FillRow(g_rowsExtra + 7 * k, kIn[k], kGet[k], g_itemIds, 2, MSG_EM0 + k, kDesc[k]);
+            for (k = 0; k < EM_N; ++k) FillRow(g_rowsExtra + 7 * k, kIn[k], kGet[k], g_olHsIds, 2, MSG_EM0 + k, kDesc[k]);  // v3.53 OL1: Hidden / Shown (the ini keeps 0 / 1)
             // v3.8.0: Save Banks (Off / On) and Save Bank (1-99)
             FillRow(g_rowsExtra + 7 * EM_N, SbOnIn, SbOnGet, g_itemIds, 2, MSG_SB, SbOnDesc);
             // v3.33 CAM333: Camera replaces Save Bank (the bank the lists open on: Q / E in the save and load lists, [SaveBanks] Bank)
@@ -4831,11 +5116,11 @@ static void ApplyAspectMenu(void)
             memcpy(g_rowsExtra + 7 * (EM_N + 2), stockRows + 6 * 7, 7 * 4);
             g_rowsExtra[7 * (EM_N + 3)] = 0;
         }
-        g_lpTable[5] = g_rowsExtra;
-        g_lpCount[5] = EM_N + 3;
-        g_lpTitle[5] = MSG_PG6;
+        g_opTable[5] = g_rowsExtra;
+        g_opCount[5] = EM_N + 3;
+        g_opTitle[5] = MSG_PG6;
         // (v3.37 CP337: no Camera page in Options any more: its settings are the pause menu's Extra Menu > Camera)
-        {   // v3.13.0: the Subtitle Style page (hidden, LP_SUB): Size, Colour, Edge, Box, Back
+        {   // v3.13.0: the Subtitle Style page (hidden, OP_SUB): Size, Colour, Edge, Box, Back
             static const void *const kIn[SUB_N] = { SubIn0, SubIn1, SubIn2, SubIn3, SubIn4, SubIn5 };
             static const void *const kGet[SUB_N] = { SubGet0, SubGet1, SubGet2, SubGet3, SubGet4, SubGet5 };
             static const void *const kDesc[SUB_N] = { SubDesc0, SubDesc1, SubDesc2, SubDesc3, SubDesc4, SubDesc5 };
@@ -4846,11 +5131,11 @@ static void ApplyAspectMenu(void)
             g_rowsSub[7 * SUB_N + 5] = MSG_SUBL0 + SUB_N;
             g_rowsSub[7 * SUB_N + 6] = (DWORD)(ULONG_PTR)SubDescBack;
             g_rowsSub[7 * (SUB_N + 1)] = 0;
-            g_lpTable[LP_SUB] = g_rowsSub;
-            g_lpCount[LP_SUB] = SUB_N + 1;
-            g_lpTitle[LP_SUB] = MSG_SUBT;
+            g_opTable[OP_SUB] = g_rowsSub;
+            g_opCount[OP_SUB] = SUB_N + 1;
+            g_opTitle[OP_SUB] = MSG_SUBT;
         }
-        {   // v3.15.0: the Screen Effects page (hidden, LP_FX): Noise Strength, Noise Type (v3.16.0), Filter, Back
+        {   // v3.15.0: the Screen Effects page (hidden, OP_FX): Noise Strength, Noise Type (v3.16.0), Filter, Back
             static const void *const kIn[FX_N] = { FxIn0, FxIn1, FxIn2, FxIn3, FxIn4 };
             static const void *const kGet[FX_N] = { FxGet0, FxGet1, FxGet2, FxGet3, FxGet4 };
             static const void *const kDesc[FX_N] = { FxDesc0, FxDesc1, FxDesc2, FxDesc3, FxDesc4 };
@@ -4863,9 +5148,9 @@ static void ApplyAspectMenu(void)
             g_rowsFx[7 * nb + 5] = MSG_FXL0 + FX_N;
             g_rowsFx[7 * nb + 6] = (DWORD)(ULONG_PTR)FxDescBack;
             g_rowsFx[7 * (nb + 1)] = 0;
-            g_lpTable[LP_FX] = g_rowsFx;
-            g_lpCount[LP_FX] = nb + 1;
-            g_lpTitle[LP_FX] = MSG_FXT;
+            g_opTable[OP_FX] = g_rowsFx;
+            g_opCount[OP_FX] = nb + 1;
+            g_opTitle[OP_FX] = MSG_FXT;
         }
         ShBuildPage(stockRows);  // v3.40 SH340: the Shadows page (hidden, LP_SHD): Shadow Edge, Back
         DofBuildPage(stockRows);  // v3.43 DF343: the Depth of Field page (hidden, LP_DOF): Depth of Field, Strength, Back
@@ -4878,7 +5163,7 @@ static void ApplyAspectMenu(void)
         if (DofMenuOn() && !g_subScreenOn) DofMenuOff("the Options sub-screen fade is not in place");  // v3.43 DF343
         if (g_r3Row >= 0 && !g_subScreenOn) R3MenuOff();  // v3.50 R302: the Room 302 page needs the fade route
         if (g_gpMenu && !g_subScreenOn) {  // v3.25.0: the pages need the fade route; without it Option 5 is Item Shine + Exit
-            g_lpCount[4] = GpNoFadeLayout(stockRows, g_rowsPlay);  // v3.37 MN337: Item Shine moved from its row 4 to row 0
+            g_opCount[4] = GpNoFadeLayout(stockRows, g_rowsPlay);  // v3.37 MN337: Item Shine moved from its row 4 to row 0
             Log("gameplay: no sub-screen fade: no Player / Enemies pages ([Gameplay] in the ini still applies)");
         }
         if (*(const DWORD *)0x654CCC == 0x654C9C)  // Resolution's value labels (data; review OPT-REV-002: stock first)
@@ -4889,6 +5174,8 @@ static void ApplyAspectMenu(void)
         FnRowInstall();  // v3.44 FN344: Option 1 gets the Menu Font row (a copy of its table, after the labels above)
         SndRowInstall();  // v3.52 SND352: Option 1's Sound row gets the four modes and Enter (after FnRowInstall's copy; else its own copy)
         OmRowInstall();  // v3.47 CT347: Option 2 gets the Stick Movement row (a copy of its table, after InstallPages' Vibration copy)
+        OlStockRows();  // v3.53 OL1: the stock pages' words (last: the installs above find their rows by the stock label ids)
+        OlLayoutBuild();  // v3.54 OL34: the plan's pages from the records above (R0 R4-4: after every identity check, by identity)
     }
     PokeBranch(0x50C440, 0xE9, hkMsgLookup, 7);
     PokeBranch(0x523AA0, 0xE9, hkRowChanged, 6);
@@ -4957,9 +5244,9 @@ static void ApplyAspectMenu(void)
         PokeBranch(0x405972, 0xE8, GameSetCursorPos, 6);
     }
     if (g_pagesOn)
-        Log("options: Option 4 (Presentation) has %s%sAspect Ratio (4:3, 16:10, 16:9, 21:9, 32:9)%s%s, Option 5 (Gameplay) "
-            "Item Shine; Options 1-3 are stock (Resolution follows Aspect Ratio); %d pages", g_dispRow ? "Display Mode "
-            "(Windowed, Borderless; Alt+Enter), " : "", g_monRow ? "Monitor, " : "", g_fovRow ? ", 1st / 3rd Person FOV" : "",
+        Log("options: Display has %s%sAspect Ratio (4:3, 16:10, 16:9, 21:9, 32:9)%s%s; "
+            "Resolution follows Aspect Ratio; %d pages in the cycle", g_dispRow ? "Display Mode "  // v3.54 OL34
+            "(Windowed, Borderless; Alt+Enter), " : "", g_monRow ? "Monitor, " : "", g_fovRow ? ", the Fields of View in Controls > Camera / Room 302" : "",
             g_fpsRow ? ", Frame Rate" : "", LP_N);
     if (g_menus43Ini) ApplyMenus43();  // v1.4
 }
@@ -7965,6 +8252,8 @@ static void RfWarmFrame(void);   // v3.35 FX335: echo.inc (every effect made rea
 #include "renderer.inc"  // v3.39 PR339: the Renderer row's file side (for Graphics Plus's review)
 #include "presentation.inc"  // v3.39 PR339: Option 4's Renderer and Opening rows, the opening skip (before perfhud.inc)
 #include "perfhud.inc"  // v3.37 CP337: the performance overlay and the backend line (after loghealth.inc: reads its ledger total)
+#include "look.inc"  // v3.53 OL2: the Options look (after every row's own input / description: it thunks them)
+#include "layout.inc"  // v3.54 OL34: the Options layout of rounds R3 + R4 (after look.inc: its folder test, reasons and camera greys)
 
 // ---------------------------------------------------------------- v3.14.0: vibration strength (install, test key)
 // Game thread (CreateDevice). GOG's wrapper writes ONE motor value to every pad it maps (RE 2.2), so the cap is the

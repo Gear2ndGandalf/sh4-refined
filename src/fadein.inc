@@ -52,10 +52,9 @@
 enum { FIM_L, FIM_V0, FIM_D0 = FIM_V0 + FI_MODE_N, FIM_NA = FIM_D0 + FI_MODE_N, FIM_N };
 #define MSG_FI0 (MSG_V50 + 8)
 typedef char FiTextsFit[FIM_N <= 8 ? 1 : -1];  // MSG_V50 + 8 .. 15 (BRIEF_COMMON: w4's ids)
-static const char *const kFiDescTxt[FI_MODE_N] = { "Monsters and ghosts appear at once, as in the game.",
-                                                   "Monsters and ghosts that appear fade in.",
-                                                   "They fade in; ghosts rise from a blood portal." };
-static const char kFiDescTar[] = "They fade in; ghosts tear free of a tar portal.";  // v3.51 PT351 (FadeInPortalDraw=Vortex: the line above)
+static const char *const kFiDescTxt[FI_MODE_N] = { OLW_ENEMIES_FADE_IN_VD_OFF, OLW_ENEMIES_FADE_IN_VD_FADE,  // v3.53 OL1: the plan's lines
+                                                   OLW_FADEIN_V_VORTEX };
+static const char kFiDescTar[] = OLW_ENEMIES_FADE_IN_VD_PORTAL;  // v3.53 OL1  // v3.51 PT351 (FadeInPortalDraw=Vortex: the line above)
 static BYTE g_txtFi[FIM_N][56];
 static DWORD g_fiIds[FI_MODE_N];
 static volatile LONG g_fiMode = FI_MODE_DEFAULT;  // the row (any thread writes it under gameplay.inc's lock)
@@ -1223,7 +1222,7 @@ static void FiSnapshot(void) { g_fiSnap = g_fiMode; }
 static int FiChanged(void) { return g_fiMode != g_fiSnap; }
 static int FiRowChanged(int page, int row)  // -1 = not this row
 {
-    if (page != LP_ENEMY || row != g_fiRow || row < 0) return -1;
+    if (page != OP_ENEMY || row != g_fiRow || row < 0) return -1;
     return g_snapOn && g_fiMode != g_fiSnap;
 }
 static void FiDiscard(void)
@@ -1276,11 +1275,11 @@ static void FiInit(void)  // gameplay.inc GameplayInstall (Init, before the Opti
     g_fiHoldOn = GetPrivateProfileIntA("Gameplay", "FadeInHold", 1, g_iniPath) != 0;
     Encode(g_txtFi[FIM_L], 56, "Fade In");
     for (v = 0; v < FI_MODE_N; ++v) {
-        Encode(g_txtFi[FIM_V0 + v], 56, kFiModeName[v]);
+        Encode(g_txtFi[FIM_V0 + v], 56, OlShow(OLM_ENEMIES_FADE_IN, kFiModeName[v]));  // v3.53 OL1: Fade + Portal shows Portal
         Encode(g_txtFi[FIM_D0 + v], 56, v == FI_MODE_PORTAL && g_fiTdm != FI_TDM_VORTEX ? kFiDescTar : kFiDescTxt[v]);  // v3.51 PT351
         g_fiIds[v] = MSG_FI0 + FIM_V0 + v;
     }
-    Encode(g_txtFi[FIM_NA], 56, "Not available: see SH4Refined.log (fade in).");
+    Encode(g_txtFi[FIM_NA], 56, OLW_FADEIN_NA);
 }
 
 // ---------------------------------------------------------------- install (Init, after EnemiesInstall)

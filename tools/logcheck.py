@@ -167,6 +167,24 @@ SND_MIN = re.compile(r'^sound: minute: volumes 2D (\d+), 3D (\d+), streams (\d+)
                      r'(\d+) stream block\(s\) folded, (\d+) music fold\(s\)')
 SND_NOTIN = re.compile(r'^sound: (.+?): ([0-9A-F]{8}) is not the GOG v7 code')
 SND_OFF = re.compile(r'^sound: \[Sound\] Enabled=0')
+# v3.53 OL2: the Options look (look.inc): the install line, the glyph line of each page (level 2), its ANOMALY, a key on a
+# grey row (level 2)
+LKL_IN = re.compile(r'^options look: (in|off) ')
+LKL_GLYPH = re.compile(r'^options: page (\d+) \((.*?)\): about (\d+) menu glyphs \(title (\d+), page strip (\d+), rows (\d+), '
+                      r"description (\d+), each twice with its shadow; the cursor's flash (\d+)\); measured (-?\d+) of the 800")
+LKL_OVER = re.compile(r'^options: page (\d+) \((.*?)\): (\d+) menu glyphs \(measured (-?\d+)\): over the 800')
+LKL_INERT = re.compile(r'^options look: (.+?) is grey \((.*?)\): the key did nothing')
+# v3.54 OL34: the Options layout (rounds R3 + R4): the install line, a row left out, the line at every Options opening
+# v3.55 OL56: + R5's line (the layout: stock moves on / off and why)
+LYL_IN = re.compile(r'^options layout: (?:R3 \+ R4 \(OL34\)|R5 \+ R6 \(OL56\), stock moves (on|off)(?: \((.*?)\))?): the cycle (.+?); '
+                    r'(\d+) pages \(folders: .*?\); (\d+) rows placed, (\d+) folder rows, (\d+) left out(?:: (.*?))?; (\d+) of (\d+) texts'
+                    r'( \(OVER A LIMIT\))?$')
+LYL_VB_IN = re.compile(r'^options layout: the volume bars by record \(0x525672')  # v3.55 OL56: the one exe patch
+LYL_VB_BYTES = re.compile(r'^options layout: 0x525672 is (.*?), not the stock')
+LYL_VB_FAIL = re.compile(r'^options: layout: writing 0x525672 failed')  # (the body of its ANOMALY line)
+LYL_OFF = re.compile(r'^options layout: no Options pages')
+LYL_MISS = re.compile(r'^options layout: page (\d+) \((.*?)\): no (.+?) row: (.*)$')
+LYL_OPEN = re.compile(r'^options layout: open: the cycle (.+?); pages: (.*)$')
 # v3.37 INV337: Extended Toolbelt / Stackable Items (inventory.inc): the install line, the switches, the counters
 INV_INSTALL = re.compile(r'^inventory: Extended Toolbelt (on|off|UNAVAILABLE) .*?, Stackable Items (on|off|UNAVAILABLE) .*?'
                          r'stack guards (in|OFF)')
@@ -843,6 +861,17 @@ class Session:
         self.snd_fix = Counter()  # v3.52 SND352: 'byte' / 'engine' / 'discard'
         self.snd_notin = []       # v3.52 SND352: sites not installed (what, va)
         self.snd_anom = 0         # v3.52 SND352: its ANOMALY lines
+        self.ol_set = None        # v3.53 OL2: 'in' / 'off' from the Options look's install line
+        self.ol_pages = OrderedDict()  # v3.53 OL2: page -> [name, the largest estimate, measured with it, ts, lines]
+        self.ol_inert = Counter()  # v3.53 OL2: keys on a grey row, by row
+        self.ol_over = 0          # v3.53 OL2: pages over the 800 glyphs (its ANOMALY lines)
+        self.ly_in = None         # v3.54 OL34: the layout's install line: (ts, cycle, pages, placed, folders, left out, texts, of, over)
+        self.ly_off = False       # v3.54 OL34: no Options pages
+        self.ly_miss = []         # v3.54 OL34: (page, title, row, why) rows left out
+        self.ly_open = []         # v3.54 OL34: (ts, cycle, pages text) at each Options opening
+        self.ly_moves = None      # v3.55 OL56: 'on' / 'off' (None: a log before v3.55), and why off
+        self.ly_moves_why = ''
+        self.ly_vb = None         # v3.55 OL56: 0x525672: 'in', 'bytes <hex>' (another mod), 'failed' 
         self.hb_hide = []         # v3.38 HB338: (ts, 'on' / 'off') Hide Gauge as the curse meter saw it
         self.hb_ring = Counter()  # v3.38 HB338: 'faded out' / 'shown: <why>' counts (both rings)
         self.hb_pe_ring = None    # v3.41 CM341: (ts, 'pe' / 'refined', why) who draws the player's curse ring
@@ -1211,6 +1240,101 @@ class Session:
             self.snd_notin.append((m.group(1), m.group(2)))
             return True
         return False
+
+    def parse_ol(self, ts, msg):  # v3.53 OL2: True = an Options look line read
+        m = LKL_IN.match(msg)
+        if m:
+            self.ol_set = m.group(1)
+            return True
+        m = LKL_GLYPH.match(msg)
+        if m:
+            page, name, est, meas = int(m.group(1)), m.group(2), int(m.group(3)), int(m.group(9))
+            cur = self.ol_pages.get(page)
+            if cur is None:
+                self.ol_pages[page] = [name, est, meas, ts, 1]
+            else:
+                cur[4] += 1
+                if est > cur[1] or meas > cur[2]:
+                    cur[0], cur[1], cur[2], cur[3] = name, max(est, cur[1]), max(meas, cur[2]), ts
+            return True
+        m = LKL_INERT.match(msg)
+        if m:
+            self.ol_inert[m.group(1)] += 1
+            return True
+        return msg.startswith('options look: ')
+
+    def parse_ly(self, ts, msg):  # v3.54 OL34: True = an Options layout line read
+        m = LYL_IN.match(msg)
+        if m:
+            g = m.groups()
+            self.ly_moves, self.ly_moves_why = g[0], g[1] or ''  # v3.55 OL56 (None: the v3.54 line)
+            g = g[2:]
+            self.ly_in = (ts, g[0], int(g[1]), int(g[2]), int(g[3]), int(g[4]), int(g[6]), int(g[7]), bool(g[8]))
+            return True
+        if LYL_VB_IN.match(msg):  # v3.55 OL56
+            self.ly_vb = 'in'
+            return True
+        m = LYL_VB_BYTES.match(msg)
+        if m:
+            self.ly_vb = 'bytes ' + m.group(1)
+            return True
+        if LYL_OFF.match(msg):
+            self.ly_off = True
+            return True
+        m = LYL_MISS.match(msg)
+        if m:
+            self.ly_miss.append((int(m.group(1)), m.group(2), m.group(3), m.group(4)))
+            return True
+        m = LYL_OPEN.match(msg)
+        if m:
+            self.ly_open.append((ts, m.group(1), m.group(2)))
+            return True
+        return False
+
+    def ly_line(self):  # v3.54 OL34: None when the log has no Options layout line
+        if not (self.ly_in or self.ly_off or self.ly_miss or self.ly_open):
+            return None
+        if self.ly_off:
+            line = 'options layout: off (no Options pages: the game\'s own three)'
+        elif self.ly_in:
+            i = self.ly_in
+            line = ('options layout: the cycle %s; %d pages, %d rows placed (%d folder rows), %d left out; %d of %d texts%s [%s]' % (
+                i[1], i[2], i[3], i[4], i[5], i[6], i[7], ' (OVER A LIMIT)' if i[8] else '', i[0]))
+            if self.ly_moves:  # v3.55 OL56: the layout and the volume bars
+                line = line.replace('options layout: ', 'options layout: stock moves %s%s; ' % (
+                    self.ly_moves, ' (%s)' % self.ly_moves_why if self.ly_moves_why else ''), 1)
+                if self.ly_moves == 'on':
+                    line += {'in': '; volume bars by record (0x525672)', 'failed': '; volume bars by label: writing 0x525672 FAILED',
+                             None: '; volume bars: no 0x525672 line'}.get(
+                        self.ly_vb, '; volume bars by label: 0x525672 is %s (another mod?)' % (self.ly_vb or '')[6:])
+        else:
+            line = 'options layout: (no install line: a log before v3.54)'
+        if self.ly_miss:
+            line += '; left out: %s' % ', '.join('%s on %d %s (%s)' % (r, p, t, w) for p, t, r, w in self.ly_miss[:8])
+        if self.ly_open:
+            last = self.ly_open[-1]
+            pages = last[2].split(', ')
+            line += '; Options opened %d time(s), the last [%s]: %d pages (%s%s)' % (
+                len(self.ly_open), last[0], len(pages), ', '.join(pages[:6]), ', ...' if len(pages) > 6 else '')
+        return line
+
+    def ol_line(self):  # v3.53 OL2: None when the log has no Options look line
+        if not (self.ol_set or self.ol_pages or self.ol_inert or self.ol_over):
+            return None
+        line = 'options look: %s' % {'in': 'in', 'off': 'off ([Options] Look=0)', None: '(no install line)'}[self.ol_set]
+        if self.ol_pages:
+            top = max(self.ol_pages.items(), key=lambda kv: (kv[1][1], kv[1][2]))
+            meas = [v[2] for v in self.ol_pages.values() if v[2] >= 0]
+            line += ('; menu glyphs on %d page(s): the busiest page %d (%s) about %d%s of the 800 [%s]' % (
+                len(self.ol_pages), top[0], top[1][0], top[1][1], (', measured %d' % top[1][2]) if top[1][2] >= 0 else '', top[1][3]))
+            if meas:
+                line += ', the most measured %d' % max(meas)
+            line += ' (%s)' % ', '.join('%d %s %d' % (k, v[0], v[1]) for k, v in list(self.ol_pages.items())[:12])
+        if self.ol_inert:
+            line += '; keys on grey rows ignored: %s' % ', '.join('%s %d' % kv for kv in self.ol_inert.most_common(6))
+        if self.ol_over:
+            line += '; %d page(s) OVER the 800 glyphs (ANOMALY)' % self.ol_over
+        return line
 
     def snd_line(self):  # v3.52 SND352: None when the log has no Sound line
         if not (self.snd_in or self.snd_start or self.snd_changes or self.snd_min or self.snd_fix or self.snd_notin or self.snd_anom):
@@ -2221,6 +2345,10 @@ class Session:
                 self.rg_anom += 1
             if body.startswith('sound: '):  # v3.52 SND352
                 self.snd_anom += 1
+            if LKL_OVER.match(body):  # v3.53 OL2
+                self.ol_over += 1
+            if LYL_VB_FAIL.match(body):  # v3.55 OL56
+                self.ly_vb = 'failed' 
             if body.startswith(('extra menu: the level music is not paused', "extra menu: the pause menu's sound was in mode")):  # v3.51 MU351
                 self.mu_anom += 1
             if body.startswith('extra menu: Quick Load: '):  # v3.52 QL352
@@ -2792,6 +2920,12 @@ class Session:
         if msg.startswith('sound: '):  # v3.52 SND352
             if self.parse_snd(ts, msg):
                 return
+        if msg.startswith('options layout: '):  # v3.54 OL34
+            if self.parse_ly(ts, msg):
+                return
+        if msg.startswith(('options look: ', 'options: page ')):  # v3.53 OL2
+            if self.parse_ol(ts, msg):
+                return
         if msg.startswith('extra menu: sound in the '):  # v3.51 MU351
             if self.parse_mu(ts, msg):
                 return
@@ -3317,6 +3451,12 @@ class Session:
         if line:
             say('  ' + line)
         line = self.snd_line()  # v3.52 SND352: Sound (the mode, pan law, reverb, Night Mode)
+        if line:
+            say('  ' + line)
+        line = self.ly_line()  # v3.54 OL34: the Options layout (the pages, rows left out, each opening)
+        if line:
+            say('  ' + line)
+        line = self.ol_line()  # v3.53 OL2: the Options look (the glyph budget per page)
         if line:
             say('  ' + line)
         # v3.37 INV337: Extended Toolbelt / Stackable Items

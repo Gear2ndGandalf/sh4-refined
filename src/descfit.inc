@@ -35,7 +35,7 @@ static float DescRowsBottom(void)
 // (subtitles.inc SubPreview: font 0, bottom at y 424, up to 1.3 x 30 px with the Huge size, and its box).
 static float DescFloor(void)
 {
-    if (g_lpage == LP_SUB && g_subOn) return 376.0f;
+    if (g_lpage == LP_SUBT && g_subOn) return 376.0f;  // v3.54 OL34: Interface > Subtitles
     return 444.0f;
 }
 
@@ -117,7 +117,12 @@ static int DescDraw(int bank, int id, int x, int y, int shadow)
     return r;
 }
 static int __cdecl DescShadow(int bank, int id, int x, int y) { return DescDraw(bank, id, x, y, 1); }  // 0x52418D
-static int __cdecl DescText(int bank, int id, int x, int y) { return DescDraw(bank, id, x, y, 0); }    // 0x52419E
+static int __cdecl DescText(int bank, int id, int x, int y)  // 0x52419E
+{
+    const int r = DescDraw(bank, id, x, y, 0);
+    LkGlyphNote(*(volatile int *)0x1261BF4);  // v3.53 OL2: the page's glyphs, the queue measured after its description
+    return r;
+}
 
 // screenfx.inc's dark panel behind the description (Screen Effects page): grown to the box drawn on that page
 static void DescPanelBox(int lp, float *x1, float *y0, float *y1)

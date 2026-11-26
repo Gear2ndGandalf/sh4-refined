@@ -61,29 +61,24 @@ static const BYTE kCamStock[6] = { 0x55, 0x8B, 0xEC, 0x8B, 0x45, 0x08 };
 static const char *const kCamOwnerName[4] = { "nobody (the game's cameras)", "SH4 Refined", "Playable Eileen", "waiting for Playable Eileen" };
 
 // ---------------------------------------------------------------- texts and the rows
-#define LP_CAM_PARENT 5                    // Option 6 (Extra Menu)
+#define LP_CAM_PARENT OP_EXTRA             // Option 6 (Extra Menu)  // v3.54 OL34: its origin page (layout.inc moves the row to Controls > Camera)
 #define CAM_ROW6 (EM_N + 1)                // its Camera row (was Save Bank)
 enum { CAMR_ENABLE, CAMR_DIST, CAMR_SIDE, CAMR_HEIGHT, CAMR_TILT, CAMR_TURN, CAMR_TILTSPD, CAMR_INVX, CAMR_INVY, CAMR_WALL,
        CAMR_MARGIN, CAMR_FIXED, CAMR_N };  // Playable Eileen's Camera folder, in its order; + Back
 static const int kCamRowKey[CAMR_N] = { CAMK_ENABLE, CAMK_DISTANCE, CAMK_SIDE, CAMK_HEIGHT, CAMK_TILTDOWN, CAMK_TURNSPEED,
                                         CAMK_TILTSPEED, CAMK_INVERTX, CAMK_INVERTY, CAMK_WALLZOOM, CAMK_WALLMARGIN, CAMK_FIXED };
-static const char *const kCamRowLabel[CAMR_N + 1] = { "Camera", "Distance", "Side", "Height", "Tilt down", "Turn speed",
-                                                      "Tilt speed", "Horizontal invert", "Vertical invert", "Wall zoom",
-                                                      "Wall margin", "Fixed cameras", "Back" };
+// v3.55 OL56 (R6, PLAN section 8): the pause Extra Menu > Camera page uses the names of Options > Controls > Camera / Steering
+// (ol_words.h, from layout_data.py; were "Tilt down", "Turn speed", "Tilt speed", "Horizontal invert", "Vertical invert",
+// "Wall zoom", "Wall margin", "Fixed cameras"), and their lines
+static const char *const kCamRowLabel[CAMR_N + 1] = { OLW_CAMERA_CAMERA_L, OLW_CAMERA_DISTANCE_L, OLW_CAMERA_SIDE_L, OLW_CAMERA_HEIGHT_L,
+                                                      OLW_CAMERA_TILT_DOWN_L, OLW_STEERING_TURN_SPEED_L, OLW_STEERING_TILT_SPEED_L,
+                                                      OLW_STEERING_INVERT_TURN_L, OLW_STEERING_INVERT_TILT_L, OLW_STEERING_WALL_ZOOM_L,
+                                                      OLW_STEERING_WALL_MARGIN_L, OLW_CAMERA_FIXED_ANGLES_L, OLW_BACK };
 // v3.37 CP337: drawn on the pause page now (font 0, centred: at most 480 px, tools\pause_cam_layout.py), four shortened
-static const char *const kCamRowDesc[CAMR_N + 1] = {
-    "Over the shoulder, or the game's own cameras.",
-    "How far behind the player. 0 = first person.",
-    "Shoulder offset: the camera to the left or right.",
-    "Camera height above the player's feet.",
-    "How far down it looks at the start, in degrees.",
-    "How fast the camera keys or right stick turn it.",
-    "How fast the camera keys or right stick tilt it.",
-    "Turns the view the other way.",
-    "Tilts the view the other way.",
-    "Moves in instead of going through walls.",
-    "How far it keeps from walls (Wall zoom On).",
-    "On: the rooms' fixed angles take the view.",
+static const char *const kCamRowDesc[CAMR_N + 1] = {  // v3.55 OL56: the Options rows' lines (each one line of at most 52)
+    OLW_CAMERA_CAMERA_D, OLW_CAMERA_DISTANCE_D, OLW_CAMERA_SIDE_D, OLW_CAMERA_HEIGHT_D, OLW_CAMERA_TILT_DOWN_D,
+    OLW_STEERING_TURN_SPEED_D, OLW_STEERING_TILT_SPEED_D, OLW_STEERING_INVERT_TURN_D, OLW_STEERING_INVERT_TILT_D,
+    OLW_STEERING_WALL_ZOOM_D, OLW_STEERING_WALL_MARGIN_D, OLW_CAMERA_FIXED_ANGLES_D,
     "Back to the Extra Menu." };  // v3.37 CP337: the pause page
 // range rows (Playable Eileen's lo / hi / step; 0 = a list row): Left / Right clamp at the ends, Enter steps up and wraps
 static const float kCamLo[CAMR_N] = { 0.0f, 0.0f, 0.0f, 150.0f, 0.0f, 0.02f, 0.02f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
@@ -92,7 +87,7 @@ static const float kCamStep[CAMR_N] = { 0.0f, 25.0f, 0.0f, 10.0f, 1.0f, 0.02f, 0
 // list rows (lists wrap; Enable / the switches match on zero / non-zero, as the camera reads them; Side on the number)
 #define CAM_OPTMAX 13
 static const char *const kCamOptName[CAMR_N][CAM_OPTMAX] = {
-    { "OTS", "Game" }, { NULL },
+    { OLW_CAMERA_CAMERA_V_SHOULDER, OLW_CAMERA_CAMERA_V_GAME }, { NULL },  // v3.55 OL56: Shoulder (was "OTS"): the Options word; [Camera] Enable stays 1 / 0
     { "Left 150", "Left 125", "Left 100", "Left 75", "Left 50", "Left 25", "Centre", "Right 25", "Right 50", "Right 75",
       "Right 100", "Right 125", "Right 150" },
     { NULL }, { NULL }, { NULL }, { NULL }, { "Off", "On" }, { "Off", "On" }, { "On", "Off" }, { NULL }, { "Off", "On" } };
@@ -130,12 +125,14 @@ static void CamFmt(char *out, size_t n, float v)
 
 static void CamTexts(void)
 {
-    static const char *const kRowV[4] = { "OTS", "Game", "Playable Eileen", "Unavailable" };
+    // v3.53 OL1: Option 6's row (the pause page keeps its own words until R6): OTS -> Shoulder; "Playable Eileen" (15
+    // characters, it moved the value column) -> Eileen; the ini keeps [Camera] Enable 1 / 0
+    static const char *const kRowV[4] = { OLW_CAMERA_CAMERA_V_SHOULDER, OLW_CAMERA_CAMERA_V_GAME, OLW_CAM_V_PE, OLW_CAM_V_NA };
     int r, v, t = CAMT_VALS;
-    Encode(g_txtCam[CAMT_ROWL], CAM_TXT, "Camera");
-    Encode(g_txtCam[CAMT_ROWD], CAM_TXT, "OTS or the game's. Settings: pause menu > Extra Menu.");  // v3.37 CP337
-    Encode(g_txtCam[CAMT_ROWD_PE], CAM_TXT, "Playable Eileen's own camera menu sets it for now.");
-    Encode(g_txtCam[CAMT_ROWD_NA], CAM_TXT, "Not available in this game (see SH4Refined.log).");
+    Encode(g_txtCam[CAMT_ROWL], CAM_TXT, OLW_CAMERA_CAMERA_L);
+    Encode(g_txtCam[CAMT_ROWD], CAM_TXT, OLW_CAMERA_CAMERA_D);  // v3.37 CP337  // v3.53 OL1: (CamRow6Desc: a line per value + where the settings are)
+    Encode(g_txtCam[CAMT_ROWD_PE], CAM_TXT, OLW_CAM_PE);  // v3.53 OL1
+    Encode(g_txtCam[CAMT_ROWD_NA], CAM_TXT, OLW_NA_GAME);
     for (v = 0; v < 4; ++v) {
         Encode(g_txtCam[CAMT_ROWV0 + v], CAM_TXT, kRowV[v]);
         g_camRowIds[v] = MSG_CAM0 + CAMT_ROWV0 + v;
@@ -837,7 +834,7 @@ static int __cdecl CamRow6Get(void)
 static int __cdecl CamRow6Desc(void)
 {
     const int own = (int)g_camOwner;
-    if (own == CAM_OWN_REFINED && g_camHooked) return MSG_CAM0 + CAMT_ROWD;
+    if (own == CAM_OWN_REFINED && g_camHooked) return MSG_V53 + (g_cam.on ? OLT_CAM_VD_SHOULDER : OLT_CAM_VD_GAME);  // v3.53 OL1: a line per value
     return MSG_CAM0 + (own == CAM_OWN_PE || own == CAM_OWN_WAIT ? CAMT_ROWD_PE : CAMT_ROWD_NA);
 }
 static void CamFillRow(DWORD *r)  // Option 6, row EM_N + 1
@@ -885,14 +882,16 @@ static void CamDiscard(void)
         if (strcmp(g_camSnap[r], g_camTxt[kCamRowKey[r]])) CamWriteKey(kCamRowKey[r], g_camSnap[r]);
 }
 // The row draw's helpers: Option 6's Camera row is grey while Playable Eileen's (v3.37 CP337: no longer a submenu row)
-static int CamRowGrey(int slot, int row)
+static int CamRowGrey(int page, int row)  // v3.54 OL34: by the row's origin page (Option 6) and row
 {
-    return (unsigned)slot < 3 && g_slotPage[slot] == LP_CAM_PARENT && row == CAM_ROW6 && !CamOurs();
+    return page == LP_CAM_PARENT && row == CAM_ROW6 && !CamOurs();
 }
 static int CamLongValW(int page, int row)  // "Playable Eileen" (15 characters) moves the value column
 {
+    int w;
     if (page != LP_CAM_PARENT || row != CAM_ROW6 || CamRow6Get() != 2) return 0;
-    return (int)(LabelW(g_txtCam[CAMT_ROWV0 + 2]) + 0.5f);
+    w = (int)(LabelW(g_txtCam[CAMT_ROWV0 + 2]) + 0.5f);
+    return w > AF_COLW ? w : 0;  // v3.53 OL1: "Eileen" fits the column (only a long text moves it)
 }
 static int CamArrowShift(int page, int cur)  // -1 = not ours
 {

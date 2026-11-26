@@ -563,11 +563,11 @@ static void NcFillRow(DWORD *r)  // v3.37 MN337: Option 5's top row (was the Spe
 }
 static void NcTexts(void)
 {
-    Encode(g_txtGp[GPM_NCL], 56, "No Clip");
-    Encode(g_txtGp[GPM_NCD], 56, "Walk through walls and props (not in Room 302).");
-    Encode(g_txtGp[GPM_NCD1], 56, "On: through walls and props; stairs still carry you.");
-    Encode(g_txtGp[GPM_NCV2], 56, "Fly");
-    Encode(g_txtGp[GPM_NCD2], 56, "Fly: fly fast where the camera looks (OTS camera).");  // v3.37 MN337: its own speed
+    Encode(g_txtGp[GPM_NCL], 56, OLW_PLAYER_NO_CLIP_L);  // v3.53 OL1: the plan's words
+    Encode(g_txtGp[GPM_NCD], 56, OLW_PLAYER_NO_CLIP_D);
+    Encode(g_txtGp[GPM_NCD1], 56, OLW_PLAYER_NO_CLIP_VD_ON);
+    Encode(g_txtGp[GPM_NCV2], 56, OLW_PLAYER_NO_CLIP_V_FLY);
+    Encode(g_txtGp[GPM_NCD2], 56, OLW_PLAYER_NO_CLIP_VD_FLY);  // v3.37 MN337: its own speed
 }
 static int NcParse(const char *s)
 {

@@ -78,17 +78,18 @@ static const BYTE *PpText(int id)
 static void PpTexts(void)
 {
     int k, v;
-    Encode(g_txtPp[PPM_BLOOM_L], 72, "Bloom");
-    Encode(g_txtPp[PPM_GRADE_L], 72, "Colour Grading");
-    Encode(g_txtPp[PPM_LENS_L], 72, "Otherworld Lens");
-    Encode(g_txtPp[PPM_BLOOM_D], 72, "Bright lights glow: lamps, windows, flames (Ultra: the most).");  // v3.52 FX352 (Encode keeps 68 characters)
-    Encode(g_txtPp[PPM_GRADE_D], 72, "PS2 greener and foggy, Otherworld cold, Apartment warm, Bleach hard.");
-    Encode(g_txtPp[PPM_LENS_D], 72, "Warp and colour fringe while a ghost or haunting is in the room.");  // v3.52 FX352
-    Encode(g_txtPp[PPM_NA_D], 72, "Off this session (see SH4Refined.log).");
-    Encode(g_txtPp[PPM_BLOOM_FD], 72, "Not with this Filter (it has its own light).");
-    Encode(g_txtPp[PPM_GRADE_FD], 72, "Not with this Filter (it sets the colours itself).");
-    Encode(g_txtPp[PPM_LENS_FD], 72, "Not with Spirit Vision.");
-    Encode(g_txtPp[PPM_NORESET_D], 72, "Not available: the game's reset code is not stock (see the log).");
+    // v3.53 OL1: the plan's words (Colour Grading -> Colour Grade; Bloom's line no longer cut off: it was 71 characters in 68)
+    Encode(g_txtPp[PPM_BLOOM_L], 72, OLW_EFFECTS_BLOOM_L);
+    Encode(g_txtPp[PPM_GRADE_L], 72, OLW_EFFECTS_COLOUR_GRADE_L);
+    Encode(g_txtPp[PPM_LENS_L], 72, OLW_EFFECTS_OTHERWORLD_LENS_L);
+    Encode(g_txtPp[PPM_BLOOM_D], 72, OLW_EFFECTS_BLOOM_D);  // v3.52 FX352 (Encode keeps 68 characters)
+    Encode(g_txtPp[PPM_GRADE_D], 72, OLW_EFFECTS_COLOUR_GRADE_D);  // v3.53 OL1 (PpDesc1: a line per value)
+    Encode(g_txtPp[PPM_LENS_D], 72, OLW_EFFECTS_OTHERWORLD_LENS_D);  // v3.52 FX352  // v3.53 OL1 (PpDesc2: a line per value)
+    Encode(g_txtPp[PPM_NA_D], 72, OLW_OFF_SESSION);
+    Encode(g_txtPp[PPM_BLOOM_FD], 72, OLW_PP_NOT_FILTER);
+    Encode(g_txtPp[PPM_GRADE_FD], 72, OLW_PP_NOT_FILTER);
+    Encode(g_txtPp[PPM_LENS_FD], 72, OLW_PP_NOT_SPIRIT);
+    Encode(g_txtPp[PPM_NORESET_D], 72, OLW_PP_NORESET);
     for (k = 0; k < PPE_N; ++k)
         for (v = 0; v < kPpCount[k]; ++v) {
             Encode(g_txtPp[PPM_V0 + k * PP_VMAX + v], 72, kPpName[k][v]);
@@ -155,12 +156,14 @@ static int __cdecl PpDesc0(void)
 static int __cdecl PpDesc1(void)
 {
     if (g_ppDead || g_ppFailed[PPE_GRADE]) return MSG_PP0 + PPM_NA_D;
-    return MSG_PP0 + (g_pp[PPE_GRADE] && !PpWith(kPpGradeWith, PpFilterNow()) ? PPM_GRADE_FD : PPM_GRADE_D);
+    if (g_pp[PPE_GRADE] && !PpWith(kPpGradeWith, PpFilterNow())) return MSG_PP0 + PPM_GRADE_FD;
+    return (unsigned)g_pp[PPE_GRADE] < PPG_N && PPG_N <= 5 ? MSG_V53 + OLT_GRADE_VD0 + (int)g_pp[PPE_GRADE] : MSG_PP0 + PPM_GRADE_D;  // v3.53 OL1: a line per value
 }
 static int __cdecl PpDesc2(void)
 {
     if (g_ppDead || g_ppFailed[PPE_LENS]) return MSG_PP0 + PPM_NA_D;
-    return MSG_PP0 + (g_pp[PPE_LENS] && !PpWith(kPpLensWith, PpFilterNow()) ? PPM_LENS_FD : PPM_LENS_D);
+    if (g_pp[PPE_LENS] && !PpWith(kPpLensWith, PpFilterNow())) return MSG_PP0 + PPM_LENS_FD;
+    return MSG_V53 + (g_pp[PPE_LENS] ? OLT_LENS_VD_ON : OLT_LENS_VD_OFF);  // v3.53 OL1: a line per value
 }
 // sh4windowmod.c (the Screen Effects page's table): our rows at `rows` (7 DWORDs each); returns how many (0: none)
 static int PpBuildRows(DWORD *rows)

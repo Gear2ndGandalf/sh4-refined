@@ -77,7 +77,7 @@ def main():
     dm = arr1(sh, 'kDmName')
     add('Option 4', 'Display Mode', dm, old=lambda v, m=max(shift_for(len(x)) for x in dm): m)
     rank = arr1(sh, 'kRank') + ['Display 5']
-    monw = max(len(x) * 10.4 for x in rank if len(x) > LONGVAL_CHARS)
+    monw = max((len(x) * 10.4 for x in rank if len(x) > LONGVAL_CHARS), default=0)  # v3.53 MERGE: OL1's short ranks (Main / Second ...): no long name
     add('Option 4', 'Monitor (by rank; LongValW at the widest)', rank,
         old=lambda v, m=max(shift_for(len(x)) for x in rank): m, longval=lambda v: True)
     add('Option 4', 'Aspect Ratio', arr1(sh, 'kAspName'))

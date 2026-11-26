@@ -95,37 +95,38 @@ static void RzSeedLabel(void)
 static void RzTexts(void)
 {
     int k;
-    Encode(g_txtRz[RZM_T], 64, "Gameplay: Randomizer");
-    Encode(g_txtRz[RZM_R], 64, "Randomizer");
-    Encode(g_txtRz[RZM_DF], 64, "Randomize pickups, weapons and monsters.");  // v3.49 RZ349: + monsters
-    Encode(g_txtRz[RZM_LI], 64, "Items");
+    // v3.53 OL1: the plan's words; every setting's line ends "Next room." (was "Next door.")
+    Encode(g_txtRz[RZM_T], 64, OLW_T_RANDO);
+    Encode(g_txtRz[RZM_R], 64, OLW_GAMEPLAY_RANDOMIZER_L);
+    Encode(g_txtRz[RZM_DF], 64, OLW_GAMEPLAY_RANDOMIZER_D);  // v3.49 RZ349: + monsters
+    Encode(g_txtRz[RZM_LI], 64, OLW_RANDO_ITEMS_L);
     for (k = 0; k < RZI_N; ++k) {
         Encode(g_txtRz[RZM_VI0 + k], 64, kRzItemsName[k]);
         g_rzIdsItems[k] = MSG_RZ0 + RZM_VI0 + k;
     }
-    Encode(g_txtRz[RZM_DI0 + RZI_OFF], 64, "Pickups as the game places them. Next door.");
-    Encode(g_txtRz[RZM_DI0 + RZI_SHUFFLE], 64, "Shuffle: a world's items swap spots. Next door.");
-    Encode(g_txtRz[RZM_DI0 + RZI_RANDOM], 64, "Random: every spot draws an item. Next door.");
-    Encode(g_txtRz[RZM_LK], 64, "Keep Specials");
+    Encode(g_txtRz[RZM_DI0 + RZI_OFF], 64, OLW_RANDO_ITEMS_VDT_OFF);
+    Encode(g_txtRz[RZM_DI0 + RZI_SHUFFLE], 64, OLW_RANDO_ITEMS_VDT_SHUFFLE);
+    Encode(g_txtRz[RZM_DI0 + RZI_RANDOM], 64, OLW_RANDO_ITEMS_VDT_RANDOM);
+    Encode(g_txtRz[RZM_LK], 64, OLW_RANDO_KEEP_SPECIALS_L);
     for (k = 0; k < 2; ++k) {
         Encode(g_txtRz[RZM_VK0 + k], 64, kRzKeepName[k]);
         g_rzIdsKeep[k] = MSG_RZ0 + RZM_VK0 + k;
-        Encode(g_txtRz[RZM_VR0 + k], 64, kRzR302Name[k]);
+        Encode(g_txtRz[RZM_VR0 + k], 64, OlShow(OLM_RANDO_ROOM_302_ITEMS, kRzR302Name[k]));  // v3.53 OL1: Out / In show Stay / Change
         g_rzIdsR302[k] = MSG_RZ0 + RZM_VR0 + k;
     }
-    Encode(g_txtRz[RZM_DK0], 64, "Off: Candles, Medallions, Swords mix in too.");
-    Encode(g_txtRz[RZM_DK0 + 1], 64, "On: the specials stay in place. Next door.");
-    Encode(g_txtRz[RZM_LR], 64, "Room 302");
-    Encode(g_txtRz[RZM_DR0], 64, "Out: Room 302's pickups stay. Next door.");
-    Encode(g_txtRz[RZM_DR0 + 1], 64, "In: Room 302's pickups change too. Next door.");
+    Encode(g_txtRz[RZM_DK0], 64, OLW_RANDO_KEEP_SPECIALS_VDT_OFF);
+    Encode(g_txtRz[RZM_DK0 + 1], 64, OLW_RANDO_KEEP_SPECIALS_VDT_ON);
+    Encode(g_txtRz[RZM_LR], 64, OLW_RANDO_ROOM_302_ITEMS_L);  // v3.53 OL1: Room 302 Items (was Room 302)
+    Encode(g_txtRz[RZM_DR0], 64, OLW_RANDO_ROOM_302_ITEMS_VDT_STAY);
+    Encode(g_txtRz[RZM_DR0 + 1], 64, OLW_RANDO_ROOM_302_ITEMS_VDT_CHANGE);
     RzSeedLabel();
-    Encode(g_txtRz[RZM_DS], 64, "Every choice comes from it (not set here).");
-    Encode(g_txtRz[RZM_LN], 64, "New Seed");
-    Encode(g_txtRz[RZM_DN], 64, "Enter rolls a new seed. Next door.");
-    Encode(g_txtRz[RZM_NA], 64, "Not available in this game (see SH4Refined.log).");
-    Encode(g_txtRz[RZM_LP], 64, "Change Each Visit");
-    Encode(g_txtRz[RZM_DP0], 64, "Off: a room keeps its items for this seed.");
-    Encode(g_txtRz[RZM_DP0 + 1], 64, "On: a new draw at every visit. Next door.");  // v3.49 RZ349: items and monsters
+    Encode(g_txtRz[RZM_DS], 64, OLW_RANDO_SEED_1234567_D);
+    Encode(g_txtRz[RZM_LN], 64, OLW_RANDO_NEW_SEED_L);
+    Encode(g_txtRz[RZM_DN], 64, OLW_RANDO_NEW_SEED_D);
+    Encode(g_txtRz[RZM_NA], 64, OLW_NA_GAME);
+    Encode(g_txtRz[RZM_LP], 64, OLW_RANDO_REROLL_VISITS_L);  // v3.53 OL1: Reroll Visits (was Change Each Visit)
+    Encode(g_txtRz[RZM_DP0], 64, OLW_RANDO_REROLL_VISITS_VDT_OFF);
+    Encode(g_txtRz[RZM_DP0 + 1], 64, OLW_RANDO_REROLL_VISITS_VDT_ON);  // v3.49 RZ349: items and monsters
     RzlTexts();  // v3.49 RZ349L
 }
 
@@ -270,7 +271,7 @@ static void RzDiscard(void)  // under GpLock (gameplay.inc GpDiscard): "No" at t
     RzlDiscard();  // v3.49 RZ349L
 }
 
-// ---------------------------------------------------------------- the page (LP_RANDO)
+// ---------------------------------------------------------------- the page (OP_RANDO)
 static int g_rzRow[RZS_N] = { -1, -1, -1, -1, -1, -1 }, g_rzRowNew = -1, g_rzRowsN;  // v3.49 RZ349: 6 entries
 static int RzStep(int which, int count)
 {
@@ -322,7 +323,7 @@ static int __cdecl RzDescPerVisit(void) { return MSG_RZ0 + (!RzAvail() ? RZM_NA 
 static int __cdecl RzDescSeed(void) { return MSG_RZ0 + (!RzAvail() ? RZM_NA : RZM_DS); }
 static int __cdecl RzDescNew(void) { return MSG_RZ0 + (!RzAvail() ? RZM_NA : RZM_DN); }
 static int __cdecl RzDescFolder(void) { return MSG_RZ0 + RZM_DF; }
-static int __cdecl RzFolderIn(BYTE *cfg, int count) { (void)cfg; (void)count; return GpOpen(LP_RANDO); }
+static int __cdecl RzFolderIn(BYTE *cfg, int count) { (void)cfg; (void)count; return GpOpen(LP_RANDO); }  // v3.54 OL34: the new id
 // Option 5's folder row (gameplay.inc GpBuildPages, under Special) and the page: Items, Keep Specials, Room 302, Change
 // Each Visit, (v3.49 MERGE: Monsters, Eileen Outfit, Ghosts,) Seed, New Seed, Back. bcRow = Option 2's Button Config record (value-less rows: the Seed shows its number in
 // the label).
@@ -347,13 +348,13 @@ static void RzBuildPage(const DWORD *stockRows, const DWORD *bcRow, DWORD *t, in
     GpFolderRow(t + 7 * n++, bcRow, RzInNew, MSG_RZ0 + RZM_LN, RzDescNew);
     g_rzRowsN = n;
     GpBackRow(t, n, stockRows);
-    g_lpTable[LP_RANDO] = t;
-    g_lpCount[LP_RANDO] = n + 1;
-    g_lpTitle[LP_RANDO] = MSG_RZ0 + RZM_T;
-    g_lpParent[LP_RANDO] = 4;
-    g_lpParentRow[LP_RANDO] = parentRow;
+    g_opTable[OP_RANDO] = t;
+    g_opCount[OP_RANDO] = n + 1;
+    g_opTitle[OP_RANDO] = MSG_RZ0 + RZM_T;
+    g_opParent[OP_RANDO] = 4;
+    g_opParentRow[OP_RANDO] = parentRow;
 }
-static int RzRowChanged(int row)  // the yellow mark (gameplay.inc GpRowChanged, LP_RANDO)
+static int RzRowChanged(int row)  // the yellow mark (gameplay.inc GpRowChanged, OP_RANDO)
 {
     int k;
     if (!g_snapOn || row < 0) return 0;

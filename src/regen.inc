@@ -102,17 +102,20 @@ static int RgStealViaGameNow(void)  // playercheats.inc PcHeal: 1 = Life Steal t
 // ---------------------------------------------------------------- the texts, the ini
 static void RgTexts(void)
 {
+    // v3.53 OL1: the plan's lines (written for RegenDelay 30: another delay replaces "30 s")
+    static const char *const kLine[RG_LEVELS] = { OLW_PLAYER_REGENERATION_VD_OFF, OLW_PLAYER_REGENERATION_VD_X1,
+                                                  OLW_PLAYER_REGENERATION_VD_X1_25, OLW_PLAYER_REGENERATION_VD_X2 };
     char d[64];
     const int delay = (int)g_rgDelay;
     int v;
-    sprintf_s(d, sizeof d, "Heals you slowly after %d s unhurt, up to full.", delay);
-    Encode(g_txtRg[RGT_D0], sizeof g_txtRg[0], d);
-    for (v = 1; v < RG_LEVELS; ++v) {
-        sprintf_s(d, sizeof d, "%s: %g %% of max health a minute, %d s unhurt.", kRgLevelName[v], (double)kRgRatePct[v], delay);
+    for (v = 0; v < RG_LEVELS; ++v) {
+        const char *const at = strstr(kLine[v], "after 30 s");
+        if (at && delay != 30) sprintf_s(d, sizeof d, "%.*safter %d s%s", (int)(at - kLine[v]), kLine[v], delay, at + 10);
+        else strcpy_s(d, sizeof d, kLine[v]);
         Encode(g_txtRg[RGT_D0 + v], sizeof g_txtRg[0], d);
     }
     Encode(g_txtRg[RGT_PE], sizeof g_txtRg[0], "Playable Eileen's own regeneration heals her now.");
-    Encode(g_txtRg[RGT_NA], sizeof g_txtRg[0], "Not available in this game (see SH4Refined.log).");
+    Encode(g_txtRg[RGT_NA], sizeof g_txtRg[0], OLW_NA_GAME);
 }
 static int RgSeed(const char *key, const char *val, const char *why)  // v3.47 RG347 inspection 2: 1 = written
 {
@@ -222,9 +225,9 @@ static int RgRowDesc(void)
 }
 static int RgRowDescPe(void) { return MSG_RG0 + RGT_PE; }
 // sh4windowmod.c RowLabelC / RowValueC: the row and its value grey while Playable Eileen's own regeneration heals
-static int RgRowGrey(int slot, int row)
+static int RgRowGrey(int page, int row)  // v3.54 OL34: by the row's origin page and row
 {
-    return (unsigned)slot < 3 && g_slotPage[slot] == LP_PLAYER && row >= 0 && row < g_gpPlayerN && g_gpPlayerRow[row] == GP_REGEN &&
+    return page == OP_PLAYER && row >= 0 && row < g_gpPlayerN && g_gpPlayerRow[row] == GP_REGEN &&
            RgRowModeNow() == RGR_PE;
 }
 static int RgValueIdGreyed(int id)

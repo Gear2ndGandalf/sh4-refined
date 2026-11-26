@@ -1384,15 +1384,15 @@ static void GtTextOn(void)  // the On line carries the cooldown in force
 {
     char d[64];
     if (g_gtCoolS > 0.0f)  // v3.49 GT349: hold to keep warping; no cooldown unless the ini asks for one
-        sprintf_s(d, sizeof d, "On: Run + Action warps you (%g s apart); hold to repeat.", (double)g_gtCoolS);
+        sprintf_s(d, sizeof d, OLW_TELEPORT_ON_CD, (double)g_gtCoolS);  // v3.53 OL1
     else
-        sprintf_s(d, sizeof d, "On: Run + Action warps you; hold both to keep warping.");
+        strcpy_s(d, sizeof d, OLW_POWERS_GHOST_TELEPORT_VD_ON);  // v3.53 OL1
     Encode(g_txtGt[GTM_D1], 64, d);
 }
 static void GtTexts(void)
 {
-    Encode(g_txtGt[GTM_L], 64, "Ghost Teleport");
-    Encode(g_txtGt[GTM_D0], 64, "Warp behind the enemy you face, or ahead through walls.");  // v3.44 GT344  // v3.50 TP350
+    Encode(g_txtGt[GTM_L], 64, OLW_POWERS_GHOST_TELEPORT_L);
+    Encode(g_txtGt[GTM_D0], 64, OLW_POWERS_GHOST_TELEPORT_VD_OFF);  // v3.44 GT344  // v3.50 TP350  // v3.53 OL1: Off's line (the row line: OLW_POWERS_GHOST_TELEPORT_D)
     GtTextOn();
     Encode(g_txtGt[GTM_NA], 64, "Not available in this game (see SH4Refined.log).");
 }

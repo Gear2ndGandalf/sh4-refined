@@ -41,22 +41,24 @@ static const char *const kPcIni[PC_COUNT][PC_VMAX] = {  // the ini's texts
     { "Normal", "Saver", "Endless" }, { "Off", "Pact", "Blood" }, { "Stock", "Quick", "Instant" },
     { "Off", "1.5x", "2x", "3x" },  // v3.43 QC343
     { "Off", "5", "10" } };
+// v3.53 OL1: the plan's words (Grab Breaker -> Grab Escape; Quick Charge / Life Steal: the row line for every value)
 static const char *const kPcName[PC_COUNT][PC_VMAX] = {  // the row's values (8 characters at most: no arrow shift)
-    { "Normal", "Saver", "Endless" }, { "Off", "Pact", "Blood" }, { "Stock", "Quick", "Instant" },
-    { "Off", "1.5x", "2x", "3x" },  // v3.43 QC343
-    { "Off", "5 %", "10 %" } };
-static const char *const kPcLabel[PC_COUNT] = { "Ammo Saver", "Dark Pact", "Grab Breaker", "Quick Charge", "Life Steal" };  // v3.43 QC343
-static const char *const kPcDescTxt[PC_COUNT] = {  // value 0 (and every value without its own line)
-    "Spares pistol and revolver rounds.", "A pact: you hit harder and are hurt more.",
-    "Ghosts and dogs let go of you sooner.", "Hold attack: charged swings fill faster.",  // v3.43 QC343
-    "Your hits on monsters heal you." };
-static const char *const kPcValDesc[PC_COUNT][PC_VMAX] = {
-    { NULL, "Saver: every other shot is free.", "Endless: the pistol and revolver never run dry." },
-    { NULL, "Pact: your hits x1.5, damage you take x1.5.", "Blood: your hits x2, damage you take x2." },
-    { NULL, "Quick: you break free in half the time.", "Instant: you shake off every grab at once." },
-    { NULL, "1.5x: a full charge in two thirds of the time.", "2x: a full charge in half the time.",
-      "3x: a full charge in a third of the time." },  // v3.43 QC343
-    { NULL, "5 %: hits on monsters heal 5 % of their damage.", "10 %: hits on monsters heal 10 % of their damage." } };
+    { OLW_COMBAT_AMMO_SAVER_V_NORMAL, OLW_COMBAT_AMMO_SAVER_V_SAVER, OLW_COMBAT_AMMO_SAVER_V_ENDLESS },
+    { OLW_COMBAT_DARK_PACT_V_OFF, OLW_COMBAT_DARK_PACT_V_PACT, OLW_COMBAT_DARK_PACT_V_BLOOD },
+    { OLW_PLAYER_GRAB_ESCAPE_V_STOCK, OLW_PLAYER_GRAB_ESCAPE_V_QUICK, OLW_PLAYER_GRAB_ESCAPE_V_INSTANT },
+    { OLW_COMBAT_QUICK_CHARGE_V_OFF, OLW_COMBAT_QUICK_CHARGE_V_1_5X, OLW_COMBAT_QUICK_CHARGE_V_2X, OLW_COMBAT_QUICK_CHARGE_V_3X },  // v3.43 QC343
+    { OLW_COMBAT_LIFE_STEAL_V_OFF, OLW_COMBAT_LIFE_STEAL_V_5, OLW_COMBAT_LIFE_STEAL_V_10 } };
+static const char *const kPcLabel[PC_COUNT] = { OLW_COMBAT_AMMO_SAVER_L, OLW_COMBAT_DARK_PACT_L, OLW_PLAYER_GRAB_ESCAPE_L,
+                                                OLW_COMBAT_QUICK_CHARGE_L, OLW_COMBAT_LIFE_STEAL_L };  // v3.43 QC343
+static const char *const kPcDescTxt[PC_COUNT] = {  // every value without its own line
+    OLW_COMBAT_AMMO_SAVER_D, OLW_COMBAT_DARK_PACT_D, OLW_PLAYER_GRAB_ESCAPE_D, OLW_COMBAT_QUICK_CHARGE_D,  // v3.43 QC343
+    OLW_COMBAT_LIFE_STEAL_D };
+static const char *const kPcValDesc[PC_COUNT][PC_VMAX] = {  // v3.53 OL1: value 0 may have its own line too (Grab Escape's Stock)
+    { NULL, OLW_COMBAT_AMMO_SAVER_VD_SAVER, OLW_COMBAT_AMMO_SAVER_VD_ENDLESS },
+    { NULL, OLW_COMBAT_DARK_PACT_VD_PACT, OLW_COMBAT_DARK_PACT_VD_BLOOD },
+    { OLW_PLAYER_GRAB_ESCAPE_VD_STOCK, OLW_PLAYER_GRAB_ESCAPE_VD_QUICK, OLW_PLAYER_GRAB_ESCAPE_VD_INSTANT },
+    { NULL, NULL, NULL, NULL },  // v3.43 QC343
+    { NULL, NULL, NULL } };
 
 static volatile LONG g_pc[PC_COUNT];
 static LONG g_snapPc[PC_COUNT];
@@ -122,7 +124,7 @@ static int PcDesc(int k)
 {
     const int v = (int)g_pc[k];
     if (!g_pcOn[k]) return MSG_GP0 + GPM_DPNA;  // "Not available in this game (see SH4Refined.log)."
-    if (v > 0 && v < kPcCount[k] && kPcValDesc[k][v]) return MSG_PC0 + PcValDescTxt(k, v);  // v3.43 QC343
+    if (v >= 0 && v < kPcCount[k] && kPcValDesc[k][v]) return MSG_PC0 + PcValDescTxt(k, v);  // v3.43 QC343  // v3.53 OL1: >= 0 (Stock's line)
     return MSG_PC0 + PCM_D0 + k;
 }
 #define PC_ROWFNS(i)                                                                              \

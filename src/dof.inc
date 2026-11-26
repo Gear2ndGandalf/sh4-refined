@@ -119,11 +119,11 @@ static const BYTE *DofText(int id)
 static void DofTexts(void)
 {
     int v;
-    Encode(g_txtDof[DFM_MODE_L], 72, "Depth of Field");
-    Encode(g_txtDof[DFM_STR_L], 72, "DoF Strength");
-    Encode(g_txtDof[DFM_MODE_D], 72, "Blur by distance from the player: Off, in cut-scenes or always.");
-    Encode(g_txtDof[DFM_NA], 72, "Off this session (see SH4Refined.log).");
-    Encode(g_txtDof[DFM_STR_D], 72, "How strong the depth of field blur is: Low, Medium or High.");  // v3.45 QS345
+    Encode(g_txtDof[DFM_MODE_L], 72, OLW_EFFECTS_DEPTH_OF_FIELD_L);  // v3.53 OL1: the plan's words (DoF Strength -> Blur Strength)
+    Encode(g_txtDof[DFM_STR_L], 72, OLW_EFFECTS_BLUR_STRENGTH_L);
+    Encode(g_txtDof[DFM_MODE_D], 72, OLW_EFFECTS_DEPTH_OF_FIELD_D);
+    Encode(g_txtDof[DFM_NA], 72, OLW_OFF_SESSION);
+    Encode(g_txtDof[DFM_STR_D], 72, OLW_EFFECTS_BLUR_STRENGTH_D);  // v3.45 QS345
     for (v = 0; v < DOF_MODE_N; ++v) {
         Encode(g_txtDof[DFM_V0 + v], 72, kDofModeName[v]);
         g_dofModeIds[v] = MSG_DOF0 + DFM_V0 + v;
@@ -189,7 +189,12 @@ static int __cdecl DofStrIn(BYTE *cfg, int count)
     return 0;
 }
 static int DofPreviewable(void) { return g_dofPrevOn && g_fxPrevHook; }  // v3.44 DF344: the Screen Effects page's backdrop hook
-static int __cdecl DofModeDesc(void) { return MSG_DOF0 + (g_dofFailed ? DFM_NA : DFM_MODE_D); }
+static int __cdecl DofModeDesc(void)  // v3.53 OL1: Cut-scenes / Always have their own lines
+{
+    const int v = DofModeGet();
+    if (g_dofFailed) return MSG_DOF0 + DFM_NA;
+    return v == 1 ? MSG_V53 + OLT_DOF_VD_CUT : v == 2 ? MSG_V53 + OLT_DOF_VD_ALWAYS : MSG_DOF0 + DFM_MODE_D;
+}
 static int __cdecl DofStrDesc(void) { return MSG_DOF0 + (g_dofFailed ? DFM_NA : DFM_STR_D); }
 // v3.44 DF344: sh4windowmod.c (the Screen Effects page's table, after the post rows): our two rows at `rows` (7 DWORDs
 // each), the page's row `row0` for the first; returns how many (0: depth of field not installed)
