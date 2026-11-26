@@ -563,6 +563,7 @@ static void SpFaultNote(EXCEPTION_POINTERS *e)
 
 static void SubExitFrame(void);  // subtitles.inc (included later)
 static void HbFrame(void);       // HUD BARS: hudbars.inc (included later)
+static void FiDrawFrame(void);   // v3.50 FI350: fadein.inc (included later): Fade In's clock and blood portals
 static void __cdecl SparkleFrame(void)
 {
     static int faults;
@@ -574,6 +575,7 @@ static void __cdecl SparkleFrame(void)
     BG_RUN(BGC_ECHO, EchoDrawFrame());  // v3.30 ECHO: the Echo double, before the fog (its smoke blends over it) and the filter (echo.inc)
     BG_RUN(BGC_DP, DpDrawFrame());  // v3.27.0: the Death Presence fog, before Item Shine and the filter (deathpresence_draw.inc)
     BG_RUN(BGC_AI, AiDrawFrame());  // v3.29 AFTERIMAGE: the after-image trail, after the fog (afterimage.inc)
+    BG_RUN(BGC_FX, FiDrawFrame());  // v3.50 FI350: Fade In's blood portals (fadein.inc), before Item Shine and the filter
     // v3.22.0 (user item 2: the shine was drawn after the filter, unfiltered): Item Shine first, then the filter over it
     if (faults <= 3) {
         BgPush(BGC_ITEMS);  // v3.35 FX335

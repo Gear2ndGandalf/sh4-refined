@@ -1,6 +1,6 @@
 # SH4 Refined
 
-**Current version: v3.49.0 (new, not yet tested in game; the last tested version is v3.48.0, see Versions below)**
+**Current version: v3.50.0 (new, not yet tested in game; the last fully tested version is v3.48.0, see Versions below)**
 
 SH4 Refined is a fan-made enhancement mod for the PC version of **Silent Hill 4: The Room** sold by GOG. It is a
 single `winmm.dll` that the game loads from its own folder: no loader, no installer and no changes to the game's exe
@@ -46,18 +46,20 @@ randomizer, all switched from new pages in the game's own Options menu and saved
 **Gameplay options** (all Off by default)
 - Player: Movement Speed, Medallion Durability, Regeneration, Ammo Saver, Dark Pact, Grab Breaker, Quick Charge,
   Life Steal, Curse Meter.
-- Enemies: One-Hit Kill, Enemy Copies, Enemies Follow (Monsters, Victims Only or both), Enemy Health Bars, Supply
-  Drops, Revive Enemies.
+- Enemies: One-Hit Kill, Enemy Copies, Enemies Follow (Monsters, Victims or both; followers stay with you across a
+  save and load), Enemy Pursuit (enemies can lose track of you), Fade In (monsters and ghosts fade in, arriving
+  ghosts through a blood-red portal), Enemy Health Bars, Supply Drops, Revive Enemies.
 - Special: Death Presence (a draining fog around you), After Shock (electric after-images), Echo Doubles (shadow
-  copies that fight with you), Ghost Teleport (hold the chord to keep warping; never past a cut-scene trigger).
+  copies that fight with you), Ghost Teleport (hold the chord to keep warping; through walls onto floor you could
+  walk to, or behind the enemy you face; never past a cut-scene trigger).
 - Also on the Gameplay page: No Clip, Extended Toolbelt (20 items on two pages), Stackable Items.
 
 **Randomizer**
 - Item and weapon pickups: Shuffle or Random, Keep Specials, Room 302 in or out, new items each visit, a seed you can
   replay.
-- Monsters (v3.49): each enemy rolls its own type from this room's or this world's monsters; story and boss spawns
-  never change.
-- Eileen's outfit (the companion; only outfits your save has unlocked) and victim ghosts' starting spots (v3.49).
+- Monsters: each enemy rolls its own type from this room's, this world's or all worlds' monsters, also in rooms your
+  save has visited; story and boss spawns never change.
+- Eileen's outfit (the companion, room by room) and victim ghosts' starting spots.
 - Nothing randomized is written into your saves.
 
 **Quality of life**
@@ -114,10 +116,12 @@ Python tools need Python 3 (some previews use NumPy, Pillow and SciPy). Build no
 ## Versions
 
 The current version is named at the top of this page. Every release, newest changes included, is described in the
-history of [docs/FULL_README.md](docs/FULL_README.md#history). v3.49.0 adds the monster, outfit and ghost randomizer,
-Victims Only, continuous Ghost Teleport with a crash fix, the blue highlight bar in the save lists and Room 302's
-analog look; it has passed its tests and code review but not yet a play test. To stay on the tested v3.48.0, take
-the repository as of the commit "SH4 Refined v3.48.0" (the Install folder there).
+history of [docs/FULL_README.md](docs/FULL_README.md#history). v3.50.0 adds Ghost Teleport through walls and behind
+the enemy you face, a working monster randomizer in saved games (plus All Worlds), the outfit per room, ghost spots you
+can see, Fade In, followers across saves, Enemy Pursuit and a Room 302 page (live once Playable Eileen v1.25.0 hands it
+over); it has passed its tests and code review but not yet a play test. v3.49.0 was partly play-tested (its save list,
+teleport, crash fix, Victims, Room 302 look and Tremer shadows passed). To stay on the fully tested v3.48.0, take the
+repository as of the commit "SH4 Refined v3.48.0" (the Install folder there).
 
 ## Credits
 

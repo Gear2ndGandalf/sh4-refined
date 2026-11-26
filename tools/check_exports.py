@@ -3,7 +3,7 @@
     python check_exports.py [proxy.dll] [real winmm.dll]
 
 Every export of the real dll must exist in the proxy at the same ordinal with the same name (or NONAME), the proxy
-may add only SH4WM_Patches, SH4WM_Scale2D, (v3.7.0) SH4R_Extra, (v3.43.0) SH4R_QuickCharge and (v3.47.0) SH4R_StickAmount, and the proxy must import nothing but KERNEL32 and USER32 (in particular not winmm).
+may add only SH4WM_Patches, SH4WM_Scale2D, (v3.7.0) SH4R_Extra, (v3.43.0) SH4R_QuickCharge, (v3.47.0) SH4R_StickAmount and (v3.50.0) SH4R_Room302, and the proxy must import nothing but KERNEL32 and USER32 (in particular not winmm).
 Exit code 0 when all holds.
 """
 import os, struct, sys
@@ -53,7 +53,8 @@ def main():
         if px.get(o, '<missing>') != n:
             print('ordinal %d: real %s, proxy %s' % (o, n, px.get(o, '<missing>'))); bad += 1
     extra = {o: n for o, n in px.items() if o not in rl}
-    if sorted(extra.values()) != ['SH4R_Extra', 'SH4R_QuickCharge', 'SH4R_StickAmount', 'SH4WM_Patches', 'SH4WM_Scale2D']:  # v3.43 QC343  # v3.47 CT347: + SH4R_StickAmount
+    if sorted(extra.values()) != ['SH4R_Extra', 'SH4R_QuickCharge', 'SH4R_Room302', 'SH4R_StickAmount', 'SH4WM_Patches',
+                                  'SH4WM_Scale2D']:  # v3.43 QC343  # v3.47 CT347: + SH4R_StickAmount  # v3.50 R302: + SH4R_Room302
         print('unexpected extra exports:', extra); bad += 1
     imps = import_dlls(proxy)
     if sorted(d.upper() for d in imps) != ['KERNEL32.DLL', 'USER32.DLL']:

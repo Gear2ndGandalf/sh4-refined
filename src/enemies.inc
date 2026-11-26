@@ -92,7 +92,15 @@
 // once (EnmPursueDropMonsters), and at the next room load the monsters left in other rooms go home and the monsters'
 // copies leave the copies' ledger (EnmMonstersHomeAtLoad, as Follow Off does for them). Each change of the value is logged
 // once with what follows.
+//
+// v3.50 EF350 (staging/v350_feedback/w5_follow/PLAN.md; the user's v3.49 QA C1, C4, C5): the value "Victims Only" is
+// "Victims" (the old ini text still reads); followers survive a save and its load (enmfollow.inc: Refined's follower
+// state is kept per save in save\SH4Refined_follow.dat, keyed by the save's own enemy block, and put back at the load's
+// room load); Enemy Pursuit Relentless / Normal / Forgetful (pursuit_sim.h): enemies lose track of you (out of their
+// senses for 10 / 4 s when you leave, down when you leave, 2 / 1 doors without catching up); Relentless = v3.49. A load
+// empties the arrival watch (v3.49 logged a follower that came in after the save as "lost between the rooms").
 #include "enemies_sim.h"
+#include "pursuit_sim.h"  // v3.50 EF350
 
 #define ENM_LIST_MAX 40      // at most 40 enemies in the room list (Death Presence tracks 64)
 #define ENM_FREE_TASKS 40    // tasks (0x11B6020, 300 x 0x430) kept free (v3.36 TP336: of the first 300: TpGateFree)
@@ -117,7 +125,7 @@ static void *g_enmFaultAt;
 
 // the pursuers of the room the player is in (the last normal-play tick)
 // v3.38 EN338: every eligible one of the room (ENM_PUR_MAX, was FollowMax), pursuers first (prio); how = its spotted marks
-typedef struct { unsigned id; int type, variant, ghost, copy, prio, how; } EnmPur;  // v3.34 EN334: + copy
+typedef struct { unsigned id; int type, variant, ghost, copy, prio, how; float ago; int lost; } EnmPur;  // v3.34 EN334: + copy  // v3.50 EF350: + ago, lost (Enemy Pursuit)
 static EnmPur g_enmPur[ENM_PUR_MAX];
 static int g_enmPurN, g_enmPurStage, g_enmPurRoom;
 static DWORD g_enmPurTime;
@@ -138,7 +146,7 @@ static int g_enmPoolBufN;                      // its size in records
 typedef struct { int word; DWORD mask; unsigned id; } EnmHide;
 static EnmHide g_enmHide[64];                  // kill bits set for one room script run (followers' home placements); v3.30 REV330-002: one per scanned record (64)
 static int g_enmHideN;
-typedef struct { int seen, distant, high, down, event, nokill, other; } EnmPurStats;
+typedef struct { int seen, distant, high, down, event, nokill, other, forgot; } EnmPurStats;  // v3.50 EF350: + forgot
 static EnmPurStats g_enmPurStats;              // why the monsters of the last list were left out
 static int g_enmReviveSkipLog[16];             // one log line per story room (stage x room bits) and session
 // v3.31 EN331
@@ -212,6 +220,11 @@ static volatile LONG g_enmQuotaPursue, g_enmQuotaLate, g_enmQuotaCd;
 #define ENM_DENIED        (*(volatile const int *)0xFD0BC8)                         // gEnemyManager.denied (0x464880: a story flag refused)
 #define ENM_MAYENTER(r, room) ((int(__cdecl *)(BYTE *, int))0x464880)(r, room)      // EnemyGhostMayEnterRoom (the stock rule)
 #define ENM_FRAMETIME     (*(volatile const float *)0x614FF0)                       // EnemyGetFrameTime's value
+// v3.50 EF350: Enemy Pursuit (the row: enmfollow.inc; the rules: pursuit_sim.h) and the followers' side file
+static volatile LONG g_enmPursuit = EF_PURSUIT_DEFAULT;  // [Gameplay] EnemyPursuit: 0 Relentless / 1 Normal / 2 Forgetful
+static EfTrack g_efTrack;                                // this room visit: when each enemy last sensed you
+static void EfRestoreAtLoad(int room);                   // enmfollow.inc: a load's followers come back (EnmWrap)
+static void EfInstall(void);                             // enmfollow.inc (EnemiesInstall)
 // a copy whose pursuit ends while it is on its way (the ledger's room 0) is made in its own room again
 static void EnmTransitHome(unsigned cid, int stage)
 {
@@ -272,7 +285,7 @@ static void EnmPursueDropMonsters(void)
             if (g_enmQ[i].copy) EnmTransitHome(g_enmQ[i].id, g_enmQStage);
         }
     if (n && LogQuota(&g_enmQuotaPursue, 300))
-        LogV("enemies: %d monster(s) and monster cop(ies) stop pursuing you: Enemies Follow takes no monsters now (Victims Only)", n);
+        LogV("enemies: %d monster(s) and monster cop(ies) stop pursuing you: Enemies Follow takes no monsters now (Victims)", n);  // v3.50 EF350: (was Victims Only)
 }
 
 static int EnmFaultNote(EXCEPTION_POINTERS *e)
@@ -726,7 +739,7 @@ static int EnmSendWanderersHome(int *keptDead)
 static void EnmMonstersHomeAtLoad(void)
 {
     const int off = g_enmFollow == ENM_FOLLOW_OFF;
-    const char *const what = off ? "off" : "Victims Only";
+    const char *const what = off ? "off" : "Victims";  // v3.50 EF350: (was "Victims Only")
     int n, dead = 0;
     if ((n = EnmSendWanderersHome(&dead)) != 0)
         Log("enemies: Enemies Follow is %s: %d monster(s) left in other rooms went home (%d of them killed there: they stay "
@@ -737,7 +750,7 @@ static void EnmMonstersHomeAtLoad(void)
             Log("enemies: Enemies Follow is off: %d cop%s that followed you are made in their own rooms again", n, n == 1 ? "y" : "ies");
         }
     } else if ((n = EnmCwDropMonsters(&g_enmCw)) != 0) {
-        Log("enemies: Enemies Follow is Victims Only: %d monster %s that followed you %s again (ghost copies stay)", n,
+        Log("enemies: Enemies Follow is Victims: %d monster %s that followed you %s again (ghost copies stay)", n,  // v3.50 EF350
             n == 1 ? "copy" : "copies", n == 1 ? "is made in its own room" : "are made in their own rooms");
     }
 }
@@ -1340,7 +1353,9 @@ static void EnmTakePursuers(const float *pp)
     const int mode = g_enmFollow;  // v3.49 EF349: read once
     const int victims = EnmFollowTakesVictims(mode) && g_enmGhostOn, monsters = EnmFollowTakesMonsters(mode);  // v3.49 EF349 (was == 2)
     const float r2 = g_enmFollowRange * g_enmFollowRange;
+    const int pmode = (int)g_enmPursuit;  // v3.50 EF350: read once (Relentless = v3.49)
     if (g_enmSeen.serial != g_enmDoorSerial) EnmSeenReset(&g_enmSeen, g_enmDoorSerial);
+    if (g_efTrack.serial != g_enmDoorSerial) EfTrackReset(&g_efTrack, g_enmDoorSerial);  // v3.50 EF350
     // an empty enemy list in the room the list was taken in is the room's exit teardown (0x462A20 clears the list
     // after the destroys wrote the records) [I]: keep the last list for the door. v3.33 EN333: only while it holds
     // someone (EnmPurKeep): an empty room keeps its empty list fresh (v3.32 called it "too old" at every door)
@@ -1351,7 +1366,8 @@ static void EnmTakePursuers(const float *pp)
         const float *q = (const float *)w;
         unsigned id, mw;
         int type, variant, gkind, copy, why, cls, pur, how, fresh = 0;
-        float d2, dy;
+        float d2, dy, ago = 0.0f;  // v3.50 EF350: + ago
+        int lost = 0;              // v3.50 EF350
         if (!w) continue;
         type = *(const int *)(w + 0x20);
         id = ENM_ID(t);
@@ -1398,9 +1414,18 @@ static void EnmTakePursuers(const float *pp)
         pur = EnmPursueFind(&g_enmPursue, id) != NULL;
         if (gkind) {
             how = ENM_SEEN_NEAR;  // every ghost in the room pursues (the user's answer: "victims' ghosts: all in the room")
+            if (EfDownLoses(pmode, 1, EnmStanding(cls))) {  // v3.50 EF350: a ghost lying down does not see where you go
+                lost = 2;
+                if (!pur) {
+                    ++st.forgot;
+                    continue;
+                }
+            }
         } else {
-            how = EnmSeenSee(&g_enmSeen, id, ENM_HPSAFE(t, -1.0f), d2 < r2 && EnmCandDyOk(dy, EnmFollowDyMax(type)),
-                             EnmSawYou(w, type), &fresh);
+            // v3.50 EF350: near / saw / HP once (they were inline arguments)
+            const int isNear = d2 < r2 && EnmCandDyOk(dy, EnmFollowDyMax(type)), saw = EnmSawYou(w, type);
+            const float hp = ENM_HPSAFE(t, -1.0f);
+            how = EnmSeenSee(&g_enmSeen, id, hp, isNear, saw, &fresh);
             if (how < 0) {
                 if (LogQuota(&g_enmQuotaAnom, 20))
                     LogAnomaly("enemies", "the spotted marks of room %d are full (%d): %08X is not marked", ENM_ROOM, ENM_SEEN_N, id);
@@ -1415,9 +1440,19 @@ static void EnmTakePursuers(const float *pp)
                 ++st.distant;  // (not spotted yet)
                 continue;
             }
+            if (EfLoses(pmode)) {  // v3.50 EF350: Enemy Pursuit: how long ago it last sensed you (near, saw you, a hit)
+                ago = EfTrackSee(&g_efTrack, id, g_enmClock, isNear || saw || (fresh & ENM_SEEN_HIT) != 0, hp, pur, NULL);
+                if (ago < -1.5f) ago = 0.0f;  // (the memory table is full: nobody loses track because of it)
+                lost = EfLostAtDoor(pmode, 0, ago);
+                if (lost && !pur) {  // it spotted you in this room visit but has lost you since: it would not follow
+                    ++st.forgot;
+                    continue;
+                }
+            }
         }
         c[n].d2 = d2, c[n].ok = 1, c[n].prio = pur;
         p[n].id = id, p[n].type = type, p[n].variant = variant, p[n].ghost = gkind, p[n].copy = copy, p[n].prio = pur, p[n].how = how;
+        p[n].ago = ago, p[n].lost = lost;  // v3.50 EF350
         ++n;
     }
     m = EnmPickPursuers4(c, n, ENM_PUR_MAX, idx);
@@ -1437,7 +1472,7 @@ static void EnmTakePursuers(const float *pp)
 // waits too when the story guard refuses this room change (EnmStoryFollowWhy), its files cannot be loaded here, or (a monster
 // away) it lies down in its room. Nothing is ever dropped by time.
 typedef struct { int stage, half, from, room, f2DC, f3BF, slots, nm, nc, ng, fromList, fromAway, wFull, wFiles, wStory, wDown,
-                 wNoRec, here, lost; char who[1600]; size_t at; } EnmDoorCtx;
+                 wNoRec, here, lost, lostSight, lostDown, lostBehind; char who[1600]; size_t at; } EnmDoorCtx;  // v3.50 EF350: + lostSight / Down / Behind
 static int EnmQueueAdd(unsigned id, int type, int variant, int fromRoom, int copy, int ghost, const BYTE *rec, float clock)
 {
     EnmFollower *f;
@@ -1548,12 +1583,23 @@ static int EnmDoorOne(EnmDoorCtx *x, unsigned id, int type, int variant, int cop
 // a pursuer away at this door (not in the room you left)
 static void EnmDoorAway(EnmDoorCtx *x, EnmPursuer *e)
 {
-    const int maxMisses = g_enmKeepDoors == 0 ? 1 : g_enmKeepDoors;  // (FollowKeepDoors 0: lost at the first door away)
+    // (FollowKeepDoors 0: lost at the first door away); v3.50 EF350: by Enemy Pursuit (Relentless: FollowKeepDoors as v3.49)
+    const int pmode = (int)g_enmPursuit, maxMisses = EfMaxMisses(pmode, g_enmKeepDoors);
     const BYTE *r;
     int v;
     e->door = g_enmDoorSerial;
     if (e->stage != x->stage) {
         EnmPursueEnd(e, ENM_PURSUE_GONE, x->room), ++x->lost;
+        return;
+    }
+    if (EfDownLoses(pmode, e->seen == g_enmDoorSerial - 1, e->standing)) {  // v3.50 EF350: down in the room you left
+        e->used = 0;
+        if (e->copy) EnmTransitHome(e->id, e->stage);
+        ++x->lost, ++x->lostDown;
+        if (LogQuota(&g_enmQuotaPursue, 300))
+            LogV("enemies: %s %08X (type %02X v%d) lost track of you at the door to room %d: it lay down when you left (Enemy "
+                 "Pursuit %s; it stays in room %d)", EnmPurKind(e->copy, e->ghost), e->id, e->type, e->variant, x->room,
+                 EfPursuitNameOf(pmode), x->from);
         return;
     }
     if (!e->copy) {  // a real monster or a ghost: its record
@@ -1562,6 +1608,7 @@ static void EnmDoorAway(EnmDoorCtx *x, EnmPursuer *e)
                              r ? *(const signed char *)(r + 0x36) : -1, r ? *(const signed char *)(r + 0x37) : -1);
         if (v != ENM_PURSUE_KEEP) {
             EnmPursueEnd(e, v, x->room), ++x->lost;
+            x->lostBehind += v == ENM_PURSUE_BEHIND;  // v3.50 EF350
             return;
         }
         if (!e->ghost) {
@@ -1594,7 +1641,7 @@ static void EnmDoorAway(EnmDoorCtx *x, EnmPursuer *e)
             return;
         }
         if (maxMisses > 0 && ++e->misses >= maxMisses) {
-            EnmPursueEnd(e, ENM_PURSUE_BEHIND, x->room), ++x->lost;
+            EnmPursueEnd(e, ENM_PURSUE_BEHIND, x->room), ++x->lost, ++x->lostBehind;  // v3.50 EF350: + lostBehind
             return;
         }
         if (e->ghost && *(const short *)(c->rec + 0x26) == 0x0B) {  // pinned in its room: it stays with its Sword
@@ -1607,6 +1654,15 @@ static void EnmDoorAway(EnmDoorCtx *x, EnmPursuer *e)
         }
         EnmDoorOne(x, e->id, e->type, e->variant, 1, e->ghost, c->room > 0 ? c->room : x->from, c->rec, c->clock, 0);
     }
+}
+// v3.50 EF350: one line at a door where enemies lost track of you (Enemy Pursuit; logcheck sums them by reason)
+static volatile LONG g_efQuotaLost;
+static void EfDoorLostSay(int door, int from, int room, int sight, int down, int behind, int forgot)
+{
+    if ((!sight && !down && !behind && !forgot) || !LogQuota(&g_efQuotaLost, 400)) return;
+    Log("enemies: through door %d from room %d to %d: Enemy Pursuit %s: %d lost track of you (%d out of their senses, %d down "
+        "when you left, %d did not catch up); %d more had spotted you but forgot", door, from, room,
+        EfPursuitNameOf((int)g_enmPursuit), sight + down + behind, sight, down, behind, forgot);
 }
 static void EnmDoorPass(int room)
 {
@@ -1648,6 +1704,7 @@ static void EnmDoorPass(int room)
         Log("enemies: through door %d from room %d to %d: nobody follows (%d enem%s there: %d had not spotted you, %d down or "
             "dead, %d event spawns not awake, %d without a kill index, %d of no following kind)", door, g_enmPurRoom, room, s->seen,
             s->seen == 1 ? "y" : "ies", s->distant, s->down, s->event, s->nokill, s->other);
+        EfDoorLostSay(door, g_enmPurRoom, room, 0, 0, 0, s->forgot);  // v3.50 EF350
         return;
     }
     memset(&x, 0, sizeof x);
@@ -1667,6 +1724,26 @@ static void EnmDoorPass(int room)
         for (i = 0; i < g_enmPurN; ++i) {
             const EnmPur *p = &g_enmPur[i];
             if ((pass == 0) != (p->prio != 0)) continue;
+            if (p->lost) {  // v3.50 EF350: Enemy Pursuit: a pursuer that lost track of you (out of its senses, or down) stays
+                EnmPursuer *e = EnmPursueFind(&g_enmPursue, p->id);
+                if (e) {
+                    e->used = 0;
+                    if (e->copy) EnmTransitHome(e->id, e->stage);
+                }
+                ++x.lost;
+                if (p->lost == 2) ++x.lostDown;
+                else ++x.lostSight;
+                if (LogQuota(&g_enmQuotaPursue, 300)) {
+                    char why[64];
+                    if (p->lost == 2) strcpy_s(why, sizeof why, "it lay down when you left");
+                    else if (p->ago < 0.0f) strcpy_s(why, sizeof why, "it had not sensed you in that room");
+                    else sprintf_s(why, sizeof why, "it had not sensed you for %.0f s", p->ago);
+                    LogV("enemies: %s %08X (type %02X v%d) lost track of you at the door to room %d: %s (Enemy Pursuit %s; it "
+                         "stays in room %d)", EnmPurKind(p->copy, p->ghost), p->id, p->type, p->variant, room, why,
+                         EfPursuitNameOf((int)g_enmPursuit), g_enmPurRoom);
+                }
+                continue;
+            }
             if (p->copy && !g_enmPurHave[i]) {  // v3.34 EN334: a copy goes with the record its destroy wrote at the door
                 ++x.wNoRec;
                 Log("enemies: copy %08X (type %02X v%d) stays in room %d: it wrote no record at the door (its state is not kept)",
@@ -1683,6 +1760,7 @@ static void EnmDoorPass(int room)
         "rule, %d down in their room), %d already here, %d stopped, %d in that room had not spotted you", door, g_enmPurRoom, room,
         x.nm + x.ng, x.nm, x.nc, x.ng, x.fromList, x.fromAway, x.at ? x.who : "nobody", x.wFull + x.wFiles + x.wStory + x.wDown,
         x.wFull, g_enmFollowMax, x.wFiles, x.wStory, x.wDown, x.here, x.lost, g_enmPurStats.distant);
+    EfDoorLostSay(door, g_enmPurRoom, room, x.lostSight, x.lostDown, x.lostBehind, g_enmPurStats.forgot);  // v3.50 EF350
     if (x.nm && LogQuota(&g_enmQuotaDoor, 400))
         LogV("enemies: follow: the monsters and copies come through the door %.1f s after you arrive (+1.5 s each), once you are "
              "300 units from the door (else after 10 s at a spot away from you); one the room has no space for waits (never given "
@@ -2511,6 +2589,7 @@ static void EnmLateTick(void)
 // spawns it fresh (gate 0). Killed copies of this room leave the dead ring. Never in a story room (EnmReviveRoomOk).
 typedef struct { unsigned clearOver; int events, bosses, n, num[ENM_ORIG_MAX], kill[ENM_ORIG_MAX], type[ENM_ORIG_MAX],
                  released, relDogs, dog[ENM_ORIG_MAX]; } EnmRevCtx;  // v3.34 EN334: + the released event dogs
+static void FiNoteRevive(int stage, int room, unsigned id);  // v3.50 FI350: fadein.inc (a revived id fades in as "revive")
 static int EnmRevCb(void *c, int n, const BYTE *desc)
 {
     EnmRevCtx *x = (EnmRevCtx *)c;
@@ -2616,6 +2695,7 @@ static void EnmReviveAwake(int room)
         t = t ? ENM_FIND(id) : NULL;
         if (t && EnmWork(t)) {
             ++made;
+            FiNoteRevive(stage, room, id);  // v3.50 FI350
             LogV("enemies: revive: event dog %08X (type %02X) stands again awake in room %d:%d at its placement (%.0f %.0f %.0f)",
                  id, *(const int *)(EnmWork(t) + 0x20), stage, room, ((const float *)EnmWork(t))[0], ((const float *)EnmWork(t))[1],
                  ((const float *)EnmWork(t))[2]);
@@ -2658,10 +2738,12 @@ static void EnmReviveRoom(int room)
         if (rec && *(const short *)(rec + 0x26) == 0x0B && *(const signed char *)(rec + 0x36) == stage) {
             ENM_RECDEL(rec);
             ++recs;
+            FiNoteRevive(stage, room, id);  // v3.50 FI350
         }
         if (EnmKillTest(stage, x.kill[i])) {
             EnmKillPut(stage, x.kill[i], 0);
             ++bits;
+            FiNoteRevive(stage, room, id);  // v3.50 FI350
         }
     }
     // bodies lying here of monsters from other rooms (a follower killed here): its home room spawns it again
@@ -2726,6 +2808,8 @@ static void EnmLoadWatch(const char *where)
         EnmPursueDrop("a save load");  // v3.35 GH335
         g_enmQN = g_enmGhostTagN = 0;  // v3.38 EN338: the followers on their way belong to the timeline the load abandoned
         g_enmCdRoomKey = 0xFFFFFFFFu;  // (the countdown watch starts afresh)
+        g_enmArrivedN = 0;  // v3.50 EF350: and the arrivals watched there (v3.49: "came into room 2 and is gone 4.2 s later")
+        EfTrackReset(&g_efTrack, 0);  // v3.50 EF350
     }
     g_enmLoadSeen = loading;
 }
@@ -2757,6 +2841,7 @@ static void __cdecl EnmWrap(int room)
                 if (EnmReviveLive()) EnmReviveRoom(room);  // v3.30 EN330 (before the hide: a revived follower is home)
                 if (EnmFollowLive()) EnmHideAwayHome(room);  // v3.30 EN330
                 EnmDoorPass(room);
+                EfRestoreAtLoad(room);  // v3.50 EF350: after a load, the save's followers (pursuits, the queue, tags, copies)
             }
         } __except (EnmFaultNote(GetExceptionInformation())) {
             EnmFailNow("the room load (before the script)");
@@ -3144,4 +3229,6 @@ static void EnemiesInstall(void)
         g_enmKeepDoors,
         g_enmLateCopies, g_enmCdKeepOn, g_enmCdKeepOn ? "a hit never shortens a ghost's down" : "the game's own down countdown",
         g_enmStoryFollow);  // v3.34 EN334; v3.35 GH335; v3.38 EN338
+    EfInstall();  // v3.50 EF350: the followers' side file (0x4FC1A4 / 0x4FC6ED) and Enemy Pursuit's line
 }
+#include "enmfollow.inc"  // v3.50 EF350: Enemy Pursuit's row, the followers' side file (save / load)

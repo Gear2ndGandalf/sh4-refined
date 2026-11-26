@@ -2617,7 +2617,20 @@ static int __cdecl ThermDrawC(const BYTE *task, BYTE *model)  // 0x52AEB5: 0 = n
     if (type > 0 && model) TpEnemySeen(task, model, type);  // v3.17.1: walking enemies leave footprints too
     return 1;
 }
-static int __cdecl ThermShadowC(const BYTE *task) { return !ThermalLive() || ThermClass(task) != 2; }
+static int FiDrawC(const BYTE *task, BYTE *model);  // v3.50 FI350: fadein.inc (1 = drawn see-through there)
+static int FiShadowC(const BYTE *task);             // v3.50 FI350: fadein.inc (0 = no shadow yet)
+// v3.50 FI350: Fade In: where the stock draw would run, an enemy that has just appeared is drawn see-through by the
+// game's own 0x45C880 (fadein.inc FiDrawC) and the stock call is skipped
+static int __cdecl ThermDrawFi(const BYTE *task, BYTE *model)
+{
+    const int r = ThermDrawC(task, model);
+    if (r && FiDrawC(task, model)) {
+        InterlockedExchange(&g_thermHot, 0);  // (the stock path clears it after its draw)
+        return 0;
+    }
+    return r;
+}
+static int __cdecl ThermShadowC(const BYTE *task) { return (!ThermalLive() || ThermClass(task) != 2) && FiShadowC(task); }  // v3.50 FI350: + FiShadowC
 // v3.21.0 (user item 6): the trapped Cynthia behind the Subway train door is an event actor (record 0x62A6FC, model
 // cynl.bin 29 bones / cybl.bin 30): its late handler 0x4EE360 draws her with its own `call 55C650` at 0x4EE376, in
 // 0x52B380 before the registry model loop, so 0x52AEB5 never saw her (staging/feedback_v321/cynthia_re.md). Only that
@@ -2675,7 +2688,7 @@ static __declspec(naked) void hkThermDraw(void)  // 52AEB5: was `call 55C650` ([
         pushad
         push dword ptr [esp + 24h]  // the model (above the 8 saved registers and our return address)
         push edi
-        call ThermDrawC
+        call ThermDrawFi  // v3.50 FI350 (was ThermDrawC: it calls it)
         add esp, 8
         mov [esp + 1Ch], eax     // the result into the saved eax
         popad

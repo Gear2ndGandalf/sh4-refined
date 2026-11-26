@@ -28,6 +28,10 @@
 // monster (it loads as the stock game would place it). Rebuilt placements (Enemy Copies, Follow, the wanderers) take the
 // type they live as (RmDescFix, called by enemies.inc EnmWalkC). With the cheat table's Enemy Randomizer (entry 7700:
 // 0x52CAA9 / 0x52CB2B not stock) Refined's Monsters stay off (logged at each change).
+// v3.50 RM350 (staging/v350_feedback/w2_monsters/PLAN.md): a save-based game rolls too: the game's own record of a stock
+// monster in its room (every room a save visited holds them) is adopted (rolled; deleted when the roll gives another type)
+// instead of keeping the room stock (the user's v3.49 QA: 1 of 15 placements changed); All Worlds (any target in any world,
+// files as This World); the room line counts why each placement kept its stock type.
 #include "rzmon_sim.h"
 
 static int g_rmFail;                 // faulted: off for this session
@@ -48,13 +52,16 @@ static volatile LONG g_rmQuotaRoom, g_rmQuotaAnom, g_rmQuotaFiles;
 static RmProv g_rmProv;              // v3.49 fix2 RZ349-SAVE-001: what Refined made each placement as (rzmon_sim.h RmProv)
 static int g_rmOther;                // v3.49 fix2: placements left as placed for a record Refined did not make (another writer)
 static volatile LONG g_rmQuotaOther;
+static int g_rmAdopted, g_rmAdoptChanged, g_rmRollStock, g_rmSame, g_rmAway, g_rmNone;  // v3.50 RM350: the reasons, the session
 
 // ---------------------------------------------------------------- texts (MSG_RZ0 + 28 .. + 29, MSG_RZ1 + 0 .. 15)
-enum { RMT_LABEL, RMT_ROOM, RMT_WORLD, RMT_D0, RMT_CT = RMT_D0 + RMM_N, RMT_N };
+// v3.50 RM350: All Worlds' value and description appended (RZ1 + 5 / + 6: the v3.49 ids stay as they were)
+enum { RMT_LABEL, RMT_ROOM, RMT_WORLD, RMT_D0, RMT_CT = RMT_D0 + RMM_ALL, RMT_ALL, RMT_DALL, RMT_N };
+static int RmDescText(int mode) { return mode == RMM_ALL ? RMT_DALL : RMT_D0 + mode; }  // v3.50 RM350
 static BYTE g_txtRm[RMT_N][64];
 static DWORD g_rmIdsMon[RMM_N];
 static int RmTextId(int k) { return k < 2 ? MSG_RZ0 + 28 + k : MSG_RZ1 + k - 2; }
-typedef char RmTextsFit[RMT_N - 2 <= 16 && MSG_RZ0 + 30 <= MSG_RZ1 && MSG_RZ1 + 16 <= MSG_END ? 1 : -1];
+typedef char RmTextsFit[RMT_N - 2 <= 16 && MSG_RZ0 + 30 <= MSG_RZ1 && MSG_RZ1 + 16 <= MSG_V50 ? 1 : -1];  // v3.50 MERGE: MSG_V50 (was MSG_END)
 static const BYTE *RmText(int id)
 {
     const int k = id >= MSG_RZ0 + 28 && id < MSG_RZ0 + 30 ? id - (MSG_RZ0 + 28) : id >= MSG_RZ1 && id < MSG_RZ1 + 16 ? id - MSG_RZ1 + 2 : -1;
@@ -69,9 +76,12 @@ static void RmTexts(void)
     Encode(g_txtRm[RMT_D0 + RMM_ROOM], 64, "Each rolls a type its room loads. Next door.");
     Encode(g_txtRm[RMT_D0 + RMM_WORLD], 64, "Each rolls a type of this world. Next door.");
     Encode(g_txtRm[RMT_CT], 64, "Off: the cheat table's randomizer is on.");
+    Encode(g_txtRm[RMT_ALL], 64, kRmMonName[RMM_ALL]);                            // v3.50 RM350
+    Encode(g_txtRm[RMT_DALL], 64, "Each rolls a type of any world. Next door.");  // v3.50 RM350
     g_rmIdsMon[RMM_OFF] = MSG_RZ0 + RZM_VK0;  // randomizer.inc's "Off"
     g_rmIdsMon[RMM_ROOM] = (DWORD)RmTextId(RMT_ROOM);
     g_rmIdsMon[RMM_WORLD] = (DWORD)RmTextId(RMT_WORLD);
+    g_rmIdsMon[RMM_ALL] = (DWORD)RmTextId(RMT_ALL);  // v3.50 RM350
 }
 
 // ---------------------------------------------------------------- the row (randomizer.inc RzBuildPage)
@@ -100,7 +110,7 @@ static int __cdecl RmDescMon(void)
 {
     if (!RmAvail()) return MSG_RZ0 + RZM_NA;
     if (g_rmCt > 0 && RmGetMon() != RMM_OFF) return RmTextId(RMT_CT);
-    return RmTextId(RMT_D0 + RmGetMon());
+    return RmTextId(RmDescText(RmGetMon()));  // v3.50 RM350 (All Worlds' description sits after the cheat table's)
 }
 static void RmRow(DWORD *r) { FillRow(r, RmInMon, RmGetMon, g_rmIdsMon, RMM_N, RmTextId(RMT_LABEL), RmDescMon); }
 
@@ -339,9 +349,8 @@ static void RmBeforeScriptC(int room, int d)
             if (ok) ok = RmStackAdd(&g_rmStack, d, (unsigned *)(ULONG_PTR)s->typeVa, s->type, p->type);
             if (!ok) {
                 RmStackTrim(&g_rmStack, d, n0);
-                --st.changed, ++other;
-                p->type = s->type, p->variant = s->variant, p->why = RMW_SAME;
-                p->drop = rec[k].type >= 0 && rec[k].ours && rec[k].here && !(rec[k].type == s->type && rec[k].variant == s->variant);
+                ++other;
+                RmPickBack(p, s, &rec[k], &st, RMW_WORDS);  // v3.50 RM350: the shared rule (an adopted record stays)
             }
         }
         if (p->drop) {  // (a record of another type than the one it is made as now: that monster comes back fresh)
@@ -356,19 +365,26 @@ static void RmBeforeScriptC(int room, int d)
             Log("randomizer: monsters: %s is no monster of stage %d's scripts: its sounds may be missing there (allowed)",
                 RmTypeName(p->type), stage);
         }
-        if (o < (int)sizeof list - 80)
-            o += sprintf_s(list + o, sizeof list - o, "%sn%d %s v%d%s%s v%d%s", o ? "; " : "", s->n, RmTypeName(s->type), s->variant,
-                           p->type != s->type || p->variant != s->variant ? " -> " : " (", RmTypeName(p->type), p->variant,
-                           p->why == RMW_STICKY ? " (its record)" : p->why == RMW_BONES ? " (bones)" : p->why == RMW_FILES ? " (files)"
-                           : p->why == RMW_FLOOR ? " (no floor)" : p->why == RMW_AWAY ? " (recorded elsewhere)"
-                           : p->why == RMW_OTHER ? " (another writer's record)"
-                           : p->type != s->type || p->variant != s->variant ? "" : ")");
+        if (o < (int)sizeof list - 100) {  // v3.50 RM350: every kept placement says why; an adopted one says so
+            const int ch = p->type != s->type || p->variant != s->variant;
+            const char *why = p->why == RMW_STICKY ? "its record" : p->why == RMW_BONES ? "bones" : p->why == RMW_FILES ? "files"
+                              : p->why == RMW_FLOOR ? "no floor" : p->why == RMW_AWAY ? "recorded elsewhere"
+                              : p->why == RMW_OTHER ? "another writer's record" : p->why == RMW_NONE ? "no target" : p->why == RMW_WORDS ? "words not stock"
+                              : p->why == RMW_ROLL ? (ch ? "" : "rolled") : "its stock record";
+            const int w = _snprintf_s(list + o, sizeof list - o, _TRUNCATE, "%sn%d %s v%d%s%s v%d%s%s%s%s", o ? "; " : "", s->n,
+                                      RmTypeName(s->type), s->variant, ch ? " -> " : " kept as ", RmTypeName(p->type), p->variant,
+                                      *why ? " (" : "", why, *why ? ")" : "", p->adopt ? (p->drop ? " [the game's record, adopted and "
+                                      "deleted]" : " [the game's record, adopted]") : "");
+            o = w < 0 ? (int)sizeof list - 1 : o + w;  // (_TRUNCATE: a full list ends there, never the invalid-parameter handler)
+        }
     }
     for (k = 0, drops = 0; k < m; ++k) drops += pick[k].drop;
     RmOtherSay(stage, room, st.other);  // v3.49 fix2
     ++g_rmRooms;
     g_rmChanged += st.changed, g_rmSticky += st.sticky, g_rmKeptBones += st.bones, g_rmKeptFiles += st.files;
     g_rmKeptFloor += st.floor, g_rmFileTypes += loaded, g_rmFileKb += kb, g_rmLeft += other, g_rmDrops += drops;
+    g_rmAdopted += st.adopted, g_rmAdoptChanged += st.adoptChanged, g_rmRollStock += st.rollStock, g_rmSame += st.same;  // v3.50 RM350
+    g_rmAway += st.away, g_rmNone += st.none;
     if (LogQuota(&g_rmQuotaRoom, 4000)) {
         char by[300];
         int b = 0, t;
@@ -380,8 +396,11 @@ static void RmBeforeScriptC(int room, int d)
         }
         Log("randomizer: monsters: room %d:%d (visit %d, #%u): %d of %d placement(s) changed (%s): %s; %d kept their record's type, "
             "%d record(s) deleted; kept as placed: %d for the bone budget, %d for files, %d without a floor%s; files loaded for %d "
-            "type(s) (%d KB)", stage, room, vis, in.visit, st.changed, m, kRmMonName[mode], by, st.sticky, drops, st.bones, st.files,
-            st.floor, other ? "; some words were not the stock value: left as found" : "", loaded, kb);
+            "type(s) (%d KB); the game's own records: %d adopted (%d made as another type); stock type kept: %d rolled it, %d by a "
+            "stock record, %d recorded elsewhere, %d for another writer's record, %d with no target", stage, room, vis, in.visit,
+            st.changed, m, kRmMonName[mode], by, st.sticky, drops, st.bones, st.files, st.floor,
+            other ? "; some words were not the stock value: left as found" : "", loaded, kb, st.adopted, st.adoptChanged,
+            st.rollStock, st.same, st.away, st.other, st.none);  // v3.50 RM350: + the adopted records and the reasons
     }
     if (other && LogQuota(&g_rmQuotaAnom, 20))
         LogAnomaly("randomizer", "monsters: room %d:%d: %d placement word(s) did not hold the stock value (another mod?): left as found",
@@ -461,7 +480,9 @@ static void RmDescFix(int room, int n, BYTE *desc)
 // the type Refined made it as (v3.49 fix2 RZ349-SAVE-001: rzmon_sim.h RmProvRetyped; was every record whose type was not
 // the stock one): a save (also the death-continue snapshot, Quick Save) never holds a monster Refined randomized; it comes
 // back fresh as its placement says. Every other record stays (another writer's too). Live records stay. While Refined has
-// randomized nothing this session (Monsters Off from the start) the copy is the game's, byte for byte.
+// randomized nothing this session (Monsters Off from the start) the copy is the game's, byte for byte. v3.50 RM350: an
+// adopted record (the game's own stock one) is Refined's after its room's plan (RmProvAfterBuild): kept stock it stays in
+// saves (it is the stock monster); rolled another type it was deleted, and the new type's record is left out as above.
 static void __cdecl RmSaveCopy(void *dst, const void *src, unsigned size)
 {
     ((void(__cdecl *)(void *, const void *, unsigned))0x42BBB0)(dst, src, size);
@@ -543,6 +564,10 @@ static void RmSessionLine(void)  // randomizer.inc RzSessionLine
         g_rmLoads, g_rmRooms, g_rmChanged, g_rmSticky, g_rmDrops, g_rmOffDrops, g_rmKeptBones, g_rmKeptFiles, g_rmKeptFloor,
         g_rmFileTypes, g_rmFileKb, g_rmCtLoads, g_rmSaves, g_rmSaveCleaned, g_rmLeft,
         g_rmFail ? "; FAULTED (off)" : !g_enmInstalled ? "; no room-load hook (off)" : "");
+    if (g_rmRooms)  // v3.50 RM350
+        Log("randomizer: monsters session: the game's own records: %d adopted (%d made as another type); stock type kept: %d rolled "
+            "it, %d by a stock record, %d recorded elsewhere, %d with no target", g_rmAdopted, g_rmAdoptChanged, g_rmRollStock, g_rmSame,
+            g_rmAway, g_rmNone);
     if (g_rmOther || g_rmProv.full)  // v3.49 fix2 RZ349-SAVE-001
         Log("randomizer: monsters session: %d placement(s) left as placed for a record Refined did not make (another writer); %d "
             "placement(s) of Refined's (%d full)", g_rmOther, g_rmProv.n, g_rmProv.full);

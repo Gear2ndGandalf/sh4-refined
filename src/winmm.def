@@ -199,3 +199,4 @@ EXPORTS
     SH4R_Extra                       @197 DATA
     SH4R_QuickCharge                 @198
     SH4R_StickAmount                 @199
+    SH4R_Room302                     @200 DATA

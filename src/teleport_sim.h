@@ -14,14 +14,21 @@
 // (GtHold*); a warp never crosses or ends in a walk-in event's trigger zone the game would still fire (GtZoneHit:
 // v3.48 jumped over the Subway 2:2 cut-scene box, Cynthia's companion task then came back in 2:3 without her files and
 // the game crashed at 0x43E775).
+//
+// v3.50 TP350 (the user's v3.49 QA, staging/v350_feedback/USER_FEEDBACK_v349.md A1-A3; staging/v350_feedback/
+// w1_teleport/PLAN.md): behind the enemy she FACES only (GtPickFaced: the standing enemy nearest her facing inside a
+// cone), from twice as far (GT_RANGE_DEF 5000); with none in the cone the warp ahead may pass a wall, a turnstile, a
+// fence, a counter or a gap (GtThruSearch) onto a spot where she can stand whose floor a route of the room reaches
+// (GtMapHas: the room's floor map, a flood by her own walking rules from the room's doors and her own standing places).
 #ifndef TELEPORT_SIM_H
 #define TELEPORT_SIM_H
 #include <float.h>
 #include <math.h>
+#include <string.h>  // v3.50 TP350: memset (GtMap)
 
-#define GT_RANGE_DEF   2500.0f  // [Gameplay] GhostTeleportRange (hidden): enemies within this (xz) of her
+#define GT_RANGE_DEF   5000.0f  // [Gameplay] GhostTeleportRange (hidden): enemies within this (xz) of her  // v3.50 TP350: 5000 (was 2500; A3)
 #define GT_RANGE_MIN   500.0f
-#define GT_RANGE_MAX   6000.0f
+#define GT_RANGE_MAX   12000.0f  // v3.50 TP350: 12000 (was 6000); the enemy must still be in this room (box, door lines)
 #define GT_COOL_DEF    0.0f     // [Gameplay] GhostTeleportCooldown (hidden): seconds after a warp (v3.49 GT349: 0, was 3)
 #define GT_COOL_MIN    0.5f     //   (a positive value in the ini: clamped to MIN .. MAX)
 #define GT_COOL_MAX    30.0f
@@ -180,7 +187,7 @@ static void GtFwdCand(const float p[3], float yaw, float dist, int k, float out[
 
 // The candidates (an enemy each): its xz distance and height difference to her, ok = standing (hittable, not down,
 // not a boss). Writes the indices of the nearest `max` within range (nearest first); returns how many.
-typedef struct { float d, dy; int ok; } GtCand;
+typedef struct { float d, dy; int ok; float ang; int skip; } GtCand;  // v3.50 TP350: + ang (GtOffFacing), skip (not in this room)
 static int GtPick(const GtCand *c, int n, float range, int *order, int max)
 {
     int i, m = 0, q;
@@ -490,5 +497,360 @@ static int GtZonesHit(const GtZone *z, int n, const float a[3], const float b[3]
     for (i = 0; i < n; ++i)
         if (GtZoneHit(&z[i], a, b)) return i;
     return -1;
+}
+
+// ================================================================ v3.50 TP350 A2 / A3: behind the enemy she faces
+// The standing enemy nearest her facing direction inside +-cone (degrees: [Gameplay] GhostTeleportCone, hidden, default
+// GT_CONE_DEF) within GhostTeleportRange (A3: default 5000, was 2500), at her height (GT_DY_MAX), in this room (the
+// caller marks one beyond a door line or outside the room's box `skip`). Only that one is tried: never another enemy.
+// Ties: of the enemies within GT_CONE_TIE degrees of the smallest angle, the nearer; then the first in the list.
+#define GT_CONE_DEF    35.0f
+#define GT_CONE_MIN    10.0f
+#define GT_CONE_MAX    90.0f
+#define GT_CONE_TIE    5.0f
+#define GT_DEG         0.017453293f
+static float GtConeKey(int has, float v) { return !has || !(v > 0.0f) ? GT_CONE_DEF : GtClampF(v, GT_CONE_MIN, GT_CONE_MAX); }
+// the angle (radians, 0 .. pi) between her facing (sin yaw, cos yaw) and the way (xz) from her feet p to e (an enemy on
+// her own spot, nearer than 1 u: 0, straight ahead); not a number: pi (never in a cone)
+static float GtOffFacing(const float p[3], float yaw, const float e[3])
+{
+    const float dx = e[0] - p[0], dz = e[2] - p[2], l = sqrtf(dx * dx + dz * dz);
+    float c;
+    if (!_finite(l) || !_finite(yaw)) return 3.14159265f;
+    if (!(l > 1.0f)) return 0.0f;
+    c = (dx * sinf(yaw) + dz * cosf(yaw)) / l;
+    return acosf(GtClampF(c, -1.0f, 1.0f));
+}
+static int GtFacedOk(const GtCand *c, float range, float cone)
+{
+    return c->ok && !c->skip && c->d < range && fabsf(c->dy) <= GT_DY_MAX && _finite(c->ang) && c->ang <= cone;
+}
+// the index of the faced enemy (cone in degrees), or -1: none in the cone (the warp ahead)
+static int GtPickFaced(const GtCand *c, int n, float range, float cone)
+{
+    const float coneR = GtClampF(cone, GT_CONE_MIN, GT_CONE_MAX) * GT_DEG;
+    float amin = 1e9f;
+    int i, best = -1;
+    for (i = 0; i < n; ++i)
+        if (GtFacedOk(&c[i], range, coneR) && c[i].ang < amin) amin = c[i].ang;
+    if (!(amin < 1e8f)) return -1;
+    for (i = 0; i < n; ++i) {
+        if (!GtFacedOk(&c[i], range, coneR) || c[i].ang > amin + GT_CONE_TIE * GT_DEG) continue;
+        if (best < 0 || c[i].d < c[best].d) best = i;  // (equal distance: the first stays)
+    }
+    return best;
+}
+// how many standing enemies in range and height are inside the cone (the log)
+static int GtConeCount(const GtCand *c, int n, float range, float cone)
+{
+    const float coneR = GtClampF(cone, GT_CONE_MIN, GT_CONE_MAX) * GT_DEG;
+    int i, m = 0;
+    for (i = 0; i < n; ++i) m += GtFacedOk(&c[i], range, coneR);
+    return m;
+}
+
+// ================================================================ v3.50 TP350 A1: the warp ahead through walls
+// Along her facing and a fan of +-10 / +-20 degrees (straight ahead first), samples every GT_THRU_STEP up to the warp
+// distance (GhostTeleportForward, 800 by default). The caller's `open` says if she could walk straight to a sample
+// (the floor at her level, nothing between her chest and its chest); the first sample that is not open is where the
+// obstacle begins (a wall, a turnstile, a fence, a counter, a gap in the floor). From there on every sample is a
+// candidate for the caller's `land` test (0 = a spot: the game's floor and room to stand, her body's spheres, the room's
+// edges, the walk-in zones on the straight path, a route of the room to it), nearest first: the first that passes is
+// the target. A ray with no obstacle within the warp distance gives none (the v3.44 warp ahead applies: farthest first).
+#define GT_THRU_STEP   40.0f
+#define GT_THRU_SAMPLES 50      // (GT_FWD_MAX / GT_THRU_STEP)
+#define GT_FAN_N       5
+#define GT_FAN_STEP    0.17453293f  // 10 degrees
+typedef struct {
+    void *ctx;
+    int (*open)(void *ctx, const float c[3]);                // 1 = she could walk straight to c
+    int (*land)(void *ctx, const float c[3], float out[3]);  // 0 = a spot (out: its floor point), else why not (1 .. nCnt - 1)
+    int pending;  // land's code for "not known yet" (the room's floor map is not finished; 0 = none): the search stops there
+} GtThruFns;
+typedef struct { int ray, k, kObst, refused; float at[3], yaw, d, dObst; } GtThru;
+static float GtFanYaw(float yaw, int r)  // ray r (0 .. GT_FAN_N - 1): 0, +10, -10, +20, -20 degrees off her facing
+{
+    static const signed char kF[GT_FAN_N] = { 0, 1, -1, 2, -2 };
+    return yaw + GT_FAN_STEP * (float)kF[r < 0 ? 0 : r >= GT_FAN_N ? GT_FAN_N - 1 : r];
+}
+static int GtThruSamples(float dist)  // samples on a ray (0 = off)
+{
+    int n;
+    if (!(dist >= GT_THRU_STEP) || !_finite(dist)) return 0;
+    n = (int)floorf(dist / GT_THRU_STEP + 1e-3f);
+    return n > GT_THRU_SAMPLES ? GT_THRU_SAMPLES : n;
+}
+static void GtThruCand(const float p[3], float yaw, int k, float out[3])  // sample k (1 ..) along yaw; y = p's
+{
+    const float d = GT_THRU_STEP * (float)k;
+    out[0] = p[0] + sinf(yaw) * d, out[1] = p[1], out[2] = p[2] + cosf(yaw) * d;
+}
+// 1 = a spot past an obstacle (*t; she keeps her facing yaw); 0 = none; 2 = the nearest candidate is not known yet (land
+// returned f->pending: *t holds it; nothing farther is taken before it). cnt (nCnt entries, may be NULL): the refused
+// samples past an obstacle by the land test's reason; *nObst: the rays that met an obstacle
+static int GtThruSearch(const GtThruFns *f, const float from[3], float yaw, float dist, GtThru *t, int *cnt, int nCnt,
+                        int *nObst)
+{
+    // v3.50 TP350-001 (Codex inspection 1): every ray is searched and the NEAREST answer of all rays wins (by the sample's
+    // distance along its ray; equal distances: the earlier ray, straight ahead first). Each ray's answer is its nearest
+    // sample past its obstacle that passes or is pending; a pending one nearer than every passing one makes the result 2
+    // (nothing farther is taken before it is known), as on a single ray before.
+    const int n = GtThruSamples(dist);
+    int r, k, best = 0;
+    float bestK = 0.0f;
+    *nObst = 0;
+    if (!_finite(yaw) || !_finite(from[0]) || !_finite(from[1]) || !_finite(from[2])) return 0;
+    for (r = 0; r < GT_FAN_N; ++r) {
+        const float y = GtFanYaw(yaw, r);
+        int kObst = 0, refused = 0;
+        for (k = 1; k <= n; ++k) {
+            float c[3], out[3];
+            int why;
+            if (best && (float)k >= bestK) break;  // (this ray cannot give a nearer answer)
+            GtThruCand(from, y, k, c);
+            if (!kObst) {
+                if (f->open(f->ctx, c)) continue;
+                kObst = k, ++*nObst;
+                continue;  // (the obstacle's first sample is no spot)
+            }
+            if ((why = f->land(f->ctx, c, out)) == 0 || (f->pending && why == f->pending)) {
+                const float dx = out[0] - from[0], dz = out[2] - from[2];
+                t->ray = r, t->k = k, t->kObst = kObst, t->refused = refused;
+                t->at[0] = out[0], t->at[1] = out[1], t->at[2] = out[2], t->yaw = yaw;
+                t->d = sqrtf(dx * dx + dz * dz), t->dObst = GT_THRU_STEP * (float)kObst;
+                best = why == 0 ? 1 : 2, bestK = (float)k;
+                break;
+            }
+            ++refused;
+            if (cnt && why > 0 && why < nCnt) ++cnt[why];
+        }
+    }
+    return best;
+}
+
+// ---------------------------------------------------------------- v3.50 TP350: a route of the room reaches the spot
+// The proof that a spot past a wall is playable floor, not a closed space: the room's floor map (GtMap), the floor a
+// route of the room reaches: a flood over a grid on the room's box from every door of the room (ExitGet's point on the
+// room's side of each door line) and from every place she stood at a warp in this room visit, by her own walking rules.
+// A cell is floor she can walk onto from its neighbour (8 ways): the first surface from GT_REACH_UP above the
+// neighbour's floor down to GT_REACH_UP below it, at most GT_REACH_STEP higher or lower (stairs: 40 per tread), not
+// inside solid GT_REACH_LOW above it, no polygon in her upper body's sphere (GT_REACH_BODY above it, radius
+// GT_REACH_R), nothing on the lines between the two cells GT_REACH_LOW, GT_REACH_LOW2 and GT_REACH_BODY above their
+// floors (a wall, a prop; lower barriers she steps over), inside the room's box, not beyond one of its door lines. A
+// spot is reached when its own cell or a neighbour cell holds a floor at its level (GT_REACH_HIT_DY) that she can step
+// to from it. Built breadth first, a bounded number of cells at a time (GtMapRun: at the press, then every tick of the
+// fade-out); a spot the unfinished map does not hold yet is "not known yet" (the press may start the fade, the warp
+// decides). The grid: GT_MAP_DIM cells each way, GT_REACH_CELL wide or wider for a big room. A query that cannot answer
+// counts as blocked (fail closed); a cell holds one floor (on two floors at one place the first reached is kept: a spot
+// on the other is not proven).
+#define GT_REACH_CELL  60.0f
+#define GT_REACH_UP    100.0f
+#define GT_REACH_STEP  50.0f
+#define GT_REACH_LOW   60.0f
+#define GT_REACH_LOW2  110.0f
+#define GT_REACH_BODY  170.0f   // PlayerWallFloorCollide's upper sphere (r 70 there)
+#define GT_REACH_R     45.0f
+#define GT_REACH_HIT_DY 60.0f
+#define GT_MAP_DIM     256      // cells each way at most
+#define GT_MAP_RING    16384    // the flood's queue (its front; more = the map is not finished: overflow)
+#define GT_MAP_SEED_DY 200.0f   // a door's point: its floor within this of the door line's height
+typedef struct GtWorld {
+    void *ctx;
+    int (*floorAt)(void *ctx, float x, float yTop, float yBot, float z, float *fy);  // 1 = the first surface (y grows down)
+    int (*sphere)(void *ctx, float x, float y, float z, float r);  // polygons the sphere touches (0 = free; < 0 unknown)
+    int (*line)(void *ctx, const float a[3], const float b[3]);    // 1 = blocked, 0 = clear, < 0 unknown
+    int (*solid)(void *ctx, float x, float y, float z);            // 1 = inside solid, 0 = free, < 0 unknown
+} GtWorld;
+enum { GTM_NONE = 0, GTM_HAS = 1, GTM_NOT = 2, GTM_UNKNOWN = 3 };  // GtMapHas
+typedef struct {
+    int on, nx, ny, overflow, unknown;
+    float cell, x0, z0, lo[3], hi[3];                 // the grid: cell (i, j) at x0 + i cell, z0 + j cell
+    unsigned char st[GT_MAP_DIM * GT_MAP_DIM];        // 1 = reached (queued or done)
+    short fy[GT_MAP_DIM * GT_MAP_DIM];                // its floor (rounded)
+    int ring[GT_MAP_RING], head, tail;                // cells to expand (FIFO)
+    int cells, done, seeds, seedsNoFloor, runs;       // the log: cells reached, expanded; seeds taken, without a floor
+    GtExit x[GT_EXIT_MAX];
+    int nExit;
+} GtMap;
+// a new map over the room's box (lo / hi) with its door lines (cells beyond them are not the room's)
+static void GtMapBegin(GtMap *m, const float lo[3], const float hi[3], const GtExit *x, int nx)
+{
+    const float ex = hi[0] - lo[0], ez = hi[2] - lo[2], big = ex > ez ? ex : ez;
+    int k;
+    m->cell = GT_REACH_CELL;
+    if (_finite(big) && big / m->cell > (float)(GT_MAP_DIM - 1)) m->cell = big / (float)(GT_MAP_DIM - 1) + 0.01f;
+    m->x0 = lo[0], m->z0 = lo[2];
+    m->nx = (int)(ex / m->cell) + 1, m->ny = (int)(ez / m->cell) + 1;
+    m->on = _finite(ex) && _finite(ez) && ex > 0.0f && ez > 0.0f && m->nx <= GT_MAP_DIM && m->ny <= GT_MAP_DIM;
+    for (k = 0; k < 3; ++k) m->lo[k] = lo[k], m->hi[k] = hi[k];
+    memset(m->st, 0, sizeof m->st);
+    m->head = m->tail = m->overflow = m->unknown = 0;
+    m->cells = m->done = m->seeds = m->seedsNoFloor = m->runs = 0;
+    m->nExit = nx < 0 ? 0 : nx > GT_EXIT_MAX ? GT_EXIT_MAX : nx;
+    if (m->nExit) memcpy(m->x, x, sizeof(GtExit) * (size_t)m->nExit);
+}
+static int GtMapIdx(const GtMap *m, float x, float z)  // the cell nearest (x, z), -1 off the grid
+{
+    const float fi = floorf((x - m->x0) / m->cell + 0.5f), fj = floorf((z - m->z0) / m->cell + 0.5f);
+    if (!m->on || !(fi >= 0.0f && fi < (float)m->nx && fj >= 0.0f && fj < (float)m->ny)) return -1;
+    return (int)fj * m->nx + (int)fi;
+}
+static void GtMapXZ(const GtMap *m, int c, float *x, float *z)
+{
+    *x = m->x0 + m->cell * (float)(c % m->nx), *z = m->z0 + m->cell * (float)(c / m->nx);
+}
+static int GtMapFinished(const GtMap *m) { return m->on && !m->overflow && m->head == m->tail && m->seeds > 0; }
+// beyond one of the room's door lines (its side away from the room, within its span and GT_EXIT_DEPTH, at its level)?
+static int GtExitBeyond(const GtExit *x, int n, const float s[3])
+{
+    int i;
+    for (i = 0; i < n; ++i) {
+        const GtExit *e = &x[i];
+        const float dx = e->x1 - e->x0, dz = e->z1 - e->z0, l = sqrtf(dx * dx + dz * dz);
+        float u, d;
+        if (!(fabsf(e->y - s[1]) <= GT_EXIT_DY) || !(l >= 1.0f)) continue;
+        d = GtExitDist(e, s[0], s[2], &u);
+        if (GtSide(e, e->px, e->pz) * GtSide(e, s[0], s[2]) < 0.0f && u >= -GT_EXIT_NEAR / l && u <= 1.0f + GT_EXIT_NEAR / l &&
+            d < GT_EXIT_DEPTH)
+            return 1;
+    }
+    return 0;
+}
+// may she walk from a (x, its floor y, z) onto (x, z)? 1 (*fy its floor), 0 no (*unknown counts queries that could not answer)
+static int GtWalkStep(const GtWorld *w, const float a[3], float x, float z, float *fy, int *unknown)
+{
+    static const float kDy[3] = { GT_REACH_LOW, GT_REACH_LOW2, GT_REACH_BODY };
+    float y, la[3], lb[3];
+    int r, k;
+    if ((r = w->floorAt(w->ctx, x, a[1] - GT_REACH_UP, a[1] + GT_REACH_UP, z, &y)) <= 0 || !_finite(y)) {
+        *unknown += r < 0;
+        return 0;
+    }
+    if (!(fabsf(y - a[1]) <= GT_REACH_STEP)) return 0;
+    if ((r = w->solid(w->ctx, x, y - GT_REACH_LOW, z)) != 0) return *unknown += r < 0, 0;
+    if ((r = w->sphere(w->ctx, x, y - GT_REACH_BODY, z, GT_REACH_R)) != 0) return *unknown += r < 0, 0;
+    la[0] = a[0], la[2] = a[2], lb[0] = x, lb[2] = z;
+    for (k = 0; k < 3; ++k) {
+        la[1] = a[1] - kDy[k], lb[1] = y - kDy[k];
+        if ((r = w->line(w->ctx, la, lb)) != 0) return *unknown += r < 0, 0;
+    }
+    *fy = y;
+    return 1;
+}
+static int GtMapTake(GtMap *m, int c, float fy)  // mark a cell reached and queue it; 0 = the queue is full
+{
+    const int next = (m->tail + 1) % GT_MAP_RING;
+    if (next == m->head) {
+        m->overflow = 1;
+        return 0;
+    }
+    m->st[c] = 1, m->fy[c] = (short)GtClampF(floorf(fy + 0.5f), -32000.0f, 32000.0f), ++m->cells;
+    m->ring[m->tail] = c, m->tail = next;
+    return 1;
+}
+// a seed: the floor at (x, z) from dy above y down to dy below it (a door's point, her feet). 1 = taken, 0 = already in
+// the map at that level, -1 = no floor there (or off the grid, or beyond a door line)
+static int GtMapSeed(GtMap *m, const GtWorld *w, float x, float y, float z, float dy)
+{
+    float fy, p[3];
+    const int c = GtMapIdx(m, x, z);
+    int r;
+    if (c < 0) return ++m->seedsNoFloor, -1;
+    if ((r = w->floorAt(w->ctx, x, y - dy, y + dy, z, &fy)) <= 0 || !_finite(fy)) {
+        m->unknown += r < 0;
+        return ++m->seedsNoFloor, -1;
+    }
+    if (m->st[c] && fabsf((float)m->fy[c] - fy) <= GT_REACH_HIT_DY) return 0;
+    if (m->st[c]) return ++m->seedsNoFloor, -1;  // (another floor holds the cell: one level a cell)
+    p[0] = x, p[1] = fy, p[2] = z;
+    if (GtExitBeyond(m->x, m->nExit, p)) return ++m->seedsNoFloor, -1;
+    if (!GtMapTake(m, c, fy)) return -1;
+    ++m->seeds;
+    return 1;
+}
+// expand up to maxCells cells; returns how many were expanded (GtMapFinished: done)
+static int GtMapRun(GtMap *m, const GtWorld *w, int maxCells)
+{
+    static const signed char kD[8][2] = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 }, { 1, 1 }, { 1, -1 }, { -1, 1 }, { -1, -1 } };
+    int n = 0;
+    if (!m->on) return 0;
+    ++m->runs;
+    while (m->head != m->tail && n < maxCells) {
+        const int c = m->ring[m->head], ci = c % m->nx, cj = c / m->nx;
+        float a[3];
+        int d;
+        m->head = (m->head + 1) % GT_MAP_RING;
+        ++n, ++m->done;
+        GtMapXZ(m, c, &a[0], &a[2]);
+        a[1] = (float)m->fy[c];
+        for (d = 0; d < 8; ++d) {
+            const int ni = ci + kD[d][0], nj = cj + kD[d][1];
+            float b[3], fy;
+            int nc;
+            if (ni < 0 || ni >= m->nx || nj < 0 || nj >= m->ny) continue;
+            nc = nj * m->nx + ni;
+            if (m->st[nc]) continue;
+            GtMapXZ(m, nc, &b[0], &b[2]);
+            if (!(b[0] >= m->lo[0] && b[0] <= m->hi[0] && b[2] >= m->lo[2] && b[2] <= m->hi[2])) continue;
+            if (!GtWalkStep(w, a, b[0], b[2], &fy, &m->unknown)) continue;
+            b[1] = fy;
+            if (GtExitBeyond(m->x, m->nExit, b)) continue;
+            if (!GtMapTake(m, nc, fy)) return n;
+        }
+    }
+    return n;
+}
+// does the map hold the spot's floor (spot = its floor point)? GTM_HAS: its cell or a neighbour cell at its level that
+// she can step to from it; GTM_NOT: no (the map is finished); GTM_UNKNOWN: not yet (the map is not finished); GTM_NONE:
+// no map (off the grid, no room box)
+static int GtMapHas(const GtMap *m, const GtWorld *w, const float spot[3])
+{
+    const int c = GtMapIdx(m, spot[0], spot[2]);
+    int di, dj, unk = 0;
+    if (c < 0) return GTM_NONE;
+    if (m->st[c] && fabsf((float)m->fy[c] - spot[1]) <= GT_REACH_HIT_DY) return GTM_HAS;
+    for (dj = -1; dj <= 1; ++dj)
+        for (di = -1; di <= 1; ++di) {
+            const int ni = c % m->nx + di, nj = c / m->nx + dj;
+            float b[3], fy;
+            int nc;
+            if ((!di && !dj) || ni < 0 || ni >= m->nx || nj < 0 || nj >= m->ny) continue;
+            nc = nj * m->nx + ni;
+            if (!m->st[nc] || !(fabsf((float)m->fy[nc] - spot[1]) <= GT_REACH_HIT_DY)) continue;
+            GtMapXZ(m, nc, &b[0], &b[2]);
+            if (GtWalkStep(w, spot, b[0], b[2], &fy, &unk) && fabsf(fy - (float)m->fy[nc]) <= 2.0f) return GTM_HAS;
+        }
+    return GtMapFinished(m) ? GTM_NOT : GTM_UNKNOWN;
+}
+
+// ---------------------------------------------------------------- v3.50 TP350: her body and the open floor ahead
+// Her body at a spot (fy = its floor): no polygon in three spheres, the player's own two (PlayerWallFloorCollide: 70
+// at 72 and 170 above her feet; the lower one here 60 at 100, so a floor's slope does not touch it) and her head room
+// (70 at 300: up to 370 of her 400). 1 = free; a query that cannot answer = not free.
+#define GT_BODY_LO_DY  100.0f
+#define GT_BODY_LO_R   60.0f
+#define GT_BODY_HI_DY  170.0f
+#define GT_BODY_HI_R   70.0f
+#define GT_HEAD_DY     300.0f
+#define GT_HEAD_R      70.0f
+#define GT_CHEST_DY    150.0f   // (echo.inc ECHO_CHEST_DY)
+static int GtBodyFree(const GtWorld *w, float x, float fy, float z)
+{
+    return w->sphere(w->ctx, x, fy - GT_BODY_LO_DY, z, GT_BODY_LO_R) == 0 && w->sphere(w->ctx, x, fy - GT_BODY_HI_DY, z, GT_BODY_HI_R) == 0 &&
+           w->sphere(w->ctx, x, fy - GT_HEAD_DY, z, GT_HEAD_R) == 0;
+}
+// GtThruSearch's `open` on the room's collision: could she walk straight from her feet (her[1] = her floor) to the
+// sample c? Its floor at her level (GT_FLOOR_TOL), nothing on the lines from her chest to its chest and from her low
+// line (GT_REACH_LOW above the floor) to its (a turnstile, a fence, a counter below her chest). 1 = open.
+static int GtThruOpen(const GtWorld *w, const float her[3], const float c[3])
+{
+    float fy, a[3], b[3];
+    if (w->floorAt(w->ctx, c[0], her[1] - GT_REACH_UP, her[1] + GT_REACH_UP, c[2], &fy) <= 0 || !_finite(fy) ||
+        !(fabsf(fy - her[1]) <= GT_FLOOR_TOL))
+        return 0;
+    a[0] = her[0], a[1] = her[1] - GT_CHEST_DY, a[2] = her[2], b[0] = c[0], b[1] = fy - GT_CHEST_DY, b[2] = c[2];
+    if (w->line(w->ctx, a, b) != 0) return 0;
+    a[1] = her[1] - GT_REACH_LOW, b[1] = fy - GT_REACH_LOW;
+    return w->line(w->ctx, a, b) == 0;
 }
 #endif

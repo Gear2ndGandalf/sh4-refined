@@ -101,6 +101,24 @@ static int RzChanged(void);
 static void RzDiscard(void);
 static void RzIniReread(void);
 static void RzInit(void);
+// v3.50 EF350: Enemy Pursuit (enmfollow.inc, included at the end of enemies.inc): its Enemies-page row, [Gameplay] EnemyPursuit
+static void EfPursuitFillRow(DWORD *r);
+static void EfSnapshot(void);
+static int EfChanged(void);
+static int EfRowChanged(void);
+static void EfDiscard(void);
+static void EfIniReread(void);
+static void EfReadIni(void);
+static void EfTexts(void);
+static int g_efPursuitRow;
+// v3.50 FI350: Fade In (fadein.inc, included in sh4windowmod.c after rzmon.inc): its Enemies-page row, [Gameplay] FadeIn
+static int FiEnemyRow(DWORD *t, int n);
+static void FiSnapshot(void);
+static int FiChanged(void);
+static int FiRowChanged(int page, int row);
+static void FiDiscard(void);
+static void FiIniReread(void);
+static void FiInit(void);
 // texts: one block of ids from MSG_GP0 (GPM_* offsets)
 enum { GPM_T_PLAYER, GPM_T_ENEMY, GPM_R_PLAYER, GPM_R_ENEMY, GPM_D_PLAYER, GPM_D_ENEMY, GPM_BACK, GPM_D_BACK,
        GPM_T_SPECIAL, GPM_R_SPECIAL, GPM_D_SPECIAL, GPM_DPD1, GPM_DPD2, GPM_DPNA,  // v3.27.0: the Special page, Death Presence's value lines
@@ -364,7 +382,7 @@ static const char *const kGpName[GP_N][GP_VMAX] = {
     { "Off", "Shadow Copy", "Shadow Cast" },  // v3.30 ECHO330 (echo_sim.h ECHO_*; v3.29's Shadow / Twin / Mirror read as Shadow Copy)
     { "1", "2", "3" },  // v3.30 ECHO330: Echo Count
     { "Off", "x2", "x3", "x4" },                  // v3.31 ENEMIES: Enemy Copies
-    { "Off", "Monsters", "Victims Only", "Monsters + Victims" },  // v3.31 ENEMIES: Enemies Follow (a long value: GpLongValW)  // v3.49 EF349: + Victims Only (enemies_sim.h ENM_FOLLOW_*, the same order)
+    { "Off", "Monsters", "Victims", "Monsters + Victims" },  // v3.31 ENEMIES: Enemies Follow (a long value: GpLongValW)  // v3.49 EF349: + Victims Only (enemies_sim.h ENM_FOLLOW_*, the same order)  // v3.50 EF350: "Victims Only" -> "Victims" (the old text reads: GpLegacyValue)
     { "Off", "Rare", "Normal", "Abundant" },  // SUPPLY DROPS (v3.38 DR338: + Rare, Generous -> Abundant; drops.inc kDropLevelName, same order)
     { "Off", "On" },  // v3.30 EN330: Revive Enemies
 };
@@ -425,7 +443,7 @@ static int g_gpPlayerRow[GP_N + PC_COUNT], g_gpPlayerN;  // the Player page: row
 // index tables (-1 = a row that answers for itself: HUD BARS, Back)
 enum { GPT_NC, GPT_CURSE, GPT_TB, GPT_STACK, GPT_SHINE, GPT_PLAYER, GPT_ENEMY, GPT_SPECIAL, GPT_RANDO, GPT_EXIT, GPT_N };  // v3.48 RZ348: + GPT_RANDO
 static int g_gpTop[GPT_N] = { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 };  // v3.48 RZ348: 10 entries
-static int g_gpEnemyRow[8], g_gpEnemyN, g_gpEnemyFollow = -1;  // Enemies Follow's row (GpLongValW)
+static int g_gpEnemyRow[8], g_gpEnemyN, g_gpEnemyFollow = -1;  // Enemies Follow's row (GpLongValW)  // v3.50 MERGE: 7 of 8 used (rows 0 .. 6; Back has none)
 static int g_gpSpecialRow[8], g_gpSpecialN;
 static int g_gpSpecialGt = -1;  // v3.43 GT343: Ghost Teleport's row on the Special page (GpBuildPages)
 // g_lpParent / g_lpParentRow (sh4windowmod.c): hidden page -> the page / row that opens it (-1 = none)
@@ -447,11 +465,12 @@ static const BYTE *GpText(int id)
     return id >= MSG_GP0 && id < MSG_GP0 + GPM_N ? g_txtGp[id - MSG_GP0] : g_txtGp[0];
 }
 
+static float R3WalkK(void);  // v3.50 R302: room302.inc (Room 302's Walk Speed while Refined owns the walk, in stage 1; else 1)
 static void GpApply(int k, int v)  // the hooks' globals (any thread)
 {
     if (k == GP_MOVE) {
         g_moveK = kMoveK[v];
-        g_r302Walk = 10.5f * kMoveK[v];
+        g_r302Walk = 10.5f * kMoveK[v] * R3WalkK();  // v3.50 R302: x Room 302's Walk Speed
     }
     else if (k == GP_MED) g_medK = kMedK[v];
     else if (k == GP_OHK) InterlockedExchange(&g_ohk, v);
@@ -672,6 +691,8 @@ static void GpSnapshot(void)
     OmSnapshot();  // v3.46 OM346
     RgSnapshot();  // v3.47 RG347
     RzSnapshot();  // v3.48 RZ348
+    EfSnapshot();  // v3.50 EF350
+    FiSnapshot();  // v3.50 FI350
     GpUnlock();
     PcSnapshot();  // PLAYER PACK
 }
@@ -682,11 +703,12 @@ static int GpChanged(void)
     for (k = 0; k < GP_N; ++k)
         if (g_gp[k] != g_snapGp[k]) return 1;
     return g_regenDiff || PcChanged() || HbChanged() || NcChanged() || InvChanged() || GtChanged() ||  // PLAYER PACK; HUD BARS  // v3.32 NC332  // v3.37 INV337  // v3.43 GT343  // v3.47 CT347: OmChanged moved to PadChanged (the row is on Option 2)
-           RgChanged() || RzChanged();  // v3.47 RG347  // v3.48 RZ348
+           RgChanged() || RzChanged() || EfChanged() || FiChanged();  // v3.47 RG347  // v3.48 RZ348  // v3.50 EF350  // v3.50 FI350  // v3.50 MERGE: both
 }
 static int GpRowChanged(int page, int row)  // -1 = not one of these pages
 {
     int k;
+    if ((k = FiRowChanged(page, row)) >= 0) return k;  // v3.50 FI350: Fade In (Enemies)
     if ((k = HbRowChanged(page, row)) >= 0) return k;  // HUD BARS: Enemy Health Bars (Enemies), Curse Meter (v3.37 MN337: Option 5)
     if (page == 4) {  // v3.37 MN337: Option 5's top level: No Clip; Item Shine, the folders and Exit answer elsewhere (-1)
         if (!g_gpMenu || row < 0) return -1;
@@ -702,6 +724,7 @@ static int GpRowChanged(int page, int row)  // -1 = not one of these pages
         if (k < 0) return 0;  // v3.46 OM346 (v3.47 CT347: no mark today; Stick Movement left this page)
         if (k >= GP_N) return PcRowChanged(k - GP_N);  // PLAYER PACK
     } else if (page == LP_ENEMY) {  // v3.37 MN337: by the table GpBuildPages recorded (was a fixed kRow[6] with One-Hit Kill at row 0)
+        if (row >= 0 && row == g_efPursuitRow) return EfRowChanged();  // v3.50 EF350
         if (row < 0 || row >= g_gpEnemyN || g_gpEnemyRow[row] < 0) return 0;
         k = g_gpEnemyRow[row];
     } else if (page == LP_SPECIAL) {  // v3.27.0; v3.37 MN337: by the recorded table (No Clip left this page)
@@ -740,6 +763,8 @@ static void GpDiscard(void)
     OmDiscard();  // v3.46 OM346
     RgDiscard();  // v3.47 RG347
     RzDiscard();  // v3.48 RZ348
+    EfDiscard();  // v3.50 EF350
+    FiDiscard();  // v3.50 FI350
     GpUnlock();
     PcDiscard();  // PLAYER PACK
 }
@@ -798,6 +823,7 @@ static void GpTexts(void)
     NcTexts();  // v3.32 NC332
     GtTexts();  // v3.43 GT343
     OmTexts();  // v3.46 OM346
+    EfTexts();  // v3.50 EF350
 }
 // v3.30 MERGE: the one helper for old [Gameplay] values that still read (AS330 + ECHO330). It rewrites buf to today's
 // value name before the lookup, each case logged once; the ini keeps its text until the row is changed.
@@ -812,6 +838,10 @@ static void GpLegacyValue(int k, char *buf, size_t n)
         strcpy_s(buf, n, kGpName[GP_AI][2]);
     } else if (k == GP_ECHO) {
         EchoIniAlias(buf, n);  // v3.30 ECHO330
+    } else if (k == GP_FOLLOW && !_stricmp(buf, "Victims Only")) {  // v3.50 EF350: v3.49's name of the value
+        static int s_folLogged;
+        if (!s_folLogged++) Log("gameplay: EnemyFollow Victims Only (v3.49) reads as Victims (the same value, renamed)");
+        strcpy_s(buf, n, kGpName[GP_FOLLOW][2]);
     } else if (k == GP_DROP && DropIniAlias(buf, n) && !s_dropLogged++) {  // v3.38 DR338
         Log("gameplay: SupplyDrops Generous (v3.29 - v3.37) reads as Abundant (Supply Drops: Off, Rare, Normal or Abundant; "
             "the same chances)");
@@ -844,6 +874,8 @@ static void GpIniReread(void)
     OmIniReread();  // v3.46 OM346: [Input] OmniMove / OmniDeadZone (the same file)
     RgIniReread();  // v3.47 RG347: [Gameplay] Regen / RegenDelay
     RzIniReread();  // v3.48 RZ348: [Randomizer] (the same file)
+    EfIniReread();  // v3.50 EF350: [Gameplay] EnemyPursuit
+    FiIniReread();  // v3.50 FI350: [Gameplay] FadeIn
     GpUnlock();
     PcIniReread();  // PLAYER PACK
 }
@@ -888,6 +920,7 @@ static void GpReadIni(void)
     NcReadIni();  // v3.32 NC332
     GtReadIni();  // v3.43 GT343
     OmReadIni();  // v3.46 OM346
+    EfReadIni();  // v3.50 EF350
 }
 
 // The rows' handlers by GP index (GpBuildPlayer / GpBuildPages below build Option 5 and its folders from them)
@@ -942,7 +975,7 @@ static void GpBuildPlayer(void)
 // v3.37 MN337: the tables hold every row (Player with Regeneration: 10 of 11; Enemies 6 of 7; Special 5 of 6; Option 5: 9)
 typedef char GpPlayerFits[(1 + 3 + PC_COUNT + 1) * 7 + 1 <= sizeof g_rowsPlayer / sizeof g_rowsPlayer[0] ? 1 : -1];  // v3.47 CT347: 4 -> 3 again (Stick Movement left)
 typedef char GpPlayerRowsFit[1 + 3 + PC_COUNT <= GP_N + PC_COUNT ? 1 : -1];  // v3.46 OM346: g_gpPlayerRow holds every row (v3.47 CT347: 3)
-typedef char GpEnemyFits[6 * 7 + 1 <= sizeof g_rowsEnemy / sizeof g_rowsEnemy[0] ? 1 : -1];
+typedef char GpEnemyFits[8 * 7 + 1 <= sizeof g_rowsEnemy / sizeof g_rowsEnemy[0] ? 1 : -1];  // v3.50 EF350: 6 -> 7 (+ Enemy Pursuit)  // v3.50 MERGE: 7 -> 8 (+ FI350 Fade In: Copies, Follow, Pursuit, Health Bars, Drops, Revive, Fade In, Back)
 typedef char GpSpecialFits[6 * 7 + 1 <= sizeof g_rowsSpecial / sizeof g_rowsSpecial[0] ? 1 : -1];  // v3.43 GT343: 5 -> 6 (+ Ghost Teleport)
 typedef char GpPlayFits[GPT_N * 7 + 1 <= sizeof g_rowsPlay / sizeof g_rowsPlay[0] ? 1 : -1];  // v3.48 RZ348: 10 rows
 typedef char GpRandoFits[(9 + 1) * 7 + 1 <= sizeof g_rowsRando / sizeof g_rowsRando[0] ? 1 : -1];  // v3.48 RZ348: 6 rows + Back (r2: + Change Each Visit)  // v3.49 RZ349: 7 rows (+ Monsters)  // v3.49 MERGE: 9 rows (+ RZ349L Eileen Outfit, Ghosts) + Back = 10 of 11
@@ -1012,13 +1045,17 @@ static int GpBuildPages(const DWORD *stockRows, const DWORD *bcRow, const DWORD 
         GpPageRow(enemy, g_gpEnemyRow, &nE, GP_COPIES);
         g_gpEnemyFollow = nE;
         GpPageRow(enemy, g_gpEnemyRow, &nE, GP_FOLLOW);
+        g_efPursuitRow = nE, g_gpEnemyRow[nE] = -1;  // v3.50 EF350: Enemy Pursuit under Enemies Follow (GpRowChanged asks EfRowChanged)
+        EfPursuitFillRow(enemy + 7 * nE++);
         g_gpEnemyRow[nE] = -1;  // HUD BARS: HbRowChanged answers for it
         nE = HbEnemyRow(enemy, nE);
         GpPageRow(enemy, g_gpEnemyRow, &nE, GP_DROP);
         GpPageRow(enemy, g_gpEnemyRow, &nE, GP_REVIVE);
+        g_gpEnemyRow[nE] = -1;  // v3.50 FI350: Fade In (FiRowChanged answers for it)
+        nE = FiEnemyRow(enemy, nE);
         g_gpEnemyN = nE;
         GpBackRow(enemy, nE, stockRows);
-        g_lpCount[LP_ENEMY] = nE + 1;  // v3.37 MN337: 6 (was 7 with One-Hit Kill)
+        g_lpCount[LP_ENEMY] = nE + 1;  // v3.37 MN337: 6 (was 7 with One-Hit Kill)  // v3.50 EF350: 7  // v3.50 MERGE: 8 with FI350's Fade In (row step 32: <= 8 rows)
     }
     g_lpTable[LP_ENEMY] = enemy;
     g_lpTitle[LP_ENEMY] = MSG_GP0 + GPM_T_ENEMY;
@@ -1248,7 +1285,7 @@ static void CheatsInstall(void)
     for (i = 0, ok = 1; i < 4; ++i) ok &= SiteOk(&kMove[i]);
     if (ok) {
         const DWORD w = (DWORD)(ULONG_PTR)&g_r302Walk;
-        g_r302Walk = 10.5f * g_moveK;
+        g_r302Walk = 10.5f * g_moveK * R3WalkK();  // v3.50 R302: x Room 302's Walk Speed (1 until room302.inc decides)
         GpBranch(&set[0], 0x534BEB, 0xE8, hkMove, 5);
         GpBranch(&set[1], 0x5352C2, 0xE8, hkAnim, 5);
         GpData(&set[2], 0x52D89C, &w, 4);
@@ -1277,6 +1314,7 @@ static void GameplayInstall(void)  // Init, before the Options tables
     GpTexts();
     RgInit();  // v3.47 RG347: [Gameplay] Regen / RegenDelay (seeded once from Playable Eileen's ini) and the row's texts
     HbInit();  // HUD BARS: its [Gameplay] keys and texts (before the Options tables)
+    FiInit();  // v3.50 FI350: Fade In's [Gameplay] FadeIn and texts (before the Options tables)
     BloodInstall();
     CheatsInstall();
     PcInstall();  // PLAYER PACK (after CheatsInstall: needs g_ohkOn)

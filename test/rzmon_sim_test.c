@@ -1,4 +1,5 @@
-// v3.49 RZ349: native test of src\rzmon_sim.h (test\build_rzmon_test.cmd): the Randomizer's Monsters. The [Randomizer]
+// v3.49 RZ349: native test of src\rzmon_sim.h (test\build_rzmon_test.cmd): the Randomizer's Monsters. v3.50 RM350: the game's own
+// records adopted (a save-based game), All Worlds, a save made in a randomized room and loaded back. The [Randomizer]
 // Monsters texts; the type table and the variant counts against the stock exe (SH4Decomp orig\sh4.exe); the scan of the
 // enemy placements on the stock exe (783 kind-2 placements, 235 sources, the per-visit table, every word a slot names holds
 // the value the scan read and sits behind the command it belongs to) and on made-up scripts (each exclusion); the plans
@@ -69,8 +70,12 @@ static void TestTexts(void)
     CHECK(RmMonOfText("Off") == RMM_OFF && RmMonOfText("this room") == RMM_ROOM && RmMonOfText(" THIS WORLD ") == RMM_WORLD,
           "Monsters names");
     CHECK(RmMonOfText("Room") == RMM_ROOM && RmMonOfText("world") == RMM_WORLD && RmMonOfText("0") == 0 && RmMonOfText("1") == 1 &&
-          RmMonOfText("2") == 2 && RmMonOfText("3") == -1 && RmMonOfText("") == -1 && RmMonOfText("All Worlds") == -1 &&
+          RmMonOfText("2") == 2 && RmMonOfText("4") == -1 && RmMonOfText("") == -1 && RmMonOfText("Everywhere") == -1 &&
           RmMonOfText(NULL) == -1, "Monsters short names, numbers and junk");
+    CHECK(RmMonOfText("All Worlds") == RMM_ALL && RmMonOfText(" all worlds ") == RMM_ALL && RmMonOfText("All") == RMM_ALL &&
+          RmMonOfText("3") == RMM_ALL && RMM_N == 4 && !strcmp(kRmMonName[RMM_ALL], "All Worlds") &&
+          !strcmp(kRmMonName[RMM_WORLD], "This World") && RMM_OFF == 0 && RMM_ROOM == 1 && RMM_WORLD == 2,
+          "v3.50 RM350: All Worlds (3 / All), the v3.49 values and their numbers unchanged");
     CHECK(RM_MON_DEFAULT == RMM_WORLD, "the host's default: This World");
     CHECK(RmIsSourceType(2) && RmIsSourceType(3) && RmIsSourceType(7) && RmIsSourceType(8) && RmIsSourceType(9) &&
           RmIsSourceType(0x0A) && !RmIsSourceType(1) && !RmIsSourceType(4) && !RmIsSourceType(5) && !RmIsSourceType(6) &&
@@ -381,8 +386,10 @@ static void TestPlans(void)
                 CHECK(po[0].why == RMW_OTHER && po[0].type == sc->s[idx[0]].type && !po[0].drop && po[2].why == RMW_OTHER &&
                       !po[2].drop && po[3].why == RMW_OTHER && !po[3].drop && st.other == 3, "another writer's records (reroll %d): "
                       "the placements as placed, the records kept", j);
-                CHECK(po[1].why == RMW_SAME && po[1].type == sc->s[idx[1]].type && !po[1].drop, "a stock record Refined did not make "
-                      "(reroll %d): as placed, kept", j);
+                CHECK(po[1].adopt && po[1].why == RMW_ROLL && po[1].type == q[1].type && po[1].variant == q[1].variant &&
+                      po[1].drop == !(q[1].type == sc->s[idx[1]].type && q[1].variant == sc->s[idx[1]].variant) && st.adopted == 1 &&
+                      !po[0].adopt && !po[2].adopt && !po[3].adopt, "v3.50 RM350: the game's own stock record here (reroll %d): "
+                      "adopted, rolled as without it, deleted only for another type", j);
             }
             in.reroll = 0;
             {
@@ -404,6 +411,318 @@ static void TestPlans(void)
             CHECK(r.why == RMW_FILES && r.type == sc->s[idx[2]].type && r.drop && s0.files == st.files + 1, "files: back to stock");
         }
     }
+}
+
+static void Rec(unsigned char *r, unsigned id, int type, int state, int variant, int stage, int room);
+// ---------------------------------------------------------------- v3.50 RM350: a save-based game (the game's own records)
+// one room load over a records array as rzmon.inc RmBeforeScriptC does it (no files / words / floor test: all fit):
+// the records read, the plan, the drops, the provenance (RmProvAfterBuild)
+static void RoomLoad(unsigned char *recs, RmProv *pv, const RmScan *sc, int stage, int half, int room, RmPlanIn in, RmPick *p,
+                     RmPlanStat *st)
+{
+    int idx[RM_ROOM_MAX], m = RoomIdx(sc, room, idx), k;
+    RmRec rec[RM_ROOM_MAX];
+    unsigned char yes[RM_ROOM_MAX];
+    memset(yes, 1, sizeof yes);
+    for (k = 0; k < m; ++k) {
+        const RmSlot *s = &sc->s[idx[k]];
+        const unsigned char *r = RmRecFind(recs, RM_REC_N, EnmScriptId(stage, half, room, s->n));
+        rec[k].type = r && RmRecStage(r) == stage ? RmRecType(r) : -1;
+        rec[k].variant = r ? RmRecVariant(r) : 0;
+        rec[k].here = r && RmRecRoom(r) == room;
+        rec[k].ours = RmProvOurs(pv, r);
+    }
+    in.room = room;
+    RmPlanRoom(&in, sc, idx, m, rec, yes, p, st);
+    for (k = 0; k < m; ++k) {
+        const RmSlot *s = &sc->s[idx[k]];
+        const unsigned id = EnmScriptId(stage, half, room, s->n);
+        unsigned char *r = (unsigned char *)RmRecFind(recs, RM_REC_N, id);
+        if (p[k].drop && r && RmRecRoom(r) == room) memset(r, 0, RM_REC_SIZE), r = NULL;  // (EnemyRecordDelete)
+        if (r && RmProvOurs(pv, r) && RmRecRoom(r) != room) continue;
+        RmProvPut(pv, id, p[k].type, p[k].variant, s->type, s->variant);
+    }
+}
+// the room is left: each monster made there writes its record (the type it was made as), as its destroy does
+static void RoomLeave(unsigned char *recs, const RmScan *sc, int stage, int half, int room, const RmPick *p)
+{
+    int idx[RM_ROOM_MAX], m = RoomIdx(sc, room, idx), k, i;
+    for (k = 0; k < m; ++k) {
+        const unsigned id = EnmScriptId(stage, half, room, sc->s[idx[k]].n);
+        unsigned char *r = (unsigned char *)RmRecFind(recs, RM_REC_N, id);
+        for (i = 0; !r && i < RM_REC_N; ++i)
+            if (!RmRecState(recs + i * RM_REC_SIZE)) r = recs + i * RM_REC_SIZE;
+        if (r) Rec(r, id, p[k].type, 1, p[k].variant, stage, room);
+    }
+}
+// every placement of the room gets the game's own record of its stock monster (what a save that visited the room holds)
+static void StockRecs(unsigned char *recs, const RmScan *sc, int stage, int half, int room, int here)
+{
+    RmPick p[RM_ROOM_MAX];
+    int idx[RM_ROOM_MAX], m = RoomIdx(sc, room, idx), k;
+    for (k = 0; k < m; ++k) p[k].type = sc->s[idx[k]].type, p[k].variant = sc->s[idx[k]].variant;
+    RoomLeave(recs, sc, stage, half, room, p);
+    if (!here)
+        for (k = 0; k < RM_REC_N; ++k)
+            if (RmRecState(recs + k * RM_REC_SIZE)) recs[k * RM_REC_SIZE + 0x37] = (unsigned char)(room + 1);  // (moved away)
+}
+static void TestAdopt(void)
+{
+    const RmScan *sc = &g_sc[4][1];  // Water Prison 2nd half: 71 sources
+    unsigned char yes[RM_ROOM_MAX], no[RM_ROOM_MAX];
+    int room, k, tot = 0, totCh = 0, totAd = 0, okSame = 1, okDrop = 1, okAway = 1, okOther = 1, okOurs = 1, okReroll = 1, j;
+    memset(yes, 1, sizeof yes), memset(no, 0, sizeof no);
+    for (room = 1; room < RZ_ROOMS; ++room) {
+        int idx[RM_ROOM_MAX], m = RoomIdx(sc, room, idx);
+        RmRec rec[RM_ROOM_MAX];
+        RmPick a[RM_ROOM_MAX], b[RM_ROOM_MAX];
+        RmPlanStat sa, sb;
+        RmPlanIn in = In(RMM_WORLD, 794655925u, 4, 1, room, 0, 0, RM_ALL_TARGETS);
+        if (!m) continue;
+        NoRecs(rec, m);
+        RmPlanRoom(&in, sc, idx, m, rec, yes, a, &sa);
+        for (k = 0; k < m; ++k) rec[k].type = sc->s[idx[k]].type, rec[k].variant = sc->s[idx[k]].variant, rec[k].here = 1;
+        RmPlanRoom(&in, sc, idx, m, rec, yes, b, &sb);  // the game's own stock records here: adopted
+        for (k = 0; k < m; ++k) {
+            const int ch = b[k].type != sc->s[idx[k]].type || b[k].variant != sc->s[idx[k]].variant;
+            okSame &= b[k].type == a[k].type && b[k].variant == a[k].variant && b[k].adopt;
+            okDrop &= b[k].drop == ch;
+        }
+        okSame &= sb.adopted == m && sb.adoptChanged == sa.changed && sb.changed == sa.changed && sb.drops == sa.changed &&
+                  sb.rollStock == m - sa.changed - sa.bones - sa.floor;
+        tot += m, totCh += sb.changed, totAd += sb.adopted;
+        for (j = 0; j < 2; ++j) {  // Change Each Visit On, visit 3: still the roll as without the records
+            RmPlanIn r = in;
+            r.reroll = 1, r.visit = 3;
+            NoRecs(rec, m);
+            RmPlanRoom(&r, sc, idx, m, rec, yes, a, &sa);
+            for (k = 0; k < m; ++k) rec[k].type = sc->s[idx[k]].type, rec[k].variant = sc->s[idx[k]].variant, rec[k].here = 1;
+            RmPlanRoom(&r, sc, idx, m, rec, yes, b, &sb);
+            for (k = 0; k < m; ++k) okReroll &= b[k].type == a[k].type && b[k].variant == a[k].variant && b[k].adopt;
+        }
+        for (k = 0; k < m; ++k) rec[k].here = 0;  // the stock records elsewhere (followers of a save): as placed, kept
+        RmPlanRoom(&in, sc, idx, m, rec, yes, b, &sb);
+        for (k = 0; k < m; ++k) okAway &= b[k].why == RMW_AWAY && !b[k].drop && !b[k].adopt;
+        okAway &= !sb.changed && sb.away == m && !sb.adopted;
+        for (k = 0; k < m; ++k)  // records of another type that Refined did not make, here: RZ349-SAVE-001's protection
+            rec[k].here = 1, rec[k].type = sc->s[idx[k]].type == 8 ? 2 : 8, rec[k].variant = 0;
+        RmPlanRoom(&in, sc, idx, m, rec, yes, b, &sb);
+        for (k = 0; k < m; ++k) okOther &= b[k].why == RMW_OTHER && !b[k].drop && !b[k].adopt && b[k].type == sc->s[idx[k]].type;
+        okOther &= !sb.changed && sb.other == m;
+        for (k = 0; k < m; ++k)  // Refined's own stock records (Change Each Visit Off): kept as v3.49 did
+            rec[k].type = sc->s[idx[k]].type, rec[k].variant = sc->s[idx[k]].variant, rec[k].ours = 1;
+        RmPlanRoom(&in, sc, idx, m, rec, yes, b, &sb);
+        for (k = 0; k < m; ++k) okOurs &= b[k].why == RMW_SAME && !b[k].drop && !b[k].adopt;
+        okOurs &= !sb.changed && sb.same == m;
+    }
+    CHECK(okSame && okDrop && tot == 71 && totAd == 71 && totCh > 30, "v3.50 RM350: the game's own stock records here are adopted: "
+          "the roll as in a fresh game, deleted exactly when the type changes (%d of %d changed; v3.49: 0)", totCh, tot);
+    CHECK(okReroll, "v3.50 RM350: adopted with Change Each Visit On: the roll of the visit");
+    CHECK(okAway, "v3.50 RM350: the game's stock records elsewhere: as placed, never deleted, not adopted");
+    CHECK(okOther, "v3.50 RM350: records of another type that Refined did not make: as placed, never deleted (RZ349-SAVE-001)");
+    CHECK(okOurs, "v3.50 RM350: Refined's own stock records, Change Each Visit Off: kept stock (v3.49's rule)");
+    {   // an adopted pick put back (files, words): the stock type, the record kept, the counts follow
+        int idx[RM_ROOM_MAX], m = 0, found = 0;
+        RmRec rec[RM_ROOM_MAX];
+        RmPick b[RM_ROOM_MAX];
+        RmPlanStat sb;
+        for (room = 1; room < RZ_ROOMS && !found; ++room) {
+            RmPlanIn in = In(RMM_WORLD, 5, 4, 1, room, 0, 0, RM_ALL_TARGETS);
+            if (!(m = RoomIdx(sc, room, idx))) continue;
+            for (k = 0; k < m; ++k)
+                rec[k].type = sc->s[idx[k]].type, rec[k].variant = sc->s[idx[k]].variant, rec[k].here = 1, rec[k].ours = 0;
+            RmPlanRoom(&in, sc, idx, m, rec, yes, b, &sb);
+            for (k = 0; k < m && !found; ++k)
+                if (b[k].drop) {
+                    const RmPlanStat s0 = sb;
+                    RmPick f = b[k], w = b[k];
+                    RmPlanStat s1 = sb, s2 = sb;
+                    found = 1;
+                    RmRevertPick(&f, &sc->s[idx[k]], &rec[k], &s1);
+                    RmPickBack(&w, &sc->s[idx[k]], &rec[k], &s2, RMW_WORDS);
+                    CHECK(f.type == sc->s[idx[k]].type && !f.drop && f.adopt && f.why == RMW_FILES && s1.changed == s0.changed - 1 &&
+                          s1.adoptChanged == s0.adoptChanged - 1 && s1.drops == s0.drops - 1 && s1.files == s0.files + 1,
+                          "v3.50 RM350: an adopted pick whose files fail: stock, its record kept, the counts follow");
+                    CHECK(w.type == sc->s[idx[k]].type && !w.drop && w.why == RMW_WORDS && s2.changed == s0.changed - 1 &&
+                          s2.drops == s0.drops - 1 && s2.files == s0.files, "v3.50 RM350: an adopted pick whose words were not stock: "
+                          "stock, its record kept");
+                }
+        }
+        CHECK(found, "v3.50 RM350: an adopted pick that changes (for the put-back checks)");
+    }
+    {   // the bone budget and the Hummers' floor: an adopted placement kept stock keeps its record
+        const RmScan *h = &g_sc[5][1];
+        int okB = 1, okF = 1, n = 0;
+        for (room = 1; room < RZ_ROOMS; ++room) {
+            int idx[RM_ROOM_MAX], m = RoomIdx(h, room, idx);
+            RmRec rec[RM_ROOM_MAX];
+            RmPick b[RM_ROOM_MAX];
+            RmPlanStat sb;
+            RmPlanIn in = In(RMM_WORLD, 11, 5, 1, room, 0, RM_ALL_TARGETS, RM_ALL_TARGETS);
+            if (!m) continue;
+            for (k = 0; k < m; ++k) rec[k].type = h->s[idx[k]].type, rec[k].variant = h->s[idx[k]].variant, rec[k].here = 1, rec[k].ours = 0;
+            RmPlanRoom(&in, h, idx, m, rec, no, b, &sb);
+            for (k = 0; k < m; ++k)
+                if (RmIsFlyer(h->s[idx[k]].type)) {
+                    okF &= RmIsFlyer(b[k].type) && (b[k].why != RMW_FLOOR || !b[k].drop);
+                    n += b[k].why == RMW_FLOOR;
+                }
+            in.freeBones = 0;
+            RmPlanRoom(&in, h, idx, m, rec, yes, b, &sb);
+            for (k = 0; k < m; ++k) okB &= b[k].why != RMW_BONES || (!b[k].drop && b[k].type == h->s[idx[k]].type);
+            okB &= sb.cost <= sb.limit || sb.cost <= sb.cost0;
+        }
+        CHECK(okF && n > 0, "v3.50 RM350: an adopted Hummer without a floor stays a Hummer, its record kept (%d)", n);
+        CHECK(okB, "v3.50 RM350: an adopted placement over the bone budget stays stock, its record kept");
+    }
+    {   // the user's v3.49 room 5:11 (visit 1, #1; seed 794655925, This World, Change Each Visit On): 8 Whitestools, all kept
+        const RmScan *b5 = &g_sc[5][1];
+        int idx[RM_ROOM_MAX], m = RoomIdx(b5, 11, idx);
+        RmRec rec[RM_ROOM_MAX];
+        RmPick b[RM_ROOM_MAX];
+        RmPlanStat sb;
+        RmPlanIn in = In(RMM_WORLD, 794655925u, 5, 1, 11, 1, 1u << RmTargetIndex(2, 0), RM_ALL_TARGETS);
+        in.reroll = 1;
+        for (k = 0; k < m; ++k) rec[k].type = b5->s[idx[k]].type, rec[k].variant = b5->s[idx[k]].variant, rec[k].here = 1, rec[k].ours = 0;
+        RmPlanRoom(&in, b5, idx, m, rec, yes, b, &sb);
+        printf("  the user's room 5:11 with v3.50: %d of %d Whitestools change (all 8 adopted)\n", sb.changed, m);
+        CHECK(m == 8 && sb.adopted == 8 && sb.changed >= 4 && sb.drops == sb.changed, "v3.50 RM350: the user's room 5:11 from a save: "
+              "%d of 8 change (v3.49: 0)", sb.changed);
+    }
+}
+static void TestAllWorlds(void)
+{
+    unsigned char yes[RM_ROOM_MAX];
+    Sum s1;
+    int stage, h, t, by[RM_TARGET_N], outsideWorld = 0, gum = 0;
+    RmPlanIn in = In(RMM_ALL, 1, 4, 1, 0, 0, 0, RM_ALL_TARGETS);
+    memset(yes, 1, sizeof yes), memset(by, 0, sizeof by);
+    CHECK(RmPool(&in) == RM_ALL_TARGETS, "v3.50 RM350 All Worlds: every target, nothing resident (%03X)", RmPool(&in));
+    in.allowed = RM_ALL_TARGETS & ~RM_GUM_TARGETS;
+    CHECK(RmPool(&in) == (RM_ALL_TARGETS & ~RM_GUM_TARGETS), "v3.50 RM350 All Worlds: Gum Heads only with the guard");
+    in.mode = RMM_WORLD, in.allowed = RM_ALL_TARGETS;
+    CHECK(RmPool(&in) == in.world && in.world != RM_ALL_TARGETS, "This World stays this world's (%03X)", RmPool(&in));
+    in.mode = RMM_ROOM, in.resident = 1u << RmTargetIndex(2, 0);
+    CHECK(RmPool(&in) == in.resident, "This Room stays the resident ones");
+    for (stage = 2; stage <= 8; ++stage)
+        for (h = 0; h < 1 + g_has1[stage]; ++h) {
+            const RmScan *sc = &g_sc[stage][h];
+            const unsigned world = g_sc[stage][0].placed | (g_has1[stage] ? g_sc[stage][1].placed : 0u);
+            Sum sw;
+            if (!sc->n) continue;
+            in = In(RMM_ALL, 777, stage, h, 0, 0, 0, RM_ALL_TARGETS);
+            in.freeBones = 1 << 24;
+            PlanAll(sc, in, yes, &s1, NULL);
+            CHECK(!s1.outside && s1.picks == sc->n, "All Worlds stage %d half %d: every pick in the pool", stage, h);
+            for (t = 0; t < RM_TARGET_N; ++t) {
+                by[t] += s1.byTarget[t];
+                if (!(world >> t & 1u)) outsideWorld += s1.byTarget[t];
+            }
+            gum += s1.gum;
+            in.mode = RMM_WORLD;
+            PlanAll(sc, in, yes, &sw, NULL);
+            for (t = 0; t < RM_TARGET_N; ++t)
+                CHECK((world >> t & 1u) || !sw.byTarget[t], "This World stage %d half %d: no %s from another world", stage, h,
+                      kRmTargets[t].name);
+            in.mode = RMM_ALL, in.allowed = RM_ALL_TARGETS & ~RM_GUM_TARGETS;
+            PlanAll(sc, in, yes, &sw, NULL);
+            CHECK(!sw.gum, "All Worlds stage %d half %d: no Gum Head without the guard", stage, h);
+        }
+    for (t = 0; t < RM_TARGET_N; ++t) CHECK(by[t] > 5, "All Worlds: %s placed (%d)", kRmTargets[t].name, by[t]);
+    CHECK(outsideWorld > 50 && gum > 0, "All Worlds: %d placement(s) of another world's types (silent ones allowed)", outsideWorld);
+}
+// v3.50 RM350 (B2): a save made in a randomized room and loaded back gives a working room
+static void TestSaveRoundTrip(void)
+{
+    static unsigned char recs[RM_REC_N * RM_REC_SIZE], save[RM_REC_N * RM_REC_SIZE], old[RM_REC_N * RM_REC_SIZE];
+    static RmProv pv, pv2;
+    const RmScan *sc = &g_sc[4][1];
+    const int stage = 4, half = 1;
+    int room = 0, k, idx[RM_ROOM_MAX], m = 0, ch = 0, seed = 0, n, okSame, okOurs, found = 0;
+    RmPick p1[RM_ROOM_MAX], p2[RM_ROOM_MAX];
+    RmPlanStat st;
+    RmPlanIn in;
+    // a room and seed where the adopted placements both change and keep the stock type
+    for (seed = 1; seed < 400 && !found; ++seed)
+        for (room = 1; room < RZ_ROOMS && !found; ++room) {
+            if ((m = RoomIdx(sc, room, idx)) < 3) continue;
+            memset(recs, 0, sizeof recs), memset(&pv, 0, sizeof pv);
+            StockRecs(recs, sc, stage, half, room, 1);
+            RoomLoad(recs, &pv, sc, stage, half, room, In(RMM_WORLD, (unsigned)seed, stage, half, room, 0, 0, RM_ALL_TARGETS), p1, &st);
+            ch = st.changed;
+            found = ch > 0 && ch < m;
+        }
+    --seed, --room;  // (the loops stepped past the one found)
+    if (!found) {
+        CHECK(0, "save round trip: no room / seed with changed and kept placements");
+        return;
+    }
+    in = In(RMM_WORLD, (unsigned)seed, stage, half, room, 0, 0, RM_ALL_TARGETS);
+    CHECK(ch > 0 && ch < m && st.adopted == m && st.drops == ch, "save round trip: room 4:%d seed %d: the save's %d stock records "
+          "adopted, %d changed (their records deleted)", room, seed, m, ch);
+    for (k = 0, okOurs = 1, n = 0; k < m; ++k) {
+        const unsigned char *r = RmRecFind(recs, RM_REC_N, EnmScriptId(stage, half, room, sc->s[idx[k]].n));
+        const int changed = p1[k].type != sc->s[idx[k]].type || p1[k].variant != sc->s[idx[k]].variant;
+        okOurs &= changed ? !r : r && RmProvOurs(&pv, r) && !RmProvRetyped(&pv, r);
+        n += r != NULL;
+    }
+    CHECK(okOurs && n == m - ch, "save round trip: the kept stock records are Refined's now (provenance), the changed ones gone");
+    memcpy(old, recs, sizeof recs);  // (an older save: before these monsters were made; the changed ones' records gone)
+    StockRecs(old, sc, stage, half, room, 1);  // (... and an even older one: every stock record)
+    RoomLeave(recs, sc, stage, half, room, p1);  // the room is left: the new types write their records
+    for (k = 0, n = 0; k < RM_REC_N; ++k) n += RmProvRetyped(&pv, recs + k * RM_REC_SIZE);
+    CHECK(n == ch, "save round trip: %d record(s) of the new types (Refined's retypes)", n);
+    memcpy(save, recs, sizeof recs);
+    CHECK(RmSaveClean(save, &pv) == ch, "save round trip: the save filter leaves the %d retyped record(s) out", ch);
+    for (k = 0, n = 0; k < RM_REC_N; ++k) n += RmProvRetyped(&pv, save + k * RM_REC_SIZE);
+    for (k = 0, okSame = 1; k < m; ++k)
+        okSame &= (RmRecFind(save, RM_REC_N, EnmScriptId(stage, half, room, sc->s[idx[k]].n)) != NULL) ==
+                  (p1[k].type == sc->s[idx[k]].type && p1[k].variant == sc->s[idx[k]].variant);
+    CHECK(!n && okSame, "save round trip: the save holds no randomized monster; the stock ones' records stay in it");
+    // load that save in the same session: the room comes back the same, nothing deleted, nothing adopted
+    memcpy(recs, save, sizeof recs);
+    RoomLoad(recs, &pv, sc, stage, half, room, in, p2, &st);
+    for (k = 0, okSame = 1; k < m; ++k) okSame &= p2[k].type == p1[k].type && p2[k].variant == p1[k].variant && !p2[k].drop;
+    CHECK(okSame && st.changed == ch && !st.adopted && !st.drops, "save round trip: loaded back (same session): the same monsters, "
+          "no record deleted");
+    // load it in a new session (no provenance): the stock records are adopted again: the same monsters
+    memcpy(recs, save, sizeof recs), memset(&pv2, 0, sizeof pv2);
+    RoomLoad(recs, &pv2, sc, stage, half, room, in, p2, &st);
+    for (k = 0, okSame = 1; k < m; ++k) okSame &= p2[k].type == p1[k].type && p2[k].variant == p1[k].variant && !p2[k].drop;
+    CHECK(okSame && st.changed == ch && st.adopted == m - ch, "save round trip: loaded in a new session: the same monsters (%d "
+          "adopted)", st.adopted);
+    // an older save with every stock record, loaded in the same session (the provenance says the new types): adopted, the same
+    memcpy(recs, old, sizeof recs);
+    RoomLoad(recs, &pv, sc, stage, half, room, in, p2, &st);
+    for (k = 0, okSame = 1; k < m; ++k) okSame &= p2[k].type == p1[k].type && p2[k].variant == p1[k].variant;
+    CHECK(okSame && st.adopted == ch && st.drops == ch, "save round trip: an older save (stock records): the same monsters, the %d "
+          "stock record(s) of changed placements deleted", ch);
+    // another writer's record of another type in the save: kept by the plan and by the save filter
+    {
+        unsigned char *r;
+        const unsigned id = EnmScriptId(stage, half, room, sc->s[idx[0]].n);
+        const int other = sc->s[idx[0]].type == 8 ? 2 : 8;
+        memset(recs, 0, sizeof recs), memset(&pv2, 0, sizeof pv2);
+        Rec(recs, id, other, 1, 0, stage, room);
+        RoomLoad(recs, &pv2, sc, stage, half, room, in, p2, &st);
+        r = (unsigned char *)RmRecFind(recs, RM_REC_N, id);
+        CHECK(r && RmRecType(r) == other && p2[0].why == RMW_OTHER && p2[0].type == sc->s[idx[0]].type && st.other == 1,
+              "save round trip: another writer's record: the placement as placed, the record kept");
+        memcpy(save, recs, sizeof recs);
+        CHECK(RmSaveClean(save, &pv2) == 0 && RmRecFind(save, RM_REC_N, id), "save round trip: another writer's record stays in a save");
+    }
+    // Monsters Off after the randomized visit: only Refined's retypes in the room are deleted
+    memset(recs, 0, sizeof recs), memset(&pv, 0, sizeof pv);
+    StockRecs(recs, sc, stage, half, room, 1);
+    RoomLoad(recs, &pv, sc, stage, half, room, in, p1, &st);
+    RoomLeave(recs, sc, stage, half, room, p1);
+    for (k = 0, n = 0, okSame = 1; k < m; ++k) {
+        const unsigned char *r = RmRecFind(recs, RM_REC_N, EnmScriptId(stage, half, room, sc->s[idx[k]].n));
+        const int changed = p1[k].type != sc->s[idx[k]].type || p1[k].variant != sc->s[idx[k]].variant;
+        n += RmOffDrops(&pv, r, stage, room);
+        okSame &= RmOffDrops(&pv, r, stage, room) == changed;
+    }
+    CHECK(okSame && n == ch, "save round trip: Monsters Off next visit: the %d retyped record(s) deleted, the adopted stock ones kept", n);
 }
 
 // ---------------------------------------------------------------- the words of a plan in the scripts (a copy of the image)
@@ -634,6 +953,9 @@ int main(int argc, char **argv)
         TestPlans();
         TestWords();
         TestRecords();
+        TestAdopt();          // v3.50 RM350
+        TestAllWorlds();      // v3.50 RM350
+        TestSaveRoundTrip();  // v3.50 RM350
     }
     TestMadeUp();
     TestDesc();

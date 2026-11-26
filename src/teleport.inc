@@ -61,6 +61,32 @@
 //     Holding Run + Action keeps warping: the next warp starts once she has faded back in (GtHold); a refused try waits
 //     GT_FAIL_COOL. The hold's warps after the first GT_HOLD_LOGN are logged per tick only (LogT); its end logs one
 //     summary line. A press let go before the fade ends starts nothing more (one press = one warp).
+//
+// v3.50 TP350 (the user's v3.49 QA, staging/v350_feedback/USER_FEEDBACK_v349.md A1-A3; staging/v350_feedback/w1_teleport/
+// PLAN.md):
+// (a) A2 / A3: with standing enemies near, ONLY the one she faces: nearest her facing inside +-[Gameplay]
+//     GhostTeleportCone (hidden, 35 degrees; ties within 5 degrees: the nearer), never another; not in this room (beyond
+//     a door line, outside the box): the next one in the cone. Its spots all refused: no warp (never another enemy, never
+//     the warp ahead). None in the cone: the warp ahead. The reach doubled: GhostTeleportRange 5000 (was 2500; 500 ..
+//     12000; an old value in the ini still applies).
+// (b) A1: the warp ahead may pass a wall, a turnstile, a fence, a counter or a gap in the floor ([Gameplay]
+//     GhostTeleportThroughWalls, hidden, 1; 0 = v3.49's warp ahead only): teleport_sim.h GtThruSearch along her facing and
+//     +-10 / +-20 degrees, every 40 u up to GhostTeleportForward; past the first sample she could not walk to straight
+//     (GtThruOpen on the room's solid map), the nearest spot that passes GtThruLand: v3.49's spot rules without the line
+//     of sight (the enemies' gap, the room's box incl. its height, its door lines and no doorway crossed, the walk-in
+//     event zones on the straight segment from her feet, not inside geometry, the game's floor ray 0x459490 at her level,
+//     room to stand 0x458F00, the sub-area), her body's three spheres (GtBodyFree: 0x561B80) and the room's floor map
+//     (GtMapHas: the floor a route of the room reaches, flooded from the room's doors and every place she stood at a warp,
+//     teleport_sim.h GtMap; built once a room visit, GT_MAP_PRESS cells at the press, GT_MAP_TICK a tick through the
+//     fade-out, GT_MAP_PRESS more at the warp). Not past any obstacle: v3.44's warp ahead (farthest first). At the press a
+//     spot the unfinished map does not hold yet starts the fade; the warp decides (refused there: v3.44's warp ahead,
+//     else she fades back in). The collision queries are No Clip's (noclip_world.h: 0x561CD0 / 0x41E9C0 the tree2 line,
+//     0x561CB0 solid, 0x561B80 the sphere), byte-checked here too; a room without a solid map (tree2): no through-warp.
+// (c) The fade-out owns Action: a press of Action (0) or Check (0xE, the examine points' InputActionPressed(0, 0xE) in
+//     0x52C410) during the fade-out is taken back like the chord's own (v3.49's log: 7 fades called off by an
+//     "interaction event" 0.15 .. 0.27 s after the press, in Subway rooms 2:4 and 2:7).
+// (d) The log: a quota per refusal kind (GTN_*), and one line a room visit with its counts (warps by kind, refusals by
+//     kind, presses taken back, the floor map's cells and time); logcheck's "ghost teleport" line sums them.
 
 #include "teleport_sim.h"
 
@@ -95,15 +121,37 @@ static int g_gtZoneKey[GT_ZONE_MAX];  // each zone's event key (the log)
 static int g_gtZoneN, g_gtZoneSkipped;
 static DWORD g_gtZoneSaid = 0xFFFFFFFFu;  // the room key the zones were last logged for
 static float g_gtHerAt[3];          // her feet at this search (the start of every warp path)
+// v3.50 TP350: the faced enemy's cone, the through-warp, the room's floor map, the room's counts
+#define GT_MAP_PRESS 3000           // the floor map's cells expanded at a press and at a warp (2:9's whole map: 2648)
+#define GT_MAP_TICK 600             //   and each tick of a fade-out
+#define GT_NO_KIND_MAX 60           // LogV lines per refusal kind (the rest LogT; the room's line counts them all)
+enum { GTN_STATE, GTN_NONE, GTN_EDGES, GTN_ZONES, GTN_INZONE, GTN_FACED, GTN_AHEAD, GTN_N };
+static const char *const kGtNoKind[GTN_N] = { "her state", "nothing in reach", "the room's edges", "the zones",
+                                              "inside a zone", "behind the faced enemy", "ahead" };
+static volatile float g_gtCone = GT_CONE_DEF;
+static volatile LONG g_gtThruOn = 1;
+static int g_gtWorldOk;             // the tree2 / sphere queries are stock (GtInstall)
+static GtMap g_gtMap;
+static DWORD g_gtMapKey = 0xFFFFFFFFu;
+static double g_gtMapMs;
+static int g_gtMapSaid;             // 1 begun, 2 finished, 3 overflow said (this map)
+static volatile LONG g_gtQNoK[GTN_N], g_gtQMap, g_gtQRoom, g_gtQBack;
+static float g_gtThruFrom[3];       // her feet on her floor (GtThruSearch's callbacks)
+static const float (*g_gtOthersP)[3];
+static int g_gtNOthers;
+static int g_gtRoomW[3], g_gtRoomNo[GTN_N], g_gtRoomBack;  // this room visit: warps by kind, refusals by kind, presses taken back
 
 typedef struct { const BYTE *t, *w; float pos[3], rad, floorY; int type; } GtFoe;
 enum { GTS_OK, GTS_ENEMY, GTS_SIGHT, GTS_WALL, GTS_RAY, GTS_FLOOR, GTS_LEDGE, GTS_ROOM, GTS_AREA,
-       GTS_BOX, GTS_DOOR_NEAR, GTS_DOOR_BEYOND, GTS_DOOR_CROSS, GTS_FOE_DOOR, GTS_EVENT, GTS_N };  // GT343-001: + the room's edges
+       GTS_BOX, GTS_DOOR_NEAR, GTS_DOOR_BEYOND, GTS_DOOR_CROSS, GTS_FOE_DOOR, GTS_EVENT,
+       GTS_BODY, GTS_ROUTE, GTS_PENDING, GTS_N };  // GT343-001: + the room's edges  // v3.50 TP350: + body, route, pending
 static const char *const kGtWhy[GTS_N] = { "", "near an enemy", "a wall between", "in a wall", "no free floor ray",
                                            "no floor", "another level", "no room to stand", "another area",
                                            "outside the room's box", "at a door line", "beyond a door line (the next room)",
                                            "through a doorway", "the enemy beyond a door line",
-                                           "an event's trigger zone on the way" };  // v3.49 GT349: + GTS_EVENT
+                                           "an event's trigger zone on the way",  // v3.49 GT349: + GTS_EVENT
+                                           "no room for her body", "no route of the room reaches it",  // v3.50 TP350
+                                           "not on the room's floor map yet" };
 // GT343-001: this room's edges, read once an attempt (GtRoomRead): its door lines and its collision box
 static GtExit g_gtExit[GT_EXIT_MAX];
 static int g_gtExitN, g_gtBoxOk, g_gtAreaHer, g_gtExitAsked;  // GT343-001c: + ExitGetNum's own count
@@ -112,6 +160,8 @@ static float g_gtBoxLo[3], g_gtBoxHi[3];
 typedef struct {
     int kind, type, foe, np, spot, fromFace, tries, nTries;
     float at[3], yaw, d, gap;
+    int ray, kObst, refusedBefore, pending, nCone;  // v3.50 TP350: kind 2 = through a wall (GtThru); kind 0: the cone's count
+    float dObst, ang;                               //   the obstacle's distance; the faced enemy's angle (degrees)
 } GtPlan;
 
 // ---------------------------------------------------------------- the game's queries
@@ -438,18 +488,149 @@ static const char *GtWhyList(const int *cnt, char *list, size_t nl)  // "reason 
         if (cnt[k] && o < (int)nl - 48) o += sprintf_s(list + o, nl - (size_t)o, "%s%s %d", o ? ", " : "", kGtWhy[k], cnt[k]);
     return list;
 }
+// ---------------------------------------------------------------- v3.50 TP350: through walls on the room's collision
+// teleport_sim.h's world: No Clip's queries (noclip_world.h; game thread, its aligned buffers)
+static int GtWFloor(void *c, float x, float yTop, float yBot, float z, float *fy) { return NwFloor(c, x, yTop, yBot, z, fy); }
+static int GtWSphere(void *c, float x, float y, float z, float r) { (void)c; return NwSphereCount(x, y, z, r); }
+static int GtWSolid(void *c, float x, float y, float z) { return NwSolid(c, x, y, z); }
+static int GtWLine(void *c, const float a[3], const float b[3])  // 0x561CD0: the line enters solid (tree2, the event polygons)
+{
+    (void)c;
+    g_nwLine[0] = a[0], g_nwLine[1] = a[1], g_nwLine[2] = a[2], g_nwLine[3] = 1.0f;
+    g_nwLine[4] = b[0], g_nwLine[5] = b[1], g_nwLine[6] = b[2], g_nwLine[7] = 1.0f;
+    return ((int(__cdecl *)(float *, float *))0x561CD0)(g_nwLine, g_nwPlane) != 0;
+}
+static const GtWorld g_gtWorld = { NULL, GtWFloor, GtWSphere, GtWLine, GtWSolid };
+static int GtRayFree(void)  // a free mover ray (0x459490 / 0x458F00 / 0x454000 take one; echo.inc's rule)
+{
+    int k, n = 0;
+    for (k = 0; k < 4; ++k) n |= *(const volatile int *)(0xFCEE40 + 0x30 * k) == 3;
+    return n;
+}
+static DWORD GtRoomKeyNow(void) { return *(volatile DWORD *)0xFD5A90 << 16 | (*(volatile DWORD *)0xFD5A94 & 0xFFFF); }
+// The room's floor map (teleport_sim.h GtMap): begun at this room visit's first through-warp search (the room's box and
+// door lines from GtRoomRead, every door's point a seed), her feet a seed at every search, `cells` more expanded now
+static void GtMapGrow(int cells);
+static void GtMapEnsure(const float pp[3], float herFloor, int cells)
+{
+    const DWORD key = GtRoomKeyNow();
+    int k;
+    if (key != g_gtMapKey) {
+        GtMapBegin(&g_gtMap, g_gtBoxLo, g_gtBoxHi, g_gtExit, g_gtExitN);
+        for (k = 0; k < g_gtExitN; ++k)  // every door's point on the room's side
+            GtMapSeed(&g_gtMap, &g_gtWorld, g_gtExit[k].px, g_gtExit[k].y, g_gtExit[k].pz, GT_MAP_SEED_DY);
+        g_gtMapKey = key, g_gtMapMs = 0.0, g_gtMapSaid = 0;
+        if (LogQuota(&g_gtQMap, 200))
+            LogV("ghost teleport: room %d:%d: the floor map begins (a grid of %d x %d cells of %.0f u on the room's box; %d of %d "
+                 "door(s) seeded, %d without a floor there)%s", *(volatile int *)0xFD5A90, *(volatile int *)0xFD5A94, g_gtMap.nx,
+                 g_gtMap.ny, g_gtMap.cell, g_gtMap.seeds, g_gtExitN, g_gtMap.seedsNoFloor, g_gtMap.on ? "" : ": NO MAP (the box)");
+    }
+    if (!g_gtMap.on) return;
+    GtMapSeed(&g_gtMap, &g_gtWorld, pp[0], herFloor, pp[2], GT_REACH_UP);  // where she stands is the room's floor
+    GtMapGrow(cells);
+}
+static void GtMapGrow(int cells)  // up to `cells` more of this room's floor map (timed; its finish or overflow logged once)
+{
+    LARGE_INTEGER a, b, f;
+    if (!g_gtMap.on || GtMapFinished(&g_gtMap) || g_gtMap.overflow || cells <= 0) return;
+    QueryPerformanceFrequency(&f);
+    QueryPerformanceCounter(&a);
+    GtMapRun(&g_gtMap, &g_gtWorld, cells);
+    QueryPerformanceCounter(&b);
+    g_gtMapMs += f.QuadPart ? (double)(b.QuadPart - a.QuadPart) * 1000.0 / (double)f.QuadPart : 0.0;
+    if (g_gtMap.overflow && g_gtMapSaid < 3) {
+        g_gtMapSaid = 3;
+        if (LogQuota(&g_gtQAn, 10))
+            LogAnomaly("ghost teleport", "room %d:%d: the floor map's queue overflowed at %d cells: spots it does not hold are "
+                       "refused", *(volatile int *)0xFD5A90, *(volatile int *)0xFD5A94, g_gtMap.cells);
+    } else if (GtMapFinished(&g_gtMap) && g_gtMapSaid < 2) {
+        g_gtMapSaid = 2;
+        if (LogQuota(&g_gtQMap, 200))
+            LogV("ghost teleport: room %d:%d: the floor map is finished: %d cell(s) a route of the room reaches, from %d seed(s) "
+                 "(%d without a floor); %.1f ms over %d run(s)%s", *(volatile int *)0xFD5A90, *(volatile int *)0xFD5A94,
+                 g_gtMap.cells, g_gtMap.seeds, g_gtMap.seedsNoFloor, g_gtMapMs, g_gtMap.runs,
+                 g_gtMap.unknown ? " (some queries could not answer: blocked)" : "");
+    }
+}
+static int GtThruOpenCb(void *c, const float p[3])  // could she walk straight to p?
+{
+    (void)c;
+    return g_gtBoxOk && GtInBox(g_gtBoxLo, g_gtBoxHi, p) && GtThruOpen(&g_gtWorld, g_gtThruFrom, p);
+}
+// A sample past an obstacle: GTS_OK (out = the floor point) or why not. v3.49's spot rules from her own place without the
+// line of sight (her feet g_gtThruFrom, on her floor), her body, the room's floor map
+static int GtThruLandCb(void *c, const float p[3], float out[3])
+{
+    __declspec(align(16)) float q[4], hp[4], hn[4];
+    const float *from = g_gtThruFrom;
+    int r;
+    (void)c;
+    if (!GtClearOf(p, g_gtOthersP, g_gtNOthers)) return GTS_ENEMY;
+    if (!g_gtBoxOk || !GtInBox(g_gtBoxLo, g_gtBoxHi, p)) return GTS_BOX;
+    r = GtExitTest(g_gtExit, g_gtExitN, from, p);
+    if (r != GTX_OK) return r == GTX_NEAR ? GTS_DOOR_NEAR : r == GTX_BEYOND ? GTS_DOOR_BEYOND : GTS_DOOR_CROSS;
+    if (GtZoneBlocks(p)) return GTS_EVENT;  // the straight segment from her feet
+    q[0] = p[0], q[1] = from[1] - GT_REACH_LOW, q[2] = p[2], q[3] = 1.0f;
+    if (!((int(__cdecl *)(float *))0x46F700)(q)) return GTS_WALL;
+    if ((r = GtFloorHit(q, hp, hn)) < 0) return GTS_RAY;
+    if (!r) return GTS_FLOOR;
+    if (fabsf(hp[1] - from[1]) > GT_FLOOR_TOL) return GTS_LEDGE;
+    if (((int(__cdecl *)(float *, float *, float, float))0x458F00)(hp, hn, 60.0f, 1.0f) != 2) return GTS_ROOM;
+    if (GtArea(hp) != g_gtAreaHer) return GTS_AREA;
+    if (!GtInBox(g_gtBoxLo, g_gtBoxHi, hp) || !(hp[1] >= g_gtBoxLo[1] && hp[1] <= g_gtBoxHi[1])) return GTS_BOX;
+    r = GtExitTest(g_gtExit, g_gtExitN, from, hp);
+    if (r != GTX_OK) return r == GTX_NEAR ? GTS_DOOR_NEAR : r == GTX_BEYOND ? GTS_DOOR_BEYOND : GTS_DOOR_CROSS;
+    if (GtZoneBlocks(hp)) return GTS_EVENT;
+    out[0] = hp[0], out[1] = hp[1], out[2] = hp[2];
+    if (!GtBodyFree(&g_gtWorld, hp[0], hp[1], hp[2])) return GTS_BODY;
+    r = GtMapHas(&g_gtMap, &g_gtWorld, hp);
+    return r == GTM_HAS ? GTS_OK : r == GTM_UNKNOWN ? GTS_PENDING : GTS_ROUTE;
+}
+// 1 = *pl holds a spot past an obstacle (kind 2), 2 = one the map does not hold yet (at the press only), 0 = none (tw why)
+static int GtThruFind(const float pp[3], float herFloor, float yaw, GtPlan *pl, int atWarp, char *tw, size_t ntw)
+{
+    GtThruFns fn;
+    GtThru t;
+    int cnt[GTS_N], nObst = 0, r;
+    char list[200];
+    tw[0] = 0;
+    if (!g_gtThruOn || !g_gtWorldOk)
+        return _snprintf_s(tw, ntw, _TRUNCATE, "through walls off%s", g_gtThruOn ? " (its queries are not stock)" : ""), 0;
+    if (!NwHasTree2()) return _snprintf_s(tw, ntw, _TRUNCATE, "through walls: the room has no solid map"), 0;
+    if (!GtRayFree()) return _snprintf_s(tw, ntw, _TRUNCATE, "through walls: no free mover ray now"), 0;
+    g_gtThruFrom[0] = pp[0], g_gtThruFrom[1] = herFloor, g_gtThruFrom[2] = pp[2];
+    GtMapEnsure(g_gtThruFrom, herFloor, GT_MAP_PRESS);
+    memset(cnt, 0, sizeof cnt);
+    memset(&t, 0, sizeof t);
+    fn.ctx = NULL, fn.open = GtThruOpenCb, fn.land = GtThruLandCb, fn.pending = atWarp ? 0 : GTS_PENDING;
+    r = GtThruSearch(&fn, g_gtThruFrom, yaw, g_gtFwd, &t, cnt, GTS_N, &nObst);
+    if (r) {
+        pl->kind = 2, pl->yaw = t.yaw, pl->d = t.d, pl->ray = t.ray, pl->kObst = t.kObst, pl->dObst = t.dObst;
+        pl->refusedBefore = t.refused, pl->pending = r == 2;
+        memcpy(pl->at, t.at, sizeof pl->at);
+        return r;
+    }
+    _snprintf_s(tw, ntw, _TRUNCATE, "through walls: %d of %d ray(s) met an obstacle within %.0f u%s%s; the room's floor map %d "
+                "cell(s)%s", nObst, GT_FAN_N, g_gtFwd, nObst ? ", past it: " : "", nObst ? (GtWhyList(cnt, list, sizeof list)[0] ?
+                list : "nothing to try") : "", g_gtMap.cells, GtMapFinished(&g_gtMap) ? "" : " (not finished)");
+    return 0;
+}
 // v3.44 GT344 (was v3.43's GtTry without the move): the target now. 1 = *pl holds it; 0 = why says why not
-static int GtFind(const float pp[3], float herFloor, GtPlan *pl, char *why, size_t nw)
+// v3.50 TP350: *kind = the refusal's kind (GTN_*); atWarp: the end of the fade-out (a through-spot must be proven); the
+// long texts are cut to the buffer (_TRUNCATE: a sprintf_s overflow would end the game)
+static int GtFind(const float pp[3], float herFloor, GtPlan *pl, char *why, size_t nw, int atWarp, int *kind)
 {
     static GtFoe foe[GT_ACTOR_MAX];  // GT343-004 (game thread only; static: 3 KB less stack per call)
     static GtCand cand[GT_ACTOR_MAX];
     static float others[GT_ACTOR_MAX][3];
-    int nf = 0, no, order[GT_PICK_MAX], np, k, guard = 0, cnt[GTS_N];
+    const float yaw = *(volatile const float *)0x10A0FC4;  // gPlayer[0].rot.y
+    int nf = 0, no, k, guard = 0, cnt[GTS_N], faced;
     const BYTE *t = NULL;
     char list[240];
     memset(pl, 0, sizeof *pl);
+    *kind = GTN_NONE;
     // GT343-004: the whole list, every actor kept (GT_ACTOR_MAX only bounds a broken list): a nearer one late in the
-    // list (Enemy Copies) is never dropped; GtPick keeps the nearest GT_PICK_MAX of them
+    // list (Enemy Copies) is never dropped
     while ((t = DpNext(t)) != NULL && GtListMore(&guard, nf)) {  // this room's enemies
         BYTE *w;
         float *hp;
@@ -463,6 +644,7 @@ static int GtFind(const float pp[3], float herFloor, GtPlan *pl, char *why, size
         cand[nf].ok = EchoHittable(t, &w, &hp, &type) && !EchoIsDown(t);
         cand[nf].d = sqrtf((f->pos[0] - pp[0]) * (f->pos[0] - pp[0]) + (f->pos[2] - pp[2]) * (f->pos[2] - pp[2]));
         cand[nf].dy = f->pos[1] - pp[1];
+        cand[nf].ang = GtOffFacing(pp, yaw, f->pos), cand[nf].skip = 0;  // v3.50 TP350
         {
             const BYTE *hb = *(const BYTE *const *)(ww + 0x38);  // the mover's HitBody: +0x10 its bounding radius
             const float rr = hb ? *(const float *)(hb + 0x10) : 40.0f;
@@ -470,67 +652,78 @@ static int GtFind(const float pp[3], float herFloor, GtPlan *pl, char *why, size
         }
         ++nf;
     }
-    np = GtPick(cand, nf, g_gtRange, order, GT_PICK_MAX);
-    if (!np && !(g_gtFwd > 0.0f))
-        return sprintf_s(why, nw, "no standing enemy within %.0f u (%d enemies in the room)", g_gtRange, nf), 0;
+    // v3.50 TP350 A2: only the standing enemy she faces (teleport_sim.h GtPickFaced), never the nearest elsewhere
+    faced = _finite(yaw) ? GtPickFaced(cand, nf, g_gtRange, g_gtCone) : -1;
+    if (faced < 0 && !(g_gtFwd > 0.0f))
+        return _snprintf_s(why, nw, _TRUNCATE, "no standing enemy she faces within %.0f u (+-%.0f degrees; %d enemies in the room)",
+                           g_gtRange, g_gtCone, nf), 0;
     memset(cnt, 0, sizeof cnt);
     if ((k = GtRoomRead(pp)) != GTB_OK)  // GT343-001: the room's door lines and box; GT343-001c: complete, else no warp
-        return sprintf_s(why, nw, "the room's edges are not known (%s; room %d, %d of %d exit(s) read): no same-room check, "
-                         "no warp", kGtBoundsWhy[k], *(volatile const int *)0xFD5A94, g_gtExitN, g_gtExitAsked), 0;
+        return *kind = GTN_EDGES, _snprintf_s(why, nw, _TRUNCATE, "the room's edges are not known (%s; room %d, %d of %d exit(s) "
+                                              "read): no same-room check, no warp", kGtBoundsWhy[k], *(volatile const int *)0xFD5A94,
+                                              g_gtExitN, g_gtExitAsked), 0;
     // v3.49 GT349: the walk-in event zones (fail closed: a list that cannot be read whole = no warp)
     memcpy(g_gtHerAt, pp, sizeof g_gtHerAt);
     if ((k = GtZonesRead()) != 0)
-        return sprintf_s(why, nw, "the room's event zones are not known (%s): no warp", k == 1 ? "the event object list is "
-                         "broken or longer than 512" : "more than 64 walk-in zones"), 0;
+        return *kind = GTN_ZONES, _snprintf_s(why, nw, _TRUNCATE, "the room's event zones are not known (%s): no warp", k == 1 ?
+                                              "the event object list is broken or longer than 512" : "more than 64 walk-in zones"), 0;
     GtZonesSay();
     // v3.49 GT349-001: she stands inside a walk-in zone whose event has not started (she may have run in during the
     // fade-out): it fires first; no warp out of it (at the press and again at the end of the fade-out)
     if ((k = GtZonesInside(g_gtZone, g_gtZoneN, pp)) >= 0)
-        return sprintf_s(why, nw, "inside an event's trigger zone (key %03X, not fired yet): no warp out of it",
-                         g_gtZoneKey[k] & 0xFFF), 0;
-    if (!np) {  // v3.44 GT344 (c): no standing enemy in range: the way she faces, shortened step by step
-        const float yaw = *(volatile const float *)0x10A0FC4;  // gPlayer[0].rot.y
+        return *kind = GTN_INZONE, _snprintf_s(why, nw, _TRUNCATE, "inside an event's trigger zone (key %03X, not fired yet): no "
+                                               "warp out of it", g_gtZoneKey[k] & 0xFFF), 0;
+    // v3.50 TP350: the faced enemy must stand in this room (GT343-001: not beyond one of its door lines; inside its box);
+    // else the next one in the cone
+    while (faced >= 0) {
+        GtFoe *f = &foe[faced];
+        float e[3], fq[3];
+        memcpy(e, f->pos, sizeof e);
+        e[1] -= 40.0f;
+        if (!EchoFloorY(e, &f->floorY)) f->floorY = f->pos[1];
+        fq[0] = f->pos[0], fq[1] = f->floorY, fq[2] = f->pos[2];
+        if (GtExitTest(g_gtExit, g_gtExitN, NULL, fq) != GTX_BEYOND && GtInBox(g_gtBoxLo, g_gtBoxHi, fq)) break;
+        ++cnt[GTS_FOE_DOOR];
+        cand[faced].skip = 1;
+        faced = GtPickFaced(cand, nf, g_gtRange, g_gtCone);
+    }
+    if (faced < 0) {  // v3.44 GT344 (c): no standing enemy she faces: the way she faces (v3.50 TP350: through walls first)
         const float from[3] = { pp[0], herFloor, pp[2] };
         const int n = GtFwdTries(g_gtFwd);
-        if (!_finite(yaw)) return sprintf_s(why, nw, "no standing enemy within %.0f u and her facing is not a number", g_gtRange), 0;
+        char tw[400];
+        int r;
+        if (!_finite(yaw))
+            return *kind = GTN_AHEAD, _snprintf_s(why, nw, _TRUNCATE, "no standing enemy she faces and her facing is not a number"), 0;
         for (k = 0; k < nf; ++k) memcpy(others[k], foe[k].pos, 12);
+        g_gtOthersP = (const float (*)[3])others, g_gtNOthers = nf;
+        if ((r = GtThruFind(pp, herFloor, yaw, pl, atWarp, tw, sizeof tw)) != 0) return 1;  // (pl->pending = r == 2)
         for (k = 0; k < n; ++k) {
             float c[3];
-            int r;
+            int rr;
             GtFwdCand(from, yaw, g_gtFwd, k, c);
-            if ((r = GtSpotTest(from, g_gtAreaHer, c, (const float (*)[3])others, nf, pl->at)) != GTS_OK) {
-                ++cnt[r];
+            if ((rr = GtSpotTest(from, g_gtAreaHer, c, (const float (*)[3])others, nf, pl->at)) != GTS_OK) {
+                ++cnt[rr];
                 continue;
             }
             pl->kind = 1, pl->yaw = yaw, pl->tries = k + 1, pl->nTries = n;
             pl->d = sqrtf((pl->at[0] - pp[0]) * (pl->at[0] - pp[0]) + (pl->at[2] - pp[2]) * (pl->at[2] - pp[2]));
             return 1;
         }
-        return sprintf_s(why, nw, "no free floor ahead of her in this room (no standing enemy within %.0f u; %d tries from %.0f "
-                         "down to %.0f u, %d door line(s): %s)", g_gtRange, n, g_gtFwd, GtFwdDist(g_gtFwd, n - 1),
-                         g_gtExitN, GtWhyList(cnt, list, sizeof list)), 0;
+        *kind = GTN_AHEAD;
+        return _snprintf_s(why, nw, _TRUNCATE, "no free floor ahead of her in this room (no standing enemy she faces within %.0f u; %d "
+                           "tries from %.0f down to %.0f u, %d door line(s): %s; %s)", g_gtRange, n, g_gtFwd, GtFwdDist(g_gtFwd, n - 1),
+                           g_gtExitN, GtWhyList(cnt, list, sizeof list), tw), 0;
     }
-    for (k = 0; k < np; ++k) {
-        GtFoe *f = &foe[order[k]];
+    {   // v3.50 TP350 A2: behind the faced enemy only (v3.43's spot rings; its floor read above)
+        GtFoe *f = &foe[faced];
         __declspec(align(16)) float q[4];
         float back[2], fq[3];
         int j, s, fromFace;
-        {   // its floor
-            float e[3];
-            memcpy(e, f->pos, sizeof e);
-            e[1] -= 40.0f;
-            if (!EchoFloorY(e, &f->floorY)) f->floorY = f->pos[1];
-        }
         fq[0] = f->pos[0], fq[1] = f->floorY, fq[2] = f->pos[2];
-        // GT343-001: an enemy standing beyond one of the room's door lines is not taken (it is at the next room)
-        if (GtExitTest(g_gtExit, g_gtExitN, NULL, fq) == GTX_BEYOND) {
-            ++cnt[GTS_FOE_DOOR];
-            continue;
-        }
         memcpy(q, ((const float *(__cdecl *)(const BYTE *))0x45CE10)(f->t), 16);
         fromFace = GtBackDir(q, f->pos, pp, back);
         for (j = 0, no = 0; j < nf; ++j)
-            if (j != order[k]) memcpy(others[no++], foe[j].pos, 12);
+            if (j != faced) memcpy(others[no++], foe[j].pos, 12);
         for (s = 0; s < GT_SPOT_N; ++s) {
             float c[3];
             int r;
@@ -539,15 +732,17 @@ static int GtFind(const float pp[3], float herFloor, GtPlan *pl, char *why, size
                 ++cnt[r];
                 continue;
             }
-            pl->kind = 0, pl->type = f->type & 0xFF, pl->foe = k + 1, pl->np = np, pl->spot = s, pl->fromFace = fromFace;
-            pl->yaw = GtFaceYaw(pl->at, f->pos), pl->d = cand[order[k]].d;
+            pl->kind = 0, pl->type = f->type & 0xFF, pl->foe = 1, pl->np = 1, pl->spot = s, pl->fromFace = fromFace;
+            pl->yaw = GtFaceYaw(pl->at, f->pos), pl->d = cand[faced].d;
             pl->gap = sqrtf((pl->at[0] - f->pos[0]) * (pl->at[0] - f->pos[0]) + (pl->at[2] - f->pos[2]) * (pl->at[2] - f->pos[2]));
+            pl->ang = cand[faced].ang / GT_DEG, pl->nCone = GtConeCount(cand, nf, g_gtRange, g_gtCone);
             return 1;
         }
+        *kind = GTN_FACED;
+        return _snprintf_s(why, nw, _TRUNCATE, "no free floor behind the enemy she faces (type %02X %.0f u, %.0f degrees off her "
+                           "facing; %d spots, %d door line(s): %s)", f->type & 0xFF, cand[faced].d, cand[faced].ang / GT_DEG, GT_SPOT_N,
+                           g_gtExitN, GtWhyList(cnt, list, sizeof list)), 0;
     }
-    return sprintf_s(why, nw, "no free floor behind the nearest %d enemy(ies) in this room (type %02X %.0f u first; %d spots, "
-                     "%d door line(s): %s)", np, foe[order[0]].type & 0xFF, cand[order[0]].d, np * GT_SPOT_N, g_gtExitN,
-                     GtWhyList(cnt, list, sizeof list)), 0;
 }
 static void GtMove(const float pp[3], const GtPlan *pl)  // the warp itself (the fade-out has ended)
 {
@@ -558,22 +753,35 @@ static void GtMove(const float pp[3], const GtPlan *pl)  // the warp itself (the
     g_gtHeld.on = 1, g_gtHeld.t = 0.0f;
     memcpy(g_gtHeld.spot, pl->at, sizeof g_gtHeld.spot);
     ++g_gtWarps;
+    ++g_gtRoomW[pl->kind >= 0 && pl->kind < 3 ? pl->kind : 1];  // v3.50 TP350: the room's counts
     g_gtCool = g_gtCoolS;
     if (g_gtHold.on && ++g_gtHold.warps > GT_HOLD_LOGN) {  // v3.49 GT349: a long hold: per tick only (its summary counts)
         LogT("ghost teleport: held, warp %d in a row: to (%.0f, %.0f)", g_gtHold.warps, pl->at[0], pl->at[2]);
         return;
     }
     if (!LogQuota(&g_gtQGo, 300)) return;
+    if (pl->kind == 2) {  // v3.50 TP350 A1
+        char ray[24];
+        if (pl->ray) sprintf_s(ray, sizeof ray, "%+.0f degrees off", GtFanYaw(0.0f, pl->ray) / GT_DEG);
+        else sprintf_s(ray, sizeof ray, "straight ahead");
+        LogV("ghost teleport: through %.0f u the way she faces (%s; the obstacle from %.0f u, %d spot(s) past it refused first; "
+             "on the room's floor map, floor %+.0f u of hers): from (%.0f, %.0f) to (%.0f, %.0f) (the fade began at (%.0f, %.0f)); "
+             "cooldown %.1f s (warp %d; same room: %d door line(s), box %s)", pl->d, ray, pl->dObst, pl->refusedBefore,
+             pl->at[1] - pp[1], pp[0], pp[2], pl->at[0], pl->at[2], g_gtFrom[0], g_gtFrom[2], g_gtCoolS, g_gtWarps, g_gtExitN,
+             g_gtBoxOk ? "in" : "unknown");
+        return;
+    }
     if (pl->kind == 1)
-        LogV("ghost teleport: ahead %.0f u the way she faces (no standing enemy within %.0f u; try %d of %d, floor %+.0f u of hers): "
+        LogV("ghost teleport: ahead %.0f u the way she faces (no standing enemy she faces within %.0f u; try %d of %d, floor %+.0f u of hers): "
              "from (%.0f, %.0f) to (%.0f, %.0f) (the fade began at (%.0f, %.0f)); cooldown %.1f s (warp %d; same room: %d door "
              "line(s), box %s)", pl->d, g_gtRange, pl->tries, pl->nTries, pl->at[1] - pp[1], pp[0], pp[2], pl->at[0], pl->at[2],
              g_gtFrom[0], g_gtFrom[2], g_gtCoolS, g_gtWarps, g_gtExitN, g_gtBoxOk ? "in" : "unknown");
     else
-        LogV("ghost teleport: behind type %02X %.0f u away (enemy %d of %d tried, spot %d: %.0f u %s, floor %+.0f u of hers): from "
-             "(%.0f, %.0f) to (%.0f, %.0f), facing it; cooldown %.1f s (warp %d; same room: %d door line(s), box %s)", pl->type,
-             pl->d, pl->foe, pl->np, pl->spot, pl->gap, pl->fromFace ? "behind its back" : "on its far side (no usable facing)",
-             pl->at[1] - pp[1], pp[0], pp[2], pl->at[0], pl->at[2], g_gtCoolS, g_gtWarps, g_gtExitN, g_gtBoxOk ? "in" : "unknown");
+        LogV("ghost teleport: behind type %02X %.0f u away (the enemy she faces, %.0f degrees off her facing, %d in the +-%.0f "
+             "degree cone; spot %d: %.0f u %s, floor %+.0f u of hers): from (%.0f, %.0f) to (%.0f, %.0f), facing it; cooldown %.1f s "
+             "(warp %d; same room: %d door line(s), box %s)", pl->type, pl->d, pl->ang, pl->nCone, g_gtCone, pl->spot, pl->gap,
+             pl->fromFace ? "behind its back" : "on its far side (no usable facing)", pl->at[1] - pp[1], pp[0], pp[2], pl->at[0],
+             pl->at[2], g_gtCoolS, g_gtWarps, g_gtExitN, g_gtBoxOk ? "in" : "unknown");  // v3.50 TP350
 }
 // v3.44 GT344: take back this tick's Action press (Run + Action, Action last): 1 = the game no longer sees it pressed
 static int GtTakeBackAction(void)
@@ -586,6 +794,47 @@ static int GtTakeBackAction(void)
                    *(volatile const DWORD *)0x107BE48);
     return 0;
 }
+// v3.50 TP350 (c): during the fade-out a new press of Action (0) or Check (0xE: the examine points, 0x52C410) is taken
+// back too (the bits of both bindings that are not Run's); v3.49 saw examines call 7 fades off 0.15 .. 0.27 s in
+static void GtTakeBackFade(void)
+{
+    const DWORD m0 = *(volatile const DWORD *)0x107A1A0, mE = *(volatile const DWORD *)(0x107A1A0 + 4 * 0xE);
+    const DWORD mRun = *(volatile const DWORD *)(0x107A1A0 + 4 * 0x10), bits = (m0 | mE) & ~mRun;
+    *(volatile DWORD *)0x1236C34 &= ~bits;  // gPad.pressed (InputGetPressedMask)
+    ++g_gtRoomBack;
+    if (!GtPressed(0) && !GtPressed(0xE)) {
+        LogT("ghost teleport: a press of Action / Check during the fade-out taken back (masks %08lX / %08lX)", m0, mE);
+        return;
+    }
+    if (LogQuota(&g_gtQBack, 10))  // (a script's override press, or a Check bound to Run's button)
+        LogAnomaly("ghost teleport", "an Action / Check press during the fade-out could not be taken back (masks %08lX / %08lX, Run "
+                   "%08lX, override %08lX)", m0, mE, mRun, *(volatile const DWORD *)0x107BE48);
+}
+// v3.50 TP350 (d): a room visit's counts, one line when it is left (or the option goes off), if it saw a try
+static void GtRoomSay(DWORD key)
+{
+    int k, o = 0, nNo = 0;
+    char list[200];
+    list[0] = 0;
+    for (k = 0; k < GTN_N; ++k) {
+        nNo += g_gtRoomNo[k];
+        if (g_gtRoomNo[k] && o < (int)sizeof list - 40)
+            o += sprintf_s(list + o, sizeof list - (size_t)o, "%s%s %d", o ? ", " : "", kGtNoKind[k], g_gtRoomNo[k]);
+    }
+    if ((g_gtRoomW[0] + g_gtRoomW[1] + g_gtRoomW[2] + nNo + g_gtRoomBack) && LogQuota(&g_gtQRoom, 300)) {
+        char map[120];
+        if (g_gtMapKey == key && g_gtMap.on)
+            sprintf_s(map, sizeof map, "%d cell(s)%s, %.1f ms over %d run(s)", g_gtMap.cells, GtMapFinished(&g_gtMap) ? ", finished" :
+                      g_gtMap.overflow ? ", OVERFLOW" : ", not finished", g_gtMapMs, g_gtMap.runs);
+        else
+            sprintf_s(map, sizeof map, "not built");
+        LogV("ghost teleport: room %d:%d left: %d warp(s) (%d through walls, %d behind the enemy she faces, %d ahead), %d refused%s%s%s; "
+             "%d Action / Check press(es) taken back in fade-outs; floor map %s", (int)(key >> 16), (int)(key & 0xFFFF),
+             g_gtRoomW[0] + g_gtRoomW[1] + g_gtRoomW[2], g_gtRoomW[2], g_gtRoomW[0], g_gtRoomW[1], nNo, nNo ? " (" : "", list,
+             nNo ? ")" : "", g_gtRoomBack, map);
+    }
+    memset(g_gtRoomW, 0, sizeof g_gtRoomW), memset(g_gtRoomNo, 0, sizeof g_gtRoomNo), g_gtRoomBack = 0;
+}
 // A chord (c: GTC_ACT_LAST / GTC_RUN_LAST) on a gameplay tick. v3.44 GT344-INPUT-1: every immediate refusal (her state,
 // a fade running, the cooldown, no enemy spot / forward spot) comes BEFORE Action is taken back: a refused chord leaves
 // the press to the game. Once the fade begins the press is the warp's: a later call-off (GtCallOff, a room change, a
@@ -593,11 +842,13 @@ static int GtTakeBackAction(void)
 // the player's hands), and the log line says so.
 // v3.49 GT349: a refusal while Run + Action are held: counted on the hold (its next try waits GT_FAIL_COOL); only the
 // hold's first refusal gets a LogV line (the rest LogT; the hold's summary counts them). 1 = log it with LogV.
-static int GtSayNo(void)
+static int GtSayNo(int kind)  // v3.50 TP350: + a quota per refusal kind (GT_NO_KIND_MAX) and the room's count
 {
     const int first = !g_gtHold.on || g_gtHold.refused == 0;
+    if (kind < 0 || kind >= GTN_N) kind = GTN_STATE;
     GtHoldRefused(&g_gtHold);
-    return first && LogQuota(&g_gtQNo, 300);
+    ++g_gtRoomNo[kind];
+    return first && LogQuota(&g_gtQNoK[kind], GT_NO_KIND_MAX) && LogQuota(&g_gtQNo, 300);
 }
 static const char *GtChordWhat(int c, int back)  // the chord line's first words (logcheck GT_CHORD)
 {
@@ -608,10 +859,10 @@ static const char *GtChordWhat(int c, int back)  // the chord line's first words
 static void GtOnChord(int c, const float pp[3])
 {
     const int maskRun = *(volatile const int *)(0x107A1A0 + 4 * 0x10), maskAct = *(volatile const int *)0x107A1A0;
-    char why[320];
+    char why[640];  // v3.50 TP350: 640 (the through-walls summary)
     float fl;
     GtPlan pl;
-    int back = 0;
+    int back = 0, kind = GTN_STATE;
     if (!GtMasksOk(maskRun, maskAct)) {  // (InputActionHeld never sees a zero mask held; a shared bit = every press a chord)
         if (!g_gtMaskSaid++) LogV("ghost teleport: Run and Action share a button (masks %08X / %08X): no chord", maskRun, maskAct);
         GtHoldReset(&g_gtHold);  // v3.49 GT349: no chord, no hold
@@ -619,7 +870,7 @@ static void GtOnChord(int c, const float pp[3])
     }
     if (!GtCanGo(pp, &fl, why, sizeof why)) {  // Action stays the game's: nothing taken back
         ++g_gtRefused;
-        if (GtSayNo()) LogV("ghost teleport: not now: %s", why);
+        if (GtSayNo(GTN_STATE)) LogV("ghost teleport: not now: %s", why);
         else LogT("ghost teleport: not now (held): %s", why);
         return;
     }
@@ -632,10 +883,10 @@ static void GtOnChord(int c, const float pp[3])
             LogV("ghost teleport: Run + Action during the cooldown (%.1f s left): no warp (Action left to the game)", g_gtCool);
         return;
     }
-    if (!GtFind(pp, fl, &pl, why, sizeof why)) {  // Action stays the game's
+    if (!GtFind(pp, fl, &pl, why, sizeof why, 0, &kind)) {  // Action stays the game's
         ++g_gtRefused;
         g_gtCool = GT_FAIL_COOL;
-        if (GtSayNo()) LogV("ghost teleport: not now: %s (Action left to the game)", why);
+        if (GtSayNo(kind)) LogV("ghost teleport: not now: %s (Action left to the game)", why);
         else LogT("ghost teleport: not now (held): %s", why);
         return;
     }
@@ -652,12 +903,16 @@ static void GtOnChord(int c, const float pp[3])
     if (c == GTC_HELD && g_gtHold.warps >= GT_HOLD_LOGN) {  // v3.49 GT349: a long hold: per tick only
         LogT("ghost teleport: Run + Action (held: the next warp, %d so far)", g_gtHold.warps);
     } else if (LogQuota(&g_gtQStart, 300)) {
-        if (pl.kind == 1)
+        if (pl.kind == 2)  // v3.50 TP350
+            LogV("ghost teleport: Run + Action (%s; a later call-off keeps it): Richard's fade out (0.5 s), then %.0f u ahead the way "
+                 "she faces, through a wall%s", GtChordWhat(c, back), pl.d, pl.pending ? " (the room's floor map is not finished: "
+                 "the warp decides)" : "");
+        else if (pl.kind == 1)
             LogV("ghost teleport: Run + Action (%s; a later call-off keeps it): Richard's fade out (0.5 s), then %.0f u ahead the way "
                  "she faces", GtChordWhat(c, back), pl.d);
         else
             LogV("ghost teleport: Run + Action (%s; a later call-off keeps it): Richard's fade out (0.5 s), then behind type %02X "
-                 "%.0f u away", GtChordWhat(c, back), pl.type, pl.d);
+                 "%.0f u away (the enemy she faces, %.0f degrees off)", GtChordWhat(c, back), pl.type, pl.d, pl.ang);
     }
 }
 static void GtCallOff(const char *why)  // the fade-out stops: she fades back in where she stands
@@ -693,6 +948,8 @@ static void GtTickC(void)
     }
     roomKey = *(volatile DWORD *)0xFD5A90 << 16 | (*(volatile DWORD *)0xFD5A94 & 0xFFFF);
     if (roomKey != g_gtRoomKey) {  // a new room: no fade or check carried over (the cooldown runs on)
+        if (g_gtRoomKey != 0xFFFFFFFFu) GtRoomSay(g_gtRoomKey);  // v3.50 TP350: the room visit's counts
+        g_gtMapKey = 0xFFFFFFFFu;                                 //   and its floor map is dropped
         g_gtRoomKey = roomKey;
         if (g_gtFade.phase != GTF_IDLE) {
             if (LogQuota(&g_gtQOff, 100)) LogV("ghost teleport: called off during the fade: a room change");
@@ -758,23 +1015,31 @@ static void GtTickC(void)
         if (h == GTH_GO) GtOnChord(GTC_HELD, pp);
         else if (h == GTH_END) GtHoldSay(play ? "let go" : "stopped by a menu, a scene or a load");
     }
+    // v3.50 TP350 (c): the fade-out owns Action: a new press of Action or Check is taken back before the game reads it
+    if (g_gtFade.phase == GTF_OUT && play && (GtPressed(0) || GtPressed(0xE))) GtTakeBackFade();
     if (g_gtFade.phase != GTF_IDLE && play) {
-        char why[320];
+        char why[640];
         float fl;
+        int kind = GTN_STATE;
         if (g_gtFade.phase == GTF_OUT && !GtCanGo(pp, &fl, why, sizeof why)) {
             GtCallOff(why);
         } else if (GtFadeStep(&g_gtFade, dt)) {  // the fade-out has ended: Richard's ScratchWarp moment
             GtPlan pl;
-            if (GtCanGo(pp, &fl, why, sizeof why) && GtFind(pp, fl, &pl, why, sizeof why)) {
+            if (!GtCanGo(pp, &fl, why, sizeof why)) kind = GTN_STATE;
+            else if (GtFind(pp, fl, &pl, why, sizeof why, 1, &kind)) {
                 GtMove(pp, &pl);
-            } else {
+                kind = -1;
+            }
+            if (kind >= 0) {
                 ++g_gtRefused;
                 g_gtCool = GT_FAIL_COOL;
-                if (GtSayNo()) LogV("ghost teleport: not now: at the end of the fade-out: %s (she fades back in where she is)", why);
+                if (GtSayNo(kind)) LogV("ghost teleport: not now: at the end of the fade-out: %s (she fades back in where she is)", why);
                 else LogT("ghost teleport: not now (held): at the end of the fade-out: %s", why);
             }
         } else if (g_gtFade.phase == GTF_IDLE) {
             GtFadeEnded();
+        } else if (g_gtFade.phase == GTF_OUT && g_gtMapKey == GtRoomKeyNow()) {
+            GtMapGrow(GT_MAP_TICK);  // v3.50 TP350: an unfinished floor map is built on through the fade-out
         }
     }
     GtDrawSync(GtFadeSee(&g_gtFade));
@@ -844,17 +1109,18 @@ static void GtTextOn(void)  // the On line carries the cooldown in force
 static void GtTexts(void)
 {
     Encode(g_txtGt[GTM_L], 64, "Ghost Teleport");
-    Encode(g_txtGt[GTM_D0], 64, "Warp behind the nearest enemy, or ahead, like Richard.");  // v3.44 GT344
+    Encode(g_txtGt[GTM_D0], 64, "Warp behind the enemy you face, or ahead through walls.");  // v3.44 GT344  // v3.50 TP350
     GtTextOn();
     Encode(g_txtGt[GTM_NA], 64, "Not available in this game (see SH4Refined.log).");
 }
 static int GtParse(const char *s) { return !_stricmp(s, "On") || !strcmp(s, "1"); }
-// the hidden keys GhostTeleportRange / Cooldown / Sound / (v3.44 GT344) Forward; 1 = something changed
+// the hidden keys GhostTeleportRange / Cooldown / Sound / (v3.44 GT344) Forward / (v3.50 TP350) Cone, ThroughWalls;
+// 1 = something changed
 static int GtReadKeys(void)
 {
     char buf[32];
-    float range, cool, fwd;
-    LONG snd;
+    float range, cool, fwd, cone;
+    LONG snd, thru;
     int ch;
     GetPrivateProfileStringA("Gameplay", "GhostTeleportRange", "", buf, sizeof buf, g_iniPath);
     range = GtRangeKey(buf[0] != 0, buf[0] ? (float)atof(buf) : 0.0f);
@@ -863,8 +1129,11 @@ static int GtReadKeys(void)
     GetPrivateProfileStringA("Gameplay", "GhostTeleportForward", "", buf, sizeof buf, g_iniPath);
     fwd = GtFwdKey(buf[0] != 0, buf[0] ? (float)atof(buf) : 0.0f);
     snd = GetPrivateProfileIntA("Gameplay", "GhostTeleportSound", 1, g_iniPath) != 0;
-    ch = range != g_gtRange || cool != g_gtCoolS || snd != g_gtSound || fwd != g_gtFwd;
-    g_gtRange = range, g_gtCoolS = cool, g_gtSound = snd, g_gtFwd = fwd;
+    GetPrivateProfileStringA("Gameplay", "GhostTeleportCone", "", buf, sizeof buf, g_iniPath);  // v3.50 TP350
+    cone = GtConeKey(buf[0] != 0, buf[0] ? (float)atof(buf) : 0.0f);
+    thru = GetPrivateProfileIntA("Gameplay", "GhostTeleportThroughWalls", 1, g_iniPath) != 0;
+    ch = range != g_gtRange || cool != g_gtCoolS || snd != g_gtSound || fwd != g_gtFwd || cone != g_gtCone || thru != g_gtThruOn;
+    g_gtRange = range, g_gtCoolS = cool, g_gtSound = snd, g_gtFwd = fwd, g_gtCone = cone, g_gtThruOn = thru;
     if (ch) GtTextOn();
     return ch;
 }
@@ -881,8 +1150,9 @@ static void GtIniReread(void)  // under GpLock (GpIniReread)
     int v;
     if (g_iniFallback) return;
     if (GtReadKeys())
-        Log("gameplay: [Gameplay] GhostTeleportRange / Cooldown / Sound / Forward read again: %.0f u, %.1f s, sound %s, ahead %.0f u",
-            g_gtRange, g_gtCoolS, g_gtSound ? "on" : "off", g_gtFwd);
+        Log("gameplay: [Gameplay] GhostTeleportRange / Cooldown / Sound / Forward / Cone / ThroughWalls read again: %.0f u, %.1f s, "
+            "sound %s, ahead %.0f u, +-%.0f degrees, through walls %s", g_gtRange, g_gtCoolS, g_gtSound ? "on" : "off", g_gtFwd,
+            g_gtCone, g_gtThruOn ? "on" : "off");  // v3.50 TP350
     if (g_gtUnsaved) return;
     GetPrivateProfileStringA("Gameplay", "GhostTeleport", kGtName[g_gtSet ? 1 : 0], buf, sizeof buf, g_iniPath);
     v = GtParse(buf);
@@ -933,7 +1203,19 @@ static void GtInstall(void)  // GameplayInstall (after the ini read): no exe pat
         { 0x507240, { 0xE8, 0xAB, 0x2C, 0xF2, 0xFF, 0xE8, 0xD6, 0x2C, 0xF2, 0xFF, 0xC7, 0x44, 0x24, 0x04, 0x08, 0x00 }, 16 },  // his post-draw
         { 0x52AE88, { 0x8B, 0xB7, 0x1C, 0x04, 0x00, 0x00, 0x8B, 0x46, 0x24, 0x85, 0xC0, 0x74, 0x06, 0x57, 0xFF, 0xD0 }, 16 },  // pre-draw call
         { 0x52AEBD, { 0x8B, 0x76, 0x28, 0x85, 0xF6, 0x74, 0x06, 0x57, 0xFF, 0xD6 }, 10 } };  // post-draw call
-    int i, ok = 1, fade = 1;
+    // v3.50 TP350: the through-warp's collision queries (noclip_world.h's; the same bytes noclip.inc relies on)
+    static const Site kWorld[] = {
+        { 0x561CD0, { 0x55, 0x8B, 0xEC, 0x83, 0xE4, 0xF0, 0x83, 0xEC, 0x24, 0x53, 0x56, 0x57 }, 12 },  // the tree2 line's plane
+        { 0x41E9C0, { 0x8B, 0x4C, 0x24, 0x08, 0x56, 0x8B, 0x74, 0x24, 0x08, 0xD9, 0x46, 0x08 }, 12 },  // the point on it
+        { 0x561B80, { 0xA1, 0x74, 0x6D, 0x2F, 0x01, 0x85, 0xC0, 0x75, 0x03, 0x33, 0xC0, 0xC3 }, 12 },  // the sphere's polygons
+        { 0x561CB0, { 0xA1, 0x78, 0x6D, 0x2F, 0x01, 0x85, 0xC0, 0x75, 0x01, 0xC3, 0x8B, 0x4C }, 12 },  // inside solid
+        { 0x561CA0, { 0x8B, 0x0D, 0x78, 0x6D, 0x2F, 0x01, 0x33, 0xC0, 0x85, 0xC9, 0x0F, 0x95 }, 12 } };  // tree2 present
+    int i, ok = 1, fade = 1, world = 1;
+    for (i = 0; i < (int)(sizeof kWorld / sizeof kWorld[0]); ++i)
+        if (!SiteOk(&kWorld[i])) {
+            Log("ghost teleport: %08lX is not the game's code (another mod?): no warp through walls", kWorld[i].va);
+            world = 0;
+        }
     for (i = 0; i < (int)(sizeof kFn / sizeof kFn[0]); ++i)
         if (!SiteOk(&kFn[i])) {
             Log("ghost teleport: %08lX is not the game's code (another mod?): the option does nothing", kFn[i].va);
@@ -948,12 +1230,15 @@ static void GtInstall(void)  // GameplayInstall (after the ini read): no exe pat
     GtFadeReset(&g_gtFade);
     GtHoldReset(&g_gtHold);  // v3.49 GT349
     g_gtFadeOk = fade;
+    g_gtWorldOk = world;  // v3.50 TP350
     g_gtReady = ok;
     Log("ghost teleport: %s (no exe patch; %d game functions checked), [Gameplay] GhostTeleport %s; Run + Action together "
-        "(within %.0f ms): behind the nearest standing enemy within %.0f u, else %.0f u ahead the way she faces, cooldown %.1f s; "
+        "(within %.0f ms): behind the standing enemy she faces (+-%.0f degrees) within %.0f u, else up to %.0f u ahead the way she "
+        "faces, through walls %s (onto floor a route of the room reaches), cooldown %.1f s; "  // v3.50 TP350
         "held: the next warp once she has faded in; never across or into a walk-in event zone; "  // v3.49 GT349
         "Richard's transition: his warp sound 0xEC86 %s, his see-through fade (%.1f s out, %.1f s in) on her model %s",
-        ok ? "in" : "OFF", (int)(sizeof kFn / sizeof kFn[0] + sizeof kFade / sizeof kFade[0]), kGtName[g_gtSet ? 1 : 0],
-        GT_CHORD_S * 1000.0f, g_gtRange, g_gtFwd, g_gtCoolS, g_gtSound ? "on" : "off", GT_FADE_S, GT_FADE_S, fade ? "in" : "OFF");
+        ok ? "in" : "OFF", (int)(sizeof kFn / sizeof kFn[0] + sizeof kFade / sizeof kFade[0] + sizeof kWorld / sizeof kWorld[0]),
+        kGtName[g_gtSet ? 1 : 0], GT_CHORD_S * 1000.0f, g_gtCone, g_gtRange, g_gtFwd, !g_gtThruOn ? "off" : world ? "on" : "OFF",
+        g_gtCoolS, g_gtSound ? "on" : "off", GT_FADE_S, GT_FADE_S, fade ? "in" : "OFF");
     if (!ok && g_gtSet) LogAnomaly("ghost teleport", "[Gameplay] GhostTeleport is On but its game functions are not stock: the option does nothing");
 }

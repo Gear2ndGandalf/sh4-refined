@@ -261,7 +261,7 @@ static void Pick(void)
     c[0].d = 900.0f, c[0].ok = 1;
     c[1].d = 300.0f, c[1].ok = 0;               // down
     c[2].d = 400.0f, c[2].ok = 1;
-    c[3].d = 2600.0f, c[3].ok = 1;              // out of range
+    c[3].d = 6000.0f, c[3].ok = 1;              // out of range  // v3.50 TP350: 6000 (the range is 5000 now)
     c[4].d = 200.0f, c[4].ok = 1, c[4].dy = -700.0f;  // another floor
     c[5].d = 1200.0f, c[5].ok = 1;
     c[6].d = 100.0f, c[6].ok = 1, c[6].dy = 300.0f;
@@ -426,9 +426,10 @@ static void Rooms(void)
 
 static void Keys(void)
 {
-    Check(GtRangeKey(0, 0.0f) == GT_RANGE_DEF && GtRangeKey(1, -5.0f) == GT_RANGE_DEF, "range: missing or bad = 2500");
-    Check(GtRangeKey(1, 100.0f) == GT_RANGE_MIN && GtRangeKey(1, 9000.0f) == GT_RANGE_MAX && GtRangeKey(1, 1800.0f) == 1800.0f,
-          "range: clamped 500 .. 6000");
+    Check(GtRangeKey(0, 0.0f) == GT_RANGE_DEF && GtRangeKey(1, -5.0f) == GT_RANGE_DEF && GT_RANGE_DEF == 5000.0f,
+          "range: missing or bad = 5000 (v3.50 TP350: was 2500)");
+    Check(GtRangeKey(1, 100.0f) == GT_RANGE_MIN && GtRangeKey(1, 20000.0f) == GT_RANGE_MAX && GtRangeKey(1, 1800.0f) == 1800.0f &&
+          GtRangeKey(1, 2500.0f) == 2500.0f && GtRangeKey(1, 9000.0f) == 9000.0f, "range: clamped 500 .. 12000 (an old 2500 still reads)");
     Check(GtCoolKey(0, 0.0f) == GT_COOL_DEF && GtCoolKey(1, 0.1f) == GT_COOL_MIN && GtCoolKey(1, 99.0f) == GT_COOL_MAX &&
           GtCoolKey(1, 5.0f) == 5.0f, "cooldown: the default, clamped 0.5 .. 30");
     // v3.49 GT349: no cooldown unless the ini asks for one; an old explicit value still reads
@@ -607,6 +608,379 @@ static void Zones(void)
     }
 }
 
+// ================================================================ v3.50 TP350: through walls, the faced enemy, the reach
+// A box world like the game's (y grows downwards): the ground's top at y 0 (solid below it) except pits (its top lower),
+// solid boxes (walls, props, raised floors). The queries the flood and the ahead search ask, answered exactly.
+typedef struct { float x0, x1, y0, y1, z0, z1; } TBox;  // solid where x0 <= x <= x1, y0 <= y <= y1 (y0 the top), z0 <= z <= z1
+typedef struct { float x0, x1, z0, z1, top; } TPit;      // the ground's top is `top` inside it
+typedef struct { TBox b[24]; int nb; TPit p[4]; int np; int unknown; } TWorld;
+static float TGround(const TWorld *t, float x, float z)
+{
+    int i;
+    for (i = 0; i < t->np; ++i)
+        if (x >= t->p[i].x0 && x <= t->p[i].x1 && z >= t->p[i].z0 && z <= t->p[i].z1) return t->p[i].top;
+    return 0.0f;
+}
+static int TSolidAt(const TWorld *t, float x, float y, float z)
+{
+    int i;
+    if (y > TGround(t, x, z)) return 1;
+    for (i = 0; i < t->nb; ++i) {
+        const TBox *b = &t->b[i];
+        if (x > b->x0 && x < b->x1 && y > b->y0 && y < b->y1 && z > b->z0 && z < b->z1) return 1;
+    }
+    return 0;
+}
+static int TSolid(void *c, float x, float y, float z) { return ((TWorld *)c)->unknown ? -1 : TSolidAt((TWorld *)c, x, y, z); }
+static int TFloor(void *c, float x, float yTop, float yBot, float z, float *fy)
+{
+    const TWorld *t = (const TWorld *)c;
+    float best = TGround(t, x, z);
+    int i;
+    if (t->unknown) return -1;
+    if (TSolidAt(t, x, yTop, z)) return 0;  // (the game's tree2 line finds none from inside solid)
+    for (i = 0; i < t->nb; ++i) {
+        const TBox *b = &t->b[i];
+        if (x > b->x0 && x < b->x1 && z > b->z0 && z < b->z1 && b->y0 > yTop && b->y0 < best) best = b->y0;
+    }
+    if (!(best > yTop && best <= yBot)) return 0;
+    *fy = best;
+    return 1;
+}
+static float TClamp(float v, float a, float b) { return v < a ? a : v > b ? b : v; }
+static int TSphere(void *c, float x, float y, float z, float r)
+{
+    const TWorld *t = (const TWorld *)c;
+    int i, n = 0;
+    if (t->unknown) return -1;
+    if (y + r > TGround(t, x, z)) ++n;  // (the ground under it; a pit's edge is not modelled for spheres)
+    for (i = 0; i < t->nb; ++i) {
+        const TBox *b = &t->b[i];
+        const float dx = x - TClamp(x, b->x0, b->x1), dy = y - TClamp(y, b->y0, b->y1), dz = z - TClamp(z, b->z0, b->z1);
+        n += dx * dx + dy * dy + dz * dz < r * r;
+    }
+    return n;
+}
+static int TLine(void *c, const float a[3], const float b[3])  // sampled every 2 u (exact enough for 40 u walls)
+{
+    const TWorld *t = (const TWorld *)c;
+    const float dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2], l = sqrtf(dx * dx + dy * dy + dz * dz);
+    const int n = (int)(l / 2.0f) + 1;
+    int i;
+    if (t->unknown) return -1;
+    for (i = 0; i <= n; ++i) {
+        const float u = (float)i / (float)n;
+        if (TSolidAt(t, a[0] + dx * u, a[1] + dy * u, a[2] + dz * u)) return 1;
+    }
+    return 0;
+}
+static void TWall(TWorld *t, float x0, float x1, float z0, float z1, float h)  // a box from the ground up h
+{
+    TBox *b = &t->b[t->nb++];
+    b->x0 = x0, b->x1 = x1, b->z0 = z0, b->z1 = z1, b->y0 = -h, b->y1 = 0.0f;
+}
+// teleport.inc's land test on this world (its order; the game's own floor ray and room-to-stand are the floor query here)
+enum { TL_OK, TL_BOX, TL_DOOR, TL_ZONE, TL_WALL, TL_FLOOR, TL_LEDGE, TL_BODY, TL_ROUTE, TL_PENDING, TL_N };
+typedef struct {
+    GtWorld w;
+    TWorld t;
+    float her[3], lo[3], hi[3];
+    GtExit x[4];
+    int nx;
+    GtZone z[4];
+    int nz;
+    GtMap *m;
+    int mapCells;  // cells the map may expand before the search (default: all)
+} TScene;
+static int TOpen(void *c, const float p[3])
+{
+    TScene *s = (TScene *)c;
+    return p[0] >= s->lo[0] && p[0] <= s->hi[0] && p[2] >= s->lo[2] && p[2] <= s->hi[2] && GtThruOpen(&s->w, s->her, p);
+}
+static int TLand(void *c, const float p[3], float out[3])
+{
+    TScene *s = (TScene *)c;
+    float fy, hp[3];
+    int r;
+    if (!GtInBox(s->lo, s->hi, p)) return TL_BOX;
+    if (GtExitTest(s->x, s->nx, s->her, p) != GTX_OK) return TL_DOOR;
+    if (GtZonesHit(s->z, s->nz, s->her, p) >= 0) return TL_ZONE;
+    if (TSolidAt(&s->t, p[0], s->her[1] - 60.0f, p[2])) return TL_WALL;
+    if (!TFloor(&s->t, p[0], s->her[1] - 60.0f, s->her[1] + 6000.0f, p[2], &fy)) return TL_FLOOR;
+    if (fabsf(fy - s->her[1]) > GT_FLOOR_TOL) return TL_LEDGE;
+    if (!GtBodyFree(&s->w, p[0], fy, p[2])) return TL_BODY;
+    hp[0] = p[0], hp[1] = fy, hp[2] = p[2];
+    memcpy(out, hp, sizeof hp);
+    r = GtMapHas(s->m, &s->w, hp);
+    return r == GTM_HAS ? TL_OK : r == GTM_UNKNOWN ? TL_PENDING : TL_ROUTE;
+}
+static GtMap g_tMap;  // (~200 KB: static)
+static void TSceneInit(TScene *s, float half)  // her at the origin facing +z; the room's box +-half; no door
+{
+    memset(s, 0, sizeof *s);
+    s->w.ctx = &s->t, s->w.floorAt = TFloor, s->w.sphere = TSphere, s->w.line = TLine, s->w.solid = TSolid;
+    s->lo[0] = s->lo[2] = -half, s->hi[0] = s->hi[2] = half, s->lo[1] = -2000.0f, s->hi[1] = 2000.0f;
+    s->m = &g_tMap, s->mapCells = 1 << 30;
+}
+static void TDoor(TScene *s, float x, float z)  // a door line across x - 100 .. x + 100 at z, its room side toward the origin
+{
+    GtExit *e = &s->x[s->nx++];
+    const float side = z > 0.0f ? -150.0f : 150.0f;
+    e->x0 = x - 100.0f, e->x1 = x + 100.0f, e->z0 = e->z1 = z, e->y = 0.0f, e->px = x, e->pz = z + side;
+}
+static void TMap(TScene *s)  // teleport.inc's map: the room's box and doors; seeds: every door's point, her feet
+{
+    int k;
+    GtMapBegin(s->m, s->lo, s->hi, s->x, s->nx);
+    for (k = 0; k < s->nx; ++k) GtMapSeed(s->m, &s->w, s->x[k].px, s->x[k].y, s->x[k].pz, GT_MAP_SEED_DY);
+    GtMapSeed(s->m, &s->w, s->her[0], s->her[1], s->her[2], GT_REACH_UP);
+    GtMapRun(s->m, &s->w, s->mapCells);
+}
+static int TThru(TScene *s, float yaw, float dist, GtThru *t, int *cnt, int *nObst)
+{
+    GtThruFns f;
+    f.ctx = s, f.open = TOpen, f.land = TLand, f.pending = TL_PENDING;
+    memset(cnt, 0, sizeof(int) * TL_N);
+    TMap(s);
+    return GtThruSearch(&f, s->her, yaw, dist, t, cnt, TL_N, nObst);
+}
+static void Through(void)
+{
+    static TScene s;
+    GtThru t;
+    int cnt[TL_N], nObst, ok;
+    // 1. a full-width wall 40 thick at z 300 .. 340; a door at the far end (z 1900): through it, the nearest spot where
+    //    her body (70 u spheres) fits past the wall: 340 + 70 -> the sample at 440
+    TSceneInit(&s, 2000.0f);
+    TWall(&s.t, -2100.0f, 2100.0f, 300.0f, 340.0f, 1000.0f);
+    TDoor(&s, 0.0f, 1900.0f);
+    ok = TThru(&s, 0.0f, 800.0f, &t, cnt, &nObst);
+    Check(ok == 1 && t.ray == 0 && t.k == 11 && t.kObst == 8 && Near(t.at[2], 440.0f, 0.5f) && Near(t.at[1], 0.0f, 0.1f) &&
+          Near(t.yaw, 0.0f, 1e-6f) && t.refused == 2 && cnt[TL_BODY] >= 1 && nObst >= 1,
+          "through: a wall 40 thick at 300: the nearest spot past it where her body fits (440), straight ahead, her facing kept");
+    Check(s.m->seeds == 2 && GtMapFinished(s.m) && s.m->cells > 1000, "through: the room's floor map: from its door and her feet, finished");
+    // 1b. v3.50 TP350-001 (Codex inspection 1): the nearest answer of ALL rays wins. The same wall plus a block 80 wide
+    //     (z 340 .. 700) right behind it on the straight ray: straight ahead lands only past the block (800); the +20 degree
+    //     ray clears the block's side just past the wall (k 11, 440): that one is taken, not the straight ray's
+    TSceneInit(&s, 2000.0f);
+    TWall(&s.t, -2100.0f, 2100.0f, 300.0f, 340.0f, 1000.0f);
+    TWall(&s.t, -40.0f, 40.0f, 340.0f, 700.0f, 1000.0f);
+    TDoor(&s, 0.0f, 1900.0f);
+    ok = TThru(&s, 0.0f, 800.0f, &t, cnt, &nObst);
+    printf("  (1b: ok %d ray %d k %d at %.0f %.0f)\n", ok, t.ray, t.k, t.at[0], t.at[2]);
+    Check(ok == 1 && t.ray != 0 && t.k <= 12, "through: the nearest landing of all rays wins (a side ray at 440, not straight ahead at 800)");
+    // 2. no obstacle within the warp distance: none (the v3.44 warp ahead, farthest first, applies)
+    TSceneInit(&s, 2000.0f);
+    TDoor(&s, 0.0f, 1900.0f);
+    Check(!TThru(&s, 0.0f, 800.0f, &t, cnt, &nObst) && nObst == 0, "through: open floor ahead: no through-wall spot, no obstacle");
+    // 3. a closed space past the wall (a second wall at 700 .. 740): no spot there has a route; with 800 u nothing fits,
+    //    with 1200 the spot past the second wall (740 + 70 -> 840: the door's side)
+    TSceneInit(&s, 600.0f);
+    TWall(&s.t, -700.0f, 700.0f, 300.0f, 340.0f, 1000.0f);  // (the walls run past the room's box: no way round at its edge)
+    TWall(&s.t, -700.0f, 700.0f, 700.0f, 740.0f, 1000.0f);
+    s.hi[2] = 2000.0f;
+    TDoor(&s, 0.0f, 1900.0f);
+    ok = TThru(&s, 0.0f, 800.0f, &t, cnt, &nObst);
+    Check(!ok && cnt[TL_ROUTE] >= 5 && cnt[TL_PENDING] == 0, "through: a closed space past the wall (no door, not her floor): refused (no route), every ray");
+    ok = TThru(&s, 0.0f, 1200.0f, &t, cnt, &nObst);
+    Check(ok == 1 && t.k == 21 && Near(t.at[2], 840.0f, 0.5f), "through: with 1200 u the spot past the second wall (840): the door's floor");
+    // ... the map not finished yet: the nearest candidate is "not known yet" (2), nothing farther is taken before it
+    s.mapCells = 10;
+    ok = TThru(&s, 0.0f, 1200.0f, &t, cnt, &nObst);
+    Check(ok == 2 && t.k == 11 && !GtMapFinished(s.m), "through: an unfinished map: the nearest candidate is pending (the warp decides)");
+    // 4. a turnstile-like barrier 120 high (below her chest): an obstacle by the low line; past it at 400 (her lower
+    //    sphere 60 u from it, the upper one clears its top); the route: the door past it
+    TSceneInit(&s, 2000.0f);
+    TWall(&s.t, -2100.0f, 2100.0f, 300.0f, 320.0f, 120.0f);
+    TDoor(&s, 0.0f, 1900.0f);
+    ok = TThru(&s, 0.0f, 800.0f, &t, cnt, &nObst);
+    Check(ok == 1 && t.kObst == 8 && t.k == 10 && Near(t.at[2], 400.0f, 0.5f), "through: a barrier 120 high (a turnstile): past it at 400");
+    // ... the same barrier with no door past it: a closed pen
+    TSceneInit(&s, 600.0f);
+    TWall(&s.t, -700.0f, 700.0f, 300.0f, 320.0f, 120.0f);
+    Check(!TThru(&s, 0.0f, 800.0f, &t, cnt, &nObst) && cnt[TL_ROUTE] > 0, "through: past a barrier into a pen without a door: refused");
+    // ... a low step of 30 (she walks over it): no obstacle at all
+    TSceneInit(&s, 2000.0f);
+    TWall(&s.t, -2100.0f, 2100.0f, 300.0f, 320.0f, 30.0f);
+    Check(!TThru(&s, 0.0f, 800.0f, &t, cnt, &nObst) && nObst == 0, "through: a 30 u step is no obstacle (the warp ahead applies)");
+    // 5. a gap in the floor (a pit from 300 to 500, its floor 500 down): past it at 520 (the far floor at her level)
+    TSceneInit(&s, 2000.0f);
+    s.t.p[0].x0 = -2100.0f, s.t.p[0].x1 = 2100.0f, s.t.p[0].z0 = 300.0f, s.t.p[0].z1 = 500.0f, s.t.p[0].top = 500.0f, s.t.np = 1;
+    TDoor(&s, 0.0f, 1900.0f);
+    ok = TThru(&s, 0.0f, 800.0f, &t, cnt, &nObst);
+    Check(ok == 1 && t.kObst == 8 && t.k == 13 && Near(t.at[1], 0.0f, 0.1f) && cnt[TL_LEDGE] >= 4,
+          "through: a pit 200 wide: its floor 500 down (another level, refused), the far side at 520");
+    // 6. a pillar (60 x 60) straight ahead: past it at 440; its floor is hers (round the pillar)
+    TSceneInit(&s, 2000.0f);
+    TWall(&s.t, -30.0f, 30.0f, 300.0f, 360.0f, 1000.0f);
+    ok = TThru(&s, 0.0f, 800.0f, &t, cnt, &nObst);
+    Check(ok == 1 && t.ray == 0 && t.k == 11 && s.m->seeds == 1, "through: a pillar ahead: past it (440); its floor: hers (no door needed)");
+    // 7. the fan: a block 120 wide from 300 on to the room's end straight ahead (no spot on that ray): the +10 degree ray
+    //    leaves its side and lands where her body clears it (x >= 60 + 70)
+    TSceneInit(&s, 2000.0f);
+    TWall(&s.t, -60.0f, 60.0f, 300.0f, 2100.0f, 1000.0f);
+    ok = TThru(&s, 0.0f, 800.0f, &t, cnt, &nObst);
+    Check(ok == 1 && t.ray == 1 && t.k == 19 && t.at[0] >= 130.0f && Near(t.yaw, 0.0f, 1e-6f),
+          "through: a long block straight ahead: the +10 degree ray's spot (her facing kept)");
+    // 8. a walk-in event zone past the wall on the straight path (z 360 .. 1000, full width): refused on every ray
+    TSceneInit(&s, 2000.0f);
+    TWall(&s.t, -2100.0f, 2100.0f, 300.0f, 340.0f, 1000.0f);
+    TDoor(&s, 0.0f, 1900.0f);
+    s.z[0].x = 0.0f, s.z[0].y = 0.0f, s.z[0].z = 680.0f, s.z[0].shape = 2, s.z[0].sx = 4000.0f, s.z[0].sy = 300.0f, s.z[0].sz = 640.0f;
+    s.nz = 1;
+    ok = TThru(&s, 0.0f, 800.0f, &t, cnt, &nObst);
+    Check(!ok && cnt[TL_ZONE] > 0 && cnt[TL_ROUTE] == 0, "through: a walk-in zone past the wall on the way: refused");
+    // ... the same zone beyond the spot (z 600 .. 1000): the spot at 440 goes
+    s.z[0].z = 800.0f, s.z[0].sz = 400.0f;
+    ok = TThru(&s, 0.0f, 800.0f, &t, cnt, &nObst);
+    Check(ok == 1 && t.k == 11, "through: a walk-in zone beyond the spot: the spot short of it goes");
+    // 9. a door line in the wall (the next room past it): refused (through a doorway)
+    TSceneInit(&s, 2000.0f);
+    TWall(&s.t, -2100.0f, 2100.0f, 300.0f, 340.0f, 1000.0f);
+    s.x[0].x0 = -500.0f, s.x[0].x1 = 500.0f, s.x[0].z0 = s.x[0].z1 = 320.0f, s.x[0].px = 0.0f, s.x[0].pz = 100.0f, s.nx = 1;
+    Check(!TThru(&s, 0.0f, 800.0f, &t, cnt, &nObst) && cnt[TL_DOOR] > 0, "through: a door line in the wall: never into the next room");
+    // 10. no floor past the wall at all (the room's outside: the ground 9000 down): refused
+    TSceneInit(&s, 2000.0f);
+    TWall(&s.t, -2100.0f, 2100.0f, 300.0f, 340.0f, 1000.0f);
+    s.t.p[0].x0 = -2100.0f, s.t.p[0].x1 = 2100.0f, s.t.p[0].z0 = 340.0f, s.t.p[0].z1 = 2100.0f, s.t.p[0].top = 9000.0f, s.t.np = 1;
+    Check(!TThru(&s, 0.0f, 800.0f, &t, cnt, &nObst) && cnt[TL_FLOOR] > 0 && cnt[TL_ROUTE] == 0, "through: no floor past the wall: refused");
+    // ... another level past the wall (100 lower): refused
+    s.t.p[0].top = 100.0f;
+    Check(!TThru(&s, 0.0f, 800.0f, &t, cnt, &nObst) && cnt[TL_LEDGE] > 0, "through: a floor 100 lower past the wall: refused (another level)");
+    // 11. a low ceiling past the wall (a slab 250 above the floor): no head room
+    TSceneInit(&s, 2000.0f);
+    TWall(&s.t, -2100.0f, 2100.0f, 300.0f, 340.0f, 1000.0f);
+    TDoor(&s, 0.0f, 1900.0f);
+    s.t.b[s.t.nb].x0 = -2100.0f, s.t.b[s.t.nb].x1 = 2100.0f, s.t.b[s.t.nb].z0 = 340.0f, s.t.b[s.t.nb].z1 = 1000.0f;
+    s.t.b[s.t.nb].y0 = -400.0f, s.t.b[s.t.nb].y1 = -250.0f, ++s.t.nb;
+    ok = TThru(&s, 0.0f, 800.0f, &t, cnt, &nObst);
+    Check(!ok && cnt[TL_BODY] > 0, "through: a ceiling 250 above the floor past the wall: no head room, refused");
+    // 12. a query that cannot answer: nothing is open, nothing lands (fail closed)
+    TSceneInit(&s, 2000.0f);
+    s.t.unknown = 1;
+    Check(!TThru(&s, 0.0f, 800.0f, &t, cnt, &nObst), "through: the collision cannot answer: no spot");
+    // 13. the samples: every 40 u up to the distance; off below 40; capped
+    Check(GtThruSamples(800.0f) == 20 && GtThruSamples(820.0f) == 20 && GtThruSamples(39.0f) == 0 && GtThruSamples(0.0f) == 0 &&
+          GtThruSamples(1e6f) == GT_THRU_SAMPLES && GtThruSamples(NAN) == 0, "through: the samples per ray");
+    Check(Near(GtFanYaw(1.0f, 0), 1.0f, 1e-6f) && Near(GtFanYaw(1.0f, 1), 1.0f + GT_FAN_STEP, 1e-6f) &&
+          Near(GtFanYaw(1.0f, 4), 1.0f - 2.0f * GT_FAN_STEP, 1e-6f), "through: the fan (0, +10, -10, +20, -20 degrees)");
+}
+// the room's floor map itself: stairs, a step too high, levels, the door line, the grid, the queue, built in parts
+static void Reach(void)
+{
+    static TScene s;
+    const float top[3] = { 0.0f, -240.0f, 1700.0f }, below[3] = { 0.0f, 0.0f, 600.0f };
+    int k, n;
+    // stairs up: treads 80 deep, risers 40, from z 1000 on (6 steps, the top floor 240 up); her feet below: the top is reached
+    TSceneInit(&s, 2000.0f);
+    for (k = 0; k < 6; ++k) TWall(&s.t, -2100.0f, 2100.0f, 1000.0f + 80.0f * (float)k, 2100.0f, 40.0f * (float)(k + 1));
+    TMap(&s);
+    Check(GtMapHas(s.m, &s.w, top) == GTM_HAS && GtMapHas(s.m, &s.w, below) == GTM_HAS, "map: up a flight of stairs (risers 40)");
+    // risers of 60 (more than she climbs): the top is not reached
+    TSceneInit(&s, 2000.0f);
+    for (k = 0; k < 6; ++k) TWall(&s.t, -2100.0f, 2100.0f, 1000.0f + 80.0f * (float)k, 2100.0f, 60.0f * (float)(k + 1));
+    TMap(&s);
+    {
+        const float top6[3] = { 0.0f, -360.0f, 1700.0f };
+        Check(GtMapFinished(s.m) && GtMapHas(s.m, &s.w, top6) == GTM_NOT, "map: risers of 60: the top is not the room's floor");
+        Check(GtMapHas(s.m, &s.w, (const float[3]){ 0.0f, -100.0f, 600.0f }) == GTM_NOT, "map: a spot at another level than the cell's: not held");
+    }
+    // a door line: the floor past it is not the room's (and a seed there is refused)
+    TSceneInit(&s, 2000.0f);
+    s.x[0].x0 = -2100.0f, s.x[0].x1 = 2100.0f, s.x[0].z0 = s.x[0].z1 = 1000.0f, s.x[0].px = 0.0f, s.x[0].pz = 800.0f, s.nx = 1;
+    TMap(&s);
+    Check(GtMapHas(s.m, &s.w, (const float[3]){ 0.0f, 0.0f, 1200.0f }) == GTM_NOT && GtMapHas(s.m, &s.w, below) == GTM_HAS,
+          "map: never past one of the room's door lines");
+    Check(GtMapSeed(s.m, &s.w, 0.0f, 0.0f, 1200.0f, GT_REACH_UP) == -1 && GtMapSeed(s.m, &s.w, 0.0f, 0.0f, 600.0f, GT_REACH_UP) == 0,
+          "map: a seed past a door line is refused; one on the map's floor adds nothing");
+    Check(GtExitBeyond(s.x, 1, (const float[3]){ 0.0f, 0.0f, 1100.0f }) && !GtExitBeyond(s.x, 1, (const float[3]){ 0.0f, 0.0f, 900.0f }) &&
+          !GtExitBeyond(s.x, 1, (const float[3]){ 0.0f, -900.0f, 1100.0f }), "map: the far side of a door line (at its level only)");
+    // a seed without a floor; off the grid; no map without a box
+    TSceneInit(&s, 2000.0f);
+    s.t.p[0].x0 = 500.0f, s.t.p[0].x1 = 700.0f, s.t.p[0].z0 = 500.0f, s.t.p[0].z1 = 700.0f, s.t.p[0].top = 9000.0f, s.t.np = 1;
+    TMap(&s);
+    Check(GtMapSeed(s.m, &s.w, 600.0f, 0.0f, 600.0f, GT_REACH_UP) == -1 && GtMapSeed(s.m, &s.w, 9000.0f, 0.0f, 0.0f, GT_REACH_UP) == -1 &&
+          s.m->seedsNoFloor == 2 && GtMapHas(s.m, &s.w, (const float[3]){ 9000.0f, 0.0f, 0.0f }) == GTM_NONE,
+          "map: seeds without a floor or off the grid: none; a spot off the grid: no map");
+    // a spot whose own cell's centre (100, 40) is inside a post: not in the map; its neighbour (100, -20) is
+    TSceneInit(&s, 2000.0f);
+    TWall(&s.t, 90.0f, 110.0f, 30.0f, 50.0f, 1000.0f);
+    TMap(&s);
+    Check(!s.m->st[GtMapIdx(s.m, 100.0f, 12.0f)] && GtMapHas(s.m, &s.w, (const float[3]){ 100.0f, 0.0f, 12.0f }) == GTM_HAS,
+          "map: a spot whose own cell is a post's: a neighbour cell it can step to holds it");
+    // built in parts: 100 cells a run until finished; the result the same
+    TSceneInit(&s, 1000.0f);
+    s.mapCells = 0;
+    TMap(&s);
+    for (n = 0; n < 1000 && !GtMapFinished(s.m); ++n) GtMapRun(s.m, &s.w, 100);
+    Check(GtMapFinished(s.m) && s.m->done == s.m->cells && s.m->cells >= 33 * 33 && n > 5,
+          "map: built 100 cells at a time over several ticks: the whole floor");
+    // a big room: the grid's cells grow (at most 256 each way)
+    {
+        const float lo[3] = { -15000.0f, -100.0f, -15000.0f }, hi[3] = { 15000.0f, 100.0f, 15000.0f };
+        GtMapBegin(s.m, lo, hi, NULL, 0);
+        Check(s.m->on && s.m->nx <= GT_MAP_DIM && s.m->ny <= GT_MAP_DIM && s.m->cell > 117.0f && s.m->cell < 119.0f,
+              "map: a room 30000 wide: 256 cells of 118 u");
+        GtMapBegin(s.m, hi, lo, NULL, 0);
+        Check(!s.m->on && GtMapHas(s.m, &s.w, below) == GTM_NONE, "map: a box with no size: no map");
+    }
+    // the walk step: a wall between two cells at any of the three heights blocks
+    TSceneInit(&s, 2000.0f);
+    TWall(&s.t, -100.0f, 100.0f, 29.0f, 31.0f, 1000.0f);
+    {
+        float fy;
+        int unk = 0;
+        Check(!GtWalkStep(&s.w, (const float[3]){ 0.0f, 0.0f, 0.0f }, 0.0f, 60.0f, &fy, &unk) &&
+              GtWalkStep(&s.w, (const float[3]){ 300.0f, 0.0f, 0.0f }, 300.0f, 60.0f, &fy, &unk) && unk == 0,
+              "map: a thin wall between two cells blocks the step; elsewhere it goes");
+    }
+    // her body: the three spheres
+    TSceneInit(&s, 2000.0f);
+    TWall(&s.t, 100.0f, 200.0f, -50.0f, 50.0f, 1000.0f);
+    Check(GtBodyFree(&s.w, 0.0f, 0.0f, 0.0f) && !GtBodyFree(&s.w, 50.0f, 0.0f, 0.0f), "body: 100 u from a wall free, 50 u not");
+}
+// A2: the enemy she faces
+static void Faced(void)
+{
+    GtCand c[6];
+    const float p[3] = { 0.0f, 0.0f, 0.0f };
+    const float ahead[3] = { 0.0f, 0.0f, 500.0f }, right[3] = { 500.0f, 0.0f, 0.0f }, behind[3] = { 0.0f, 0.0f, -500.0f };
+    const float d30[3] = { 250.0f, 0.0f, 433.0f };
+    memset(c, 0, sizeof c);
+    Check(Near(GtOffFacing(p, 0.0f, ahead), 0.0f, 1e-4f) && Near(GtOffFacing(p, 0.0f, right), 1.5707963f, 1e-4f) &&
+          Near(GtOffFacing(p, 0.0f, behind), 3.1415926f, 1e-3f) && Near(GtOffFacing(p, 0.0f, d30), 30.0f * GT_DEG, 1e-3f) &&
+          Near(GtOffFacing(p, 1.5707963f, right), 0.0f, 1e-3f) && Near(GtOffFacing(p, 0.0f, p), 0.0f, 0.0f) &&
+          GtOffFacing(p, NAN, ahead) > 3.0f, "faced: the angle off her facing (ahead 0, right 90, behind 180, NaN never)");
+    // the nearest enemy is behind her, the faced one 20 degrees off and far: the faced one, never the nearest
+    c[0].d = 150.0f, c[0].ok = 1, c[0].ang = 170.0f * GT_DEG;
+    c[1].d = 3000.0f, c[1].ok = 1, c[1].ang = 20.0f * GT_DEG;
+    c[2].d = 900.0f, c[2].ok = 1, c[2].ang = 50.0f * GT_DEG;   // outside the 35-degree cone
+    Check(GtPickFaced(c, 3, GT_RANGE_DEF, GT_CONE_DEF) == 1 && GtConeCount(c, 3, GT_RANGE_DEF, GT_CONE_DEF) == 1,
+          "faced: the one in the cone (3000 u, 20 deg), not the nearest (behind her) nor one at 50 deg");
+    Check(GtPickFaced(c, 3, 2500.0f, GT_CONE_DEF) == -1, "faced: v3.49's 2500 u would not reach it (A3: 5000 now)");
+    Check(GtPickFaced(c, 3, GT_RANGE_DEF, 60.0f) == 1 && GtPickFaced(c, 1, GT_RANGE_DEF, GT_CONE_DEF) == -1,
+          "faced: a wider cone still the smallest angle; only one behind her: none (the warp ahead)");
+    // ties: within 5 degrees of the smallest angle the nearer; equal distance: the first
+    c[3].d = 1200.0f, c[3].ok = 1, c[3].ang = 23.0f * GT_DEG;   // 3 degrees more, much nearer
+    Check(GtPickFaced(c, 4, GT_RANGE_DEF, GT_CONE_DEF) == 3, "faced: two within 5 degrees: the nearer");
+    c[3].ang = 26.0f * GT_DEG;                                    // 6 degrees more: the smaller angle
+    Check(GtPickFaced(c, 4, GT_RANGE_DEF, GT_CONE_DEF) == 1, "faced: 6 degrees apart: the smaller angle, though farther");
+    c[3].ang = 20.0f * GT_DEG, c[3].d = 3000.0f;
+    Check(GtPickFaced(c, 4, GT_RANGE_DEF, GT_CONE_DEF) == 1, "faced: the same angle and distance: the first in the list");
+    // not standing, another floor, not in this room (beyond a door line / outside the box): never
+    c[1].ok = 0;
+    Check(GtPickFaced(c, 4, GT_RANGE_DEF, GT_CONE_DEF) == 3, "faced: a downed enemy is skipped");
+    c[3].dy = 700.0f;
+    Check(GtPickFaced(c, 4, GT_RANGE_DEF, GT_CONE_DEF) == -1, "faced: one on another floor is skipped");
+    c[3].dy = 0.0f, c[3].skip = 1;
+    Check(GtPickFaced(c, 4, GT_RANGE_DEF, GT_CONE_DEF) == -1 && GtPickFaced(c, 0, GT_RANGE_DEF, GT_CONE_DEF) == -1,
+          "faced: one marked not in this room is skipped; an empty list: none");
+    c[4].d = 100.0f, c[4].ok = 1, c[4].ang = NAN;
+    Check(GtPickFaced(c, 5, GT_RANGE_DEF, GT_CONE_DEF) == -1, "faced: an angle that is not a number: never");
+    Check(GtConeKey(0, 0.0f) == GT_CONE_DEF && GtConeKey(1, -3.0f) == GT_CONE_DEF && GtConeKey(1, 2.0f) == GT_CONE_MIN &&
+          GtConeKey(1, 200.0f) == GT_CONE_MAX && GtConeKey(1, 45.0f) == 45.0f, "faced: [Gameplay] GhostTeleportCone 35 (10 .. 90)");
+}
+
 int main(int argc, char **argv)
 {
     static const int kHz[4] = { 30, 60, 120, 144 };
@@ -623,6 +997,9 @@ int main(int argc, char **argv)
     Keys();
     Hold();   // v3.49 GT349
     Zones();
+    Through();  // v3.50 TP350
+    Reach();
+    Faced();
     printf("%s: %d of %d checks passed\n", g_fail ? "FAILED" : "PASSED", g_n - g_fail, g_n);
     return g_fail ? 1 : 0;
 }

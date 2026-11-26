@@ -5,6 +5,10 @@
 // orig\sh4.exe: 45 victim placements in 32 rooms, all may move, their position words, the story ghosts and the scene
 // modes left out) and on made-up scripts (the exclusions, reads outside the window); the spot pick (the distance rules,
 // the test decides, the key decides, nothing found); patch-and-restore of the position words with the Items' words.
+// v3.50 RL350: every outfit (no unlock), the room draws (Change Each Visit On; at most RZO_RUN_MAX in a row alike; the
+// final fight keeps its outfit), the ghosts' spots never near another ghost's placement (v3.49's 2:7 swap), 800 + when
+// the room allows (short otherwise), the record rule, and on the stock exe: the victim creates run EnemyGhostReconcile
+// then EnemySpawnGate (the record restore that hid v3.49's moves), the record position functions.
 // Usage: out\rzlooks_sim_test.exe [path of the stock sh4.exe]
 #define _CRT_SECURE_NO_WARNINGS
 #include <stdio.h>
@@ -80,16 +84,20 @@ static void TestTexts(void)
 static void TestDraw(void)
 {
     int s, v, h[2] = { 0, 0 }, changed = 0, n = 0;
-    CHECK(RzoUnlocked(0) == 1u && RzoUnlocked(1) == 3u && RzoUnlocked(7) == 3u, "unlocked: the Dress always, the Nurse by the flag");
+    CHECK(RZO_ALL == 3u, "v3.50 RL350: every outfit, the Dress and the Nurse, no unlock asked");
     for (s = 1; s <= 2000; ++s) {
-        const int a = RzoDraw((unsigned)s, 3, 1, 0, 3u), b = RzoDraw((unsigned)s, 3, 1, 0, 3u);
+        const int a = RzoDraw((unsigned)s, 3, 1, 0, RZO_ALL), b = RzoDraw((unsigned)s, 3, 1, 0, RZO_ALL);
         CHECK(a == 0 || a == 1, "a draw is the Dress or the Nurse (%d)", a);
         CHECK(a == b, "the same inputs give the same outfit");
         CHECK(RzoDraw((unsigned)s, 3, 1, 5, 1u) == -1 && RzoDraw((unsigned)s, 3, 1, 5, 0u) == -1 && RzoDraw((unsigned)s, 3, 1, 5, 2u) == -1,
-              "one outfit (or none) unlocked: nothing to draw");
+              "one outfit (or none): nothing to draw");
+        CHECK(RzoDrawRoom((unsigned)s, 3, 1, 2, 4, 7, 1u, 0, 0) == -1 && RzoDrawRoom((unsigned)s, 3, 1, 2, 4, 7, 2u, 1, 5) == -1,
+              "a room draw with one outfit: nothing");
+        CHECK(RzoDrawRoom((unsigned)s, 3, 1, 2, 4, 7, RZO_ALL, 1, RZO_RUN_MAX) == 0 &&
+              RzoDrawRoom((unsigned)s, 3, 1, 2, 4, 7, RZO_ALL, 0, RZO_RUN_MAX + 3) == 1, "a run of RZO_RUN_MAX: the other outfit");
         if (a >= 0) ++h[a];
         for (v = 1; v <= 8; ++v) {
-            changed += RzoDraw((unsigned)s, 3, 1, (unsigned)v, 3u) != RzoDraw((unsigned)s, 3, 1, (unsigned)(v - 1), 3u);
+            changed += RzoDraw((unsigned)s, 3, 1, (unsigned)v, RZO_ALL) != RzoDraw((unsigned)s, 3, 1, (unsigned)(v - 1), RZO_ALL);
             ++n;
         }
     }
@@ -97,99 +105,153 @@ static void TestDraw(void)
     CHECK(changed > n / 3 && changed < 2 * n / 3, "the next visit draws anew (%d of %d visits changed)", changed, n);
     {
         int st, diff = 0;
-        for (st = 2; st <= 11; ++st) diff += RzoDraw(99, st, 1, 0, 3u) != RzoDraw(99, 2, 1, 0, 3u);
+        for (st = 2; st <= 11; ++st) diff += RzoDraw(99, st, 1, 0, RZO_ALL) != RzoDraw(99, 2, 1, 0, RZO_ALL);
         CHECK(diff >= 2, "the stage takes part in the draw (%d of 9 differ from stage 2)", diff);
+    }
+    {   // the room draw: fair below the run cap, the seed / room / number take part
+        int r1 = 0, r0 = 0, dRoom = 0, dSeq = 0, dSeed = 0;
+        for (s = 1; s <= 2000; ++s) {
+            const int a = RzoDrawRoom((unsigned)s, 5, 1, 3, 4, 7, RZO_ALL, 0, 1);
+            r1 += a == 1, r0 += a == 0;
+            dRoom += a != RzoDrawRoom((unsigned)s, 5, 1, 3, 4, 8, RZO_ALL, 0, 1);
+            dSeq += a != RzoDrawRoom((unsigned)s, 5, 1, 3, 5, 7, RZO_ALL, 0, 1);
+            dSeed += a != RzoDrawRoom((unsigned)s + 7777u, 5, 1, 3, 4, 7, RZO_ALL, 0, 1);
+        }
+        CHECK(r0 > 850 && r1 > 850 && r0 + r1 == 2000, "room draws: both outfits (Dress %d, Nurse %d of 2000)", r0, r1);
+        CHECK(dRoom > 700 && dSeq > 700 && dSeed > 700, "the room, the room draw's number and the seed take part (%d %d %d)", dRoom,
+              dSeq, dSeed);
     }
 }
 
 // ---------------------------------------------------------------- the override's rules
-static int Step(RzoState *s, int mode, int stage, int here, unsigned unlocked, int *cur, int saved, int perVisit)
+// atWorld 1 = her world's file list (eo_stage), 0 = a room load (eo_room)
+static int Step(RzoState *s, int mode, int stage, int here, unsigned unlocked, int *cur, int saved, int perVisit, int atWorld)
 {
-    int put, ev = RzoStep(s, mode, 1234u, perVisit, stage, 1, here, unlocked, *cur, saved, &put);
+    int put, ev = RzoStep(s, mode, 1234u, perVisit, stage, 1, here, unlocked, *cur, saved, atWorld, 3, &put);
     if (put >= -1) *cur = put;
     return ev;
 }
 static void TestOverride(void)
 {
     RzoState s;
-    int cur = -1, saved = -1, ev, first, k;
-    // a world visit: the draw at her world's file list, nothing more at its room loads
+    int cur = -1, saved = -1, ev, first, k, run, last, maxRun, changes;
+    // a world visit: the draw at her world's file list; its first room load keeps it; every later room load draws again
     RzoInit(&s);
-    ev = Step(&s, RZO_RANDOM, 7, 1, 3u, &cur, saved, 1);
+    ev = Step(&s, RZO_RANDOM, 7, 1, RZO_ALL, &cur, saved, 1, 1);
     CHECK(ev == RZO_EV_DRAW && (cur == 0 || cur == 1) && s.active && s.visit == 1, "a new Eileen world: drawn (%d -> %d)", ev, cur);
     first = cur;
-    for (k = 0; k < 5; ++k) CHECK(Step(&s, RZO_RANDOM, 7, 1, 3u, &cur, saved, 1) == RZO_EV_NONE && cur == first,
-                                  "its rooms: no new draw (%d)", k);
+    CHECK(Step(&s, RZO_RANDOM, 7, 1, RZO_ALL, &cur, saved, 1, 0) == RZO_EV_NONE && cur == first,
+          "the room load right after the world's list keeps that draw");
+    last = cur, run = 1, maxRun = 1, changes = 0;
+    for (k = 0; k < 40; ++k) {
+        ev = Step(&s, RZO_RANDOM, 7, 1, RZO_ALL, &cur, saved, 1, 0);
+        CHECK(ev == RZO_EV_ROOM && (cur == 0 || cur == 1) && s.active, "room load %d: a room draw (%d %d)", k, ev, cur);
+        run = cur == last ? run + 1 : 1, changes += cur != last, last = cur;
+        if (run > maxRun) maxRun = run;
+    }
+    CHECK(maxRun <= 2 && RZO_RUN_MAX == 2 && changes >= 13 && s.roomDraws == 40 && s.roomChanged == (unsigned)changes && s.seq == 40,
+          "40 room loads: at most %d in a row alike (%d), %d changes", RZO_RUN_MAX, maxRun, changes);
+    CHECK(Step(&s, RZO_RANDOM, 7, 1, RZO_ALL, &cur, saved, 1, 1) == RZO_EV_NONE, "another list load of the same world: no draw there");
     // Room 302 (no Eileen models, another stage): the set outfit back
-    ev = Step(&s, RZO_RANDOM, 1, 0, 3u, &cur, saved, 1);
+    ev = Step(&s, RZO_RANDOM, 1, 0, RZO_ALL, &cur, saved, 1, 0);
     CHECK(ev == RZO_EV_RESTORE && cur == -1 && !s.active && s.restores == 1, "a world without her: the set outfit back (%d %d)", ev, cur);
-    CHECK(Step(&s, RZO_RANDOM, 1, 0, 3u, &cur, saved, 1) == RZO_EV_NONE && cur == -1, "and nothing more there");
-    // the next Eileen world: a new visit, a new draw (Change Each Visit On)
-    ev = Step(&s, RZO_RANDOM, 8, 1, 3u, &cur, saved, 1);
-    CHECK(ev == RZO_EV_DRAW && s.visit == 3 && s.draws == 2, "the next Eileen world draws again (%d, visit %u)", ev, s.visit);
+    CHECK(Step(&s, RZO_RANDOM, 1, 0, RZO_ALL, &cur, saved, 1, 0) == RZO_EV_NONE && cur == -1, "and nothing more there");
+    // the next Eileen world: a new visit, a new draw (Change Each Visit On); its room draws count from 1 again
+    ev = Step(&s, RZO_RANDOM, 8, 1, RZO_ALL, &cur, saved, 1, 1);
+    CHECK(ev == RZO_EV_DRAW && s.visit == 3 && s.draws == 2 && s.seq == 0, "the next Eileen world draws again (%d, visit %u)", ev, s.visit);
     // Off in the middle of a visit: the set outfit back at the next step, no draw while Off
     saved = 0;  // (the set outfit was Dress all along in this part)
     RzoInit(&s), cur = 0;
-    CHECK(Step(&s, RZO_RANDOM, 3, 1, 3u, &cur, saved, 1) == RZO_EV_DRAW, "drawn");
+    CHECK(Step(&s, RZO_RANDOM, 3, 1, RZO_ALL, &cur, saved, 1, 0) == RZO_EV_DRAW, "drawn");
     k = cur;
-    ev = Step(&s, RZO_OFF, 3, 1, 3u, &cur, saved, 1);
+    ev = Step(&s, RZO_OFF, 3, 1, RZO_ALL, &cur, saved, 1, 0);
     CHECK(ev == RZO_EV_RESTORE && cur == 0, "Eileen Outfit Off: the set outfit (Dress) back (%d %d; drawn %d)", ev, cur, k);
-    CHECK(Step(&s, RZO_OFF, 4, 1, 3u, &cur, saved, 1) == RZO_EV_NONE && cur == 0, "Off: no draw in the next world");
-    // switched on in the middle of a visit: drawn at the next room load
-    CHECK(Step(&s, RZO_RANDOM, 4, 1, 3u, &cur, saved, 1) == RZO_EV_DRAW && s.active, "switched on mid-visit: drawn at once");
-    // the player chooses in the Extra Menu: kept until the next world visit, never put back
+    CHECK(Step(&s, RZO_OFF, 4, 1, RZO_ALL, &cur, saved, 1, 0) == RZO_EV_NONE && cur == 0, "Off: no draw in the next world");
+    CHECK(Step(&s, RZO_OFF, 4, 1, RZO_ALL, &cur, saved, 1, 0) == RZO_EV_NONE && cur == 0, "Off: no room draws");
+    // switched on in the middle of a visit: drawn at the next room load; the room load after it draws again
+    CHECK(Step(&s, RZO_RANDOM, 4, 1, RZO_ALL, &cur, saved, 1, 0) == RZO_EV_DRAW && s.active, "switched on mid-visit: drawn at once");
+    CHECK(Step(&s, RZO_RANDOM, 4, 1, RZO_ALL, &cur, saved, 1, 0) == RZO_EV_ROOM, "and the room load after it: a room draw");
+    // the player chooses in the Extra Menu: kept until the next world visit, never put back, no room draws meanwhile
     RzoInit(&s), cur = -1, saved = -1;
-    Step(&s, RZO_RANDOM, 5, 1, 3u, &cur, saved, 1);
+    Step(&s, RZO_RANDOM, 5, 1, RZO_ALL, &cur, saved, 1, 1);
+    Step(&s, RZO_RANDOM, 5, 1, RZO_ALL, &cur, saved, 1, 0);
+    Step(&s, RZO_RANDOM, 5, 1, RZO_ALL, &cur, saved, 1, 0);
     cur = cur ^ 1, saved = cur;  // eo_menu_go: the other outfit, saved to the ini
-    ev = Step(&s, RZO_RANDOM, 5, 1, 3u, &cur, saved, 1);
+    ev = Step(&s, RZO_RANDOM, 5, 1, RZO_ALL, &cur, saved, 1, 0);
     CHECK(ev == RZO_EV_TAKEOVER && !s.active && s.takeovers == 1, "an Extra Menu choice: taken over (%d)", ev);
     k = cur;
-    CHECK(Step(&s, RZO_RANDOM, 5, 1, 3u, &cur, saved, 1) == RZO_EV_NONE && cur == k, "kept for the rest of the visit");
-    CHECK(Step(&s, RZO_RANDOM, 1, 0, 3u, &cur, saved, 1) == RZO_EV_NONE && cur == k, "Room 302: the player's choice stays (no restore)");
-    CHECK(Step(&s, RZO_RANDOM, 6, 1, 3u, &cur, saved, 1) == RZO_EV_DRAW && s.active, "the next world visit draws again");
+    for (ev = 0; ev < 5; ++ev)
+        CHECK(Step(&s, RZO_RANDOM, 5, 1, RZO_ALL, &cur, saved, 1, 0) == RZO_EV_NONE && cur == k, "kept for the rest of the visit (no room draw)");
+    CHECK(Step(&s, RZO_RANDOM, 1, 0, RZO_ALL, &cur, saved, 1, 0) == RZO_EV_NONE && cur == k, "Room 302: the player's choice stays (no restore)");
+    CHECK(Step(&s, RZO_RANDOM, 6, 1, RZO_ALL, &cur, saved, 1, 1) == RZO_EV_DRAW && s.active, "the next world visit draws again");
     // a choice just before leaving the world (no room load between): the next Eileen world still draws; a world without
     // her keeps the player's choice
     RzoInit(&s), cur = -1, saved = -1;
-    Step(&s, RZO_RANDOM, 5, 1, 3u, &cur, saved, 1);
+    Step(&s, RZO_RANDOM, 5, 1, RZO_ALL, &cur, saved, 1, 1);
     cur ^= 1, saved = cur;
-    ev = Step(&s, RZO_RANDOM, 6, 1, 3u, &cur, saved, 1);
+    ev = Step(&s, RZO_RANDOM, 6, 1, RZO_ALL, &cur, saved, 1, 1);
     CHECK(ev == RZO_EV_DRAW && s.takeovers == 1 && s.active && s.visit == 2, "a choice, then straight into the next world: drawn there (%d)", ev);
     RzoInit(&s), cur = -1, saved = -1;
-    Step(&s, RZO_RANDOM, 5, 1, 3u, &cur, saved, 1);
+    Step(&s, RZO_RANDOM, 5, 1, RZO_ALL, &cur, saved, 1, 1);
     cur ^= 1, saved = cur, k = cur;
-    ev = Step(&s, RZO_RANDOM, 1, 0, 3u, &cur, saved, 1);
+    ev = Step(&s, RZO_RANDOM, 1, 0, RZO_ALL, &cur, saved, 1, 0);
     CHECK(ev == RZO_EV_TAKEOVER && cur == k && !s.active && !s.restores, "a choice, then Room 302: the choice stays (%d %d)", ev, cur);
     // an Extra Menu choice of the value we drew (only the saved outfit changes): taken over too
     RzoInit(&s), cur = -1, saved = -1;
-    Step(&s, RZO_RANDOM, 5, 1, 3u, &cur, saved, 1);
+    Step(&s, RZO_RANDOM, 5, 1, RZO_ALL, &cur, saved, 1, 1);
     saved = cur;
-    CHECK(Step(&s, RZO_RANDOM, 5, 1, 3u, &cur, saved, 1) == RZO_EV_TAKEOVER, "the drawn outfit chosen in the Extra Menu: the player's");
-    // only the Dress unlocked: nothing drawn, her outfit as set
+    CHECK(Step(&s, RZO_RANDOM, 5, 1, RZO_ALL, &cur, saved, 1, 0) == RZO_EV_TAKEOVER, "the drawn outfit chosen in the Extra Menu: the player's");
+    // only one outfit given (never with RZO_ALL): nothing drawn, her outfit as set
     RzoInit(&s), cur = 1, saved = 1;
-    ev = Step(&s, RZO_RANDOM, 7, 1, 1u, &cur, saved, 1);
-    CHECK(ev == RZO_EV_SINGLE && cur == 1 && !s.active && s.single == 1, "one outfit unlocked: left as set (%d %d)", ev, cur);
-    CHECK(Step(&s, RZO_RANDOM, 7, 1, 1u, &cur, saved, 1) == RZO_EV_NONE, "said once a visit");
+    ev = Step(&s, RZO_RANDOM, 7, 1, 1u, &cur, saved, 1, 1);
+    CHECK(ev == RZO_EV_SINGLE && cur == 1 && !s.active && s.single == 1, "one outfit: left as set (%d %d)", ev, cur);
+    CHECK(Step(&s, RZO_RANDOM, 7, 1, 1u, &cur, saved, 1, 0) == RZO_EV_NONE && cur == 1, "said once a visit, no room draws");
     // no Eileen models in the world: no draw at room loads
     RzoInit(&s), cur = -1, saved = -1;
-    CHECK(Step(&s, RZO_RANDOM, 2, 0, 3u, &cur, saved, 1) == RZO_EV_NONE && cur == -1 && !s.drawn, "a world without her: nothing");
-    CHECK(Step(&s, RZO_RANDOM, 2, 1, 3u, &cur, saved, 1) == RZO_EV_DRAW, "her models come with a room: drawn then (6:43 / 7:10 / 2:55)");
-    // Change Each Visit Off: the same outfit at every visit of a stage
+    CHECK(Step(&s, RZO_RANDOM, 2, 0, RZO_ALL, &cur, saved, 1, 0) == RZO_EV_NONE && cur == -1 && !s.drawn, "a world without her: nothing");
+    CHECK(Step(&s, RZO_RANDOM, 2, 1, RZO_ALL, &cur, saved, 1, 0) == RZO_EV_DRAW, "her models come with a room: drawn then (6:43 / 7:10 / 2:55)");
+    CHECK(Step(&s, RZO_RANDOM, 2, 0, RZO_ALL, &cur, saved, 1, 0) == RZO_EV_RESTORE && cur == -1, "a room of that world without them: the set outfit");
+    // the final fight (stage 9): its world draw stays; said once
+    RzoInit(&s), cur = -1, saved = -1;
+    CHECK(Step(&s, RZO_RANDOM, RZO_FINAL_STAGE, 1, RZO_ALL, &cur, saved, 1, 1) == RZO_EV_DRAW, "the final fight's world: drawn");
+    first = cur;
+    CHECK(Step(&s, RZO_RANDOM, RZO_FINAL_STAGE, 1, RZO_ALL, &cur, saved, 1, 0) == RZO_EV_NONE && cur == first, "its first room keeps it");
+    CHECK(Step(&s, RZO_RANDOM, RZO_FINAL_STAGE, 1, RZO_ALL, &cur, saved, 1, 0) == RZO_EV_HELD && cur == first, "no room draw there: said");
+    for (k = 0; k < 6; ++k)
+        CHECK(Step(&s, RZO_RANDOM, RZO_FINAL_STAGE, 1, RZO_ALL, &cur, saved, 1, 0) == RZO_EV_NONE && cur == first && !s.roomDraws,
+              "the final fight: the outfit stays (%d)", k);
+    CHECK(Step(&s, RZO_RANDOM, 8, 1, RZO_ALL, &cur, saved, 1, 1) == RZO_EV_DRAW && !s.heldSaid, "the next world: drawn, said anew");
+    // Change Each Visit Off: one draw per world visit (no room draws), the same outfit at every visit of a stage
     {
-        int a, b, same = 1, st;
+        int a, b, same = 1, st, none = 1;
         for (st = 2; st <= 9; ++st) {
             RzoInit(&s), cur = -1;
-            Step(&s, RZO_RANDOM, st, 1, 3u, &cur, -1, 0);
+            Step(&s, RZO_RANDOM, st, 1, RZO_ALL, &cur, -1, 0, 1);
             a = cur;
-            Step(&s, RZO_RANDOM, 1, 0, 3u, &cur, -1, 0);
-            Step(&s, RZO_RANDOM, st, 1, 3u, &cur, -1, 0);
+            for (k = 0; k < 6; ++k) none &= Step(&s, RZO_RANDOM, st, 1, RZO_ALL, &cur, -1, 0, 0) == RZO_EV_NONE && cur == a;
+            Step(&s, RZO_RANDOM, 1, 0, RZO_ALL, &cur, -1, 0, 0);
+            Step(&s, RZO_RANDOM, st, 1, RZO_ALL, &cur, -1, 0, 1);
             b = cur;
             same &= a == b && a >= 0;
         }
         CHECK(same, "Change Each Visit Off: a stage gets the same outfit at every visit");
+        CHECK(none, "Change Each Visit Off: no room draws (one draw per world visit, as v3.49)");
+    }
+    // the same seed gives the same room sequence
+    {
+        RzoState a, b;
+        int ca = -1, cb = -1, same = 1;
+        RzoInit(&a), RzoInit(&b);
+        Step(&a, RZO_RANDOM, 5, 1, RZO_ALL, &ca, -1, 1, 1), Step(&b, RZO_RANDOM, 5, 1, RZO_ALL, &cb, -1, 1, 1);
+        for (k = 0; k < 20; ++k) {
+            Step(&a, RZO_RANDOM, 5, 1, RZO_ALL, &ca, -1, 1, 0), Step(&b, RZO_RANDOM, 5, 1, RZO_ALL, &cb, -1, 1, 0);
+            same &= ca == cb;
+        }
+        CHECK(same, "the same seed and visit: the same room draws");
     }
     // the visit count saturates (rando_sim.h RzVisitNext)
     RzoInit(&s), s.visit = 0xFFFFFFFFu;
-    Step(&s, RZO_RANDOM, 3, 1, 3u, &cur, -1, 1);
+    Step(&s, RZO_RANDOM, 3, 1, RZO_ALL, &cur, -1, 1, 1);
     CHECK(s.visit == 0xFFFFFFFFu, "the visit count stops at the top");
 }
 
@@ -204,17 +266,68 @@ static const KnownMover kKnown[] = {  // tools/rzl_scan.py --list
     { 6, 0, 22, 1, 0xFFFF0008u, 0x00675874u, 1000.0f, -200.0f, 1500.0f },
     { 8, 0, 5, 1, 0xFFFF000Du, 0x0067AEC0u, 292.0f, -200.0f, 1315.0f },
 };
+// v3.50 RL350: the calls (E8 rel32) in the first `len` bytes of a function, in order; the index of `target` among them
+// from `from` on (-1 = none)
+static int CallIndex(unsigned fn, unsigned len, unsigned target, int from)
+{
+    unsigned a;
+    int n = 0;
+    for (a = fn; a + 5 <= fn + len; ++a) {
+        unsigned rel;
+        if (g_img[a - 0x400000u] != 0xE8) continue;
+        memcpy(&rel, g_img + (a + 1 - 0x400000u), 4);
+        if (a + 5u + rel == target) {
+            if (n >= from) return n;
+        }
+        if (a + 5u + rel >= 0x401000u && a + 5u + rel < 0x5B0000u) ++n;
+    }
+    return -1;
+}
+static void TestExeRecords(void)
+{
+    static const struct { unsigned fn, len; int type; } kCreate[3] = {
+        { 0x4AFA90, 880, 0x0B }, { 0x4B58C0, 1184, 0x0C }, { 0x47FB50, 899, 0x0D } };  // EnemyVictimGhostCreate and 0C / 0D
+    int i;
+    CHECK(ImgU32(0x615348 + 16 * 0x0B + 4) == 0x4AFA90 && ImgU32(0x615348 + 16 * 0x0C + 4) == 0x4B58C0 &&
+          ImgU32(0x615348 + 16 * 0x0D + 4) == 0x47FB50, "the type table 0x615348: the creates of 0B / 0C / 0D");
+    for (i = 0; i < 3; ++i) {
+        const int rc = CallIndex(kCreate[i].fn, kCreate[i].len, 0x482590, 0), gt = CallIndex(kCreate[i].fn, kCreate[i].len, 0x464F20, 0);
+        CHECK(rc >= 0 && gt > rc, "type %02X's create %06X: EnemyGhostReconcile 0x482590 (call %d) before EnemySpawnGate 0x464F20 (call %d)",
+              kCreate[i].type, kCreate[i].fn, rc, gt);
+    }
+    CHECK(CallIndex(0x4AD330, 189, 0x464470, 0) >= 0, "0x4AD330 (0B's record restore) calls EnemyRecordRestore 0x464470");
+    CHECK(CallIndex(0x464470, 180, 0x46FE80, 0) >= 0, "EnemyRecordRestore puts the model at the record's spot (0x46FE80)");
+    CHECK(CallIndex(0x482590, 220, 0x46FE30, 0) >= 0 && CallIndex(0x482590, 220, 0x464380, 0) >= 0,
+          "EnemyGhostReconcile writes a record spot (0x46FE30) or deletes it (0x464380)");
+    CHECK(!memcmp(g_img + (0x46FE30 - 0x400000), "\x55\x8B\xEC\x83\xE4\xF0\x83\xEC\x10\x8D\x44\x24\x00\x50\xE8", 15) &&
+          !memcmp(g_img + (0x46FE80 - 0x400000), "\x55\x8B\xEC\x83\xE4\xF0\x83\xEC\x10\x8D\x44\x24\x00\x50\xE8", 15),
+          "0x46FE30 / 0x46FE80 (world <-> record, enemies.inc ENM_TO_REC / ENM_FROM_REC) as RzlGhostRec calls them");
+    {   // 0x482590: the half chance (MathRand01 < 0.5) is read against the float 0.5
+        unsigned a;
+        int seen = 0;
+        for (a = 0x482590; a < 0x482590 + 220 - 6; ++a)
+            if (g_img[a - 0x400000] == 0xD8 || g_img[a - 0x400000] == 0xD9 || g_img[a - 0x400000] == 0xDC) {
+                unsigned v;
+                float f;
+                memcpy(&v, g_img + (a + 2 - 0x400000), 4);
+                if (v < 0x5B0000u || v >= 0x700000u) continue;
+                memcpy(&f, g_img + (v - 0x400000), 4);
+                seen |= f == 0.5f;
+            }
+        CHECK(seen, "EnemyGhostReconcile compares with 0.5 (the half chance that kept v3.49's moved victims at their record)");
+    }
+}
 static void TestExe(const char *path)
 {
     unsigned seen[32];
     int scripts = 0, stage, v, victims = 0, movers = 0, rooms = 0, most = 0, mostSpots = 0, notMoved = 0, bad = 0, i, k, known = 0;
+    int known27 = 0;  // v3.50 RL350
     RzWin w;
     if (!LoadExe(path)) {
         CHECK(0, "the stock exe %s could not be read", path);
         return;
     }
-    CHECK(!memcmp(g_img + (0x56F590 - 0x400000), "\xA1\x50\x1A\x3D\x01\xC3", 6),
-          "0x56F590 SaveGetNurseUnlocked = mov eax,[013D1A50] / ret (rzlooks.inc kRzoNurseFn)");
+    TestExeRecords();  // v3.50 RL350 (the Nurse's unlock check 0x56F590 is no longer used)
     CHECK(!memcmp(g_img + (0x52CAA9 - 0x400000), "\xE8\x52\xFE\xFF\xFF", 5) && !memcmp(g_img + (0x52CB2B - 0x400000), "\xE8\xD0\xFD\xFF\xFF", 5),
           "0x52CAA9 / 0x52CB2B: the runner's stock `call 52C900` (RzlCt7700)");
     CHECK(!memcmp(g_img + (0x4FC830 - 0x400000), "\x33\xC0\xA0\x2D\x81\x3D\x01\xC1\xE8\x02\x83\xE0\x01\xC3", 14),
@@ -270,7 +383,16 @@ static void TestExe(const char *path)
                 if (stage == 8 && r == 17) CHECK(R.nm == 0, "8:17: Richard (0F) never moves");
                 if (stage == 5 && v == 0 && r == 7) CHECK(R.nm == 0, "5:7 (1st half): the scene victim (0B v2 mode 6) never moves");
                 if (stage == 2 && v == 1 && r == 14) CHECK(R.nm == 2 && R.victims == 2, "2:14 (2nd half): two victims move, Cynthia's train ghost (0C v0 mode 7) stays");
-                if (stage == 5 && v == 0 && r == 13) CHECK(R.nm == 2 && R.nspot == 2, "5:13 (1st half): two victims, their two spots (%d)", R.nspot);
+                if (stage == 5 && v == 0 && r == 13)
+                    CHECK(R.nm == 2 && R.nspot == 0 && R.nghost == 2, "5:13 (1st half): two victims, no spot of theirs is a candidate, two ghost places (%d %d)",
+                          R.nspot, R.nghost);  // v3.50 RL350 (was: their two spots)
+                CHECK(R.nghost >= R.nm && R.nspot + R.nghost <= R.kind2, "room %d:%d: every mover's place is a ghost place (%d %d)", stage, r,
+                      R.nghost, R.nm);  // v3.50 RL350
+                if (stage == 2 && v == 0 && r == 7) {  // v3.50 RL350: the user's v3.49 room: the two victims 1982 apart
+                    ++known27;
+                    CHECK(R.nm == 2 && R.nghost == 2 && RzgDist2(R.ghost[0], R.ghost[1]) > 1900.0f * 1900.0f,
+                          "2:7: two victims, two ghost places (%d %d)", R.nm, R.nghost);
+                }
             }
         }
     CHECK(scripts == 17, "17 distinct scripts (%d)", scripts);
@@ -280,6 +402,7 @@ static void TestExe(const char *path)
           rooms, notMoved, RZG_STOCK_VICTIMS, RZG_STOCK_MOVERS, RZG_STOCK_ROOMS);
     CHECK(most == 3 && most <= RZG_MOVERS_MAX && mostSpots == 30, "at most %d victims and %d placements in a room", most, mostSpots);
     CHECK(known == (int)(sizeof kKnown / sizeof kKnown[0]), "every known victim found (%d)", known);
+    CHECK(known27 == 1, "2:7 (1st half) seen (%d)", known27);
 }
 
 // ---------------------------------------------------------------- made-up scripts
@@ -322,8 +445,8 @@ static void TestMadeUp(void)
           "the victims 0 and 2 move (%d)", R.nm);
     CHECK(R.victims == 4 && R.notMoved == 2, "4 victim placements, 2 may not move (two cmd 8, own functions) (%d %d)", R.victims,
           R.notMoved);
-    CHECK(R.nspot == 8, "spots: every placement with one or more positions, the movers too, no pickup, no Hummer without one (%d)",
-          R.nspot);
+    CHECK(R.nspot == 0 && R.nghost == 8, "v3.50 RL350: spots: no ghost's place (8 ghost places: the movers, the story ghosts, the "
+          "others), no pickup, no Hummer without one (%d %d)", R.nspot, R.nghost);
     CHECK(R.m[0].posVa == 0x1000u + 4u * 7u, "the first mover's position words (%08X)", R.m[0].posVa);  // cmd 0 (2), cmd 1 (2), cmd 7 (2), cmd 8 tag
     CHECK(g_buf[(R.m[0].posVa - 0x1000u) / 4u - 1u] == 0x00040008u, "posVa follows its cmd 8 word");
     // a read outside the window
@@ -365,6 +488,7 @@ static int FakeTest(void *ctx, const float *base, float *cand)
         cand[1] = g->floorY;
         return 1;
     }
+    if (g->mode == 4) return RzgDist2(cand, base) <= 750.0f * 750.0f;  // v3.50 RL350: a small room (nothing at 800 +)
     return 1;                                // everything fits
 }
 static void TestPick(void)
@@ -374,25 +498,28 @@ static void TestPick(void)
     float out[3], player[3] = { 900, 0, 100 }, taken[1][3] = { { 2000, 0, 0 } };
     FakeGeo g;
     RzgPickIn in;
-    int nv, nt, k, distinct = 0, ok;
+    int nv, nt, k, distinct = 0, ok, sh, allWant;
     float seen[64][2];
     memset(&g, 0, sizeof g);
+    memset(&in, 0, sizeof in);
     in.base = base, in.key = RzgKey(1, 5, 0, 13, 1, 0), in.stock = stock, in.nStock = 4, in.player = NULL, in.taken = NULL, in.nTaken = 0;
     g.mode = 0;
-    CHECK(!RzgPick(&in, FakeTest, &g, out, &nv, &nt) && nv == 0 && nt > 20, "nothing fits: no spot (%d tried)", nt);
+    CHECK(!RzgPick(&in, FakeTest, &g, out, &nv, &nt) && nv == 0 && nt > 30, "nothing fits: no spot (%d tried)", nt);
     g.mode = 1;
-    CHECK(RzgPick(&in, FakeTest, &g, out, &nv, &nt) && nv == nt && nv == 4 + RZG_TIERS * RZG_RING - 1,
-          "everything fits: the stock spots but the one at the ghost's own spot, and the rings (%d of %d)", nv, nt);
-    CHECK(RzgDist2(out, base) >= RZG_MIN_SELF * RZG_MIN_SELF && out[1] == base[1], "the spot is away from its stock one, at its height");
-    for (k = 0; k < 64; ++k) {  // the key decides
+    CHECK(RzgPick2(&in, FakeTest, &g, out, &nv, &nt, &sh) && nv == nt && nv >= 3 + RZG_TIERS * RZG_RING - 2 && nv <= 3 + RZG_TIERS * RZG_RING && !sh,
+          "everything fits: the other placements but the one at the ghost's own spot, and the rings (%d of %d)", nv, nt);
+    CHECK(RzgDist2(out, base) >= RZG_WANT_SELF * RZG_WANT_SELF && out[1] == base[1], "the spot is 800 + from its stock one, at its height");
+    allWant = 1;
+    for (k = 0; k < 64; ++k) {  // the key decides; the far ones are taken while there are any
         int j, dup = 0;
         in.key = RzgKey(1, 5, 0, 13, 1, (unsigned)k);
-        RzgPick(&in, FakeTest, &g, out, &nv, &nt);
-        CHECK(RzgDist2(out, base) >= RZG_MIN_SELF * RZG_MIN_SELF && RzgDist2(out, base) <= 2201.0f * 2201.0f + 2100.0f * 2100.0f,
-              "visit %d: the spot is in the rules' range", k);
+        RzgPick2(&in, FakeTest, &g, out, &nv, &nt, &sh);
+        allWant &= !sh && RzgDist2(out, base) >= RZG_WANT_SELF * RZG_WANT_SELF;
+        CHECK(RzgDist2(out, base) <= 3001.0f * 3001.0f + 2100.0f * 2100.0f, "visit %d: the spot is in the rules' range", k);
         for (j = 0; j < distinct; ++j) dup |= seen[j][0] == out[0] && seen[j][1] == out[2];
         if (!dup) seen[distinct][0] = out[0], seen[distinct][1] = out[2], ++distinct;
     }
+    CHECK(allWant, "v3.50 RL350: with far spots there, every pick is 800 + from its stock spot");
     CHECK(distinct > 20, "the visits give different spots (%d of 64)", distinct);
     {
         float a[3], b[3];
@@ -400,14 +527,24 @@ static void TestPick(void)
         RzgPick(&in, FakeTest, &g, a, NULL, NULL), RzgPick(&in, FakeTest, &g, b, NULL, NULL);
         CHECK(a[0] == b[0] && a[1] == b[1] && a[2] == b[2], "the same key gives the same spot");
     }
-    // where you arrive: at least 600 away (or as far as the stock spot is)
+    // a small room: nothing at 800 +: the nearer ones (500 +), said short
+    g.mode = 4;
+    ok = 1;
+    for (k = 0; k < 32; ++k) {
+        in.key = RzgKey(9, 5, 0, 13, 1, (unsigned)k);
+        ok &= RzgPick2(&in, FakeTest, &g, out, &nv, &nt, &sh) && sh && RzgDist2(out, base) >= RZG_MIN_SELF * RZG_MIN_SELF - 1.0f &&
+              RzgDist2(out, base) <= 750.0f * 750.0f;
+    }
+    CHECK(ok, "v3.50 RL350: a small room: a spot 500 .. 750 away, said short");
+    g.mode = 1;
+    // where you arrive: at least 600 away (or as far as the stock spot is); 1000 + while the room allows it
     in.player = player;  // 800 from the stock spot
     ok = 1;
     for (k = 0; k < 64; ++k) {
         in.key = RzgKey(2, 5, 0, 13, 1, (unsigned)k);
-        if (RzgPick(&in, FakeTest, &g, out, NULL, NULL)) ok &= RzgDist2(out, player) >= 600.0f * 600.0f;
+        if (RzgPick2(&in, FakeTest, &g, out, NULL, NULL, &sh)) ok &= RzgDist2(out, player) >= RZG_WANT_PLAYER * RZG_WANT_PLAYER && !sh;
     }
-    CHECK(ok, "never within 600 of where you arrive");
+    CHECK(ok, "never within 1000 of where you arrive while the room allows it");
     player[0] = 300, player[2] = 100;  // 200 from the stock spot: at least 200
     ok = 1;
     for (k = 0; k < 64; ++k) {
@@ -423,7 +560,7 @@ static void TestPick(void)
         in.key = RzgKey(4, 5, 0, 13, 2, (unsigned)k);
         if (RzgPick(&in, FakeTest, &g, out, NULL, NULL)) ok &= RzgDist2(out, taken[0]) >= RZG_MIN_OTHER * RZG_MIN_OTHER;
     }
-    CHECK(ok, "never within 250 of a spot another victim took");
+    CHECK(ok, "never within 400 of a spot another victim took");
     in.taken = NULL, in.nTaken = 0;
     // the test decides: only the stock spots
     g.mode = 2, g.only = stock, g.nOnly = 4;
@@ -442,6 +579,58 @@ static void TestPick(void)
     CHECK(RzgKey(1, 5, 0, 13, 1, 0) != RzgKey(1, 5, 0, 13, 1, 1) && RzgKey(1, 5, 0, 13, 1, 0) != RzgKey(1, 5, 1, 13, 1, 0) &&
           RzgKey(1, 5, 0, 13, 1, 0) != RzgKey(1, 5, 0, 13, 2, 0) && RzgKey(1, 5, 0, 13, 1, 0) != RzgKey(2, 5, 0, 13, 1, 0),
           "the key: seed, half, object and visit take part");
+    // v3.50 RL350: the user's 2:7 (v3.49 #2 / #3: FFFF000A went to FFFF0007's spot, FFFF0007 near FFFF000A's): with both
+    // ghost places given, neither victim lands within 600 of the other's place, both 800 + from their own
+    {
+        static const float gh[2][3] = { { -1000, 900, -4400 }, { 982, 900, -4395 } };
+        float A[3], B[3], tk[1][3];
+        int okA = 1, okB = 1, kk, old49 = 0;
+        RzgPickIn a;
+        g.mode = 1;
+        for (kk = 0; kk < 200; ++kk) {  // v3.49's rule: the other victim's place was a candidate (the swap)
+            memset(&a, 0, sizeof a);
+            a.base = gh[0], a.key = RzgKey((unsigned)kk, 2, 0, 7, 1, 2), a.stock = gh, a.nStock = 2;
+            if (RzgPick(&a, FakeTest, &g, A, NULL, NULL)) old49 += RzgDist2(A, gh[1]) < 600.0f * 600.0f;
+        }
+        CHECK(old49 > 0, "without the ghost places (v3.49): the other victim's place is taken now and then (%d of 200)", old49);
+        for (kk = 0; kk < 200; ++kk) {
+            memset(&a, 0, sizeof a);
+            a.base = gh[0], a.key = RzgKey((unsigned)kk, 2, 0, 7, 1, 2), a.stock = gh, a.nStock = 2, a.ghosts = gh, a.nGhosts = 2;
+            okA &= RzgPick2(&a, FakeTest, &g, A, NULL, NULL, &sh) && !sh && RzgDist2(A, gh[1]) >= 600.0f * 600.0f &&
+                   RzgDist2(A, gh[0]) >= 800.0f * 800.0f;
+            memcpy(tk[0], A, 12);
+            a.base = gh[1], a.key = RzgKey((unsigned)kk, 2, 0, 7, 2, 2), a.taken = (const float(*)[3])tk, a.nTaken = 1;
+            okB &= RzgPick2(&a, FakeTest, &g, B, NULL, NULL, &sh) && RzgDist2(B, gh[0]) >= 600.0f * 600.0f &&
+                   RzgDist2(B, A) >= RZG_MIN_OTHER * RZG_MIN_OTHER && RzgDist2(B, gh[1]) >= 800.0f * 800.0f;
+        }
+        CHECK(RZG_MIN_GHOST == 600.0f && RZG_WANT_SELF == 800.0f, "the ghost-place and wanted distances (600 / 800)");
+        CHECK(okA && okB, "2:7: no swap: each victim 600 + from the other's place, 800 + from its own (%d %d)", okA, okB);
+        // only the other ghost's place fits: refused (v3.49 took it)
+        g.mode = 2, g.only = (const float(*)[3])gh, g.nOnly = 2;
+        memset(&a, 0, sizeof a);
+        a.base = gh[0], a.key = 5u, a.stock = gh, a.nStock = 2, a.ghosts = gh, a.nGhosts = 2;
+        CHECK(!RzgPick(&a, FakeTest, &g, A, &nv, &nt) && nv == 0, "the other victim's place is never a spot (%d of %d)", nv, nt);
+        g.mode = 1;
+    }
+}
+
+// ---------------------------------------------------------------- v3.50 RL350: the record rule
+static void TestRecords(void)
+{
+    CHECK(RzgRecRule(0, 0.0f, 2, 7, 2, 7) == RZG_REC_NONE, "a free record: none");
+    CHECK(RzgRecRule(1, 0.0f, 2, 7, 2, 7) == RZG_REC_MOVE && RzgRecRule(0x0D, -1.0f, 2, 7, 2, 7) == RZG_REC_MOVE,
+          "a standing record in this room: moved with its ghost");
+    CHECK(RzgRecRule(0x0B, 0.0f, 2, 7, 2, 7) == RZG_REC_PINNED, "pinned (0x0B) here: kept where it lies");
+    CHECK(RzgRecRule(0x0A, 0.0f, 2, 7, 2, 7) == RZG_REC_DOWN && RzgRecRule(1, 3.5f, 2, 7, 2, 7) == RZG_REC_DOWN &&
+          RzgRecRule(0x12, 0.0f, 2, 7, 2, 7) == RZG_REC_DOWN, "down (0x0A, a countdown, a scene state): kept");
+    CHECK(RzgRecRule(1, 0.0f, 2, 9, 2, 7) == RZG_REC_ELSEWHERE && RzgRecRule(0x0B, 0.0f, 2, 9, 2, 7) == RZG_REC_ELSEWHERE,
+          "a record in another room of the world: left alone");
+    CHECK(RzgRecRule(1, 0.0f, 5, 7, 2, 7) == RZG_REC_OTHERWORLD, "another world's record (the game deletes it): left alone");
+    CHECK(RzgRecWorse(RZG_REC_MOVE, RZG_REC_PINNED) == RZG_REC_PINNED && RzgRecWorse(RZG_REC_PINNED, RZG_REC_MOVE) == RZG_REC_PINNED &&
+          RzgRecWorse(RZG_REC_NONE, RZG_REC_MOVE) == RZG_REC_MOVE && RzgRecWorse(RZG_REC_ELSEWHERE, RZG_REC_MOVE) == RZG_REC_MOVE &&
+          RzgRecWorse(RZG_REC_DOWN, RZG_REC_PINNED) == RZG_REC_PINNED, "several records of one id: a kept one wins over a move");
+    CHECK(!strcmp(kRzgRecName[RZG_REC_MOVE], "moved") && !strcmp(kRzgRecName[RZG_REC_NONE], "none") &&
+          !strcmp(kRzgRecName[RZG_REC_PINNED], "pinned here"), "the record names the log uses");
 }
 
 // ---------------------------------------------------------------- patch-and-restore (rando_sim.h's stack)
@@ -483,6 +672,7 @@ int main(int argc, char **argv)
     TestExe(exe);
     TestMadeUp();
     TestPick();
+    TestRecords();  // v3.50 RL350
     TestPatch();
     printf("rzlooks_sim_test: %d check(s), %d failure(s)\n", g_n, g_fail);
     return g_fail ? 1 : 0;

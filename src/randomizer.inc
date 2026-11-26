@@ -192,7 +192,7 @@ static void RzReadIni(void)
     g_rzKeep = RzReadKey("KeepSpecials", RzOnOffOfText, RZ_KEEP_DEFAULT, kRzKeepName, "On / Off");
     g_rzR302 = RzReadKey("Room302", RzR302OfText, RZ_R302_DEFAULT, kRzR302Name, "In / Out");
     g_rzPerVisit = RzReadKey("PerVisit", RzOnOffOfText, RZ_PERVISIT_DEFAULT, kRzKeepName, "On / Off");  // round 2
-    g_rzMon = RzReadKey("Monsters", RmMonOfText, RM_MON_DEFAULT, kRmMonName, "Off / This Room / This World");  // v3.49 RZ349
+    g_rzMon = RzReadKey("Monsters", RmMonOfText, RM_MON_DEFAULT, kRmMonName, "Off / This Room / This World / All Worlds");  // v3.49 RZ349  // v3.50 RM350: + All Worlds
     IniStr("Randomizer", "Seed", b, sizeof b);
     seed = RzSeedOfText(b);
     if (!seed) {

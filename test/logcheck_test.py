@@ -510,6 +510,26 @@ V349F2 = V333_END + """10:00:00.200 enemies: in (room load 004F0AF8, kill count 
 V349F3 = V333_END + """10:00:00.200 enemies: in (room load 004F0AF8, kill count 00450DB0, bone pool 00419830); EnemyCopies Off, EnemyFollow Off, EnemyRevive Off, BonePool -1
 10:00:01.000 enemies: Enemies Follow Off: nobody follows you through doors
 """
+# v3.50 EF350: the value renamed Victims (its lines), followers kept at two saves, a load that finds them and their room
+# load's restore, a load with none, a restore refused, Enemy Pursuit's install line, a change, the lost-track door lines
+V350EF = V333_END + """10:00:00.200 enemies: in (room load 004F0AF8, kill count 00450DB0, bone pool 00419830, victims 00486199, room change 004F0A5A, save 00465438); EnemyCopies x2, EnemyFollow Victims, EnemyRevive Off, BonePool -1 (-1 Auto = 4096 while Copies or Follow is on), FollowMax 32
+10:00:00.201 enemies: followers across saves in (snapshot 004FC1A4, load 004FC6ED; side file G:\\Game\\save\\SH4Refined_follow.dat); Enemy Pursuit Normal (memory 10 s, doors away 2; Relentless = v3.49)
+10:00:01.000 enemies: Enemies Follow Victims: only the victims' ghosts follow you through doors (the story ghosts too, and their copies); monsters and their copies stay in their rooms (any left in other rooms go home at the next room load)
+10:00:02.000 enemies: Enemies Follow is Victims: 1 monster(s) left in other rooms went home (0 of them killed there: they stay dead)
+10:00:02.001 enemies: Enemies Follow is Victims: 2 monster copies that followed you are made in their own rooms again (ghost copies stay)
+10:00:03.000 gameplay: EnemyFollow Monsters + Victims
+10:00:10.000 enemies: through door 4 from room 2 to 4: Enemy Pursuit Normal: 2 lost track of you (1 out of their senses, 1 down when you left, 0 did not catch up); 3 more had spotted you but forgot
+10:00:20.000 enemies: through door 2 from room 4 to 2: Enemy Pursuit Normal: 0 lost track of you (0 out of their senses, 0 down when you left, 0 did not catch up); 1 more had spotted you but forgot
+10:00:22.000 enemies: follow save: kept for this save (stage 2 room 2, game time 44565, key 1A2B3C4D): 3 pursuer(s) (2 here, 1 away), 1 on their way here, 2 ghost(s) let into this room, 0 cop(ies) that followed you; side file 1 entr(ies)
+10:00:24.000 enemies: follow load: this save's followers are kept (stage 2 room 2, key 1A2B3C4D): 3 pursuer(s), 1 on their way, 2 ghost(s) let in, 0 cop(ies): they come back at its room load
+10:00:25.000 enemies: follow restore: room 2:2 after a load: 3 pursuer(s) back (2 here with you, 1 away), 1 on their way here, 2 ghost(s) let in, 0 cop(ies) in the ledger; left out: 0 without their record (the save filter, or gone), 0 of a kind Enemies Follow Monsters + Victims takes no longer
+10:00:30.000 gameplay: EnemyPursuit Forgetful
+10:00:40.000 enemies: through door 4 from room 2 to 4: Enemy Pursuit Forgetful: 1 lost track of you (0 out of their senses, 0 down when you left, 1 did not catch up); 0 more had spotted you but forgot
+10:00:50.000 enemies: follow save: kept for this save (stage 2 room 4, game time 47000, key 0000BEEF): 1 pursuer(s) (1 here, 0 away), 0 on their way here, 0 ghost(s) let into this room, 2 cop(ies) that followed you; side file 2 entr(ies) (not written: kept for this session)
+10:00:55.000 [v] enemies: follow load: no followers kept for this save (stage 5 room 14, game time 820326, key 00000001): nothing to restore
+10:01:00.000 enemies: follow restore: Enemies Follow is off: this save's followers are not restored
+10:01:05.000 gameplay: [Gameplay] EnemyPursuit read again: Relentless
+"""
 V348RZB = V333_END + """10:00:00.040 randomizer: [Randomizer] Items "Randomize" is not Off / Shuffle / Random: Random (the default)
 10:00:00.041 """ + RZ_INSTALL % ('Random', 136, ': some scripts are not the stock ones (their pickups are left alone)') + """
 10:00:06.000 ANOMALY: randomizer: stage 2 visit 1: the script at 00683AA0 is not the stock one (17 plain pickup(s), 7 weapon spot(s)): its pickups are left alone
@@ -548,6 +568,24 @@ V349RZMB = V333_END + """10:00:00.040 randomizer: [Randomizer] Monsters "Everywh
 10:00:05.001 randomizer: monsters: the hit-shape pool is the stock 100 ([Gameplay] HitPool): Monsters stay as placed (a new type may need more shapes than the room's own)
 10:00:06.000 ANOMALY: randomizer: monsters: stage 2 visit 1: the script at 00683AA0 is not the stock one (20 source placement(s) of 53): its monsters are left alone
 """
+# v3.50 RM350: the Monsters in a save-based game (the game's own records adopted), All Worlds, the reasons, in the dll's formats
+RM350_TAIL = ("; the game's own records: %d adopted (%d made as another type); stock type kept: %d rolled it, %d by a stock record, %d "
+              "recorded elsewhere, %d for another writer's record, %d with no target")
+V350RZM = V333_END + """10:00:00.042 """ + RZM_INSTALL % ('All Worlds', 235, ': the stock scripts', 'in') + """
+10:00:05.001 randomizer: monsters: the first room with source placements (stage 5 room 11): Monsters All Worlds
+10:00:05.002 randomizer: monsters: Twin Victim is no monster of stage 5's scripts: its sounds may be missing there (allowed)
+10:00:05.003 randomizer: monsters: room 5:11 (visit 1, #1): 7 of 8 placement(s) changed (All Worlds): Whitestool 1, Hummer 2, Twin Victim 3, Sniffer Dog 2; 0 kept their record's type, 7 record(s) deleted; kept as placed: 0 for the bone budget, 0 for files, 0 without a floor; files loaded for 1 type(s) (900 KB)""" + RM350_TAIL % (8, 7, 1, 0, 0, 0, 0) + """
+10:00:05.004 [v] randomizer: monsters: room 5:11: n7 Whitestool v0 -> Hummer v0 [the game's record, adopted and deleted]; n8 Whitestool v0 kept as Whitestool v0 (rolled) [the game's record, adopted]
+10:00:40.000 randomizer: monsters: room 5:4 (visit 1, #2): 0 of 2 placement(s) changed (All Worlds): Hummer 2; 0 kept their record's type, 0 record(s) deleted; kept as placed: 0 for the bone budget, 0 for files, 0 without a floor; files loaded for 0 type(s) (0 KB)""" + RM350_TAIL % (0, 0, 0, 1, 1, 0, 0) + """
+10:00:50.000 randomizer: monsters: room 2:4 (visit 0, #3): 0 of 1 placement(s) changed (This World): Sniffer Dog 1; 0 kept their record's type, 0 record(s) deleted; kept as placed: 0 for the bone budget, 0 for files, 0 without a floor; files loaded for 0 type(s) (0 KB)
+10:01:00.000 randomizer: Monsters All Worlds (was This World; applies at the next room load)
+10:01:10.000 randomizer: [Randomizer] Monsters read again: All Worlds (applies at the next room load)
+10:03:00.000 randomizer: monsters: a save: 7 record(s) of monsters made as another type are left out of it (they come back as placed after a load)
+10:09:00.001 randomizer: monsters session: All Worlds (seed 794655925, Change Each Visit On): 40 room load(s), 3 with source placements randomized, 7 placement(s) changed, 0 kept their record's type, 7 record(s) deleted (+0 with Monsters off); kept as placed: 0 for the bone budget, 0 for files, 0 without a floor; files loaded 1 time(s) (900 KB); 0 room load(s) with the cheat table's Enemy Randomizer on; 1 save(s), 7 record(s) left out; 0 word(s) left as found
+10:09:00.002 randomizer: monsters session: the game's own records: 8 adopted (7 made as another type); stock type kept: 1 rolled it, 1 by a stock record, 1 recorded elsewhere, 0 with no target
+"""
+V350RZMB = V333_END + """10:00:00.040 randomizer: [Randomizer] Monsters "Everywhere" is not Off / This Room / This World / All Worlds: This World (the default)
+"""
 # v3.49 RZ349L: the Randomizer's looks (rzlooks.inc), in the formats the dll writes
 V349RZL = V333_END + """10:00:00.040 randomizer: [Randomizer] Ghosts "Rooms" is not Off / Spots: Spots (the default)
 10:00:00.041 randomizer: looks: [Randomizer] EileenOutfit Random, Ghosts Spots (companion Eileen's outfit once per world visit among the unlocked ones; victim ghosts at another spot of their room: patch-and-restore of their position words, no exe patch)
@@ -566,6 +604,16 @@ V349RZL = V333_END + """10:00:00.040 randomizer: [Randomizer] Ghosts "Rooms" is 
 """
 V349RZLB = V333_END + """10:00:05.000 randomizer: looks: the first room load (stage 2 room 1): Eileen Outfit Random, NOT available: the outfit engine is off ([EileenOutfit] Enabled 0, or its sites are not stock); Ghosts Spots, the cheat table's Enemy Randomizer is on: ghosts left alone
 10:00:05.001 randomizer: ghosts: the cheat table's Enemy Randomizer (0052CAA9 / 0052CB2B) is on: the ghosts start where the game puts them
+"""
+# v3.50 RL350: the outfit's room draws, the final fight's hold, the ghosts' distance and record (rzlooks.inc's v3.50 formats)
+V350RL = V333_END + """10:00:00.041 randomizer: looks: [Randomizer] EileenOutfit Random, Ghosts Spots (companion Eileen's outfit among every outfit, Dress and Nurse: at every room load of her world with Change Each Visit On, else once per world visit; victim ghosts at another spot of their room, 800 + away when it allows, their records in the room moved too: patch-and-restore of their position words, no exe patch)
+10:00:04.000 randomizer: outfit: world visit 2 (stage 5, half 2, at her world's file list): Nurse (seed 1211037167, Change Each Visit On; every outfit: Dress, Nurse; the set outfit Nurse)
+10:00:06.000 randomizer: outfit: room 5:14 load (world visit 2, room draw 1): Nurse -> Dress (seed 1211037167)
+10:00:30.000 randomizer: outfit: room 5:15 load (world visit 2, room draw 2): Dress -> Dress (seed 1211037167)
+10:01:00.000 randomizer: outfit: room 9:1 load: no room draw in the final fight (stage 9): her outfit stays Nurse for this visit
+10:02:00.000 randomizer: ghosts: room 2:7 (#2): 2 of 2 victim(s) moved (seed 1211037167, Change Each Visit On): FFFF000A 0B v0 -1000 900 -4400 -> 210 900 -3550 (d 1478, 9 of 31 fit, record moved); FFFF0007 0B v3 982 900 -4395 -> 1600 900 -3900 (d 792 near: the room allows no farther, 4 of 30 fit, record none)
+10:03:00.000 randomizer: ghosts: room 5:4 (#1): 0 of 1 victim(s) moved (seed 1211037167, Change Each Visit On): FFFF0009 0D v1 2200 -800 -3432 kept (its record: pinned here)
+10:09:00.000 randomizer: looks session: Eileen Outfit Random: 2 world visit(s), 1 world draw(s) (all draws: Dress 1, Nurse 2), 2 room draw(s) (1 changed her outfit), 1 back to the set outfit, 0 chosen in the Extra Menu; Ghosts Spots: 2 room load(s) with victims, 3 victim(s), 2 moved (1 of them 800 or more, 1 record(s) moved), 1 kept (1 by a pinned or down record), 0 left as found
 """
 RG_WHO_PE = "Playable Eileen's own regeneration (Refined's row grey, Off)"
 V347R = V333_END + """10:00:00.050 settings: [Gameplay] Regen was missing, added as "x1" (from Playable Eileen's [Defense] Regen 1 / RegenRate 15, as the v3.46 row showed it)
@@ -657,6 +705,22 @@ V349G = V333_END + """10:00:00.200 ghost teleport: in (no exe patch; 29 game fun
 10:01:06.000 [v] ghost teleport: room 2:3: 0 walk-in event zone(s) the game would still fire: no warp across or into them (5 other zone(s) need a press or a look)
 """
 
+# v3.50 TP350: through a wall, behind the enemy she faces, the room's floor map, a room visit's counts, the new refusals
+V350G = V333_END + """10:00:00.200 ghost teleport: in (no exe patch; 34 game functions checked), [Gameplay] GhostTeleport On; Run + Action together (within 80 ms): behind the standing enemy she faces (+-35 degrees) within 5000 u, else up to 800 u ahead the way she faces, through walls on (onto floor a route of the room reaches), cooldown 0.0 s; held: the next warp once she has faded in; never across or into a walk-in event zone; Richard's transition: his warp sound 0xEC86 on, his see-through fade (0.5 s out, 0.5 s in) on her model in
+10:01:00.000 [v] ghost teleport: room 2:4: 0 walk-in event zone(s) the game would still fire: no warp across or into them (18 other zone(s) need a press or a look)
+10:01:00.001 [v] ghost teleport: room 2:4: the floor map begins (a grid of 40 x 120 cells of 60 u on the room's box; 7 of 7 door(s) seeded, 0 without a floor there)
+10:01:00.004 [v] ghost teleport: Run + Action (Action last: its own use taken back; a later call-off keeps it): Richard's fade out (0.5 s), then 440 u ahead the way she faces, through a wall (the room's floor map is not finished: the warp decides)
+10:01:00.300 [v] ghost teleport: room 2:4: the floor map is finished: 4120 cell(s) a route of the room reaches, from 8 seed(s) (0 without a floor); 9.4 ms over 3 run(s)
+10:01:00.500 [v] ghost teleport: through 440 u the way she faces (straight ahead; the obstacle from 320 u, 2 spot(s) past it refused first; on the room's floor map, floor -0 u of hers): from (0, 0) to (0, 440) (the fade began at (0, 0)); cooldown 0.0 s (warp 1; same room: 7 door line(s), box in)
+10:01:01.000 [v] ghost teleport: Richard's fade ended (drawn see-through on 30 body and 30 weapon draw(s))
+10:01:02.000 [v] ghost teleport: Run + Action (Action last: its own use taken back; a later call-off keeps it): Richard's fade out (0.5 s), then behind type 0A 3100 u away (the enemy she faces, 12 degrees off)
+10:01:02.500 [v] ghost teleport: behind type 0A 3100 u away (the enemy she faces, 12 degrees off her facing, 1 in the +-35 degree cone; spot 0: 160 u behind its back, floor +0 u of hers): from (0, 440) to (100, 3500), facing it; cooldown 0.0 s (warp 2; same room: 7 door line(s), box in)
+10:01:04.000 [v] ghost teleport: not now: no free floor behind the enemy she faces (type 0A 900 u, 20 degrees off her facing; 21 spots, 7 door line(s): a wall between 21) (Action left to the game)
+10:01:05.000 [v] ghost teleport: not now: no free floor ahead of her in this room (no standing enemy she faces within 5000 u; 7 tries from 800 down to 200 u, 7 door line(s): a wall between 7; through walls: 5 of 5 ray(s) met an obstacle within 800 u, past it: no route of the room reaches it 25, in a wall 15; the room's floor map 4120 cell(s)) (Action left to the game)
+10:01:06.000 [v] ghost teleport: room 2:4 left: 2 warp(s) (1 through walls, 1 behind the enemy she faces, 0 ahead), 2 refused (behind the faced enemy 1, ahead 1); 1 Action / Check press(es) taken back in fade-outs; floor map 4120 cell(s), finished, 9.4 ms over 3 run(s)
+10:01:07.000 [v] ghost teleport: room 2:7 left: 0 warp(s) (0 through walls, 0 behind the enemy she faces, 0 ahead), 1 refused (her state 1); 0 Action / Check press(es) taken back in fade-outs; floor map 300 cell(s), not finished, 1.2 ms over 1 run(s)
+"""
+
 V343G = V333_END + """10:00:00.200 ghost teleport: in (no exe patch; 13 game functions checked), [Gameplay] GhostTeleport On; hold Run 0.4 s standing still: behind the nearest standing enemy within 2500 u, cooldown 3.0 s, Richard's warp sound 0xEC86 on, Echo Doubles' teleport smoke
 10:01:00.000 [v] ghost teleport: behind type 03 640 u away (enemy 1 of 2 tried, spot 0: 155 u behind its back, floor +0 u of hers): from (100, 200) to (700, 900), facing it; cooldown 3.0 s (warp 1)
 10:01:01.000 [v] ghost teleport: Run held, waiting for the cooldown (2.0 s left)
@@ -714,6 +778,34 @@ V349SBY = V333_END + r'''10:00:00.010 save banks: list highlight bar: yellow (th
 V349SBX = V333_END + r'''10:00:00.010 save banks: 0056FDCF is not stock: expected 81 CE 00 00 80 FF C1 E6 08 0B F0 
 10:00:00.010 save banks: list highlight bar: yellow (56FDCF is not stock: nothing written)
 '''
+
+
+# v3.50 FI350: Fade In (fadein.inc): the install line, verbose starts, a portal drawn, two room lines, a menu change, an
+# ini re-read, a type with a draw state of its own
+FI_INSTALL = ("fade in: in (no exe patch: the model draw 0052AEB5 and shadow 0052AF95 hooks; the game's see-through enemy draw "
+              "0045C880; the portal %s); [Gameplay] FadeIn %s, FadeInSeconds 0.80; never bosses, Wall Men, Walter, event or "
+              "cut-scene figures; a fading enemy acts as usual")
+V350FI = V333_END + """10:00:00.300 """ + FI_INSTALL % ('from the scene pass 004EFBFD', 'Fade + Portal') + """
+10:00:05.000 [v] fade in: room load 02040001 (type 0A) fades in over 0.80 s at -79 -150 -1597 (room 2:4, 0.0 s into the visit)
+10:00:09.000 [v] fade in: follower FFFF0007 (type 0B) fades in over 0.80 s from a blood portal at 10 0 -200 (room 2:2, 4.1 s into the visit)
+10:00:09.020 fade in: a blood portal drawn (viewport 3D 2560x1440, the exact depth of 012E3ED0)
+10:00:20.000 fade in: room 2:2: 4 fade(s) (room load 2, follower 1, wanderer 0, copy 1, revive 0, ghost 0, monster 0), 1 portal(s); 2 not faded (stage 0, cut-scene 0, type 1, boss 0, event 0, dead 1, own draw 0, own portal 0, own fade 0)
+10:00:30.000 fade in: FadeIn Fade
+10:00:40.000 fade in: room 2:4: 1 fade(s) (room load 0, follower 0, wanderer 0, copy 0, revive 1, ghost 0, monster 0), 0 portal(s); 1 not faded (stage 0, cut-scene 0, type 0, boss 0, event 0, dead 0, own draw 0, own portal 1, own fade 0)
+10:00:50.000 fade in: [Gameplay] FadeIn read again: Fade + Portal
+10:00:51.000 [v] fade in: type 0A is drawn with a draw state of its own (pre-draw 0045C840): drawn as the game draws it
+"""
+# v3.50 FI350: an unknown ini value and Fade In off (0x45C880 not stock: a warning too)
+V350FI2 = V333_END + """10:00:00.290 fade in: [Gameplay] FadeIn "Dissolve" is not Off / Fade / Fade + Portal: Fade + Portal (the default)
+10:00:00.300 fade in: OFF (0045C880, the game's see-through enemy draw, is not the stock code: another mod?); enemies appear as the game makes them
+"""
+# v3.50 FI350: a portal that was never drawn, a fault, a menu value that could not be saved
+V350FI3 = V333_END + """10:00:00.300 """ + FI_INSTALL % ('from the scene pass 004EFBFD', 'Fade + Portal') + """
+10:00:40.000 fade in: room 3:1: 2 fade(s) (room load 0, follower 0, wanderer 0, copy 0, revive 0, ghost 1, monster 1), 1 portal(s); 0 not faded (stage 0, cut-scene 0, type 0, boss 0, event 0, dead 0, own draw 0, own portal 0, own fade 0)
+10:01:00.000 fade in: a fault in the model draw (code C0000005 at 0045C8F2): Fade In is off for this session (enemies are drawn as the game draws them)
+10:01:00.001 ANOMALY: fade in: a fault in the model draw (code C0000005 at 0045C8F2): off for the session
+10:01:05.000 fade in: FadeIn Off applies now but could not be saved in SH4Refined.ini (error 5)
+"""
 
 
 def sess(t0, ver, rend, chain, rooms, end=True, started=None, anomalies=0, perf=None, title=None):
@@ -873,6 +965,37 @@ def test_compare():
     shutil.rmtree(d, ignore_errors=True)
 
 
+# v3.50 R302: Room 302's look and walk (room302.inc): the user's game today (Playable Eileen v1.24.4 without the yield
+# export: inert) and a game where Refined owns both groups (no Playable Eileen, or one that yields)
+R3_OWNERS = ("room 302: owners (%s): look %s, walk %s; Playable Eileen %s; [Room302] LookDownLimit %s, LookUpLimit %s, "
+             "LookFeel %s, WalkSpeed %s%s")
+R3_PE124 = ("v1.24 loaded without SH4PE_Room302Yield (older than the hand-over): its Room 302 look and walk stay its own (Eileen "
+            "only); Refined's Room 302 rows are greyed, nothing hooked")
+V350R = V333_END + """10:00:00.100 settings: [Room302] LookDownLimit was missing, added as 85 (from SH4PlayableEileen.ini [Room302])
+10:00:00.101 settings: [Room302] LookUpLimit was missing, added as 85 (from SH4PlayableEileen.ini [Room302])
+10:00:00.102 settings: [Room302] LookFeel was missing, added as 1 (from SH4PlayableEileen.ini [Room302])
+10:00:00.103 settings: [Room302] WalkSpeed was missing, added as 0.65 (from SH4PlayableEileen.ini [Room302])
+10:00:00.104 """ + R3_OWNERS % ('at start', 'Playable Eileen', 'Playable Eileen', R3_PE124, '85', '85', '1', '0.65', '') + """
+"""
+V350RA = V333_END + """10:00:00.100 settings: [Room302] LookDownLimit was missing, added as 85
+10:00:00.101 room 302: [Room302] LookFeel=0.8 is not one of the row's values: 1 used
+10:00:00.102 room 302: look hooks in (at start): 0052DF74 call, 0052DCC6 / 0052DD14 operands
+10:00:00.103 """ + R3_OWNERS % ('at start', 'SH4 Refined', 'SH4 Refined', 'not loaded', '85', '85', '1', '0.65', '') + """
+10:03:00.000 [v] room 302: look: the view was rolled or past a limit (pitch 91.2 deg, roll 0.00): rebuilt at pitch 85.0, no roll
+10:05:00.000 [v] room 302: visit 120 s (left): look 7200 tick(s) (eased 3000, clamped 40: up 25, down 15; view rebuilt 1), walk x0.65 7100 tick(s)
+10:06:00.000 room 302: [Room302] WalkSpeed 0.65 -> 0.8 (Options)
+10:09:00.000 [v] room 302: visit 300 s (5 minutes): look 18000 tick(s) (eased 100, clamped 0: up 0, down 0; view rebuilt 0), walk x0.8 17000 tick(s)
+10:09:30.000 ANOMALY: room 302: look: nobody (Playable Eileen not loaded, its patch list does not cover the group's sites, the sites another module's): nobody's hook is in
+"""
+V350RW = V333_END + """10:00:00.104 """ + R3_OWNERS % ('at start', 'waiting for Playable Eileen', 'waiting for Playable Eileen',
+                                                        'v1.25 loaded, SH4PE_Room302Yield not decided yet', '85', '85', '1', '0.65',
+                                                        '; decided again on the first game tick') + """
+10:00:01.000 """ + R3_OWNERS % ('first game tick', 'SH4 Refined', 'Playable Eileen', 'v1.25 yields look (SH4PE_Room302Yield)',
+                               '85', '85', '1', '0.65', '') + """
+10:00:01.001 room 302: look hooks in (first game tick): 0052DF74 call, 0052DCC6 / 0052DD14 operands
+"""
+
+
 def run(text, name='SH4Refined.log'):
     d = tempfile.mkdtemp(prefix='logcheck_')
     p = os.path.join(d, name)
@@ -1028,6 +1151,20 @@ def main():
           '1 hold(s) of Run + Action: 2 warp(s), the longest 2 in a row, 3 try(ies) refused while held' in r and
           'walk-in event zones kept out of: room 2:2 x1 (2 refusal(s) had spots inside or past one)' in r,
           'v3.49: the ghost teleport summary (v3.48 chord lines counted, the hold, the zones)')
+    s, r = run(V350G)  # v3.50 TP350
+    print(r)
+    check(s.gt == ('in', 'On') and s.gt_warps['through'] == 1 and s.gt_warps['0A'] == 1 and s.gt_faced == 1 and
+          s.gt_no['no free floor behind the enemy she faces'] == 1 and s.gt_no['no free floor ahead of her in this room'] == 1 and
+          s.gt_rooms == [('2:4', 2, 1, 1, 0, 2, 1), ('2:7', 0, 0, 0, 0, 1, 0)] and
+          dict(s.gt_room_no) == {'behind the faced enemy': 1, 'ahead': 1, 'her state': 1} and
+          s.gt_maps == [('2:4', 4120, 8, 0, 9.4)] and s.gt_map_open == 1, 'v3.50: the ghost teleport v3.50 lines read')
+    check('2 warp(s) (types 0A x1, through x1)' in r and '; 1 behind the enemy she faces' in r and
+          '2 room visit(s) with tries: 2 warp(s) (1 through walls, 1 behind the faced enemy, 0 ahead), 3 refused (behind the faced '
+          'enemy x1, ahead x1, her state x1), 1 Action / Check press(es) taken back in fade-outs' in r and
+          'floor maps: 1 finished (4120 cells at most, 9.4 ms at most), 1 room visit(s) left with it NOT finished' in r,
+          'v3.50: the ghost teleport summary (through walls, the faced enemy, room visits, floor maps)')
+    s, r = run(V349G)  # (v3.50 TP350: a v3.49 log reads as before: no room / map parts)
+    check('room visit(s) with tries' not in r and 'floor maps:' not in r and s.gt_faced == 0, 'v3.50: a v3.49 log: no v3.50 parts')
     s, r = run(V337I)  # v3.37 INV337
     print(r)
     check(s.inv == ('on', 'off', 'in') and s.inv_sw['extended toolbelt stays on'] == 1 and s.inv_sw['extended toolbelt off'] == 1,
@@ -1450,6 +1587,24 @@ def main():
     check(s.rzl_gh['ct'] == 1 and 'NOT available' in s.rzl_first[4] and
           "ghosts left alone: the cheat table's Enemy Randomizer is on" in r and 'randomizer looks: (no start line)' in r,
           'v3.49: the outfit engine off, the cheat table\'s Enemy Randomizer on (%r)' % (s.rzl_first,))
+    s, r = run(V350RL)  # v3.50 RL350
+    check(s.rzl == ('Random', 'Spots') and [k for _, k, _ in s.rzl_out] == ['draw'] and
+          s.rzl_room == {'draws': 2, 'changed': 1, 'held': 1} and s.rzl_gh == {'rooms': 2, 'moved': 2, 'victims': 3, 'revisits': 1} and
+          s.rzl_gv['far'] == 1 and s.rzl_gv['near'] == 1 and s.rzl_gv['recmoved'] == 1 and s.rzl_gv['reckept'] == 1 and
+          s.rzl_gv['dmax'] == 1478 and s.rzl_sess is None and s.rzl_sess2 and s.rzl_sess2[5:7] == ('2', '1') and
+          s.rzl_sess2[14:18] == ('1', '1', '1', '1') and s.rzl_anom == 0 and s.rz is None,
+          'v3.50: the room draws, the final fight, the ghosts distance / record and the v3.50 session parse (%r %r %r %r)' % (
+              s.rzl_room, s.rzl_gh, s.rzl_gv, s.rzl_sess2))
+    check('; outfit: 1 draw(s), 0 with one outfit, 0 back to the set one, 0 Extra Menu choice(s); last: Nurse (visit 2, stage 5) '
+          '[10:00:04]; outfit room draws: 2 (1 changed her outfit), 1 held in the final fight' in r and
+          '; ghosts: 2 room load(s) with victims (1 of them a room visited again), 2 of 3 victim(s) moved (1 800 or more away, 1 '
+          'nearer: the room allowed no farther; mean 1135, most 1478; 1 record(s) moved), 1 kept by a pinned or down record' in r and
+          '; session: outfit 2 world visit(s), 1 world draw(s), 2 room draw(s) (1 changed), Dress 1 / Nurse 2, 1 back, 0 chosen; '
+          'ghosts 2 room load(s), 3 victim(s), 2 moved (1 at 800 +, 1 record(s) moved), 1 kept (1 by a record), 0 left as found' in r,
+          'v3.50: the looks summary line with the room draws and the ghosts distances (%r)' % r[r.find('randomizer looks'):][:900])
+    s, r = run(V349RZL)  # v3.50 RL350: a v3.49 log: no distances counted, no room draws
+    check(not s.rzl_gv['far'] and not s.rzl_gv['near'] and not s.rzl_room and s.rzl_sess2 is None and s.rzl_sess and
+          'outfit room draws' not in r and '800 or more away' not in r, 'v3.50: a v3.49 looks log reads as before')
     s, r = run(V333_END)
     check(s.rz is None and 'randomizer:' not in r, 'v3.48: no Randomizer lines, no summary line')
     s, r = run(V349F)  # v3.49 EF349
@@ -1458,16 +1613,38 @@ def main():
           s.fol_home == [2, 1] and s.fol['stops'] == 1 and s.fol['doors'] == 1,
           'v3.49: the Enemies Follow value lines read (%r %r %r %r)' % (s.fol_mode, s.fol_modes, s.fol_home, dict(s.fol)))
     check('enemies follow setting: Monsters + Victims at the start; 2 change(s): Victims Only [10:00:05], Monsters + Victims '
-          '[10:01:00]; with no monsters following (Off / Victims Only): 2 monster(s) sent home from other rooms, 1 cop(ies) made in '
+          '[10:01:00]; with no monsters following (Off / Victims): 2 monster(s) sent home from other rooms, 1 cop(ies) made in '
           'their own rooms again' in r, 'v3.49: the Enemies Follow setting line')
     check('enemies follow: 1 door(s), 1 follower(s) in all' in r, 'v3.49: the Enemies Follow summary line still reads')
     s, r = run(V349F2)
     print(r)
     check(s.fol_mode == 'Victims Only' and s.fol_modes == [('10:00:30', 'Off')] and s.fol_home == [0, 3],
           'v3.49: Victims Only at the start, an unsaved change, Off clearing the ledger (%r %r %r)' % (s.fol_mode, s.fol_modes, s.fol_home))
-    check('enemies follow setting: Victims Only at the start; 1 change(s): Off [10:00:30]; with no monsters following (Off / Victims '
-          'Only): 0 monster(s) sent home from other rooms, 3 cop(ies) made in their own rooms again' in r,
+    check('enemies follow setting: Victims Only at the start; 1 change(s): Off [10:00:30]; with no monsters following (Off / Victims'
+          '): 0 monster(s) sent home from other rooms, 3 cop(ies) made in their own rooms again' in r,
           'v3.49: the setting line for Victims Only at the start')
+    s, r = run(V350EF)  # v3.50 EF350
+    print(r)
+    check(s.fol_mode == 'Victims' and s.fol_modes == [('10:00:03', 'Monsters + Victims')] and s.fol_home == [1, 2],
+          'v3.50: Victims (renamed) reads (%r %r %r)' % (s.fol_mode, s.fol_modes, s.fol_home))
+    e = s.ef
+    check(s.ef_mode == 'Normal' and s.ef_site == 'in' and s.ef_modes == [('10:00:30', 'Forgetful'), ('10:01:05', 'Relentless')],
+          'v3.50: Enemy Pursuit start and changes (%r %r %r)' % (s.ef_mode, s.ef_site, s.ef_modes))
+    check(e['lost'] == 3 and e['lost_doors'] == 2 and e['sight'] == 1 and e['down'] == 1 and e['behind'] == 1 and e['forgot'] == 4,
+          'v3.50: lost-track counts by reason (%r)' % dict(e))
+    check(e['saves'] == 2 and e['saves_unwritten'] == 1 and e['s_pur'] == 4 and e['s_here'] == 3 and e['s_q'] == 1 and
+          e['s_tag'] == 2 and e['s_cw'] == 2 and e['found'] == 1 and e['none'] == 1 and e['restores'] == 1 and e['r_pur'] == 3 and
+          e['r_here'] == 2 and e['r_q'] == 1 and e['r_tag'] == 2 and e['r_no'] == 1, 'v3.50: follow save / load / restore counts (%r)' % dict(e))
+    check('enemy pursuit: Normal at the start; 2 change(s): Forgetful [10:00:30], Relentless [10:01:05]; 3 lost track of you at 2 '
+          'door(s) (1 out of their senses, 1 down when you left, 1 did not catch up), 4 forgot before a door; followers across saves '
+          'in: 2 save(s) kept followers (4 pursuer(s), 3 of them with you, 1 on their way, 2 ghost tag(s), 2 cop(ies)), 1 NOT WRITTEN '
+          'to the side file; 1 load(s) found theirs, 1 had none; 1 restore(s): 3 pursuer(s) back (2 with you), 1 on their way, 2 '
+          'ghost(s) let in, 0 cop(ies); left out 0 without a record, 0 of a kind not followed now; 1 found but not restored' in r,
+          'v3.50: the enemy pursuit summary line')
+    check('enemies follow setting: Victims at the start' in r and 'with no monsters following (Off / Victims): 1 monster(s)' in r,
+          'v3.50: the setting line with Victims')
+    s, r = run(V349F)
+    check('enemy pursuit:' not in r and s.ef_mode is None, 'v3.49 log: no enemy pursuit line')
     s, r = run(V349F3)
     check(s.fol_mode == 'Off' and not s.fol_modes and 'enemies follow setting' not in r, 'v3.49: Off all along: no setting line')
     s, r = run(V333_END)
@@ -1516,6 +1693,82 @@ def main():
           '; 1 room(s) with 2 record(s) another writer retyped, left alone' in r and 'FULL' not in r,
           'v3.49 fix2: records of another writer parse and are summarised (%r)' % (s.rzm_misc,))
     check(s.rzl is None and 'randomizer looks:' not in r, 'v3.49: no looks lines, no looks summary line')
+    s, r = run(V350RZM)  # v3.50 RM350: a save-based game, All Worlds, the reasons
+    print(r)
+    check(s.rzm and s.rzm[0] == 'All Worlds' and s.rzm_first == ('10:00:05', 5, 11, 'All Worlds') and
+          [x[1:] for x in s.rzm_sets] == [('All Worlds', 'This World'), ('All Worlds', '[Randomizer] read again')],
+          'v3.50: All Worlds at the start, in the first room line and in the changes (%r %r)' % (s.rzm, s.rzm_sets))
+    check(s.rzm_rooms['rooms'] == 3 and s.rzm_rooms['changed'] == 7 and s.rzm_rooms['why_lines'] == 2 and s.rzm_rooms['adopted'] == 8
+          and s.rzm_rooms['adopt_changed'] == 7 and s.rzm_rooms['roll_stock'] == 1 and s.rzm_rooms['same'] == 1 and
+          s.rzm_rooms['away'] == 1 and s.rzm_rooms['other_rec'] == 0 and s.rzm_rooms['none'] == 0 and s.rzm_by['Twin Victim'] == 3,
+          'v3.50: the room lines with the reasons parse, a v3.49 room line too (%r)' % (s.rzm_rooms,))
+    check(s.rzm_sess and s.rzm_sess[0] == 'All Worlds' and s.rzm_sess3 == (8, 7, 1, 1, 1, 0), 'v3.50: both session lines parse (%r %r)'
+          % (s.rzm_sess, s.rzm_sess3))
+    check("3 room load(s) randomized (2 of them a room visited again), 7 of 11 placement(s) changed" in r and
+          "; the game's own records: 8 adopted (7 changed, 1 kept); stock type kept: 1 rolled it, 1 by a stock record, 1 recorded "
+          "elsewhere, 0 for another writer's record, 0 with no target" in r and '; session records: 8 adopted (7 changed)' in r and
+          'may be silent: Twin Victim in stage 5' in r, 'v3.50: the summary shows adopted / kept / changed')
+    check(not [v for v in s.warnings.values() if 'monsters' in v[3].lower()], 'v3.50: no Monsters line lands in the warnings (%r)' % (
+        list(s.warnings.values()),))
+    s, r = run(V349RZM)
+    check("the game's own records" not in r and 'session records' not in r and s.rzm_rooms['why_lines'] == 0,
+          'v3.50: a v3.49 log has no reasons part')
+    s, r = run(V350RZMB)
+    check(s.rzm_bad == ('Everywhere', 'This World'), 'v3.50: the unknown-value line with All Worlds in its list parses (%r)' % (s.rzm_bad,))
+    s, r = run(V350R)  # v3.50 R302: the user's game today
+    check(len(s.r3_own) == 1 and s.r3_own[0][2:4] == ('Playable Eileen', 'Playable Eileen') and s.r3_hook is None and
+          len(s.r3_seed) == 4 and s.r3_anom == 0 and
+          "room 302: look Playable Eileen, walk Playable Eileen (at start) [10:00:00]; Playable Eileen v1.24 loaded without "
+          "SH4PE_Room302Yield (older than the hand-over); LookDownLimit 85, LookUpLimit 85, LookFeel 1, WalkSpeed 0.65; first start: "
+          "4 key(s) seeded (LookDownLimit 85, LookUpLimit 85, LookFeel 1, WalkSpeed 0.65) from Playable Eileen's ini" in r and
+          'look hooks in' not in r, 'v3.50: Room 302 with Playable Eileen v1.24.4: its owners line, the seed, no hook (%r)' % (s.r3_own,))
+    s, r = run(V350RA)
+    check(s.r3_hook == ('10:00:00', 'at start') and s.r3_visits == 2 and s.r3_n == [420, 25200, 3100, 40, 25, 15, 1, 24100] and
+          s.r3_sets == [('10:06:00', 'WalkSpeed', '0.65', '0.8', 'Options')] and s.r3_bad == [('LookFeel', '0.8', '1')] and
+          s.r3_rebuilt == 1 and s.r3_anom == 1 and s.r3_seed == [('LookDownLimit', '85', 'the default')],
+          'v3.50: Room 302 owned by Refined: hooks, visits summed, a change, an off-row value, a rebuild, an anomaly (%r %r)' % (
+              s.r3_n, s.r3_bad))
+    check("room 302: look SH4 Refined, walk SH4 Refined (at start) [10:00:00]; Playable Eileen not loaded; " in r and
+          '; look hooks in [10:00:00]; ini value(s) off the rows: LookFeel=0.8 -> 1; 2 visit line(s), 420 s: look 25200 tick(s) '
+          '(eased 3100, clamped 40: up 25, down 15; view rebuilt 1), walk 24100 tick(s); 1 change(s): WalkSpeed 0.65 -> 0.8 '
+          '(Options) [10:06:00]; 1 ANOMALY line(s)' in r and "from Playable Eileen's ini" not in r,
+          'v3.50: the Room 302 summary line (Refined)')
+    s, r = run(V350RW)
+    check(len(s.r3_own) == 2 and s.r3_own[0][9] and not s.r3_own[1][9] and s.r3_own[1][2:4] == ('SH4 Refined', 'Playable Eileen') and
+          'room 302: look SH4 Refined, walk Playable Eileen (first game tick) [10:00:01]; Playable Eileen v1.25 yields look '
+          '(SH4PE_Room302Yield)' in r and 'STILL WAITING' not in r and s.r3_hook == ('10:00:01', 'first game tick'),
+          'v3.50: a yielding Playable Eileen decided on the first tick (%r)' % (s.r3_own,))
+    s, r = run(V333_END)
+    check(not s.r3_own and 'room 302:' not in r, 'v3.50: no Room 302 lines, no summary line')
+    s, r = run(V350FI)  # v3.50 FI350: Fade In
+    print(r)
+    check(s.fi == ('in', 'scene pass', 'Fade + Portal', '0.80') and s.fi_rooms == 2 and s.fi_portals == 1 and
+          s.fi_src == {'room load': 2, 'follower': 1, 'copy': 1, 'revive': 1} and
+          s.fi_skip == {'type': 1, 'dead': 1, 'own portal': 1} and s.fi_starts == {'room load': 1, 'follower': 1},
+          'v3.50: the Fade In lines read (%r %r %r %r)' % (s.fi, dict(s.fi_src), dict(s.fi_skip), dict(s.fi_starts)))
+    check("fade in: Fade + Portal at the start (0.80 s; portal scene pass); 5 fade(s) in 2 room visit(s) (room load 2, follower 1, "
+          "copy 1, revive 1); 1 blood portal(s), first drawn [10:00:09] (3D viewport); not faded 3 (type 1, dead 1, own portal 1); "
+          "verbose: 2 start line(s); own draw states: type 0A (pre-draw 0045C840); 2 change(s): Fade (menu) [10:00:30], Fade + "
+          "Portal ([Gameplay] read again) [10:00:50]" in r, 'v3.50: the Fade In summary line')
+    s, r = run(V350FI2)
+    print(r)
+    check(s.fi and s.fi[0] == 'OFF' and s.fi_bad == ('Dissolve', 'Fade + Portal') and
+          'fade in: OFF (0045C880, the game\'s see-through enemy draw, is not the stock code: another mod?); 0 fade(s) in 0 room '
+          'visit(s); unknown ini value: FadeIn "Dissolve" -> Fade + Portal' in r,
+          'v3.50: Fade In off and an unknown ini value (%r %r)' % (s.fi, s.fi_bad))
+    check([v for v in s.warnings.values() if 'fade in: OFF' in v[3]], 'v3.50: Fade In OFF (not the stock code) is in the warnings too')
+    s, r = run(V350FI3)
+    print(r)
+    check(s.fi == ('in', 'scene pass', 'Fade + Portal', '0.80') and s.fi_fault == ('10:01:00', 'the model draw', 'C0000005') and
+          s.fi_sets == [('10:01:05', 'Off', 'NOT saved')] and
+          'fade in: Fade + Portal at the start (0.80 s; portal scene pass); 2 fade(s) in 1 room visit(s) (ghost 1, monster 1); 1 blood '
+          'portal(s), NEVER DRAWN; 1 change(s): Off (NOT saved) [10:01:05]; FAULT in the model draw (code C0000005) [10:01:00]: '
+          'off for the session' in r, 'v3.50: a portal never drawn, a fault, an unsaved change (%r %r %r)' % (s.fi, s.fi_fault, s.fi_sets))
+    s, r = run(V333_END + '10:00:00.300 ' + FI_INSTALL % ('NOT available (no scene pass)', 'Fade') + '\n')
+    check(s.fi == ('in', 'NOT available', 'Fade', '0.80') and 'fade in: Fade at the start (0.80 s; portal NOT available); 0 fade(s) in 0 '
+          'room visit(s)' in r, 'v3.50: no scene pass: the portal is not available (%r)' % (s.fi,))
+    s, r = run(V333_END)
+    check(s.fi is None and 'fade in:' not in r, 'v3.50: no Fade In lines, no summary line')
     test_compare()  # v3.40 LG340
     print('%d failure(s)' % len(FAILS))
     return 1 if FAILS else 0

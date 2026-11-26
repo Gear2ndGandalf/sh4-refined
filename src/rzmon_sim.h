@@ -4,6 +4,8 @@
 // the descriptor transform, the save filter and a word stack for patch-and-restore. src/rzmon.inc runs it on the game's
 // .data; test/rzmon_sim_test.c runs it on the stock exe (SH4Decomp orig/sh4.exe) and on made-up scripts.
 // Plan: staging/v349_feedback/w3_monsters/PLAN.md; research: staging/research_randomizer/REPORT.md sections 1, 2, 6, 7.
+// v3.50 RM350 (staging/v350_feedback/w2_monsters/PLAN.md): the game's own records of stock monsters are adopted (a save-based
+// game rolls), All Worlds, the reasons counted.
 //
 // Facts (checked against the stock exe by tools/rzmon_scan.py and the native test, 2026-11-25):
 // - An enemy placement is a kind-2 object of a room script. Its type is command 7's argument (the type index: 0x52C530
@@ -32,11 +34,12 @@
 #include "enemies_sim.h"
 
 // ---------------------------------------------------------------- the setting
-enum { RMM_OFF, RMM_ROOM, RMM_WORLD, RMM_N };
+enum { RMM_OFF, RMM_ROOM, RMM_WORLD, RMM_ALL, RMM_N };  // v3.50 RM350: + RMM_ALL (All Worlds)
 // the host's default (the user's answers, 2026-11-25: a mix per enemy, any strength): This World
 #define RM_MON_DEFAULT RMM_WORLD
-static const char *const kRmMonName[RMM_N] = { "Off", "This Room", "This World" };
-// Monsters: Off / This Room / This World (also Room / World, 0 / 1 / 2); -1 = anything else (the default, logged once)
+static const char *const kRmMonName[RMM_N] = { "Off", "This Room", "This World", "All Worlds" };  // v3.50 RM350: + All Worlds
+// Monsters: Off / This Room / This World / All Worlds (also Room / World / All, 0 / 1 / 2 / 3); -1 = anything else (the
+// default, logged once). v3.50 RM350: the v3.49 values read as before.
 static int RmMonOfText(const char *s)
 {
     int v;
@@ -44,6 +47,7 @@ static int RmMonOfText(const char *s)
         if (RzTextIs(s, kRmMonName[v])) return v;
     if (RzTextIs(s, "Room") || RzTextIs(s, "1")) return RMM_ROOM;
     if (RzTextIs(s, "World") || RzTextIs(s, "2")) return RMM_WORLD;
+    if (RzTextIs(s, "All") || RzTextIs(s, "3")) return RMM_ALL;  // v3.50 RM350
     if (RzTextIs(s, "0")) return RMM_OFF;
     return -1;
 }
@@ -318,7 +322,7 @@ static unsigned RmSlotKey(unsigned seed, int stage, int half, int room, int n)
     return RzHash4(seed ^ 0x4D4F4E53u, (unsigned)stage | (unsigned)(half & 1) << 8, (unsigned)room, 0x4D000000u ^ (unsigned)(n & 0xFFFF));
 }
 typedef struct {
-    int mode;                   // RMM_ROOM / RMM_WORLD
+    int mode;                   // RMM_ROOM / RMM_WORLD / RMM_ALL (v3.50 RM350)
     unsigned seed;
     int stage, half, room;
     unsigned visit;             // the room's visit count (Change Each Visit On), 0 = fixed
@@ -332,21 +336,33 @@ typedef struct {
 // the game's record of a placement (the caller reads the 64 records): type -1 = none; here = in this room; ours = Refined
 // made that monster as exactly that type and variant (v3.49 fix2 RZ349-SAVE-001: the provenance table RmProv, below)
 typedef struct { int type, variant, here, ours; } RmRec;
-enum { RMW_SAME, RMW_ROLL, RMW_STICKY, RMW_AWAY, RMW_BONES, RMW_FLOOR, RMW_FILES, RMW_NONE, RMW_OTHER, RMW_N };  // fix2: + OTHER
-typedef struct { unsigned char type, variant, why, drop; } RmPick;  // drop: the record in this room is deleted first
-typedef struct { int n, changed, sticky, away, bones, floor, files, drops, none, cost0, cost, limit, other; } RmPlanStat;
+enum { RMW_SAME, RMW_ROLL, RMW_STICKY, RMW_AWAY, RMW_BONES, RMW_FLOOR, RMW_FILES, RMW_NONE, RMW_OTHER, RMW_WORDS, RMW_N };  // fix2: + OTHER  // v3.50 RM350: + WORDS (a word not the stock value: put back)
+// drop: the record in this room is deleted first; adopt (v3.50 RM350): the placement's record here was the game's own record
+// of its stock monster (not Refined's): adopted, rolled like a fresh placement (RmPlanRoom rule 0)
+typedef struct { unsigned char type, variant, why, drop, adopt; } RmPick;
+// v3.50 RM350: + adopted (game records adopted), adoptChanged (of them made as another type: their record deleted), rollStock
+// (rolled their own stock type), same (kept the stock type by a record of the stock type)
+typedef struct { int n, changed, sticky, away, bones, floor, files, drops, none, cost0, cost, limit, other, adopted, adoptChanged,
+                 rollStock, same; } RmPlanStat;
 // This Room: the resident targets; This World: also every target this world places (the stage's two halves: the same
-// world's monsters, its sound tables; their files are loaded at the room load)
+// world's monsters, its sound tables; their files are loaded at the room load); v3.50 RM350 All Worlds: every target of any
+// world (the files of each one not resident loaded at the room load; its sounds may be missing outside its own worlds)
 static unsigned RmPool(const RmPlanIn *in)
 {
-    const unsigned m = in->mode == RMM_WORLD ? in->resident | in->world : in->resident;
+    const unsigned m = in->mode == RMM_ALL ? RM_ALL_TARGETS : in->mode == RMM_WORLD ? in->resident | in->world : in->resident;
     return m & in->allowed & RM_ALL_TARGETS;
 }
 // the room's slots idx[0..m) (script order), their records rec[k] and floor answers floorOk[k] (1 = a walker may stand at
 // a flyer's spot: only asked for Hummer sources); out[k] the picks. The rules, in order:
 // 0. (v3.49 fix2 RZ349-SAVE-001) a record Refined did not make (not `ours`: another writer, or the game's own from before
 //    Refined planned the room) keeps the placement as placed and is never deleted (RMW_OTHER when its type is not the
-//    stock one); only Refined's own records follow rules 1 and 5;
+//    stock one, RMW_AWAY when it is the stock one in another room); only Refined's own records follow rules 1 and 5.
+//    v3.50 RM350 (the user's v3.49 QA: a save-based game never rolled): the game's own record of the stock monster (its
+//    type and variant = the placement's stock ones, this stage, in this room: what every room a save visited holds) is
+//    adopted: rolled like a fresh placement (rule 2); when the roll gives another type that record is deleted (rule 5:
+//    that monster comes back fresh, at its placement, as the new type: its hurt / downed state and spot are lost); when
+//    the roll gives the stock type the record stays (the monster as the save left it). The caller then writes the
+//    provenance (RmProvPut), so the record is Refined's from then on (save filter, RmDescFix, RmDropForeign);
 // 1. a record of the placement holds the type it was made as: a target in the pool keeps it (sticky: the type's restore
 //    reads its own record; with reroll, only a record elsewhere: one in this room is rolled over); its stock type keeps
 //    the stock (no reroll); another one is deleted when it is in this room (else the stock create would restore a
@@ -355,7 +371,13 @@ static unsigned RmPool(const RmPlanIn *in)
 // 3. a walker at a Hummer's spot needs a floor under it (else the stock type);
 // 4. the bones: the room may never need more than max(the pool's free part, the stock room's estimate): a dearer type
 //    that does not fit keeps the stock type;
-// 5. whatever the pick, a record of Refined's in this room of another type than the pick is deleted (drop).
+// 5. whatever the pick, a record of Refined's (or an adopted one, v3.50 RM350) in this room of another type than the pick is
+//    deleted (drop).
+// v3.50 RM350: is rec the game's own record of slot s's stock monster in this room (rule 0's adoption)?
+static int RmRecAdopt(const RmRec *r, const RmSlot *s)
+{
+    return r->type >= 0 && !r->ours && r->here && r->type == s->type && r->variant == s->variant;
+}
 static void RmPlanRoom(const RmPlanIn *in, const RmScan *sc, const int *idx, int m, const RmRec *rec, const unsigned char *floorOk,
                        RmPick *out, RmPlanStat *st)
 {
@@ -372,13 +394,14 @@ static void RmPlanRoom(const RmPlanIn *in, const RmScan *sc, const int *idx, int
         int ti, delta;
         p.type = s->type, p.variant = s->variant, p.why = RMW_SAME, p.drop = 0;
         const int rStock = r->type == s->type && r->variant == s->variant, rKeeps = r->type >= 0 && !(in->reroll && r->here);
-        if (r->type >= 0 && !r->ours) {  // v3.49 fix2: not Refined's record: as placed, the record kept
-            p.why = rStock ? RMW_SAME : RMW_OTHER;
-        } else if (rKeeps && !rStock && (ti = RmTargetIndex(r->type, r->variant)) >= 0 && (pool >> ti & 1u)) {
+        p.adopt = (unsigned char)RmRecAdopt(r, s);  // v3.50 RM350
+        if (r->type >= 0 && !r->ours && !p.adopt) {  // v3.49 fix2: not Refined's record: as placed, the record kept
+            p.why = rStock ? RMW_AWAY : RMW_OTHER;   // v3.50 RM350: the stock one elsewhere = recorded elsewhere (was SAME)
+        } else if (!p.adopt && rKeeps && !rStock && (ti = RmTargetIndex(r->type, r->variant)) >= 0 && (pool >> ti & 1u)) {
             p.type = (unsigned char)r->type, p.variant = (unsigned char)r->variant, p.why = RMW_STICKY;
-        } else if (r->type >= 0 && !rStock && !r->here) {
+        } else if (!p.adopt && r->type >= 0 && !rStock && !r->here) {
             p.why = RMW_AWAY;
-        } else if (!rKeeps || !rStock) {
+        } else if (p.adopt || !rKeeps || !rStock) {  // v3.50 RM350: + an adopted record: rolled as a fresh placement
             const int cnt = RmBitCount(pool);
             if (!cnt) {
                 p.why = RMW_NONE;
@@ -396,20 +419,38 @@ static void RmPlanRoom(const RmPlanIn *in, const RmScan *sc, const int *idx, int
             delta = 0;
         }
         cur += delta;
-        if (r->type >= 0 && r->ours && r->here && !(r->type == p.type && r->variant == p.variant)) p.drop = 1;  // fix2: + ours
+        if (r->type >= 0 && (r->ours || p.adopt) && r->here && !(r->type == p.type && r->variant == p.variant))
+            p.drop = 1;  // fix2: + ours  // v3.50 RM350: + adopted
         out[k] = p;
-        if (p.type != s->type || p.variant != s->variant) ++st->changed;
+        {
+            const int changed = p.type != s->type || p.variant != s->variant;
+            st->changed += changed;
+            st->adopted += p.adopt, st->adoptChanged += p.adopt && changed;  // v3.50 RM350
+            st->rollStock += p.why == RMW_ROLL && !changed, st->same += p.why == RMW_SAME;
+        }
         st->sticky += p.why == RMW_STICKY, st->away += p.why == RMW_AWAY, st->bones += p.why == RMW_BONES;
         st->floor += p.why == RMW_FLOOR, st->none += p.why == RMW_NONE, st->drops += p.drop, st->other += p.why == RMW_OTHER;
     }
     st->cost = cur;
 }
+// v3.50 RM350: a pick put back to the stock type after the plan (its files, its words): the counts follow; a record of
+// Refined's (or adopted) in this room of another type than the stock one is dropped; an adopted record (the stock type)
+// stays. why: the new reason
+static void RmPickBack(RmPick *p, const RmSlot *s, const RmRec *r, RmPlanStat *st, int why)
+{
+    if (p->type != s->type || p->variant != s->variant) {
+        --st->changed;
+        if (p->adopt) --st->adoptChanged;
+    }
+    if (p->drop) --st->drops;
+    p->type = s->type, p->variant = s->variant, p->why = (unsigned char)why;
+    p->drop = r->type >= 0 && (r->ours || p->adopt) && r->here && !(r->type == s->type && r->variant == s->variant);  // fix2: + ours
+    st->drops += p->drop;
+}
 // a pick whose files could not be loaded goes back to the stock type (its record, if any, of the pick's type: dropped)
 static void RmRevertPick(RmPick *p, const RmSlot *s, const RmRec *r, RmPlanStat *st)
 {
-    if (p->type != s->type || p->variant != s->variant) --st->changed;
-    p->type = s->type, p->variant = s->variant, p->why = RMW_FILES;
-    p->drop = r->type >= 0 && r->ours && r->here && !(r->type == s->type && r->variant == s->variant);  // fix2: + ours
+    RmPickBack(p, s, r, st, RMW_FILES);  // v3.50 RM350 (the same rule, shared with the words' fallback)
     ++st->files;
 }
 

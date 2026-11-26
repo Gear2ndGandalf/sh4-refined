@@ -141,6 +141,14 @@ GT_ZONE_NO = "an event's trigger zone on the way"  # v3.49 GT349: in a refusal's
 GT_ZONE_IN = "inside an event's trigger zone"  # v3.49 GT349-001: a refusal while she stands in a zone not fired yet
 GT_FADE = re.compile(r"^ghost teleport: Richard's fade ended \(drawn see-through on (\d+) body and (\d+) weapon draw")
 GT_OFF = re.compile(r'^ghost teleport: called off during the fade: (.+?)(?: \(.*)?$')
+# v3.50 TP350: the warp through a wall, the faced enemy, a room visit's counts, the room's floor map
+GT_THRU = re.compile(r'^ghost teleport: through (\d+) u the way she faces')
+GT_FACED = 'the enemy she faces'  # in a GT_WARP line: behind the enemy she faces (v3.50), not the nearest (v3.43 .. v3.49)
+GT_ROOM = re.compile(r'^ghost teleport: room (\d+):(\d+) left: (\d+) warp\(s\) \((\d+) through walls, (\d+) behind the enemy she '
+                     r'faces, (\d+) ahead\), (\d+) refused(?: \((.*?)\))?; (\d+) Action / Check press\(es\) taken back in '
+                     r'fade-outs; floor map (.*)$')
+GT_MAP = re.compile(r'^ghost teleport: room (\d+):(\d+): the floor map is finished: (\d+) cell\(s\) a route of the room reaches, '
+                    r'from (\d+) seed\(s\) \((\d+) without a floor\); ([\d.]+) ms over (\d+) run')
 # v3.46 OM346: Stick Movement (omni.inc): the install line, the mode changes, the bindings, the self-check, the counts
 # v3.48 OM348: Omni-Directional Movement, Off / On (On = v3.47's Analog); v3.46 / v3.47 logs (Direction / Analog) still parse
 OM_MODE = r'(Off|On|Direction|Analog)'
@@ -197,6 +205,20 @@ RG_STOP = re.compile(r'^regeneration: stops: (.+?) \(([\d.]+) / (\d+) HP, \+([\d
 RG_HURT = re.compile(r'^regeneration: stops: hurt \(-([\d.]+) HP; ([\d.]+) / (\d+) HP, \+([\d.]+) HP in ([\d.]+) s\): no healing '
                      r'for (\d+) s')
 RG_NOT = re.compile(r'^regeneration: (0052D1D0 \(PlayerHealAmount\) is not the stock code|no 0x4EF982 tick dispatcher)')
+# v3.50 R302: Room 302's look and walk (room302.inc)
+R3_OWN = re.compile(r'^room 302: owners \(([^)]*)\): look (nobody|SH4 Refined|Playable Eileen|waiting for Playable Eileen), walk (nobody|SH4 Refined|Playable Eileen|waiting for Playable Eileen); Playable Eileen (.*?); '
+                    r'\[Room302\] LookDownLimit (\S+), LookUpLimit (\S+), LookFeel (\S+), WalkSpeed ([^;\s]+)'
+                    r'(; decided again on the first game tick)?$')
+R3_HOOK = re.compile(r'^room 302: look hooks in \(([^)]*)\)')
+R3_FAIL = re.compile(r'^room 302 look: [0-9A-F]{8} could not be written')
+R3_VISIT = re.compile(r'^room 302: visit (\d+) s \(([^)]*)\): look (\d+) tick\(s\) \(eased (\d+), clamped (\d+): up (\d+), '
+                      r'down (\d+); view rebuilt (\d+)\), walk x([\d.]+) (\d+) tick\(s\)$')
+R3_SET = re.compile(r'^room 302: \[Room302\] (LookDownLimit|LookUpLimit|LookFeel|WalkSpeed) (\S+) -> (\S+) \(([^)]*)\)$')
+R3_SEED = re.compile(r'^settings: \[Room302\] (LookDownLimit|LookUpLimit|LookFeel|WalkSpeed) was missing, added as (\S+)'
+                     r'(?: \((.*)\))?$')
+R3_BAD = re.compile(r'^room 302: \[Room302\] (\w+)=(.*?) is not (?:a number|one of the row.s values): (\S+) used$')
+R3_NOPAGE = re.compile(r'^room 302: (no sub-screen fade|Option 2.s Button Config record is not the stock one): no Room 302 page')
+R3_REBUILT = re.compile(r'^room 302: look: the view was rolled or past a limit')
 RG_SEED = re.compile(r'^settings: \[Gameplay\] (Regen|RegenDelay) was missing, added as "([^"]*)" \((.*)\)$')
 # v3.48 RZ348: the Randomizer (randomizer.inc): the start, the seed, the plans per world visit, the room loads, the changes
 RZ_IN = re.compile(r'^randomizer: \[Randomizer\] Items (Off|Shuffle|Random), KeepSpecials (On|Off), Room302 (In|Out), PerVisit '
@@ -219,7 +241,7 @@ RZ_SESS = re.compile(r'^randomizer: session: Items (\w+) \(seed (\d+), Keep Spec
                      r'(On|Off)\): (\d+) room load\(s\), (\d+) with pickups in the pool, (\d+) pickup\(s\) changed, (\d+) weapon\(s\) '
                      r'placed, (\d+) plan\(s\), (\d+) word\(s\) left as found(.*)$')
 # v3.49 RZ349: the Randomizer's Monsters (rzmon.inc)
-RZM_VAL = r'(Off|This Room|This World)'
+RZM_VAL = r'(Off|This Room|This World|All Worlds)'  # v3.50 RM350: + All Worlds
 RZM_IN = re.compile(r'^randomizer: \[Randomizer\] Monsters ' + RZM_VAL + r'; self-check: (-?\d+) source placement\(s\) of (\d+) enemy '
                     r'placement\(s\) in (\d+) script\(s\) \(stock (\d+) / (\d+)\): (.+?); targets (.+?) \(Gum Heads only with a crash '
                     r'guard\); applied at each room load through 004F0AF8 \(patch-and-restore of the type / mode / y words\); save '
@@ -238,8 +260,13 @@ RZM_LEFT = re.compile(r'^randomizer: monsters: room (\d+):(\d+) left as placed \
 RZM_FILES = re.compile(r"^randomizer: monsters: room (\d+):(\d+): (.+?)'s files could not be loaded \((.*)\): its placements stay as placed$")
 RZM_SILENT = re.compile(r"^randomizer: monsters: (.+?) is no monster of stage (\d+)'s scripts: its sounds may be missing there \(allowed\)$")
 RZM_ROOM = re.compile(r"^randomizer: monsters: room (\d+):(\d+) \(visit (\d), #(\d+)\): (\d+) of (\d+) placement\(s\) changed \((This Room|"
-                      r"This World)\): (.*?); (\d+) kept their record's type, (\d+) record\(s\) deleted; kept as placed: (\d+) for the "
-                      r"bone budget, (\d+) for files, (\d+) without a floor(; some words[^;]*)?; files loaded for (\d+) type\(s\) \((\d+) KB\)$")
+                      r"This World|All Worlds)\): (.*?); (\d+) kept their record's type, (\d+) record\(s\) deleted; kept as placed: (\d+) for the "
+                      r"bone budget, (\d+) for files, (\d+) without a floor(; some words[^;]*)?; files loaded for (\d+) type\(s\) \((\d+) KB\)"
+                      # v3.50 RM350: + the game's own records adopted and why the stock type was kept (v3.49 lines end before it)
+                      r"(?:; the game's own records: (\d+) adopted \((\d+) made as another type\); stock type kept: (\d+) rolled it, (\d+) "
+                      r"by a stock record, (\d+) recorded elsewhere, (\d+) for another writer's record, (\d+) with no target)?$")
+RZM_SESS3 = re.compile(r"^randomizer: monsters session: the game's own records: (\d+) adopted \((\d+) made as another type\); stock type "
+                       r"kept: (\d+) rolled it, (\d+) by a stock record, (\d+) recorded elsewhere, (\d+) with no target$")  # v3.50 RM350
 RZM_LIST = re.compile(r'^randomizer: monsters: room (\d+):(\d+): (n\d+ .+)$')
 RZM_SAVE = re.compile(r'^randomizer: monsters: a save: (\d+) record\(s\) of monsters made as another type are left out of it')
 RZM_SAVEV = re.compile(r'^randomizer: monsters: a save: [0-9A-F]{8} \(made as ')
@@ -259,7 +286,7 @@ RZL_BADKEY = re.compile(r'^randomizer: \[Randomizer\] (EileenOutfit|Ghosts) "([^
 RZL_FIRST = re.compile(r'^randomizer: looks: the first room load \(stage (\d+) room (\d+)\): Eileen Outfit (Off|Random), ([^;]*); '
                        r'Ghosts (Off|Spots), (.*)$')
 RZL_DRAW = re.compile(r'^randomizer: outfit: world visit (\d+) \(stage (\d+), half (\d), at ([^)]*)\): (Dress|Nurse) \(seed (\d+), '
-                      r'Change Each Visit (On|Off); unlocked: Dress, Nurse; the set outfit (\w+)\)$')
+                      r'Change Each Visit (On|Off); (?:unlocked|every outfit): Dress, Nurse; the set outfit (\w+)\)$')  # v3.50 RL350: + every outfit
 RZL_SINGLE = re.compile(r'^randomizer: outfit: world visit (\d+) \(stage (\d+), half (\d), at ([^)]*)\): only the Dress is unlocked '
                         r'in this save: her outfit stays (\w+)$')
 RZL_BACK = re.compile(r'^randomizer: outfit: back to the set outfit (\w+) \((Eileen Outfit Off|a world without her)\)$')
@@ -269,6 +296,20 @@ RZL_GROOM = re.compile(r'^randomizer: ghosts: room (\d+):(\d+) \(#(\d+)\): (\d+)
 RZL_CT = re.compile(r"^randomizer: ghosts: the cheat table's Enemy Randomizer \(0052CAA9 / 0052CB2B\) is on")
 RZL_SET = re.compile(r'^randomizer: (EileenOutfit|Ghosts) (\w+) \(was (\w+); applies at the next room load\)$')
 RZL_REREAD = re.compile(r'^randomizer: \[Randomizer\] (EileenOutfit|Ghosts) read again: (\w+)')
+# v3.50 RL350: the room draws (Change Each Visit On), the final fight's hold, the ghosts' distance / record per victim, the
+# v3.50 session line
+RZL_RDRAW = re.compile(r'^randomizer: outfit: room (\d+):(\d+) load \(world visit (\d+), room draw (\d+)\): (\w+) -> (Dress|Nurse) '
+                       r'\(seed (\d+)\)$')
+RZL_HELD = re.compile(r'^randomizer: outfit: room (\d+):(\d+) load: no room draw in the final fight \(stage (\d+)\): her outfit '
+                      r'stays (\w+) for this visit$')
+RZL_GMOVE = re.compile(r' -> (-?\d+) (-?\d+) (-?\d+) \(d (\d+)( near: the room allows no farther)?, (\d+) of (\d+) fit, record '
+                       r'([a-z ]+)\)')
+RZL_GKEPT = re.compile(r' kept \(its record: (pinned here|down here)\)')
+RZL_SESS2 = re.compile(r'^randomizer: looks session: Eileen Outfit (\w+): (\d+) world visit\(s\), (\d+) world draw\(s\) \(all draws: '
+                       r'Dress (\d+), Nurse (\d+)\), (\d+) room draw\(s\) \((\d+) changed her outfit\), (\d+) back to the set outfit, '
+                       r'(\d+) chosen in the Extra Menu(.*?); Ghosts (\w+): (\d+) room load\(s\) with victims, (\d+) victim\(s\), (\d+) '
+                       r'moved \((\d+) of them 800 or more, (\d+) record\(s\) moved\), (\d+) kept \((\d+) by a pinned or down record\), '
+                       r'(\d+) left as found(.*)$')
 RZL_SESS = re.compile(r'^randomizer: looks session: Eileen Outfit (\w+): (\d+) world visit\(s\), (\d+) draw\(s\) \(Dress (\d+), Nurse '
                       r'(\d+)\), (\d+) with only the Dress unlocked, (\d+) back to the set outfit, (\d+) chosen in the Extra Menu(.*?); '
                       r'Ghosts (\w+): (\d+) room load\(s\) with victims, (\d+) victim\(s\), (\d+) moved, (\d+) kept, (\d+) left as '
@@ -289,13 +330,28 @@ FOL_STORY = re.compile(r'^enemies: .*? does not come from room -?\d+ into room \
 FOL_WHEEL = re.compile(r'^enemies: Wheelchair [0-9A-F]{8} \(home room \d+\) was recorded in room')
 # v3.49 EF349: Enemies Follow's value (Off / Monsters / Victims Only / Monsters + Victims): at the start (the enemies install
 # line), each change (the menu, the ini read again), what it takes (enemies.inc EnmFollowSay), the monsters sent home
-FOL_VALUES = r'(Off|Monsters|Victims Only|Monsters \+ Victims)'
+FOL_VALUES = r'(Off|Monsters|Victims Only|Victims|Monsters \+ Victims)'  # v3.50 EF350: + Victims (v3.49's Victims Only)
 FOL_MODE_IN = re.compile(r'^enemies: in \(.*?\); EnemyCopies [^,]+, EnemyFollow ' + FOL_VALUES + ', ')
 FOL_MODE_SET = re.compile(r'^gameplay: (?:\[Gameplay\] )?EnemyFollow (?:read again: )?' + FOL_VALUES + r'(?: applies now|$)')
 FOL_MODE_SAY = re.compile(r'^enemies: Enemies Follow ' + FOL_VALUES + ': ')
-FOL_HOME = re.compile(r'^enemies: Enemies Follow is (off|Victims Only): (\d+) monster\(s\) left in other rooms went home')
-FOL_HOME_CW = re.compile(r'^enemies: Enemies Follow is (?:off: (\d+) cop(?:y|ies) that|Victims Only: (\d+) monster cop(?:y|ies) that)'
+FOL_HOME = re.compile(r'^enemies: Enemies Follow is (off|Victims Only|Victims): (\d+) monster\(s\) left in other rooms went home')
+FOL_HOME_CW = re.compile(r'^enemies: Enemies Follow is (?:off: (\d+) cop(?:y|ies) that|Victims(?: Only)?: (\d+) monster cop(?:y|ies) that)'
                          r' followed you (?:are made in their own rooms|is made in its own room) again')
+# v3.50 EF350: the followers across saves (enmfollow.inc: kept at a save, found at a load, back at its room load) and Enemy
+# Pursuit's lost-track lines (enemies.inc EfDoorLostSay) with its value (the install line, the menu / ini changes)
+EF_SAVE = re.compile(r'^enemies: follow save: kept for this save \(stage \d+ room \d+, game time \d+, key [0-9A-F]{8}\): (\d+) '
+                     r'pursuer\(s\) \((\d+) here, (\d+) away\), (\d+) on their way here, (\d+) ghost\(s\) let into this room, (\d+) '
+                     r'cop\(ies\) that followed you; side file \d+ entr\(ies\)( \(not written)?')
+EF_LOAD = re.compile(r'^enemies: follow load: (this save\'s followers are kept|no followers kept for this save)')
+EF_REST = re.compile(r'^enemies: follow restore: room \d+:\d+ after a load: (\d+) pursuer\(s\) back \((\d+) here with you, (\d+) '
+                     r'away\), (\d+) on their way here, (\d+) ghost\(s\) let in, (\d+) cop\(ies\) in the ledger; left out: (\d+) '
+                     r'without their record \(the save filter, or gone\), (\d+) of a kind')
+EF_REST_NO = re.compile(r'^enemies: follow restore: (?:the load went on to room|Enemies Follow is off)')
+EF_LOST = re.compile(r'^enemies: through door \d+ from room \d+ to \d+: Enemy Pursuit (\w+): (\d+) lost track of you \((\d+) out '
+                     r'of their senses, (\d+) down when you left, (\d+) did not catch up\); (\d+) more had spotted you but forgot')
+EF_VALUES = r'(Relentless|Normal|Forgetful)'
+EF_IN = re.compile(r'^enemies: followers across saves (in|off|NOT in)\b.*?; Enemy Pursuit ' + EF_VALUES + ' ')
+EF_SET = re.compile(r'^gameplay: (?:\[Gameplay\] )?EnemyPursuit (?:read again: )?' + EF_VALUES + r'(?: applies now|$)')
 # v3.41 EN341: a ghost copy made in another room without its record (the way the game's own ghosts arrive)
 FOL_FRESH = re.compile(r"^enemies: ghost copy [0-9A-F]{8} \(type [0-9A-F]{2} v\d+\) (?:came into|is back in) room \d+ as the "
                        r"game's own ghosts arrive")
@@ -438,6 +494,26 @@ def hms(t):
     return '%d:%02d:%02d' % (t // 3600, t // 60 % 60, t % 60)
 
 
+# v3.50 FI350: Fade In (fadein.inc)
+FI_MODE = r'(Off|Fade \+ Portal|Fade)'  # (the longer name first)
+FI_IN = re.compile(r'^fade in: in \(no exe patch: .*?; the portal (from the scene pass 004EFBFD|NOT available[^)]*\))\); '
+                   r'\[Gameplay\] FadeIn ' + FI_MODE + r', FadeInSeconds ([\d.]+)')
+FI_OFF = re.compile(r'^fade in: OFF \((.+?)\); enemies appear as the game makes them')
+FI_ROOM = re.compile(r'^fade in: room (\d+):(\d+): (\d+) fade\(s\) \(room load (\d+), follower (\d+), wanderer (\d+), copy (\d+), '
+                     r'revive (\d+), ghost (\d+), monster (\d+)\), (\d+) portal\(s\); (\d+) not faded \(stage (\d+), cut-scene (\d+), '
+                     r'type (\d+), boss (\d+), event (\d+), dead (\d+), own draw (\d+), own portal (\d+), own fade (\d+)\)')
+FI_SRC = ('room load', 'follower', 'wanderer', 'copy', 'revive', 'ghost', 'monster')
+FI_SKIP = ('stage', 'cut-scene', 'type', 'boss', 'event', 'dead', 'own draw', 'own portal', 'own fade')
+FI_SET = re.compile(r'^fade in: FadeIn ' + FI_MODE + r'( applies now but could not be saved.*)?$')
+FI_REREAD = re.compile(r'^fade in: \[Gameplay\] FadeIn read again: ' + FI_MODE + '$')
+FI_BAD = re.compile(r'^fade in: \[Gameplay\] FadeIn "([^"]*)" is not Off / Fade / Fade \+ Portal: ' + FI_MODE + r' \(the default\)')
+FI_FAULT = re.compile(r'^fade in: a fault in (.+?) \(code ([0-9A-F]{8})')
+FI_START = re.compile(r'^fade in: (room load|follower|wanderer|copy|revive|ghost|monster) ([0-9A-F]{8}) \(type ([0-9A-F]{2})\) '
+                      r'fades in over ([\d.]+) s( from a blood portal)?')
+FI_DRAWN = re.compile(r'^fade in: a blood portal drawn \(viewport (3D|saved) ')
+FI_OWN = re.compile(r'^fade in: type ([0-9A-F]{2}) is drawn with a draw state of its own \(pre-draw ([0-9A-F]{8})\)')
+
+
 class Session:
     def __init__(self, path):
         self.path = path
@@ -505,6 +581,22 @@ class Session:
         self.gt_holds = []        # v3.49 GT349: (warps, refused) of every hold that tried more than once
         self.gt_zones = {}        # v3.49 GT349: 'stage:room' -> walk-in event zones the warp kept out of
         self.gt_zone_no = 0       # v3.49 GT349: refusals with spots refused for an event's zone
+        self.gt_faced = 0         # v3.50 TP350: warps behind the enemy she faces
+        self.gt_rooms = []        # v3.50 TP350: room visits' lines: (room, warps, through, faced, ahead, refused, taken back)
+        self.gt_room_no = Counter()  # v3.50 TP350: refusals by kind, from the room visits' lines
+        self.gt_maps = []         # v3.50 TP350: finished floor maps: (room, cells, seeds, no floor, ms)
+        self.gt_map_open = 0      # v3.50 TP350: room visits left with the floor map not finished (or overflowed)
+        self.fi = None            # v3.50 FI350: Fade In: ('in', portal, mode, seconds) or ('OFF', why) from the install line
+        self.fi_rooms = 0         # v3.50 FI350: room visits with a Fade In line
+        self.fi_src = Counter()   # v3.50 FI350: fades by source
+        self.fi_skip = Counter()  # v3.50 FI350: kept from fading, by reason
+        self.fi_portals = 0       # v3.50 FI350: blood portals started
+        self.fi_drawn = None      # v3.50 FI350: (ts, viewport) of the first portal drawn
+        self.fi_sets = []         # v3.50 FI350: (ts, value, how) the row's / ini's changes
+        self.fi_bad = None        # v3.50 FI350: (text, value) an unknown [Gameplay] FadeIn
+        self.fi_fault = None      # v3.50 FI350: (ts, where, code)
+        self.fi_starts = Counter()  # v3.50 FI350: the verbose per-fade lines by source
+        self.fi_own = set()       # v3.50 FI350: 'type 0A (pre-draw 0045C840)' drawn with a state of its own
         self.om = None            # v3.46 OM346: (in / OFF, mode, dead zone) from the install line
         self.om_not = None        # v3.46 OM346: the site that was not stock
         self.om_sets = []         # v3.46 OM346: (ts, new, old, from)
@@ -545,13 +637,14 @@ class Session:
         self.rzm_gum = None       # v3.49 RZ349: 'may be rolled' / 'are never rolled'
         self.rzm_ct = []          # v3.49 RZ349: (ts, on / off again) the cheat table's Enemy Randomizer
         self.rzm_first = None     # v3.49 RZ349: (ts, stage, room, mode)
-        self.rzm_rooms = Counter()  # v3.49 RZ349: 'rooms', 'changed', 'slots', 'sticky', 'drops', 'bones', 'files', 'floor', 'types', 'kb', 'other', 'revisits'
+        self.rzm_rooms = Counter()  # v3.49 RZ349: 'rooms', 'changed', 'slots', 'sticky', 'drops', 'bones', 'files', 'floor', 'types', 'kb', 'other', 'revisits'; v3.50 RM350: + 'why_lines', 'adopted', 'adopt_changed', 'roll_stock', 'same', 'away', 'other_rec', 'none'
         self.rzm_by = Counter()   # v3.49 RZ349: placements by the type they became
         self.rzm_lists = 0        # v3.49 RZ349: verbose placement lists
         self.rzm_misc = Counter()  # v3.49 RZ349: 'hit', 'offdrop', 'left', 'files', 'save', 'savev'
         self.rzm_silent = []      # v3.49 RZ349: (type, stage) types that may be silent
         self.rzm_sets = []        # v3.49 RZ349: (ts, new, old / from)
         self.rzm_sess = None      # v3.49 RZ349: the session line's groups
+        self.rzm_sess3 = None     # v3.50 RM350: the session's adopted records and reasons (adopted, changed, rolled, by record, elsewhere, none)
         self.rzm_anom = 0         # v3.49 RZ349: its ANOMALY lines (not counted in rz_anom)
         self.rzl = None           # v3.49 RZ349L: (EileenOutfit, Ghosts) at the start
         self.rzl_bad = []         # v3.49 RZ349L: (key, text, default) unknown ini values
@@ -561,6 +654,20 @@ class Session:
         self.rzl_sets = []        # v3.49 RZ349L: (ts, key, new, old / from)
         self.rzl_sess = None      # v3.49 RZ349L: the looks session line's groups
         self.rzl_anom = 0         # v3.49 RZ349L: its ANOMALY lines (outfit: / ghosts:)
+        self.rzl_room = Counter() # v3.50 RL350: 'draws', 'changed', 'held' (the outfit's room draws)
+        self.rzl_gv = Counter()   # v3.50 RL350: per victim: 'far' (800 +), 'near', 'recmoved', 'reckept', 'dmax'
+        self.rzl_sess2 = None     # v3.50 RL350: the v3.50 looks session line's groups
+        self.r3_own = []          # v3.50 R302: (ts, when, look, walk, Playable Eileen, down, up, feel, walk speed, waiting)
+        self.r3_hook = None       # v3.50 R302: (ts, when) the look hooks went in
+        self.r3_fail = 0          # v3.50 R302: look hook writes rolled back
+        self.r3_visits = 0        # v3.50 R302: visit count lines
+        self.r3_n = [0] * 8       # v3.50 R302: seconds, look, eased, clamped, up, down, rebuilt, walk ticks
+        self.r3_sets = []         # v3.50 R302: (ts, key, old, new, why)
+        self.r3_seed = []         # v3.50 R302: (key, value, from) the first start's seed
+        self.r3_bad = []          # v3.50 R302: (key, text, used) ini values off the rows
+        self.r3_nopage = None     # v3.50 R302: why Option 4 has no Room 302 page
+        self.r3_rebuilt = 0       # v3.50 R302: view rebuild lines
+        self.r3_anom = 0          # v3.50 R302: its ANOMALY lines
         self.rg = None            # v3.47 RG347: (in / OFF, Regen, rate, delay, who) from the install line
         self.rg_not = []          # v3.47 RG347: why it is not installed
         self.rg_pe = None         # v3.47 RG347: 'with' / 'without' SH4PE_RegenActive
@@ -604,6 +711,12 @@ class Session:
         self.fol_mode = None      # v3.49 EF349: Enemies Follow's value at the start (the enemies install line)
         self.fol_modes = []       # v3.49 EF349: (ts, value) each change (menu / ini read again)
         self.fol_home = [0, 0]    # v3.49 EF349: monsters sent home from other rooms, copies made in their own rooms again
+        # v3.50 EF350: followers across saves and Enemy Pursuit
+        self.ef = Counter()       # saves, saves_unwritten, s_pur, s_here, s_q, s_tag, s_cw, found, none, restores, r_pur, r_here,
+                                  # r_q, r_tag, r_cw, r_norec, r_kind, r_no, lost, sight, down, behind, forgot, lost_doors
+        self.ef_mode = None       # Enemy Pursuit at the start (the install line), (None: not in the log)
+        self.ef_site = None       # 'in' / 'off' / 'NOT in'
+        self.ef_modes = []        # (ts, value) each change
         self.sh = Counter()       # v3.40 SH340: composites, soft, frames, kept, scene / figure previews, rooms
         self.sh_edge = []         # v3.40 SH340: (ts, edge) at the start and each change
         self.sh_plans = OrderedDict()  # 'Soft 2560x1440' -> (passes, low size, taps, px)
@@ -656,6 +769,89 @@ class Session:
         self.sb_changes = []  # v3.48 SB348: (ts, from, to, list, steps, keys, pad, mouse, by10) settled changes
         self.sb_bar = None  # v3.49 SB349: ('blue' / 'yellow', why) of the lists' highlight bar
 
+    def parse_fadein(self, ts, msg):  # v3.50 FI350: True = a Fade In line read
+        m = FI_ROOM.match(msg)
+        if m:
+            g = [int(x) for x in m.groups()]
+            self.fi_rooms += 1
+            for k, name in enumerate(FI_SRC):
+                if g[3 + k]:
+                    self.fi_src[name] += g[3 + k]
+            self.fi_portals += g[10]
+            for k, name in enumerate(FI_SKIP):
+                if g[12 + k]:
+                    self.fi_skip[name] += g[12 + k]
+            return True
+        m = FI_START.match(msg)
+        if m:
+            self.fi_starts[m.group(1)] += 1
+            return True
+        m = FI_IN.match(msg)
+        if m:
+            self.fi = ('in', 'scene pass' if m.group(1).startswith('from') else 'NOT available', m.group(2), m.group(3))
+            return True
+        m = FI_OFF.match(msg)
+        if m:
+            self.fi = ('OFF', m.group(1))
+            return False  # (a "not the stock code" line: the warnings group keeps it too)
+        m = FI_REREAD.match(msg)
+        if m:
+            self.fi_sets.append((ts, m.group(1), '[Gameplay] read again'))
+            return True
+        m = FI_SET.match(msg)
+        if m:
+            self.fi_sets.append((ts, m.group(1), 'NOT saved' if m.group(2) else 'menu'))
+            return True
+        m = FI_BAD.match(msg)
+        if m:
+            self.fi_bad = m.groups()
+            return True
+        m = FI_FAULT.match(msg)
+        if m:
+            self.fi_fault = (ts, m.group(1), m.group(2))
+            return True
+        m = FI_DRAWN.match(msg)
+        if m:
+            if self.fi_drawn is None:
+                self.fi_drawn = (ts, m.group(1))
+            return True
+        m = FI_OWN.match(msg)
+        if m:
+            self.fi_own.add('type %s (pre-draw %s)' % m.groups())
+            return True
+        return False
+
+    def fadein_line(self):  # v3.50 FI350: None when the log has no Fade In line
+        if not (self.fi or self.fi_rooms or self.fi_sets or self.fi_bad or self.fi_fault or self.fi_starts):
+            return None
+        if self.fi is None:
+            line = 'fade in: (no start line)'
+        elif self.fi[0] == 'OFF':
+            line = 'fade in: OFF (%s)' % self.fi[1]
+        else:
+            line = 'fade in: %s at the start (%s s; portal %s)' % (self.fi[2], self.fi[3], self.fi[1])
+        n = sum(self.fi_src.values())
+        line += '; %d fade(s) in %d room visit(s)' % (n, self.fi_rooms)
+        if n:
+            line += ' (%s)' % ', '.join('%s %d' % (k, self.fi_src[k]) for k in FI_SRC if self.fi_src[k])
+        if self.fi_portals or self.fi_drawn:
+            line += '; %d blood portal(s), %s' % (self.fi_portals, 'first drawn [%s] (%s viewport)' % self.fi_drawn
+                                                 if self.fi_drawn else 'NEVER DRAWN')
+        k = sum(self.fi_skip.values())
+        if k:
+            line += '; not faded %d (%s)' % (k, ', '.join('%s %d' % (r, self.fi_skip[r]) for r in FI_SKIP if self.fi_skip[r]))
+        if self.fi_starts:
+            line += '; verbose: %d start line(s)' % sum(self.fi_starts.values())
+        if self.fi_own:
+            line += '; own draw states: %s' % ', '.join(sorted(self.fi_own))
+        if self.fi_bad:
+            line += '; unknown ini value: FadeIn "%s" -> %s' % self.fi_bad
+        if self.fi_sets:
+            line += '; %d change(s): %s' % (len(self.fi_sets), ', '.join('%s (%s) [%s]' % (v, how, t) for t, v, how in self.fi_sets[:6]))
+        if self.fi_fault:
+            line += '; FAULT in %s (code %s) [%s]: off for the session' % (self.fi_fault[1], self.fi_fault[2], self.fi_fault[0])
+        return line
+
     def fol_mode_line(self):  # v3.49 EF349: Enemies Follow's value (None while it is Off all along, or not in the log)
         if not self.fol_modes and self.fol_mode in (None, 'Off') and not any(self.fol_home):
             return None
@@ -663,8 +859,30 @@ class Session:
         if self.fol_modes:
             line += '; %d change(s): %s' % (len(self.fol_modes), ', '.join('%s [%s]' % (v, ts) for ts, v in self.fol_modes))
         if self.fol_home[0] or self.fol_home[1]:
-            line += ('; with no monsters following (Off / Victims Only): %d monster(s) sent home from other rooms, %d cop(ies) '
+            line += ('; with no monsters following (Off / Victims): %d monster(s) sent home from other rooms, %d cop(ies) '
                      'made in their own rooms again' % tuple(self.fol_home))
+        return line
+
+    def ef_line(self):  # v3.50 EF350: followers across saves, Enemy Pursuit (None when nothing of it is in the log)
+        e = self.ef
+        if self.ef_mode is None and not e and not self.ef_modes:
+            return None
+        line = 'enemy pursuit: %s at the start' % (self.ef_mode or 'not in the log')
+        if self.ef_modes:
+            line += '; %d change(s): %s' % (len(self.ef_modes), ', '.join('%s [%s]' % (v, ts) for ts, v in self.ef_modes))
+        line += ('; %d lost track of you at %d door(s) (%d out of their senses, %d down when you left, %d did not catch up), %d '
+                 'forgot before a door' % (e['lost'], e['lost_doors'], e['sight'], e['down'], e['behind'], e['forgot']))
+        line += ('; followers across saves %s: %d save(s) kept followers (%d pursuer(s), %d of them with you, %d on their way, %d '
+                 'ghost tag(s), %d cop(ies))' % (self.ef_site or 'not in the log', e['saves'], e['s_pur'], e['s_here'], e['s_q'],
+                                                e['s_tag'], e['s_cw']))
+        if e['saves_unwritten']:
+            line += ', %d NOT WRITTEN to the side file' % e['saves_unwritten']
+        line += ('; %d load(s) found theirs, %d had none; %d restore(s): %d pursuer(s) back (%d with you), %d on their way, %d '
+                 'ghost(s) let in, %d cop(ies); left out %d without a record, %d of a kind not followed now' % (
+                     e['found'], e['none'], e['restores'], e['r_pur'], e['r_here'], e['r_q'], e['r_tag'], e['r_cw'], e['r_norec'],
+                     e['r_kind']))
+        if e['r_no']:
+            line += '; %d found but not restored (another room, or Follow off)' % e['r_no']
         return line
 
     def drop_level_line(self):  # v3.38 DR338
@@ -1012,6 +1230,11 @@ class Session:
             r['other'] += bool(g[13])
             r['types'] += int(g[14])
             r['kb'] += int(g[15])
+            if g[16] is not None:  # v3.50 RM350: the reasons (a v3.49 line has none)
+                r['why_lines'] += 1
+                for key, i in (('adopted', 16), ('adopt_changed', 17), ('roll_stock', 18), ('same', 19), ('away', 20),
+                               ('other_rec', 21), ('none', 22)):
+                    r[key] += int(g[i])
             for part in g[7].split(', '):
                 name, _, n = part.rpartition(' ')
                 if name and n.isdigit():
@@ -1024,6 +1247,10 @@ class Session:
         if m:
             self.rzm_misc['other'] += 1
             self.rzm_misc['other_n'] += int(m.group(3))
+            return True
+        m = RZM_SESS3.match(msg)  # v3.50 RM350
+        if m:
+            self.rzm_sess3 = tuple(int(x) for x in m.groups())
             return True
         m = RZM_SESS2.match(msg)
         if m:
@@ -1083,6 +1310,11 @@ class Session:
                                   r['sticky'], r['drops'], r['bones'], r['files'], r['floor'], r['types'], r['kb']))
             if r['other']:
                 line += ', %d room(s) with words NOT the stock value' % r['other']
+            if r['why_lines']:  # v3.50 RM350
+                line += ("; the game's own records: %d adopted (%d changed, %d kept); stock type kept: %d rolled it, %d by a stock record, "
+                         "%d recorded elsewhere, %d for another writer's record, %d with no target" % (
+                             r['adopted'], r['adopt_changed'], r['adopted'] - r['adopt_changed'], r['roll_stock'], r['same'], r['away'],
+                             r['other_rec'], r['none']))
         if self.rzm_lists:
             line += ' (%d verbose list(s))' % self.rzm_lists
         if self.rzm_misc['files']:
@@ -1106,6 +1338,8 @@ class Session:
             line += ('; session: %s room load(s), %s randomized, %s changed, %s by record, %s record(s) deleted (+%s off), kept %s / %s / '
                      '%s, %s save(s) %s out, %s left as found%s' % (s[3], s[4], s[5], s[6], s[7], s[8], s[9], s[10], s[11], s[15],
                                                                    s[16], s[17], s[18]))
+        if self.rzm_sess3:  # v3.50 RM350
+            line += '; session records: %d adopted (%d changed)' % self.rzm_sess3[:2]
         if self.rzm_anom:
             line += '; %d ANOMALY line(s)' % self.rzm_anom
         return line
@@ -1209,6 +1443,22 @@ class Session:
             self.rzl_gh['moved'] += int(m.group(4))
             self.rzl_gh['victims'] += int(m.group(5))
             self.rzl_gh['revisits'] += int(m.group(3)) > 1
+            for v in RZL_GMOVE.finditer(m.group(8)):  # v3.50 RL350 (v3.49 lines have no distance: nothing counted)
+                d = int(v.group(4))
+                self.rzl_gv['near' if v.group(5) else 'far'] += 1
+                self.rzl_gv['recmoved'] += v.group(8) == 'moved'
+                self.rzl_gv['dmax'] = max(self.rzl_gv['dmax'], d)
+                self.rzl_gv['dsum'] += d
+            self.rzl_gv['reckept'] += len(RZL_GKEPT.findall(m.group(8)))
+            return True
+        m = RZL_RDRAW.match(msg)  # v3.50 RL350
+        if m:
+            self.rzl_room['draws'] += 1
+            self.rzl_room['changed'] += m.group(5) != m.group(6)
+            return True
+        m = RZL_HELD.match(msg)  # v3.50 RL350
+        if m:
+            self.rzl_room['held'] += 1
             return True
         if RZL_CT.match(msg):
             self.rzl_gh['ct'] += 1
@@ -1221,6 +1471,10 @@ class Session:
         if m:
             self.rzl_sets.append((ts, m.group(1), m.group(2), '[Randomizer] read again'))
             return True
+        m = RZL_SESS2.match(msg)  # v3.50 RL350
+        if m:
+            self.rzl_sess2 = m.groups()
+            return 'FAULTED' not in m.group(10) and 'FAULTED' not in m.group(20)
         m = RZL_SESS.match(msg)
         if m:
             self.rzl_sess = m.groups()
@@ -1230,7 +1484,7 @@ class Session:
     def rzl_line(self):
         """v3.49 RZ349L: the Randomizer looks summary line (None without any of its lines)."""
         if not (self.rzl or self.rzl_bad or self.rzl_first or self.rzl_out or self.rzl_gh or self.rzl_sets or self.rzl_sess or
-                self.rzl_anom):
+                self.rzl_anom or self.rzl_room or self.rzl_sess2):  # v3.50 RL350: + rzl_room, rzl_sess2
             return None
         line = '  randomizer looks: '
         line += ('Eileen Outfit %s, Ghosts %s at the start' % self.rzl) if self.rzl else '(no start line)'
@@ -1243,10 +1497,21 @@ class Session:
             n = Counter(k for _, k, _ in self.rzl_out)
             line += '; outfit: %d draw(s), %d with one outfit, %d back to the set one, %d Extra Menu choice(s); last: %s' % (
                 n['draw'], n['single'], n['back'], n['takeover'], ', '.join('%s [%s]' % (d, t) for t, _, d in self.rzl_out[-3:]))
+        if self.rzl_room:  # v3.50 RL350
+            q = self.rzl_room
+            line += '; outfit room draws: %d (%d changed her outfit)' % (q['draws'], q['changed'])
+            if q['held']:
+                line += ', %d held in the final fight' % q['held']
         if self.rzl_gh['rooms']:
             g = self.rzl_gh
             line += '; ghosts: %d room load(s) with victims (%d of them a room visited again), %d of %d victim(s) moved' % (
                 g['rooms'], g['revisits'], g['moved'], g['victims'])
+            v = self.rzl_gv  # v3.50 RL350
+            if v['far'] + v['near']:
+                line += ' (%d 800 or more away, %d nearer: the room allowed no farther; mean %d, most %d; %d record(s) moved)' % (
+                    v['far'], v['near'], v['dsum'] // (v['far'] + v['near']), v['dmax'], v['recmoved'])
+            if v['reckept']:
+                line += ', %d kept by a pinned or down record' % v['reckept']
         if self.rzl_gh['ct']:
             line += "; ghosts left alone: the cheat table's Enemy Randomizer is on"
         if self.rzl_sets:
@@ -1257,6 +1522,12 @@ class Session:
             line += ('; session: outfit %s world visit(s), %s draw(s) (Dress %s, Nurse %s), %s back, %s chosen%s; ghosts %s room '
                      'load(s), %s victim(s), %s moved, %s kept, %s left as found%s' % (
                          s[1], s[2], s[3], s[4], s[6], s[7], s[8], s[10], s[11], s[12], s[13], s[14], s[15]))
+        if self.rzl_sess2:  # v3.50 RL350
+            s = self.rzl_sess2
+            line += ('; session: outfit %s world visit(s), %s world draw(s), %s room draw(s) (%s changed), Dress %s / Nurse %s, %s back, '
+                     '%s chosen%s; ghosts %s room load(s), %s victim(s), %s moved (%s at 800 +, %s record(s) moved), %s kept (%s by a '
+                     'record), %s left as found%s' % (s[1], s[2], s[5], s[6], s[3], s[4], s[7], s[8], s[9], s[11], s[12], s[13], s[14],
+                                                      s[15], s[16], s[17], s[18], s[19]))
         if self.rzl_anom:
             line += '; %d ANOMALY line(s)' % self.rzl_anom
         return line
@@ -1307,6 +1578,83 @@ class Session:
             line += '; %d ANOMALY line(s)' % self.rz_anom
         return line
 
+    def parse_r302(self, ts, msg):
+        """v3.50 R302: room302.inc's lines. True = consumed."""
+        m = R3_OWN.match(msg)
+        if m:
+            self.r3_own.append((ts,) + m.groups()[:8] + (bool(m.group(9)),))
+            return True
+        m = R3_HOOK.match(msg)
+        if m:
+            self.r3_hook = (ts, m.group(1))
+            return True
+        if R3_FAIL.match(msg):
+            self.r3_fail += 1
+            return True
+        m = R3_VISIT.match(msg)
+        if m:
+            self.r3_visits += 1
+            for i, g in enumerate((1, 3, 4, 5, 6, 7, 8, 10)):
+                self.r3_n[i] += int(m.group(g))
+            return True
+        m = R3_SET.match(msg)
+        if m:
+            self.r3_sets.append((ts,) + m.groups())
+            return True
+        m = R3_SEED.match(msg)
+        if m:
+            self.r3_seed.append((m.group(1), m.group(2), m.group(3) or 'the default'))
+            return True
+        m = R3_BAD.match(msg)
+        if m:
+            self.r3_bad.append(m.groups())
+            return True
+        m = R3_NOPAGE.match(msg)
+        if m:
+            self.r3_nopage = m.group(1)
+            return True
+        if R3_REBUILT.match(msg):
+            self.r3_rebuilt += 1
+            return True
+        return False
+
+    def r302_line(self):
+        """v3.50 R302: the Room 302 summary line (None without any of its lines)."""
+        if not (self.r3_own or self.r3_hook or self.r3_visits or self.r3_sets or self.r3_seed or self.r3_anom or self.r3_fail):
+            return None
+        line = '  room 302: '
+        if self.r3_own:
+            ts, when, look, walk, pe, d, u, f, w, wait = self.r3_own[-1]
+            line += 'look %s, walk %s (%s) [%s]; Playable Eileen %s; LookDownLimit %s, LookUpLimit %s, LookFeel %s, WalkSpeed %s' % (
+                look, walk, when, ts, pe.split(': ')[0], d, u, f, w)
+            if wait:
+                line += '; STILL WAITING (no first-tick decision in the log)'
+        else:
+            line += '(no owners line)'
+        if self.r3_seed:
+            line += '; first start: %d key(s) seeded (%s)' % (len(self.r3_seed), ', '.join(
+                '%s %s' % (k, v) for k, v, _ in self.r3_seed))
+            if any('SH4PlayableEileen.ini' in fr for _, _, fr in self.r3_seed):
+                line += ' from Playable Eileen\'s ini'
+        if self.r3_hook:
+            line += '; look hooks in [%s]' % self.r3_hook[0]
+        if self.r3_fail:
+            line += '; look hooks NOT written (rolled back)'
+        if self.r3_nopage:
+            line += '; NO PAGE (%s)' % self.r3_nopage
+        if self.r3_bad:
+            line += '; ini value(s) off the rows: ' + ', '.join('%s=%s -> %s' % b for b in self.r3_bad[-4:])
+        if self.r3_visits:
+            n = self.r3_n
+            line += ('; %d visit line(s), %d s: look %d tick(s) (eased %d, clamped %d: up %d, down %d; view rebuilt %d), walk %d '
+                     'tick(s)' % (self.r3_visits, n[0], n[1], n[2], n[3], n[4], n[5], n[6], n[7]))
+        if self.r3_sets:
+            line += '; %d change(s): %s' % (len(self.r3_sets), ', '.join('%s %s -> %s (%s) [%s]' % (k, o, nw, why, ts)
+                                                                        for ts, k, o, nw, why in self.r3_sets[-4:]))
+        if self.r3_anom:
+            line += '; %d ANOMALY line(s)' % self.r3_anom
+        return line
+
     def regen_line(self):
         """v3.47 RG347: the Regeneration summary line (None without any of its lines)."""
         if not (self.rg or self.rg_not or self.rg_who or self.rg_sets or self.rg_runs or self.rg_anom or self.rg_seed):
@@ -1351,6 +1699,8 @@ class Session:
         if msg.startswith('ANOMALY: '):
             body = msg[9:]
             self.add_group(self.anomalies, norm(body), ts, body)
+            if body.startswith('room 302: '):  # v3.50 R302
+                self.r3_anom += 1
             if body.startswith('regeneration: '):  # v3.47 RG347
                 self.rg_anom += 1
             if body.startswith('randomizer: monsters'):  # v3.49 RZ349
@@ -1432,6 +1782,9 @@ class Session:
             m = FOL_MODE_SET.match(msg)  # v3.49 EF349
             if m and (not self.fol_modes or self.fol_modes[-1][1] != m.group(1)):
                 self.fol_modes.append((ts, m.group(1)))
+            m = EF_SET.match(msg)  # v3.50 EF350
+            if m and (not self.ef_modes or self.ef_modes[-1][1] != m.group(1)):
+                self.ef_modes.append((ts, m.group(1)))
         if msg.startswith('supply drops: '):  # v3.37 MN337
             m = DROP_LEVEL_IN.match(msg)  # v3.38 DR338
             if m:
@@ -1890,6 +2243,41 @@ class Session:
             self.fol_mode = m.group(1)
         if FOL_MODE_SAY.match(msg):  # v3.49 EF349: the value's own line (the menu / ini lines give the changes)
             return
+        if msg.startswith('enemies: follow ') or msg.startswith('enemies: followers across saves'):  # v3.50 EF350
+            m = EF_SAVE.match(msg)
+            if m:
+                g = [int(x) for x in m.groups()[:6]]
+                e = self.ef
+                e['saves'] += 1
+                e['saves_unwritten'] += m.group(7) is not None
+                e['s_pur'] += g[0]; e['s_here'] += g[1]; e['s_q'] += g[3]; e['s_tag'] += g[4]; e['s_cw'] += g[5]
+                return
+            m = EF_LOAD.match(msg)
+            if m:
+                self.ef['found' if m.group(1).startswith('this') else 'none'] += 1
+                return
+            m = EF_REST.match(msg)
+            if m:
+                g = [int(x) for x in m.groups()]
+                e = self.ef
+                e['restores'] += 1
+                for k, v in zip(('r_pur', 'r_here', 'r_away', 'r_q', 'r_tag', 'r_cw', 'r_norec', 'r_kind'), g):
+                    e[k] += v
+                return
+            if EF_REST_NO.match(msg):
+                self.ef['r_no'] += 1
+                return
+            m = EF_IN.match(msg)
+            if m:
+                self.ef_site, self.ef_mode = m.group(1), m.group(2)
+                return
+        m = EF_LOST.match(msg)  # v3.50 EF350
+        if m:
+            e = self.ef
+            e['lost_doors'] += int(m.group(2)) > 0
+            e['lost'] += int(m.group(2)); e['sight'] += int(m.group(3)); e['down'] += int(m.group(4))
+            e['behind'] += int(m.group(5)); e['forgot'] += int(m.group(6))
+            return
         m = FOL_HOME.match(msg)  # v3.49 EF349
         if m:
             self.fol_home[0] += int(m.group(2))
@@ -1944,12 +2332,18 @@ class Session:
         if msg.startswith(('regeneration: ', 'life steal: ', 'settings: [Gameplay] Regen')):  # v3.47 RG347
             if self.parse_regen(ts, msg):
                 return
+        if msg.startswith(('room 302', 'settings: [Room302] ')):  # v3.50 R302
+            if self.parse_r302(ts, msg):
+                return
         if msg.startswith('randomizer: '):  # v3.49 RZ349L: the looks lines first (their own patterns)
             r = self.parse_rzl(ts, msg)
             if r is not None:
                 if r:
                     return
             elif self.parse_rando(ts, msg):  # v3.48 RZ348
+                return
+        if msg.startswith('fade in: '):  # v3.50 FI350
+            if self.parse_fadein(ts, msg):
                 return
         m = GT_INSTALL.match(msg)  # v3.43 GT343
         if m:
@@ -1958,6 +2352,26 @@ class Session:
         m = GT_WARP.match(msg)
         if m:
             self.gt_warps[m.group(1)] += 1
+            self.gt_faced += GT_FACED in msg  # v3.50 TP350
+            return
+        m = GT_THRU.match(msg)  # v3.50 TP350
+        if m:
+            self.gt_warps['through'] += 1
+            return
+        m = GT_ROOM.match(msg)
+        if m:
+            g = m.groups()
+            self.gt_rooms.append(('%s:%s' % (g[0], g[1]),) + tuple(int(x) for x in (g[2], g[3], g[4], g[5], g[6], g[8])))
+            for part in (g[7] or '').split(', '):
+                k, _, v = part.rpartition(' ')
+                if k and v.isdigit():
+                    self.gt_room_no[k] += int(v)
+            self.gt_map_open += 'not finished' in g[9] or 'OVERFLOW' in g[9]
+            return
+        m = GT_MAP.match(msg)
+        if m:
+            g = m.groups()
+            self.gt_maps.append(('%s:%s' % (g[0], g[1]), int(g[2]), int(g[3]), int(g[4]), float(g[5])))
             return
         m = GT_NO.match(msg)
         if m:
@@ -2292,7 +2706,7 @@ class Session:
             say(head)
         # v3.43 GT343: Ghost Teleport
         if (self.gt or self.gt_warps or self.gt_no or self.gt_cool or self.gt_chord or self.gt_fades[0] or self.gt_off or
-                self.gt_holds or self.gt_zones):
+                self.gt_holds or self.gt_zones or self.gt_rooms or self.gt_maps):  # v3.50 TP350: + rooms, maps
             line = '  ghost teleport: '
             if self.gt:
                 line += '%s at the start (%s); ' % (self.gt[0], self.gt[1])
@@ -2321,7 +2735,24 @@ class Session:
                 line += '; walk-in event zones kept out of: %s%s' % (
                     ', '.join('room %s x%d' % (k, v) for k, v in sorted(self.gt_zones.items()) if v) or 'none armed',
                     ' (%d refusal(s) had spots inside or past one)' % self.gt_zone_no if self.gt_zone_no else '')
+            if self.gt_faced:  # v3.50 TP350
+                line += '; %d behind the enemy she faces' % self.gt_faced
+            if self.gt_rooms:
+                rr = self.gt_rooms
+                line += ('; %d room visit(s) with tries: %d warp(s) (%d through walls, %d behind the faced enemy, %d ahead), %d '
+                         'refused%s, %d Action / Check press(es) taken back in fade-outs' % (
+                             len(rr), sum(r[1] for r in rr), sum(r[2] for r in rr), sum(r[3] for r in rr), sum(r[4] for r in rr),
+                             sum(r[5] for r in rr), ' (%s)' % ', '.join('%s x%d' % kv for kv in self.gt_room_no.most_common(7))
+                             if self.gt_room_no else '', sum(r[6] for r in rr)))
+            if self.gt_maps or self.gt_map_open:
+                mp = self.gt_maps
+                line += '; floor maps: %d finished%s%s' % (
+                    len(mp), ' (%d cells at most, %.1f ms at most)' % (max(m[1] for m in mp), max(m[4] for m in mp)) if mp else '',
+                    ', %d room visit(s) left with it NOT finished' % self.gt_map_open if self.gt_map_open else '')
             say(line)
+        line = self.fadein_line()  # v3.50 FI350: Fade In
+        if line:
+            say('  ' + line)
         # v3.46 OM346: Stick Movement (v3.48 OM348: Omni-Directional Movement)
         line = self.omni_line()
         if line:
@@ -2340,6 +2771,9 @@ class Session:
         line = self.rzl_line()  # v3.49 RZ349L: its looks
         if line:
             say(line)
+        line = self.r302_line()  # v3.50 R302: Room 302's look and walk
+        if line:
+            say(line)
         # v3.38 EN338: Enemies Follow
         if self.fol or self.fol_wait:
             f = self.fol
@@ -2355,6 +2789,9 @@ class Session:
                 line += "; %d ghost copy(ies) made in another room without their record (the ghosts' way)" % f['fresh']
             say(line)
         line = self.fol_mode_line()  # v3.49 EF349
+        if line:
+            say('  ' + line)
+        line = self.ef_line()  # v3.50 EF350
         if line:
             say('  ' + line)
         # v3.43 FN343: the HD menu font (nothing when MenuFont = Stock)
