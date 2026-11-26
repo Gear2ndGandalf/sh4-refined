@@ -1,6 +1,6 @@
 # SH4 Refined
 
-**Current version: v3.52.0 (new, not yet tested in game; v3.51.0 was play-tested 2026-11-26 and passed; see Versions below)**
+**Current version: v3.52.0 (play-tested 2026-11-26: everything passed; the Otherworld Lens is still subtle; see Versions below)**
 
 SH4 Refined is a fan-made enhancement mod for the PC version of **Silent Hill 4: The Room** sold by GOG. It is a
 single `winmm.dll` that the game loads from its own folder: no loader, no installer and no changes to the game's exe
@@ -122,9 +122,8 @@ Python tools need Python 3 (some previews use NumPy, Pillow and SciPy). Build no
 The current version is named at the top of this page. Every release, newest changes included, is described in the
 history of [docs/FULL_README.md](docs/FULL_README.md#history). v3.52.0 adds the sound options, Bloom levels, Depth of
 Field with a close camera, a stronger Otherworld Lens, health bars only for enemies really in the room, Ghost Teleport
-landings that never end inside a wall, Quick Load from the pause and ghosts that really give up on Forgetful; it has
-passed its tests and code review but not yet a play test. To stay on the tested v3.51.0, take the repository as of
-the commit "SH4 Refined v3.51.0 (not yet tested in game)" (tested since). v3.51.0 makes Enemy Pursuit work inside a room
+landings that never end inside a wall, Quick Load from the pause and ghosts that really give up on Forgetful; its play
+test passed (2026-11-26). v3.51.0 makes Enemy Pursuit work inside a room
 (monsters and victims' ghosts give up and go back to their routine), gives Fade In's arriving ghosts the game's own tar
 portal (it slows them for a moment), randomizes the first Sniffer Dogs once their scene has played, keeps Ghost
 Teleport from warping behind an enemy on the other side of a wall, and keeps the level music paused in the Extra Menu's
