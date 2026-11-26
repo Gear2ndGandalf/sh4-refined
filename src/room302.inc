@@ -27,7 +27,7 @@
 enum { R3M_ROW, R3M_ROWD, R3M_ROWD_PE, R3M_TITLE, R3M_L0, R3M_D0 = R3M_L0 + R3K_N, R3M_DPE = R3M_D0 + R3K_N, R3M_DNA,
        R3M_GAME, R3M_V35, R3M_V45, R3M_F05, R3M_F1, R3M_F15, R3M_F2, R3M_W055, R3M_W06, R3M_W065, R3M_W07, R3M_W075,
        R3M_W08, R3M_W09, R3M_W11, R3M_W12, R3M_N };
-typedef char R3TextsFit[R3M_N <= 32 && MSG_R3 + 32 <= MSG_END ? 1 : -1];
+typedef char R3TextsFit[R3M_N <= 32 && MSG_R3 + 32 <= MSG_V51 ? 1 : -1];  // v3.51 MERGE: bounded by the next block MSG_V51 (was MSG_END)
 enum { R3G_LOOK, R3G_WALK, R3G_N };
 
 // ---------------------------------------------------------------- state

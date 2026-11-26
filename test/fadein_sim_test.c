@@ -4,6 +4,9 @@
 // the room visit's table (find, a re-used slot, a full table keeps the fading ones), Revive Enemies' notes, the room line's
 // text (fixed order for tools\logcheck.py, a short buffer stays terminated); and the stock exe (SH4Decomp orig\sh4.exe):
 // 0x45C880 has exactly the bytes fadein.inc checks, with its eight calls, and the pre-draw callbacks are where the rules say.
+// v3.51 PT351: the tar portal and the hold: FadeInPortalDraw, the hold's factor and step, the portal's timeline, the blots /
+// drips layout, the drips' run, the strands' snap order and phases, the plane's axes, the room line's new part; and in the
+// stock exe: the game code it calls (kFiTarFns), the step list's entry 8, and the offsets it reads / writes there.
 // Usage: out\fadein_sim_test.exe [path of the stock sh4.exe]
 #define _CRT_SECURE_NO_WARNINGS
 #include <stdio.h>
@@ -353,13 +356,226 @@ static void TestText(void)
     s.fades[FI_SRC_ROOM] = 3, s.fades[FI_SRC_FOLLOW] = 2, s.fades[FI_SRC_GHOST] = 1, s.portals = 2;
     s.skips[FI_SKIP_BOSS] = 1, s.skips[FI_SKIP_OWNPORTAL] = 1;
     CHECK(FiStatsAny(&s), "fades: a line");
+    s.byDraw[FI_TD_GAME] = 1, s.byDraw[FI_TD_OWN] = 1, s.held = 2, s.drawFrames = 4, s.drawMs = 0.5, s.drawMax = 0.25f;  // v3.51 PT351
     len = FiStatsText(&s, b, sizeof b);
-    CHECK(!strcmp(b, "6 fade(s) (room load 3, follower 2, wanderer 0, copy 0, revive 0, ghost 1, monster 0), 2 portal(s); 2 not "
+    CHECK(!strcmp(b, "6 fade(s) (room load 3, follower 2, wanderer 0, copy 0, revive 0, ghost 1, monster 0), 2 portal(s) (the game's "
+                     "own draw 1, Refined's 1, vortex 0; 2 held; portal draw 0.125 ms a frame, max 0.250); 2 not "
                      "faded (stage 0, cut-scene 0, type 0, boss 1, event 0, dead 0, own draw 0, own portal 1, own fade 0)") &&
           len == (int)strlen(b), "the room line's text: %s", b);
+    s.portals = 0;  // v3.51 PT351
+    FiStatsText(&s, b, sizeof b);
+    CHECK(strstr(b, "), 0 portal(s); 2 not faded (") != NULL, "no portal: no portal part (v3.50's form): %s", b);
+    s.portals = 2;
     len = FiStatsText(&s, small, sizeof small);
     CHECK(len == (int)strlen(small) && len < (int)sizeof small && !strncmp(small, "6 fade(s) (room load 3,", 22), "a short buffer stays terminated (%s)", small);
     CHECK(FiStatsText(&s, NULL, 10) == 0 && FiStatsText(&s, small, 1) == 0, "no buffer: nothing");
+}
+
+// ---------------------------------------------------------------- v3.51 PT351: the tar portal and the hold
+static void TestTar(void)
+{
+    FiTarLayout L, L2;
+    float out[3], ax[3], ay[3], prevT, prevL, last, f;
+    int i, j, k, n, known, okAll, seen[64];
+    // FadeInPortalDraw
+    for (i = 0; i < FI_TDM_N; ++i) CHECK(FiTdmParse(kFiTdmName[i], &known) == i && known, "FadeInPortalDraw %s reads", kFiTdmName[i]);
+    CHECK(FiTdmParse("", &known) == FI_TDM_AUTO && known, "empty = Auto (known: the key is simply not there)");
+    CHECK(FiTdmParse("refined", &known) == FI_TDM_REFINED && known, "case ignored");
+    CHECK(FiTdmParse("Game", &known) == FI_TDM_AUTO && FiTdmParse("1", &known) == FI_TDM_AUTO, "Game / 1 = Auto");
+    CHECK(FiTdmParse("Own", &known) == FI_TDM_REFINED && FiTdmParse("0", &known) == FI_TDM_VORTEX, "Own = Refined, 0 = Vortex");
+    CHECK(FiTdmParse("Splash", &known) == FI_TDM_AUTO && !known, "unknown = Auto, not known");
+    // the hold's factor: 40 % to 1.5 s, eased to 100 % at 2.5 s; 1 before it starts and after
+    CHECK(FiHoldFactor(-0.1f) == 1.0f && FiHoldFactor(0.0f) == FI_HOLD_SLOW && FiHoldFactor(1.5f) == FI_HOLD_SLOW, "40 %% from 0 to 1.5 s");
+    CHECK(FiHoldFactor(2.5f) == 1.0f && FiHoldFactor(9.0f) == 1.0f, "full speed at 2.5 s");
+    CHECK(fabsf(FiHoldFactor(2.0f) - 0.7f) < 1e-4f, "half way at 2.0 s (%.4f)", FiHoldFactor(2.0f));
+    okAll = 1, last = 0.0f;
+    for (i = 0; i <= 300; ++i) {
+        f = FiHoldFactor((float)i / 100.0f);
+        if (f < last - 1e-6f || f < FI_HOLD_SLOW - 1e-6f || f > 1.0f) okAll = 0;
+        last = f;
+    }
+    CHECK(okAll, "the factor never falls and stays in 0.4 .. 1");
+    CHECK(FiHoldFactor((float)NAN) == 1.0f, "NaN age: not held");
+    // one tick of the hold
+    {
+        const float p0[3] = { 100.0f, -50.0f, 200.0f }, c0[3] = { 110.0f, -40.0f, 180.0f };
+        CHECK(!FiHoldStep(p0, c0, 0.4f, out) && fabsf(out[0] - 104.0f) < 1e-4f && fabsf(out[2] - 192.0f) < 1e-4f && out[1] == -40.0f,
+              "40 %% of the level move, its height as the game left it (%.2f %.2f %.2f)", out[0], out[1], out[2]);
+        CHECK(!FiHoldStep(p0, c0, 1.0f, out) && out[0] == c0[0] && out[2] == c0[2], "factor 1: where the game put it");
+        CHECK(!FiHoldStep(p0, c0, 3.0f, out) && out[0] == c0[0] && !FiHoldStep(p0, c0, -1.0f, out) && out[0] == p0[0],
+              "a factor outside 0 .. 1 is clamped");
+    }
+    {
+        const float p0[3] = { 0.0f, 0.0f, 0.0f }, warp[3] = { 150.0f, 0.0f, 150.0f }, bad[3] = { 1.0f, 0.0f, (float)NAN };
+        CHECK(FiHoldStep(p0, warp, 0.4f, out) && out[0] == 150.0f && out[2] == 150.0f, "a warp (212 u in a tick) is taken as it is");
+        CHECK(FiHoldStep(p0, bad, 0.4f, out), "a bad value is taken as it is (no NaN written)");
+    }
+    {   // a ghost walking 3 u a tick for 2.5 s at 60 ticks: about 0.4 x for 1.5 s, then easing (the release line's numbers)
+        float prev[3] = { 0.0f, 0.0f, 0.0f }, cur[3], moved = 0.0f, unheld = 0.0f;
+        for (i = 0; i < 150; ++i) {
+            const float age = (float)i / 60.0f;
+            cur[0] = prev[0] + 3.0f, cur[1] = 0.0f, cur[2] = prev[2];
+            FiHoldStep(prev, cur, FiHoldFactor(age), out);
+            moved += out[0] - prev[0], unheld += 3.0f;
+            memcpy(prev, out, sizeof out);
+        }
+        CHECK(unheld == 450.0f && moved > 0.5f * unheld && moved < 0.62f * unheld, "2.5 s held: %.0f of %.0f u", moved, unheld);
+    }
+    // the portal's timeline
+    CHECK(FiTarRelease(0.0f) == FI_HOLD_END_S && FiTarRelease(1.0f) == 1.0f + FI_HOLD_END_S && FiTarRelease(-1.0f) == FI_TAR_WAIT_S,
+          "it lets go at the hold's end (or after the wait for a ghost never real)");
+    CHECK(FiTarAmount(0.0f, 2.5f) == 0.0f && FiTarAmount(-1.0f, 2.5f) == 0.0f && FiTarAmount(FI_TAR_OPEN_S, 2.5f) == 1.0f &&
+          FiTarAmount(2.0f, 2.5f) == 1.0f, "opens over 0.6 s, stays open");
+    CHECK(fabsf(FiTarAmount(2.5f + 0.5f * FI_TAR_CLOSE_S, 2.5f) - 0.25f) < 1e-4f && FiTarAmount(2.5f + FI_TAR_CLOSE_S, 2.5f) < 1e-6f && FiTarAmount(2.5f + FI_TAR_CLOSE_S + 0.01f, 2.5f) == 0.0f,
+          "closes over 1.6 s ((1 - s)^2)");
+    CHECK(fabsf(FiTarAmount(0.3f + 0.4f, 0.3f) - FiTarOpenAt(0.3f) * (1.0f - 0.25f) * (1.0f - 0.25f)) < 1e-4f,
+          "a release before it is open closes from where it was");
+    CHECK(!FiTarDone(4.09f, 2.5f) && FiTarDone(4.1f, 2.5f), "done at the release + 1.6 s");
+    okAll = 1, prevT = 0.0f;
+    for (i = 1; i <= 410; ++i) {
+        const float a = FiTarAmount((float)i / 100.0f, 2.5f);
+        if (a < 0.0f || a > 1.0f || (i <= 250 && a < prevT - 1e-6f) || (i > 251 && a > prevT + 1e-6f)) okAll = 0;
+        prevT = a;
+    }
+    CHECK(okAll, "the amount rises, holds, falls, within 0 .. 1");
+    CHECK(FiTarShown(0.0f) == 0 && FiTarShown(0.001f) == 1 && FiTarShown(FI_TAR_SPREAD_S) == FI_TAR_SPLATS &&
+          FiTarShown(9.0f) == FI_TAR_SPLATS, "the 25 blots appear over 0.8 s");
+    for (i = 0; i < FI_TAR_SPLATS; ++i)
+        if (FiTarShown(FiTarAppear(i) + 1e-4f) < i + 1) break;
+    CHECK(i == FI_TAR_SPLATS, "blot i is shown from its first second on (%d)", i);
+    CHECK(FiTarLife(1.0f, 2.5f, 0.3f) == 1.0f && fabsf(FiTarLife(3.0f, 2.5f, 0.3f) + 0.2f) < 1e-5f, "a blot's life: whole, then its offset less the close time");
+    CHECK(FiTarLifeShort(1.0f) == 1024 && FiTarLifeShort(-0.5f) == -512 && FiTarLifeShort(100.0f) == 32000 &&
+          FiTarLifeShort(-100.0f) == -32000 && FiTarLifeShort((float)NAN) == 0, "x 1024, clamped to a short");
+    CHECK(FiTarLifeAlpha(0.2f) == 1.0f && FiTarLifeAlpha(-FI_TAR_FADE_S) == 0.0f && fabsf(FiTarLifeAlpha(-0.5f * FI_TAR_FADE_S) - 0.75f) < 1e-5f,
+          "the game's fade 1 - q^2 over 1.1 s");
+    CHECK(0.5f - (FI_TAR_CLOSE_S - 0.0f) <= -FI_TAR_FADE_S, "every blot (offset <= 0.5 s) is gone by the close's end");
+    // the layout: deterministic, inside the plane, the game's piece of each index, drips below, unique slots
+    FiTarLayoutMake(&L, 12345u);
+    FiTarLayoutMake(&L2, 12345u);
+    CHECK(!memcmp(&L, &L2, sizeof L), "the same seed, the same layout");
+    FiTarLayoutMake(&L2, 54321u);
+    CHECK(memcmp(&L, &L2, sizeof L) != 0, "another seed, another layout");
+    for (k = 0; k < 200; ++k) {
+        int slots = 0, bad = 0;
+        FiTarLayoutMake(&L, FiHash((unsigned)k));
+        for (i = 0; i < FI_TAR_SPLATS; ++i) {
+            const FiSplat *s = &L.s[i];
+            if (!(s->u * s->u + s->v * s->v <= 0.93f * 0.93f) || s->kind != kFiSplatKind[i] || !(s->sc > 0.5f && s->sc < 1.7f) ||
+                !(s->ang >= -3.1416f && s->ang <= 3.1416f) || !(s->off >= 0.0f && s->off <= 0.5f))
+                bad = 1;
+            if (s->drip) {
+                if (s->drip < 1 || s->drip > L.nd || s->v < -0.25f || i == 0 || (slots >> s->drip & 1)) bad = 1;
+                slots |= 1 << s->drip;
+            }
+        }
+        for (j = 1; j <= L.nd; ++j)
+            if ((L.d[j].kind != 2 && L.d[j].kind != 3) || !(L.d[j].len >= 160.0f && L.d[j].len <= 240.0f) || !(L.d[j].w >= 0.7f && L.d[j].w <= 1.3f))
+                bad = 1;
+        if (bad || L.nd > 12 || L.nd > FI_TAR_DRIPS || fabsf(L.s[0].u) > 0.15f || fabsf(L.s[0].v) > 0.15f) break;
+    }
+    CHECK(k == 200, "200 layouts: blots inside the plane, the game's pieces, drips 2 / 3 below the middle, slots 1 .. nd once (%d)", k);
+    for (n = 0, k = 0; k < 200; ++k) {
+        FiTarLayoutMake(&L, FiHash((unsigned)k + 7u));
+        n += L.nd >= 5;
+    }
+    CHECK(n >= 190, "nearly every layout has 5 drips or more (%d of 200)", n);
+    // a drip runs down at 90 u/s and slows to its length
+    CHECK(FiDripLen(0.0f, 200.0f) == 0.0f && FiDripLen(-1.0f, 200.0f) == 0.0f && fabsf(FiDripLen(1.0f, 200.0f) - 90.0f) < 1e-3f,
+          "90 u in the first second");
+    okAll = 1, prevL = 0.0f;
+    for (i = 1; i < 2000; ++i) {
+        const float l = FiDripLen((float)i / 100.0f, 200.0f);
+        if (l < prevL - 1e-3f || l > 200.0f) okAll = 0;
+        prevL = l;
+    }
+    CHECK(okAll && prevL > 195.0f, "it never shrinks, gets near its length, never past it (%.1f)", prevL);
+    CHECK(FiDripLen(5.0f, 30.0f) < 30.0f && FiDripLen(5.0f, 30.0f) > 25.0f, "a short drip too (%.2f)", FiDripLen(5.0f, 30.0f));
+    // the strands snap one by one in 1.5 .. 2.5 s: each moment once
+    for (n = 1; n <= FI_STR_MAX; ++n) {
+        int bad = 0;
+        memset(seen, 0, sizeof seen);
+        for (i = 0; i < n; ++i) {
+            const float at = FiSnapAt(i, n, 0xBEEFu), r = (at - FI_HOLD_SLOW_S) / (FI_HOLD_END_S - FI_HOLD_SLOW_S) * (float)n - 0.5f;
+            const int rk = (int)(r + 0.5f);
+            if (!(at > FI_HOLD_SLOW_S && at < FI_HOLD_END_S) || rk < 0 || rk >= n || seen[rk]++) bad = 1;
+        }
+        if (bad) break;
+    }
+    CHECK(n == FI_STR_MAX + 1, "1 .. 64 strands: each snaps at its own moment inside 1.5 .. 2.5 s (%d)", n);
+    CHECK(FiSnapAt(0, 32, 1u) != FiSnapAt(1, 32, 1u) && FiSnapAt(5, 0, 1u) == FI_HOLD_SLOW_S, "neighbours apart; no strands: no moment");
+    {
+        float kk;
+        CHECK(FiStrandPhase(1.0f, 2.0f, &kk) == 0 && kk == 1.0f, "whole before its moment");
+        CHECK(FiStrandPhase(2.0f - 0.5f * FI_SNAP_STRAIN_S, 2.0f, &kk) == 1 && fabsf(kk - 0.7f) < 1e-4f, "straining: thinner");
+        CHECK(FiStrandPhase(2.0f + 0.5f * FI_SNAP_RECOIL_S, 2.0f, &kk) == 2 && fabsf(kk - 0.75f) < 1e-4f, "snapped: whipping back");
+        CHECK(FiStrandPhase(2.0f + FI_SNAP_RECOIL_S, 2.0f, &kk) == 3, "then gone");
+    }
+    // the plane
+    {
+        const float n1[3] = { 0.6f, 0.0f, 0.8f }, n2[3] = { 0.0f, 0.3f, 0.953939f }, up[3] = { 0.0f, -1.0f, 0.0f };
+        const float *ns[2] = { n1, n2 };
+        for (k = 0; k < 2; ++k) {
+            const float *nn = ns[k];
+            const int ok = FiPlaneAxes(nn, ax, ay);
+            const float d1 = ax[0] * nn[0] + ax[1] * nn[1] + ax[2] * nn[2], d2 = ay[0] * nn[0] + ay[1] * nn[1] + ay[2] * nn[2];
+            const float d3 = ax[0] * ay[0] + ax[1] * ay[1] + ax[2] * ay[2];
+            const float l1 = ax[0] * ax[0] + ax[1] * ax[1] + ax[2] * ax[2], l2 = ay[0] * ay[0] + ay[1] * ay[1] + ay[2] * ay[2];
+            CHECK(ok && fabsf(d1) < 1e-5f && fabsf(d2) < 1e-5f && fabsf(d3) < 1e-5f && fabsf(l1 - 1.0f) < 1e-5f && fabsf(l2 - 1.0f) < 1e-5f &&
+                  ax[1] == 0.0f && ay[1] > 0.9f, "plane %d: across level, down along +y, both unit and square to the normal", k);
+        }
+        CHECK(!FiPlaneAxes(up, ax, ay), "a floor / ceiling normal has no across: refused");
+        CHECK(FiWallOk(n1) && FiWallOk(n2) && !FiWallOk(up), "walls only (a level-ish normal)");
+    }
+    CHECK(FI_TAR_DRIPS < 16 && FI_TAR_SPLATS == 25 && FI_STR_OWN >= 8 && FI_STR_OWN <= 16, "the game's 25 blots / 16 drip slots; 8 .. 16 own strands");
+    CHECK(FI_HOLD_END_S + FI_SNAP_RECOIL_S < FiTarRelease(0.0f) + FI_TAR_CLOSE_S, "the last strand is back before the portal is gone");
+}
+// the stock exe: the code the tar portal calls, the step list entry it wraps, the offsets it relies on
+static void TestTarExe(void)
+{
+    const unsigned char *p;
+    int i, rel;
+    unsigned v;
+    for (i = 0; i < FI_TAR_NFN; ++i) {
+        p = Img(kFiTarFns[i].va);
+        CHECK(p && !memcmp(p, kFiTarFns[i].b, sizeof kFiTarFns[i].b), "%08X (%s) holds the 16 bytes fadein.inc checks", kFiTarFns[i].va,
+              kFiTarFns[i].name);
+    }
+    p = Img(FI_PHASE_VA);
+    memcpy(&v, p ? p : (const unsigned char *)"\0\0\0\0", 4);
+    CHECK(p && v == FI_PHASE_FN, "0x62BC98 (phase 0's step 8) is 0x4EF900 (%08X)", v);
+    p = Img(0x62BC94);
+    memcpy(&v, p ? p : (const unsigned char *)"\0\0\0\0", 4);
+    CHECK(p && v == 0x4EF670, "its neighbour 0x62BC94 is 0x4EF670 (EntityGate's entry 7)");
+    p = Img(FI_PHASE_FN);  // 0x4EF900: call ActorDrawPass01; call ActorDrawModels; jmp ActorDrawPass2
+    CHECK(p && p[0] == 0xE8 && p[5] == 0xE8 && p[10] == 0xE9, "0x4EF900 is two calls and a jump (pass 0/1, the models, pass 2)");
+    if (p) {
+        memcpy(&rel, p + 6, 4);
+        CHECK(0x4EF905u + 5u + (unsigned)rel == 0x52AE50u, "its second call is ActorDrawModels 0x52AE50");
+        memcpy(&rel, p + 11, 4);
+        CHECK(0x4EF90Au + 5u + (unsigned)rel == 0x52AD70u, "its jump is ActorDrawPass2 0x52AD70");
+    }
+    // 0x482CC0 (the game's own start of the strands): push [esi+4C]; lea ecx,[esi+20]; lea edx,[esi+10]; call 0x478440;
+    // mov byte [esi+7D],1 (GhostWork: the trail +0x4C, dir +0x20, pos +0x10, its state +0x7D)
+    p = Img(0x482CC0);
+    CHECK(p && !memcmp(p + 13, "\x8B\x46\x4C\x8D\x4E\x20\x51\x8D\x56\x10\x52\x50\xE8", 13) && !memcmp(p + 33, "\xC6\x46\x7D\x01", 4),
+          "0x482CC0 starts the trail at GhostWork +0x4C with +0x10 / +0x20 and sets +0x7D = 1");
+    if (p) {
+        memcpy(&rel, p + 26, 4);
+        CHECK(0x482CD9u + 5u + (unsigned)rel == 0x478440u, "0x482CC0 calls 0x478440");
+    }
+    p = Img(0x482CF0);
+    CHECK(p && p[13] == 0x8A && p[14] == 0x46 && p[15] == 0x7D && !memcmp(p + 35, "\xC6\x46\x7D\x02", 4),
+          "0x482CF0 reads GhostWork +0x7D and sets it to 2");
+    p = Img(0x45BBF0);  // the once-a-tick latch: [[task+0x408]+0x5C] & 1
+    CHECK(p && !memcmp(p, "\x8B\x44\x24\x04\x8B\x88\x08\x04\x00\x00\x8B\x41\x5C\xA8\x01", 15), "0x45BBF0 tests EnemyWork +0x5C bit 0");
+    p = Img(0x4868B0);  // the grid draw reads [task+0x408], then the block's mode +0x124 (3 = nothing)
+    CHECK(p && !memcmp(p + 17, "\x8B\xB0\x08\x04\x00\x00\x83\xBE\x24\x01\x00\x00\x03", 13), "0x4868B0: task+0x408, mode +0x124 == 3");
+    p = Img(0x486E80);  // the blot draw reads [task+0x408], the fade time +0x3B4 and the count +0x3BC
+    CHECK(p && !memcmp(p + 17, "\x8B\xB0\x08\x04\x00\x00", 6) && !memcmp(p + 35, "\xD8\xB6\xB4\x03\x00\x00\x0F\xBF\x86\xBC\x03\x00\x00", 13),
+          "0x486E80: task+0x408, 1 / +0x3B4, the count +0x3BC");
+    p = Img(0x4AD280);  // the victims' record draw: if active, 0x482D60 (which draws the trail when +0x7D != 0)
+    if (p) memcpy(&rel, p + 20, 4);
+    CHECK(p && p[19] == 0xE8 && 0x4AD293u + 5u + (unsigned)rel == 0x482D60u, "the victims' draw 0x4AD280 calls 0x482D60");
 }
 
 int main(int argc, char **argv)
@@ -374,6 +590,8 @@ int main(int argc, char **argv)
     TestNotes();
     TestText();
     TestExe(exe);
+    TestTar();      // v3.51 PT351
+    TestTarExe();   // v3.51 PT351 (after TestExe: the image is loaded)
     printf("%s: %d checks, %d failed\n", g_fail ? "FAIL" : "ok", g_n, g_fail);
     return g_fail ? 1 : 0;
 }

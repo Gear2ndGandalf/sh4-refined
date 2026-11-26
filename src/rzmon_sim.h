@@ -6,6 +6,11 @@
 // Plan: staging/v349_feedback/w3_monsters/PLAN.md; research: staging/research_randomizer/REPORT.md sections 1, 2, 6, 7.
 // v3.50 RM350 (staging/v350_feedback/w2_monsters/PLAN.md): the game's own records of stock monsters are adopted (a save-based
 // game rolls), All Worlds, the reasons counted.
+// v3.51 SN351 (staging/v351_feedback/w4_sniffers/PLAN.md; the user's v3.50 QA item 4: "the first sniffers I encounter do not
+// randomize"): the Subway's first Sniffer Dogs (room 2:2, spawn mode 7 / 6 / 6: hidden and asleep until story flag 0x130, set
+// by the room's cut-scene event 00A) were no source; they are now (RmEventDogMode), rolled only once that flag is set (their
+// events are over: no event reads them then), else kept as placed (RMW_EVENT). A roll that gives the placement's own type
+// rolls once more while another type is in the pool (RmPlanIn.rollAgain; hidden [Randomizer] MonsterRollAgain=0: v3.50).
 //
 // Facts (checked against the stock exe by tools/rzmon_scan.py and the native test, 2026-11-25):
 // - An enemy placement is a kind-2 object of a room script. Its type is command 7's argument (the type index: 0x52C530
@@ -21,6 +26,17 @@
 //   v0 x29 / v1 x19; at most 20 in one room. Not sources: other types (224), on a wall or ceiling (192), event spawn
 //   modes (39), variants past the type's stat rows (37: Hummer v2 / v3, Whitestool v1, Twin Victim v2), id overrides
 //   (28), story flags (23), Gum Heads with an item (5).
+//   v3.51 SN351: + the 3 event dogs of Subway room 2:2 (0A v0, modes 7 / 6 / 6, kill indexes 2 / 3 / 4): 238 sources, 36
+//   event spawn modes left (Water Prison room 0x23's 15 Whitestools in mode 7, Building room 0x12's 5 Gum Heads in mode 6,
+//   stage 6's 8 dogs in mode 3 in rooms 1 / 0x18 (no kill index: a retyped Tremer or Twin Victim would share kill bit 0),
+//   stage 7 room 4's 8 Hummers in mode 1 (a forbid flag)).
+// - The event dogs (decomp en_48bdb0.c, checked in the stock exe): SnifferDogTask 0x492C00 does nothing while the whole
+//   mode word is 6 or 7 and story byte 0x13D80C6 bit 0 (flag 0x130) is clear (`test byte [13D80C6h], 1` at 0x492C5D);
+//   SnifferDogCreate 0x48E690 gives mode 3 / 7 AI 0x11 (lies at a body), mode 6 AI 0x15 (waits). Flag 0x130 is set by room
+//   2:2's cut-scene event 00A (KB 208); its events 00A / 04A run only while it is clear, and no event reads the dogs then.
+//   No other path makes a Sniffer Dog: the room-script runner 0x52CA00 has one caller (the room load 0x4F0AF8, Refined's
+//   EnmWrap); the other enemy creates (EnemySpawnObject 0x4623A0: objects 0x13..0x17, the mm, the Hummer nest, the wall
+//   boss parts, ghost placeholders) make no dog.
 // - gEnemyVariantCounts 0x5B8BA0: 02:1 03:1 07:2 08:2 09:1 0A:2 (the stat rows; the Tremer's variants 1 / 2 are sizes
 //   of its one model and share row 0).
 // - The game's enemy records (gEnemyManager 0xFCF010: kill bits 0x80 bytes, then 64 records x 0x50 at 0xFCF090; the
@@ -114,6 +130,13 @@ static int RmModeOk(int type, unsigned mw)
     if ((mw >> 12) & 0xFu) return type == 0x09;
     return 1;
 }
+// v3.51 SN351: an event dog's mode word: a Sniffer Dog asleep until story flag 0x130 (spawn mode 6 waits, 7 lies at a body
+// and waits), upright, no bits 12-15. Mode 3 alone (stage 6's dogs: no kill index) stays out
+static int RmEventDogMode(int type, unsigned mw)
+{
+    if (type != 0x0A || mw > 0xFFFFu || ((mw & 0xFu) != 6 && (mw & 0xFu) != 7)) return 0;
+    return (mw & 0xF0u) <= 0x10u && !((mw >> 12) & 0xFu);
+}
 // the mode word a placement gets: the same type keeps its own bits (another variant only); another type gets spawn mode 0,
 // upright, its variant and nothing of the old type's own bits (the twin's Enemy Randomizer does the same)
 static unsigned RmModeWord(int stockType, unsigned stockMw, int type, int variant)
@@ -131,9 +154,11 @@ typedef struct {
     float pos[3];                  // the stock position
     unsigned short room, n;        // the room and the object number (the low word of the script id)
     unsigned char type, variant;   // the stock type and variant
+    unsigned char event;           // v3.51 SN351: an event dog (RmEventDogMode): rolled only once story flag 0x130 is set
 } RmSlot;
 typedef struct {
     int n, kind2, overflow, bad, rooms, roomMax;
+    int events;                           // v3.51 SN351: source placements that are event dogs (RmSlot.event)
     unsigned roomStart[RZ_ROOMS];         // gRoomScripts' value for the room (0 = none)
     int roomCost[RZ_ROOMS];               // the stock bone estimate of the room's kind-2 placements (RmPlaceCost)
     unsigned char roomBoss[RZ_ROOMS];     // a boss placement: Walter 0x10, the Wall Man boss (type 5, spawn mode 8)
@@ -153,13 +178,13 @@ static int RmTypeOfRow(unsigned p)  // command 6's row pointer -> the type (-1 =
 }
 // a source placement (tools/rzmon_scan.py why_not ''): kind 2; one command 7 and no 2-6 / 0x0A; a source type at a source
 // variant; one mode word with RmModeOk (a Gum Head with an item excluded); no id override; no story flag; difficulty mask
-// 0x1F or none; one position; stage 2..8
+// 0x1F or none; one position; stage 2..8. v3.51 SN351: + an event dog's mode word (RmEventDogMode)
 static int RmIsSource(const RmObj *o, int stage)
 {
     const int v = (int)(o->mw >> 8 & 0xFu);
     if (o->kind != 2 || o->tcmds != 1 || o->cmd6 || o->cmd0a || o->funcs) return 0;
     if (!RmIsSourceType(o->type) || stage < 2 || stage > 8) return 0;
-    if (o->modes != 1 || !RmModeOk(o->type, o->mw) || !RmSourceVariantOk(o->type, v)) return 0;
+    if (o->modes != 1 || !(RmModeOk(o->type, o->mw) || RmEventDogMode(o->type, o->mw)) || !RmSourceVariantOk(o->type, v)) return 0;
     if (o->overs || o->flags || o->posN != 1) return 0;
     return o->diffs == 0 || (o->diffs == 1 && o->diff == 0x1Fu);
 }
@@ -183,6 +208,8 @@ static void RmObjFlush(const RmObj *o, int stage, int room, int n, RmScan *out)
         memcpy(s->pos, o->pos, sizeof s->pos);
         s->room = (unsigned short)room, s->n = (unsigned short)n;
         s->type = (unsigned char)o->type, s->variant = (unsigned char)(o->mw >> 8 & 0xFu);
+        s->event = (unsigned char)RmEventDogMode(o->type, o->mw);  // v3.51 SN351
+        out->events += s->event;
         if (++out->roomN[room] > out->roomMax) out->roomMax = out->roomN[room];
     }
 }
@@ -279,7 +306,7 @@ static const unsigned char kRmCntType[6] = { 0x02, 0x03, 0x07, 0x08, 0x09, 0x0A 
 // half has its own script); kind-2 placements, source placements, by source type 02 03 07 08 09 0A
 static const RmVisitCount kRmStock[] = {
     { 0x0, 0, 0x00655420,   2,   0, { 0, 0, 0, 0, 0, 0 } },
-    { 0x2, 0, 0x0067EF60,  46,   8, { 0, 0, 0, 0, 0, 8 } },
+    { 0x2, 0, 0x0067EF60,  46,  11, { 0, 0, 0, 0, 0, 11 } },  // v3.51 SN351: + room 2's 3 event dogs (was 8)
     { 0x2, 1, 0x00683AA0,  53,  21, { 0, 0, 6, 0, 10, 5 } },
     { 0x3, 0, 0x00667D30,  41,  11, { 0, 1, 0, 0, 0, 10 } },
     { 0x3, 1, 0x0066C558,  37,  12, { 0, 5, 1, 3, 0, 3 } },
@@ -295,7 +322,8 @@ static const RmVisitCount kRmStock[] = {
 };
 #define RM_STOCK_N ((int)(sizeof kRmStock / sizeof kRmStock[0]))
 #define RM_STOCK_KIND2 783
-#define RM_STOCK_TOTAL 235
+#define RM_STOCK_TOTAL 238   // v3.51 SN351: + the 3 event dogs (v3.50: 235)
+#define RM_STOCK_EVENTS 3    // v3.51 SN351: of them event dogs (Subway room 2:2)
 // 1 = the scan of (stage, visit) gives the stock counts and script start; 0 = not; -1 = not in the table
 static int RmStockMatch(int stage, int visit, unsigned script, const RmScan *sc)
 {
@@ -305,6 +333,7 @@ static int RmStockMatch(int stage, int visit, unsigned script, const RmScan *sc)
         unsigned char c[6];
         if (v->stage != stage || v->visit != visit) continue;
         if (v->script != script || sc->bad || sc->overflow || sc->kind2 != v->kind2 || sc->n != v->n) return 0;
+        if (sc->events != (stage == 2 && visit == 0 ? RM_STOCK_EVENTS : 0)) return 0;  // v3.51 SN351: only room 2:2's event dogs
         memset(c, 0, sizeof c);
         for (k = 0; k < sc->n; ++k)
             for (j = 0; j < 6; ++j)
@@ -332,18 +361,23 @@ typedef struct {
     unsigned world;             // bit i: target i is placed by this world's scripts (both halves: RmScan.placed of each)
     unsigned allowed;           // bit i: target i may be used at all (RM_ALL_TARGETS less the Gum Heads without a guard)
     int freeBones, totalBones;  // the bone pool now (0xED73E4 / 0xED73EC)
+    int released;               // v3.51 SN351: story flag 0x130 is set (byte 0x13D80C6 bit 0): the event dogs may roll
+    int rollAgain;              // v3.51 SN351: a roll that gives the placement's own type rolls once more (another type in the pool)
 } RmPlanIn;
 // the game's record of a placement (the caller reads the 64 records): type -1 = none; here = in this room; ours = Refined
 // made that monster as exactly that type and variant (v3.49 fix2 RZ349-SAVE-001: the provenance table RmProv, below)
 typedef struct { int type, variant, here, ours; } RmRec;
-enum { RMW_SAME, RMW_ROLL, RMW_STICKY, RMW_AWAY, RMW_BONES, RMW_FLOOR, RMW_FILES, RMW_NONE, RMW_OTHER, RMW_WORDS, RMW_N };  // fix2: + OTHER  // v3.50 RM350: + WORDS (a word not the stock value: put back)
+enum { RMW_SAME, RMW_ROLL, RMW_STICKY, RMW_AWAY, RMW_BONES, RMW_FLOOR, RMW_FILES, RMW_NONE, RMW_OTHER, RMW_WORDS, RMW_EVENT, RMW_N };  // fix2: + OTHER  // v3.50 RM350: + WORDS (a word not the stock value: put back)  // v3.51 SN351: + EVENT (an event dog before story flag 0x130: as placed)
 // drop: the record in this room is deleted first; adopt (v3.50 RM350): the placement's record here was the game's own record
-// of its stock monster (not Refined's): adopted, rolled like a fresh placement (RmPlanRoom rule 0)
-typedef struct { unsigned char type, variant, why, drop, adopt; } RmPick;
+// of its stock monster (not Refined's): adopted, rolled like a fresh placement (RmPlanRoom rule 0); again (v3.51 SN351): the
+// first roll gave its own type and it rolled once more
+typedef struct { unsigned char type, variant, why, drop, adopt, again; } RmPick;
 // v3.50 RM350: + adopted (game records adopted), adoptChanged (of them made as another type: their record deleted), rollStock
-// (rolled their own stock type), same (kept the stock type by a record of the stock type)
+// (rolled their own stock type), same (kept the stock type by a record of the stock type); v3.51 SN351: + again (rolled once
+// more for their own type), event (event dogs kept as placed: story flag 0x130 clear), eventPlanned (event dogs planned as the
+// others: the flag set)
 typedef struct { int n, changed, sticky, away, bones, floor, files, drops, none, cost0, cost, limit, other, adopted, adoptChanged,
-                 rollStock, same; } RmPlanStat;
+                 rollStock, same, again, event, eventPlanned; } RmPlanStat;
 // This Room: the resident targets; This World: also every target this world places (the stage's two halves: the same
 // world's monsters, its sound tables; their files are loaded at the room load); v3.50 RM350 All Worlds: every target of any
 // world (the files of each one not resident loaded at the room load; its sounds may be missing outside its own worlds)
@@ -367,7 +401,11 @@ static unsigned RmPool(const RmPlanIn *in)
 //    reads its own record; with reroll, only a record elsewhere: one in this room is rolled over); its stock type keeps
 //    the stock (no reroll); another one is deleted when it is in this room (else the stock create would restore a
 //    record of another type), and left alone (the stock type) when it is elsewhere;
-// 2. else a roll over the pool (RmSlotKey + the visit), each target alike (any strength, a mix per enemy);
+// 2. else a roll over the pool (RmSlotKey + the visit), each target alike (any strength, a mix per enemy); v3.51 SN351 with
+//    rollAgain: a roll that gives the placement's own type (any variant) rolls once more (RmAgainKey) while the pool holds
+//    another type (the own type then 1 in n^2 / k^2 instead of k / n; never excluded: a world keeps its own monsters);
+// (v3.51 SN351, before rule 0) an event dog while story flag 0x130 is clear: as placed (RMW_EVENT), its record kept unless it
+//    is Refined's of another type in this room (rule 5);
 // 3. a walker at a Hummer's spot needs a floor under it (else the stock type);
 // 4. the bones: the room may never need more than max(the pool's free part, the stock room's estimate): a dearer type
 //    that does not fit keeps the stock type;
@@ -378,6 +416,15 @@ static int RmRecAdopt(const RmRec *r, const RmSlot *s)
 {
     return r->type >= 0 && !r->ours && r->here && r->type == s->type && r->variant == s->variant;
 }
+// v3.51 SN351: does the pool hold a target of another type than `type`? And the second roll's key
+static int RmPoolOther(unsigned pool, int type)
+{
+    int i;
+    for (i = 0; i < RM_TARGET_N; ++i)
+        if ((pool >> i & 1u) && kRmTargets[i].type != type) return 1;
+    return 0;
+}
+static unsigned RmAgainKey(unsigned key) { return RzHash4(key, 0x41474149u, 0x534E3531u, 0); }
 static void RmPlanRoom(const RmPlanIn *in, const RmScan *sc, const int *idx, int m, const RmRec *rec, const unsigned char *floorOk,
                        RmPick *out, RmPlanStat *st)
 {
@@ -392,10 +439,12 @@ static void RmPlanRoom(const RmPlanIn *in, const RmScan *sc, const int *idx, int
         const RmRec *r = &rec[k];
         RmPick p;
         int ti, delta;
-        p.type = s->type, p.variant = s->variant, p.why = RMW_SAME, p.drop = 0;
+        p.type = s->type, p.variant = s->variant, p.why = RMW_SAME, p.drop = 0, p.again = 0;  // v3.51 SN351: + again
         const int rStock = r->type == s->type && r->variant == s->variant, rKeeps = r->type >= 0 && !(in->reroll && r->here);
         p.adopt = (unsigned char)RmRecAdopt(r, s);  // v3.50 RM350
-        if (r->type >= 0 && !r->ours && !p.adopt) {  // v3.49 fix2: not Refined's record: as placed, the record kept
+        if (s->event && !in->released) {  // v3.51 SN351: an event dog before its release: as placed (its events read it)
+            p.adopt = 0, p.why = RMW_EVENT;
+        } else if (r->type >= 0 && !r->ours && !p.adopt) {  // v3.49 fix2: not Refined's record: as placed, the record kept
             p.why = rStock ? RMW_AWAY : RMW_OTHER;   // v3.50 RM350: the stock one elsewhere = recorded elsewhere (was SAME)
         } else if (!p.adopt && rKeeps && !rStock && (ti = RmTargetIndex(r->type, r->variant)) >= 0 && (pool >> ti & 1u)) {
             p.type = (unsigned char)r->type, p.variant = (unsigned char)r->variant, p.why = RMW_STICKY;
@@ -407,7 +456,11 @@ static void RmPlanRoom(const RmPlanIn *in, const RmScan *sc, const int *idx, int
                 p.why = RMW_NONE;
             } else {
                 const unsigned key = RzVisitKey(RmSlotKey(in->seed, in->stage, in->half, s->room, s->n), in->visit);
-                const int t = RmNthBit(pool, (int)(key % (unsigned)cnt));
+                int t = RmNthBit(pool, (int)(key % (unsigned)cnt));
+                if (in->rollAgain && kRmTargets[t].type == s->type && RmPoolOther(pool, s->type)) {  // v3.51 SN351: once more
+                    t = RmNthBit(pool, (int)(RmAgainKey(key) % (unsigned)cnt));
+                    p.again = 1;
+                }
                 p.type = kRmTargets[t].type, p.variant = kRmTargets[t].variant, p.why = RMW_ROLL;
             }
         }
@@ -427,6 +480,7 @@ static void RmPlanRoom(const RmPlanIn *in, const RmScan *sc, const int *idx, int
             st->changed += changed;
             st->adopted += p.adopt, st->adoptChanged += p.adopt && changed;  // v3.50 RM350
             st->rollStock += p.why == RMW_ROLL && !changed, st->same += p.why == RMW_SAME;
+            st->again += p.again, st->event += p.why == RMW_EVENT, st->eventPlanned += s->event && p.why != RMW_EVENT;  // v3.51 SN351
         }
         st->sticky += p.why == RMW_STICKY, st->away += p.why == RMW_AWAY, st->bones += p.why == RMW_BONES;
         st->floor += p.why == RMW_FLOOR, st->none += p.why == RMW_NONE, st->drops += p.drop, st->other += p.why == RMW_OTHER;

@@ -10,6 +10,7 @@
 #define FADEIN_SIM_H
 #include <string.h>
 #include <stdio.h>
+#include <math.h>  // v3.51 PT351: the tar portal's layout
 
 enum { FI_MODE_OFF, FI_MODE_FADE, FI_MODE_PORTAL, FI_MODE_N };
 static const char *const kFiModeName[FI_MODE_N] = { "Off", "Fade", "Fade + Portal" };
@@ -291,8 +292,282 @@ static void FiNoteKeepRoom(FiNotes *s, int stage, int room)  // a new room visit
     s->n = k;
 }
 
+// ================================================================ v3.51 PT351: the tar portal and the hold (pure rules)
+// USER_FEEDBACK_v350 item 7: "they lack a sticky bloody detail like the real ghost portals ... It is dark, ominous, slows
+// down the ghosts with thin sticky tar-like substance." Plan: staging/v351_feedback/w3_portal/PLAN.md. The game's own wall
+// portal (WallGhostCreate 0x487840) is three parts, each with a draw that only reads a block: the 9 x 9 grid (record draw
+// 0x4868B0, WallGhost 0x140), the blots and drips (record draw 0x486E80, WallGhostBody 0x3F0) and the strands (the ghost's
+// own bone trail, GhostWork +0x4C, started by 0x478440, drawn by its own record draw 0x482D60). The grab / damage is only in
+// the portal task's update 0x487650, which Refined never runs: Refined fills blocks of its own from the timeline below and
+// calls the two draws after the game's pass 2; the strands are the ghost's own (victims and Cynthia have them).
+// FadeInPortalDraw (hidden): Auto = the game's own draw when its textures are loaded, else Refined's own tar portal;
+// Refined = always Refined's own; Vortex = v3.50's crimson vortex (no hold).
+enum { FI_TDM_AUTO, FI_TDM_REFINED, FI_TDM_VORTEX, FI_TDM_N };
+static const char *const kFiTdmName[FI_TDM_N] = { "Auto", "Refined", "Vortex" };
+static int FiTdmParse(const char *s, int *known)  // [Gameplay] FadeInPortalDraw; unknown / empty = Auto
+{
+    int v;
+    if (known) *known = 1;
+    if (s && *s)
+        for (v = 0; v < FI_TDM_N; ++v)
+            if (FiSameNoSpace(s, kFiTdmName[v])) return v;
+    if (s && (FiSameNoSpace(s, "Game") || FiSameNoSpace(s, "1"))) return FI_TDM_AUTO;
+    if (s && (FiSameNoSpace(s, "Own") || FiSameNoSpace(s, "2"))) return FI_TDM_REFINED;
+    if (s && (FiSameNoSpace(s, "0") || FiSameNoSpace(s, "Blood"))) return FI_TDM_VORTEX;
+    if (known) *known = !s || !*s;
+    return FI_TDM_AUTO;
+}
+// a portal's draw: v3.50's vortex, the game's own wall-portal draw, Refined's own tar portal
+enum { FI_TD_VORTEX, FI_TD_GAME, FI_TD_OWN, FI_TD_N };
+static const char *const kFiTdName[FI_TD_N] = { "vortex", "the game's own draw", "Refined's draw" };
+// its strands: none, the ghost's own bone trail, Refined's own
+enum { FI_TS_NONE, FI_TS_GAME, FI_TS_OWN, FI_TS_N };
+static const char *const kFiTsName[FI_TS_N] = { "none", "the ghost's own", "Refined's" };
+
+#define FI_HOLD_SLOW    0.4f   // the held ghost moves at this part of its speed ...
+#define FI_HOLD_SLOW_S  1.5f   // ... for this long after the hold starts (it is real and seen) ...
+#define FI_HOLD_END_S   2.5f   // ... easing to its full speed here; the strands are all snapped by then; no attack before
+#define FI_HOLD_WARP    200.0f // a tick's move longer than this (a script, a warp) is taken as it is
+#define FI_TAR_OPEN_S   0.6f   // the blot opens (eased) ...
+#define FI_TAR_SPREAD_S 0.8f   // ... its 25 blots appear one by one over this ...
+#define FI_TAR_CLOSE_S  1.6f   // ... and it fades after the release (each blot and drip on its own clock)
+#define FI_TAR_FADE_S   1.1f   // (the game's own per-blot fade time, WallGhostBody +0x3B4)
+#define FI_TAR_WAIT_S   6.0f   // a ghost that is not real (the arrival's placeholder) this long after its portal opened:
+                               // the portal closes without a hold
+#define FI_TAR_WALL_R   180.0f // a collision wall this near behind the ghost (from the camera) carries the portal ...
+#define FI_TAR_AIR_BACK 70.0f  // ... else it hangs in the air this far behind it, facing the camera (its strands show)
+#define FI_TAR_SPLATS   25     // blots (the game's WallGhostBody holds 25)
+#define FI_TAR_DRIPS    15     // drips at most (slots 1 .. 15 of the game's 16: slot 0 is never drawn by 0x486E80)
+#define FI_DRIP_SPEED   90.0f  // a drip runs down this fast (world units a second), slowing near its length
+#define FI_STR_OWN      12     // Refined's own strands (the game's victims have 32 of their own)
+#define FI_STR_MAX      64     // strands looked at in a bone trail at most
+#define FI_SNAP_STRAIN_S 0.15f // Refined's strand thins this long before it snaps ...
+#define FI_SNAP_RECOIL_S 0.35f // ... and its two ends whip back over this
+
+// the game code the tar portal calls (never patches), each checked by its first 16 bytes (fadein.inc at the install; the
+// native test against SH4Decomp orig\sh4.exe); group: 0 the draw (all three needed), 1 the strands (both), 2 the hold
+#define FI_PHASE_VA 0x62BC98u  // phase 0's step list 0x62BC78, entry 8: 0x4EF900 (ActorDrawPass01, ActorDrawModels, ActorDrawPass2)
+#define FI_PHASE_FN 0x4EF900u
+typedef struct { unsigned va; unsigned char b[16]; int group; const char *name; } FiTarFn;
+static const FiTarFn kFiTarFns[] = {
+    { 0x4868B0u, { 0x55, 0x8B, 0xEC, 0x83, 0xE4, 0xF0, 0x81, 0xEC, 0xB4, 0x00, 0x00, 0x00, 0x8B, 0x45, 0x08, 0x53 }, 0,
+      "the wall portal's grid draw" },                                                     // EffectWallGhostDraw (matched)
+    { 0x486E80u, { 0x55, 0x8B, 0xEC, 0x83, 0xE4, 0xF0, 0x81, 0xEC, 0x94, 0x00, 0x00, 0x00, 0x8B, 0x45, 0x08, 0x53 }, 0,
+      "its blots and drips draw" },                                                         // func_00486E80 (matched)
+    { 0x5736D0u, { 0x56, 0x57, 0x8B, 0x7C, 0x24, 0x0C, 0x8B, 0xC7, 0x25, 0x00, 0xF0, 0x00, 0xF0, 0x3D, 0x00, 0xF0 }, 0,
+      "the resident file lookup" },                                                         // FileLookupResident (matched)
+    { 0x478440u, { 0x55, 0x8B, 0xEC, 0x83, 0xE4, 0xF0, 0x83, 0xEC, 0x44, 0x53, 0x8B, 0x5D, 0x08, 0x56, 0x33, 0xF6 }, 1,
+      "the bone trail's start" },                                                           // func_00478440 (97.6 %, same behaviour)
+    { 0x482CF0u, { 0x8B, 0x44, 0x24, 0x04, 0x56, 0x50, 0xE8, 0xA5, 0x89, 0xFD, 0xFF, 0x8B, 0xF0, 0x8A, 0x46, 0x7D }, 1,
+      "the bone trail's release" },                                                         // func_00482CF0 (matched)
+    { 0x45CF20u, { 0x55, 0x8B, 0xEC, 0x83, 0xE4, 0xF0, 0x83, 0xEC, 0x18, 0x56, 0x8B, 0x75, 0x0C, 0x8B, 0x0E, 0x57 }, 2,
+      "the enemy's place setter" },                                                         // func_0045CF20 (matched)
+};
+#define FI_TAR_NFN ((int)(sizeof kFiTarFns / sizeof kFiTarFns[0]))
+// the textures of the game's wall portal and strands: entries 1 and 0 of the resident file F000F020 (enemy effect slots 1
+// and 0, en_4c4f80.c / en_4c1ec0.c)
+#define FI_TEX_PORTAL 0xF001F020u
+#define FI_TEX_STRAND 0xF000F020u
+
+static unsigned FiHash(unsigned a)  // integer hash (deterministic layouts, no rand())
+{
+    a ^= a >> 16;
+    a *= 0x7FEB352Du;
+    a ^= a >> 15;
+    a *= 0x846CA68Bu;
+    a ^= a >> 16;
+    return a;
+}
+static float FiRnd01(unsigned a) { return (float)(FiHash(a) & 0xFFFFFF) / 16777216.0f; }  // 0 .. 1
+
+// the held ghost's speed factor at `age` seconds after its hold started (< 0: not held yet)
+static float FiHoldFactor(float age)
+{
+    float s;
+    if (!(age >= 0.0f) || age >= FI_HOLD_END_S) return 1.0f;
+    if (age <= FI_HOLD_SLOW_S) return FI_HOLD_SLOW;
+    s = (age - FI_HOLD_SLOW_S) / (FI_HOLD_END_S - FI_HOLD_SLOW_S);
+    return FI_HOLD_SLOW + (1.0f - FI_HOLD_SLOW) * s * s * (3.0f - 2.0f * s);
+}
+// one tick of the hold: the ghost went from prev to cur; out = where it stays (only its level move x f; its height as it
+// is). 1 = a warp or a bad value (out = cur, taken as it is)
+static int FiHoldStep(const float prev[3], const float cur[3], float f, float out[3])
+{
+    const float dx = cur[0] - prev[0], dz = cur[2] - prev[2];
+    const float d2 = dx * dx + dz * dz;
+    if (!(d2 <= FI_HOLD_WARP * FI_HOLD_WARP) || !(f == f)) {
+        out[0] = cur[0], out[1] = cur[1], out[2] = cur[2];
+        return 1;
+    }
+    if (f < 0.0f) f = 0.0f;
+    if (f > 1.0f) f = 1.0f;
+    out[0] = prev[0] + f * dx;
+    out[1] = cur[1];
+    out[2] = prev[2] + f * dz;
+    return 0;
+}
+
+// the portal's timeline (seconds after it opened): rel = when it lets go (the hold's end, an early release, or
+// FI_TAR_WAIT_S for a ghost that never became real); then it closes over FI_TAR_CLOSE_S
+static float FiTarRelease(float holdAt) { return holdAt >= 0.0f ? holdAt + FI_HOLD_END_S : FI_TAR_WAIT_S; }
+static float FiTarOpenAt(float age)  // the opening alone (0 .. 1, eased out)
+{
+    float s;
+    if (!(age > 0.0f)) return 0.0f;
+    if (age >= FI_TAR_OPEN_S) return 1.0f;
+    s = age / FI_TAR_OPEN_S;
+    return 1.0f - (1.0f - s) * (1.0f - s);
+}
+static float FiTarAmount(float age, float rel)  // the blot's strength 0 .. 1
+{
+    float c;
+    if (!(age > 0.0f)) return 0.0f;
+    if (age < rel) return FiTarOpenAt(age);
+    c = (age - rel) / FI_TAR_CLOSE_S;
+    if (c >= 1.0f) return 0.0f;
+    return FiTarOpenAt(rel) * (1.0f - c) * (1.0f - c);
+}
+static int FiTarDone(float age, float rel) { return age >= rel + FI_TAR_CLOSE_S; }
+static int FiTarShown(float age)  // blots placed so far (they appear one by one, as 0x487460 places the game's)
+{
+    int n;
+    if (!(age > 0.0f)) return 0;
+    n = 1 + (int)(age / FI_TAR_SPREAD_S * (float)FI_TAR_SPLATS);
+    return n > FI_TAR_SPLATS ? FI_TAR_SPLATS : n;
+}
+static float FiTarAppear(int i) { return (float)i * FI_TAR_SPREAD_S / (float)FI_TAR_SPLATS; }  // blot i's first second
+// what the game's draw 0x486E80 reads as a blot's life (short x 1/1024: >= 0 whole, then a fade over FI_TAR_FADE_S): open =
+// a whole second ahead; closing = its own offset (0 .. 0.5 s) minus the seconds since the release
+static float FiTarLife(float age, float rel, float offset)
+{
+    if (age < rel) return 1.0f;
+    return offset - (age - rel);
+}
+static short FiTarLifeShort(float life)  // x 1024, clamped to a short
+{
+    float v = life * 1024.0f;
+    if (!(v == v)) v = 0.0f;
+    if (v > 32000.0f) v = 32000.0f;
+    if (v < -32000.0f) v = -32000.0f;
+    return (short)(v < 0.0f ? v - 0.5f : v + 0.5f);
+}
+// Refined's own blot, drip and strand strengths from the same lives (1 whole .. 0 gone; the game's curve 1 - q^2)
+static float FiTarLifeAlpha(float life)
+{
+    float q;
+    if (life >= 0.0f) return 1.0f;
+    q = -life / FI_TAR_FADE_S;
+    return q >= 1.0f ? 0.0f : 1.0f - q * q;
+}
+
+// the blots and drips: positions in the portal's plane (u across, v down, both -1 .. 1 of its half sizes), turn, size
+// factor, the game's piece kind of that index (0x615E44) and the drip slot it carries (0 = none)
+static const signed char kFiSplatKind[FI_TAR_SPLATS] = { 1, 1, 1, 4, 5, 1, 1, 6, 4, 7, 5, 1, 7, 4, 6, 1, 1, 6, 4, 7, 5, 1, 7, 4, 6 };
+typedef struct { float u, v, ang, sc, off; signed char kind, drip; } FiSplat;
+typedef struct { float len, off; int kind; float w; } FiDrip;  // target length (world units at size 1), life offset, piece 2 / 3
+typedef struct { FiSplat s[FI_TAR_SPLATS]; FiDrip d[FI_TAR_DRIPS + 1]; int nd; unsigned seed; } FiTarLayout;
+static void FiTarLayoutMake(FiTarLayout *L, unsigned seed)
+{
+    int i;
+    memset(L, 0, sizeof *L);
+    L->seed = seed;
+    for (i = 0; i < FI_TAR_SPLATS; ++i) {
+        const unsigned h = FiHash(seed * 0x9E3779B9u + (unsigned)i * 0x85EBCA6Bu);
+        FiSplat *s = &L->s[i];
+        const float r = (i == 0 ? 0.15f : 0.92f) * (float)sqrt(FiRnd01(h ^ 0x11u)), th = 6.2831853f * FiRnd01(h ^ 0x22u);
+        s->u = r * (float)cos(th);
+        s->v = r * (float)sin(th);
+        s->kind = kFiSplatKind[i];
+        s->sc = s->kind == 1 ? (FiRnd01(h ^ 0x33u) * 1.5f + 1.0f) * 0.65f : ((FiRnd01(h ^ 0x33u) - 0.5f) * 0.2f + 1.0f) * 0.65f;
+        s->ang = (FiRnd01(h ^ 0x44u) * 2.0f - 1.0f) * 3.1415927f;
+        s->off = 0.5f * FiRnd01(h ^ 0x55u);
+        s->drip = 0;
+    }
+    // drips hang from blots in the middle and lower part (v down), 8 .. 12 of them, never from blot 0 (the centre)
+    L->nd = 0;
+    for (i = 1; i < FI_TAR_SPLATS && L->nd < 8 + (int)(seed % 5u) && L->nd < FI_TAR_DRIPS; ++i) {
+        const unsigned h = FiHash(seed ^ (unsigned)i * 0x27D4EB2Fu);
+        if (L->s[i].v < -0.25f) continue;
+        ++L->nd;
+        L->s[i].drip = (signed char)L->nd;
+        L->d[L->nd].kind = (h & 1u) ? 2 : 3;  // the two drip pieces of the game's slot 1 (32 x 128, 32 x 96)
+        L->d[L->nd].len = (FiRnd01(h ^ 0x66u) * 0.4f + 0.8f) * 200.0f;
+        L->d[L->nd].off = 0.5f * FiRnd01(h ^ 0x77u);
+        L->d[L->nd].w = 0.7f + 0.6f * FiRnd01(h ^ 0x88u);
+    }
+}
+// a drip's length `age` seconds after its blot appeared: runs at FI_DRIP_SPEED, slows over its last 40 units
+static float FiDripLen(float age, float len)
+{
+    float l, k;
+    if (!(age > 0.0f) || !(len > 0.0f)) return 0.0f;
+    l = FI_DRIP_SPEED * age;
+    k = len > 40.0f ? len - 40.0f : 0.0f;
+    if (l <= k) return l;
+    return len - (len - k) * (float)exp(-(l - k) / (len - k > 1.0f ? len - k : 1.0f));
+}
+
+// the strands snap one by one between FI_HOLD_SLOW_S and FI_HOLD_END_S after the hold started: strand i of n at its own
+// moment (a fixed permutation of the order, so each moment is taken once)
+static int FiGcd(int a, int b)
+{
+    while (b) {
+        const int t = a % b;
+        a = b, b = t;
+    }
+    return a;
+}
+static float FiSnapAt(int i, int n, unsigned seed)
+{
+    static const int kP[] = { 7, 11, 13, 17, 19, 23, 29, 31 };
+    int p = 1, k, rank;
+    if (n <= 0) return FI_HOLD_SLOW_S;
+    for (k = 0; k < (int)(sizeof kP / sizeof kP[0]); ++k)
+        if (FiGcd(kP[k], n) == 1) {
+            p = kP[k];
+            break;
+        }
+    rank = (int)(((unsigned)i * (unsigned)p + seed % (unsigned)n) % (unsigned)n);
+    return FI_HOLD_SLOW_S + (FI_HOLD_END_S - FI_HOLD_SLOW_S) * ((float)rank + 0.5f) / (float)n;
+}
+// Refined's strand at `age` (seconds after the hold started), snapping at `at`: 0 whole (*k = 1), 1 straining (*k = the
+// width left, 1 .. 0.4), 2 snapped (*k = how far its ends whipped back, 0 .. 1), 3 gone
+static int FiStrandPhase(float age, float at, float *k)
+{
+    if (age < at - FI_SNAP_STRAIN_S) {
+        *k = 1.0f;
+        return 0;
+    }
+    if (age < at) {
+        *k = 1.0f - 0.6f * (age - (at - FI_SNAP_STRAIN_S)) / FI_SNAP_STRAIN_S;
+        return 1;
+    }
+    if (age < at + FI_SNAP_RECOIL_S) {
+        const float s = (age - at) / FI_SNAP_RECOIL_S;
+        *k = 1.0f - (1.0f - s) * (1.0f - s);
+        return 2;
+    }
+    *k = 1.0f;
+    return 3;
+}
+// the portal's plane: a wall hit (normal toward the ghost, mostly level) or the air behind the ghost, facing the camera
+static int FiWallOk(const float n[3]) { return n[1] > -0.5f && n[1] < 0.5f; }
+// axes of a plane with normal n (unit): across (level) and down (+y, the game's y points down)
+static int FiPlaneAxes(const float n[3], float ax[3], float ay[3])
+{
+    float l = (float)sqrt(n[0] * n[0] + n[2] * n[2]), d;
+    if (!(l > 1e-4f)) return 0;
+    ax[0] = -n[2] / l, ax[1] = 0.0f, ax[2] = n[0] / l;
+    ay[0] = -n[1] * n[0], ay[1] = 1.0f - n[1] * n[1], ay[2] = -n[1] * n[2];  // +y less its part along n
+    d = (float)sqrt(ay[0] * ay[0] + ay[1] * ay[1] + ay[2] * ay[2]);
+    if (!(d > 1e-4f)) return 0;
+    ay[0] /= d, ay[1] /= d, ay[2] /= d;
+    return 1;
+}
+
 // ---------------------------------------------------------------- a room visit's counts and its log line
-typedef struct { int fades[FI_SRC_N], skips[FI_SKIP_N], portals; } FiStats;
+// v3.51 PT351: + the portals by draw, the held ghosts, the portal draw's cost (the frames it drew, ms in all, the worst)
+typedef struct { int fades[FI_SRC_N], skips[FI_SKIP_N], portals, byDraw[FI_TD_N], held, drawFrames; double drawMs; float drawMax; } FiStats;
 static int FiStatsAny(const FiStats *s)
 {
     int i, n = s->portals;
@@ -300,7 +575,7 @@ static int FiStatsAny(const FiStats *s)
     for (i = FI_SKIP_STAGE; i < FI_SKIP_N; ++i) n += s->skips[i];  // (not Off: nothing to say while it is off)
     return n != 0;
 }
-// "N fade(s) (room load a, follower b, wanderer c, copy d, revive e, ghost f, monster g), P portal(s); K not faded (stage ..,
+// "N fade(s) (room load a, follower b, wanderer c, copy d, revive e, ghost f, monster g), P portal(s)[ (by draw ...)]; K not faded (stage ..,
 // cut-scene .., type .., boss .., event .., dead .., own draw .., own portal .., own fade ..)" (fixed order: tools\logcheck.py)
 static int FiStatsText(const FiStats *s, char *out, size_t n)
 {
@@ -312,7 +587,12 @@ static int FiStatsText(const FiStats *s, char *out, size_t n)
 #define FI_PUT(...) do { if (o + 1 < n) { w = _snprintf_s(out + o, n - o, _TRUNCATE, __VA_ARGS__); if (w < 0) { o = n; } else o += (size_t)w; } } while (0)
     FI_PUT("%d fade(s) (", f);
     for (i = 0; i < FI_SRC_N; ++i) FI_PUT("%s%s %d", i ? ", " : "", kFiSrcName[i], s->fades[i]);
-    FI_PUT("), %d portal(s); %d not faded (", s->portals, k);
+    FI_PUT("), %d portal(s)", s->portals);
+    if (s->portals)  // v3.51 PT351: by draw, the held ghosts, the portal draw's cost (tools\logcheck.py reads it)
+        FI_PUT(" (the game's own draw %d, Refined's %d, vortex %d; %d held; portal draw %.3f ms a frame, max %.3f)",
+               s->byDraw[FI_TD_GAME], s->byDraw[FI_TD_OWN], s->byDraw[FI_TD_VORTEX], s->held,
+               s->drawFrames ? s->drawMs / s->drawFrames : 0.0, s->drawMax);
+    FI_PUT("; %d not faded (", k);
     for (i = FI_SKIP_STAGE; i < FI_SKIP_N; ++i) FI_PUT("%s%s %d", i > FI_SKIP_STAGE ? ", " : "", kFiSkipName[i], s->skips[i]);
     FI_PUT(")");
 #undef FI_PUT

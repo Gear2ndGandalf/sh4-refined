@@ -530,6 +530,18 @@ V350EF = V333_END + """10:00:00.200 enemies: in (room load 004F0AF8, kill count 
 10:01:00.000 enemies: follow restore: Enemies Follow is off: this save's followers are not restored
 10:01:05.000 gameplay: [Gameplay] EnemyPursuit read again: Relentless
 """
+# v3.51 EP351: Enemy Pursuit inside the room (pursuit_room.inc): the install line, the verbose give-ups, the rooms' lines
+V351EP = V333_END + """10:00:00.201 enemies: followers across saves in (snapshot 004FC1A4, load 004FC6ED; side file G:\\Game\\save\\SH4Refined_follow.dat); Enemy Pursuit Forgetful (memory 4 s, doors away 1; Relentless = v3.49)
+10:00:00.202 enemies: Enemy Pursuit in the room in (Normal / Forgetful: monsters give up after 10 / 4 s unsensed, ghosts after 12 / 6 s far or 25 / 12 s without touching you; Hummer, Gum Head, Sniffer Dog, Twin Victim, Wall Man, victims' ghosts; Relentless = stock)
+10:00:10.000 [v] enemies: monster 03000005 (Hummer, type 03 v0) gave up the chase in room 4:5: it had not sensed you for 4 s (Enemy Pursuit Forgetful; AI state 6 -> 4, its own routine; it ignores you 3 s unless you hit it or come close)
+10:00:11.000 [v] enemies: ghost FFFF0012 (type 0B v0) gave up the chase in room 4:5: farther than 1500 from you for 6 s (Enemy Pursuit Forgetful; AI state 2 -> 1; it drifts back towards its spot and rests 15 s)
+10:00:12.000 [v] enemies: copy 1E000003 (Sniffer Dog, type 0A v0) gave up the chase in room 4:5: it was down when you walked off (Enemy Pursuit Forgetful; AI state 4: the dog's own give-up at its next step, then it wanders)
+10:00:40.000 [v] enemies: ghost FFFF0012 (type 0B v0) gave up the chase in room 4:5: it chased you 12 s without touching you (Enemy Pursuit Forgetful; AI state 2 -> 1; it drifts back towards its spot and rests 15 s) (again)
+10:00:50.000 enemies: room 4:5 (Enemy Pursuit Forgetful): 4 gave up the chase in the room (2 monster(s), 2 ghost(s); 1 of them again, 1 down when you walked off); 3 set back during their rest; 0 left to the game's own rules (you left the room)
+10:00:50.001 enemies: through door 4 from room 5 to 6: Enemy Pursuit Forgetful: 2 lost track of you (2 out of their senses, 0 down when you left, 0 did not catch up); 1 more had spotted you but forgot
+10:01:20.000 [v] enemies: monster 07000001 (Gum Head, type 07 v1) gave up the chase in room 4:6: it had not sensed you for 4 s (Enemy Pursuit Forgetful; AI state 11 -> 9, its own routine)
+10:01:30.000 enemies: room 4:6 (Enemy Pursuit Forgetful): 1 gave up the chase in the room (1 monster(s), 0 ghost(s); 0 of them again, 0 down when you walked off); 0 set back during their rest; 1 left to the game's own rules (a save load)
+"""
 V348RZB = V333_END + """10:00:00.040 randomizer: [Randomizer] Items "Randomize" is not Off / Shuffle / Random: Random (the default)
 10:00:00.041 """ + RZ_INSTALL % ('Random', 136, ': some scripts are not the stock ones (their pickups are left alone)') + """
 10:00:06.000 ANOMALY: randomizer: stage 2 visit 1: the script at 00683AA0 is not the stock one (17 plain pickup(s), 7 weapon spot(s)): its pickups are left alone
@@ -585,6 +597,26 @@ V350RZM = V333_END + """10:00:00.042 """ + RZM_INSTALL % ('All Worlds', 235, ': 
 10:09:00.002 randomizer: monsters session: the game's own records: 8 adopted (7 made as another type); stock type kept: 1 rolled it, 1 by a stock record, 1 recorded elsewhere, 0 with no target
 """
 V350RZMB = V333_END + """10:00:00.040 randomizer: [Randomizer] Monsters "Everywhere" is not Off / This Room / This World / All Worlds: This World (the default)
+"""
+# v3.51 SN351: the Subway's event dogs (room 2:2) and the second roll, in the dll's formats
+SN351_EVIN = ("randomizer: monsters: %d of the source placements are event Sniffer Dogs (spawn mode 6 / 7, stock: Subway room 2:2's 3): "
+              "rolled once story flag 130 is set (their cut-scene is over), else as placed; a roll of the placement's own type rolls "
+              "once more: %s ([Randomizer] MonsterRollAgain)")
+SN351_ROOM = ("randomizer: monsters: room 2:%d (visit 0, #%d): %d of %d placement(s) changed (All Worlds): %s; 0 kept their record's type, "
+              "%d record(s) deleted; kept as placed: 0 for the bone budget, 0 for files, 0 without a floor; files loaded for 0 type(s) "
+              "(0 KB)") + RM350_TAIL
+V351SN = V333_END + """10:00:00.042 """ + RZM_INSTALL.replace('235 / 783', '238 / 783') % ('All Worlds', 238, ': the stock scripts', 'in') + """
+10:00:00.043 """ + SN351_EVIN % (3, 'On') + """
+10:00:05.001 randomizer: monsters: the first room with source placements (stage 2 room 2): Monsters All Worlds
+10:00:05.003 """ + SN351_ROOM % (2, 1, 0, 3, 'Sniffer Dog 3', 0, 0, 0, 0, 0, 0, 0, 0) + """; event dogs: 3, story flag 130 clear (kept as placed for their event)
+10:00:05.004 [v] randomizer: monsters: room 2:2: n1 Sniffer Dog v0 kept as Sniffer Dog v0 (asleep for its event); n2 Sniffer Dog v0 kept as Sniffer Dog v0 (asleep for its event); n3 Sniffer Dog v0 kept as Sniffer Dog v0 (asleep for its event)
+10:01:05.003 """ + SN351_ROOM % (2, 2, 3, 3, 'Whitestool 1, Tremer 1, Twin Victim 1', 3, 3, 3, 0, 0, 0, 0, 0) + """; rolled again for their own type: 1; event dogs: 3, story flag 130 set (rolled as the others)
+10:01:05.004 [v] randomizer: monsters: room 2:2: n1 Sniffer Dog v0 -> Whitestool v0 [the game's record, adopted and deleted]; n2 Sniffer Dog v0 -> Tremer v0 (rolled again) [the game's record, adopted and deleted]; n3 Sniffer Dog v0 -> Twin Victim v1 [the game's record, adopted and deleted]
+10:01:20.000 """ + SN351_ROOM % (4, 12, 0, 1, 'Sniffer Dog 1', 0, 1, 0, 1, 0, 0, 0, 0) + """; rolled again for their own type: 1
+10:01:20.001 [v] randomizer: monsters: room 2:4: n1 Sniffer Dog v0 kept as Sniffer Dog v0 (rolled it twice) [the game's record, adopted]
+10:09:00.001 randomizer: monsters session: All Worlds (seed 1398963150, Change Each Visit On): 40 room load(s), 3 with source placements randomized, 3 placement(s) changed, 0 kept their record's type, 3 record(s) deleted (+0 with Monsters off); kept as placed: 0 for the bone budget, 0 for files, 0 without a floor; files loaded 0 time(s) (0 KB); 0 room load(s) with the cheat table's Enemy Randomizer on; 0 save(s), 0 record(s) left out; 0 word(s) left as found
+10:09:00.002 randomizer: monsters session: the game's own records: 4 adopted (3 made as another type); stock type kept: 1 rolled it, 0 by a stock record, 0 recorded elsewhere, 0 with no target
+10:09:00.003 randomizer: monsters session: 2 placement(s) rolled again for their own type (MonsterRollAgain On); event dogs: 3 planned with story flag 130 set, 3 kept as placed for their event (flag clear)
 """
 # v3.49 RZ349L: the Randomizer's looks (rzlooks.inc), in the formats the dll writes
 V349RZL = V333_END + """10:00:00.040 randomizer: [Randomizer] Ghosts "Rooms" is not Off / Spots: Spots (the default)
@@ -721,6 +753,15 @@ V350G = V333_END + """10:00:00.200 ghost teleport: in (no exe patch; 34 game fun
 10:01:07.000 [v] ghost teleport: room 2:7 left: 0 warp(s) (0 through walls, 0 behind the enemy she faces, 0 ahead), 1 refused (her state 1); 0 Action / Check press(es) taken back in fade-outs; floor map 300 cell(s), not finished, 1.2 ms over 1 run(s)
 """
 
+# v3.51 TP351: the enemy she faces behind collision is skipped (the warp lines say so; the room visit's line counts them)
+V351G = V333_END + """10:00:00.200 ghost teleport: in (no exe patch; 34 game functions checked), [Gameplay] GhostTeleport On; Run + Action together (within 80 ms): behind the standing enemy she faces (+-35 degrees) within 5000 u in the open (none past collision), else up to 800 u ahead the way she faces, through walls on (onto floor a route of the room reaches), cooldown 0.0 s; held: the next warp once she has faded in; never across or into a walk-in event zone; Richard's transition: his warp sound 0xEC86 on, his see-through fade (0.5 s out, 0.5 s in) on her model in
+10:01:00.500 [v] ghost teleport: through 440 u the way she faces (straight ahead; the obstacle from 320 u, 2 spot(s) past it refused first; on the room's floor map, floor -0 u of hers): from (0, 0) to (0, 440) (the fade began at (0, 0)); cooldown 0.0 s (warp 1; same room: 7 door line(s), box in; 1 enemy(ies) in the cone skipped: behind collision (the first: a wall between (her chest line); type 0B 900 u, 3 degrees off))
+10:01:02.500 [v] ghost teleport: behind type 0A 1200 u away (the enemy she faces, 15 degrees off her facing, 1 in the +-35 degree cone; spot 0: 160 u behind its back, floor +0 u of hers): from (0, 440) to (300, 1600), facing it; cooldown 0.0 s (warp 2; same room: 7 door line(s), box in; 2 enemy(ies) in the cone skipped: behind collision (the first: a low barrier between (a turnstile, a counter, a fence); type 03 700 u, 1 degrees off))
+10:01:04.000 [v] ghost teleport: not now: no free floor ahead of her in this room (no standing enemy she faces within 5000 u; 1 enemy(ies) in the cone skipped: behind collision (the first: a ghost in its wall (its portal open); type 0B 600 u, 8 degrees off); 7 tries from 800 down to 200 u, 7 door line(s): a wall between 7; through walls: 5 of 5 ray(s) met an obstacle within 800 u, past it: no route of the room reaches it 25; the room's floor map 4120 cell(s)) (Action left to the game)
+10:01:06.000 [v] ghost teleport: room 2:4 left: 2 warp(s) (1 through walls, 1 behind the enemy she faces, 0 ahead), 1 refused (ahead 1); 0 Action / Check press(es) taken back in fade-outs; 4 enemy(ies) in the cone skipped behind collision in 3 try(ies); floor map 4120 cell(s), finished, 9.4 ms over 3 run(s)
+10:01:07.000 [v] ghost teleport: room 2:7 left: 0 warp(s) (0 through walls, 0 behind the enemy she faces, 0 ahead), 1 refused (her state 1); 0 Action / Check press(es) taken back in fade-outs; 0 enemy(ies) in the cone skipped behind collision in 0 try(ies); floor map not built
+"""
+
 V343G = V333_END + """10:00:00.200 ghost teleport: in (no exe patch; 13 game functions checked), [Gameplay] GhostTeleport On; hold Run 0.4 s standing still: behind the nearest standing enemy within 2500 u, cooldown 3.0 s, Richard's warp sound 0xEC86 on, Echo Doubles' teleport smoke
 10:01:00.000 [v] ghost teleport: behind type 03 640 u away (enemy 1 of 2 tried, spot 0: 155 u behind its back, floor +0 u of hers): from (100, 200) to (700, 900), facing it; cooldown 3.0 s (warp 1)
 10:01:01.000 [v] ghost teleport: Run held, waiting for the cooldown (2.0 s left)
@@ -805,6 +846,69 @@ V350FI3 = V333_END + """10:00:00.300 """ + FI_INSTALL % ('from the scene pass 00
 10:01:00.000 fade in: a fault in the model draw (code C0000005 at 0045C8F2): Fade In is off for this session (enemies are drawn as the game draws them)
 10:01:00.001 ANOMALY: fade in: a fault in the model draw (code C0000005 at 0045C8F2): off for the session
 10:01:05.000 fade in: FadeIn Off applies now but could not be saved in SH4Refined.ini (error 5)
+"""
+
+# v3.51 MU351: the sound in the Extra Menu's lists (extramenu.inc MuLogSound): the install line, the load list cancelled and
+# then used, the save menu, a chest whose music was not paused (+ its ANOMALY line)
+MU_S = 'extra menu: sound in the '
+V351MU = V333_END + """10:00:00.010 extra menu: sound in the Storage Chest / Save Game / Load Game: paused as in the pause menu ([ExtraMenu] PauseSound=1)
+10:00:05.000 extra menu: load list opened
+10:00:05.000 """ + MU_S + """load list: opened from the pause: pause mode 2, master 0.00, fade 0: the level music stays paused
+10:00:09.000 extra menu: back in the pause menu on the Extra Menu, the world kept frozen (1)
+10:00:09.000 extra menu: load list cancelled
+10:00:09.000 """ + MU_S + """load list: closed, back in the pause: pause mode 0, master 0.00, fade 4: the level music stays paused
+10:00:12.000 """ + MU_S + """load list: opened from the pause: pause mode 2, master 0.00, fade 0: the level music stays paused
+10:00:20.000 extra menu: load game: slot read (stage 2 room 1)
+10:00:20.000 """ + MU_S + """load list: closed, a save loads (the room change takes the music over): pause mode -1, master 0.00, fade 1: the level music comes back
+10:00:30.000 """ + MU_S + """save menu: opened from the pause: pause mode 2, master 0.00, fade 0: the level music stays paused
+10:00:35.000 """ + MU_S + """save menu: closed, back in the pause: pause mode 0, master 0.00, fade 4: the level music stays paused
+10:00:40.000 """ + MU_S + """storage chest: opened from the pause: pause mode 2, master 0.20, fade 0: the level music PLAYS quietly
+10:00:40.001 ANOMALY: extra menu: the level music is not paused in the storage chest (opened from the pause; pause mode 2, master 0.20, fade 0)
+"""
+# v3.51 MU351: PauseSound=0 (v3.50's sound): quiet music is no fault; and a load list opened from play (Seamless=0)
+V351MU0 = V333_END + """10:00:00.010 extra menu: sound in the Storage Chest / Save Game / Load Game: plays quietly as in v3.50 ([ExtraMenu] PauseSound=0)
+10:00:05.000 """ + MU_S + """load list: opened from the pause: pause mode 2, master 0.20, fade 0: the level music PLAYS quietly (PauseSound=0: v3.50)
+10:00:09.000 """ + MU_S + """load list: closed, back in the pause: pause mode 0, master 0.00, fade 4: the level music stays paused (PauseSound=0: v3.50)
+10:00:15.000 """ + MU_S + """load list: opened from play: pause mode 2, master 0.84, fade 2: the level music PLAYS quietly
+10:00:19.000 """ + MU_S + """load list: closed, back to play: pause mode -1, master 0.20, fade 1: the level music comes back
+"""
+
+
+# v3.51 PT351: the tar portal and the hold (fadein.inc): the new install line, tar starts (the game's draw on a wall,
+# Refined's in the air for a placeholder), a placeholder turned real, the first tar portal drawn, two let-go lines, a portal
+# nobody came out of, a room line with the portal part
+FI_INSTALL351 = ("fade in: in (no code patch: the model draw 0052AEB5 and shadow 0052AF95 hooks; the game's see-through enemy draw "
+                 "0045C880; the portal from the scene pass 004EFBFD; the tar portal %s); [Gameplay] FadeIn Fade + Portal, "
+                 "FadeInSeconds 0.80, FadeInPortalDraw %s, FadeInHold %s; never bosses, Wall Men, Walter, event or cut-scene "
+                 "figures; a fading enemy acts as usual; a held ghost cannot grab")
+FI_TAR_OK = ("after the game's pass 2 (its step list 0062BC98): the game's own wall-portal draw 004868B0 / 00486E80 (textures "
+             "F000F020 / F001F020), else Refined's; strands: the ghost's own 00478440 / 00482CF0, else Refined's; the hold from "
+             "the tick 004EF982 (0045CF20 and the action latch)")
+V351PT = V333_END + """10:00:00.300 """ + FI_INSTALL351 % (FI_TAR_OK, 'Auto', '1') + """
+10:00:09.000 [v] fade in: follower FFFF0007 (type 0B) fades in over 0.80 s from a tar portal (the game's own draw, on a wall 85 u behind; held 2.50 s, 40 % for 1.50 s) at 10 0 -200 (room 2:2, 4.1 s into the visit)
+10:00:09.020 fade in: a tar portal drawn (the game's own draw, viewport 3D 2560x1440, after the game's pass 2 004EF900)
+10:00:10.000 [v] fade in: follower 1E001C06 (type 0B) fades in over 0.80 s from a tar portal (Refined's draw, in the air 70 u behind; held 2.50 s, the arrival's placeholder) at 40 0 -210 (room 2:2, 5.1 s into the visit)
+10:00:10.400 [v] fade in: 1E001C06 (type 0B) is real now, 0.40 s after its tar portal opened: its hold goes on
+10:00:11.500 [v] fade in: FFFF0007 (type 0B) let go by its tar portal (the game's own draw) after 2.50 s (held to the end): strands: the ghost's own 32; moved 41 of 96 u; no attack for 2.50 s; portal draw 0.052 ms a frame (max 0.140, 150 frames)
+10:00:11.600 [v] fade in: 1E001C06 (type 0B) let go by its tar portal (Refined's draw) after 1.20 s (it is gone): strands: Refined's 12; moved 10 of 25 u; no attack for 1.20 s; portal draw 0.080 ms a frame (max 0.200, 72 frames)
+10:00:12.000 [v] fade in: follower 1E001C09 (type 0B) fades in over 0.80 s from a tar portal (Refined's draw, on a wall 120 u behind; held 2.50 s, the arrival's placeholder) at 30 0 -190 (room 2:2, 7.1 s into the visit)
+10:00:16.100 [v] fade in: 1E001C09 (type 0B): its tar portal closed after 4.1 s: it never came out (still the arrival's placeholder)
+10:00:20.000 fade in: room 2:2: 4 fade(s) (room load 2, follower 2, wanderer 0, copy 0, revive 0, ghost 0, monster 0), 3 portal(s) (the game's own draw 1, Refined's 2, vortex 0; 2 held; portal draw 0.061 ms a frame, max 0.200); 1 not faded (stage 0, cut-scene 0, type 0, boss 0, event 0, dead 0, own draw 0, own portal 1, own fade 0)
+"""
+# v3.51 PT351: an unknown FadeInPortalDraw, a changed bone trail, a fault in the game's own draw (not Fade In's fault)
+V351PT2 = V333_END + """10:00:00.290 fade in: [Gameplay] FadeInPortalDraw "Splash" is not Auto / Refined / Vortex: Auto (the default)
+10:00:00.295 fade in: 00478440 (the bone trail's start) is not the stock code (another mod?): the tar portal does without it
+10:00:00.300 """ + FI_INSTALL351 % ("after the game's pass 2 (its step list 0062BC98): the game's own wall-portal draw 004868B0 / 00486E80 "
+                                   "(textures F000F020 / F001F020), else Refined's; strands: Refined's (the bone trail is not stock); the "
+                                   "hold from the tick 004EF982 (0045CF20 and the action latch)", 'Auto', '1') + """
+10:01:00.000 fade in: a fault in the game's own portal draw (code C0000005 at 0045E9A1): Refined's own tar portal from now on
+10:01:00.001 ANOMALY: fade in: a fault in the game's own portal draw (code C0000005 at 0045E9A1): Refined's own from now on
+"""
+# v3.51 PT351: FadeInPortalDraw=Vortex (v3.50's look, no hold)
+V351PT3 = V333_END + """10:00:00.300 """ + FI_INSTALL351 % ("NOT available (FadeInPortalDraw=Vortex): v3.50's blood vortex", 'Vortex', '1') + """
+10:00:09.000 [v] fade in: follower FFFF0007 (type 0B) fades in over 0.80 s from a blood portal at 10 0 -200 (room 2:2, 4.1 s into the visit)
+10:00:09.020 fade in: a blood portal drawn (viewport 3D 2560x1440, the exact depth of 012E3ED0)
+10:00:20.000 fade in: room 2:2: 1 fade(s) (room load 0, follower 1, wanderer 0, copy 0, revive 0, ghost 0, monster 0), 1 portal(s) (the game's own draw 0, Refined's 0, vortex 1; 0 held; portal draw 0.000 ms a frame, max 0.000); 0 not faded (stage 0, cut-scene 0, type 0, boss 0, event 0, dead 0, own draw 0, own portal 0, own fade 0)
 """
 
 
@@ -1165,6 +1269,20 @@ def main():
           'v3.50: the ghost teleport summary (through walls, the faced enemy, room visits, floor maps)')
     s, r = run(V349G)  # (v3.50 TP350: a v3.49 log reads as before: no room / map parts)
     check('room visit(s) with tries' not in r and 'floor maps:' not in r and s.gt_faced == 0, 'v3.50: a v3.49 log: no v3.50 parts')
+    s, r = run(V350G)  # v3.51 TP351: a v3.50 log reads as before (no skip part)
+    check(s.gt_skip == 0 and s.gt_skip_tries == 0 and 'skipped behind collision' not in r and
+          s.gt_rooms == [('2:4', 2, 1, 1, 0, 2, 1), ('2:7', 0, 0, 0, 0, 1, 0)] and s.gt_map_open == 1,
+          'v3.51: a v3.50 log: the room lines read as before, no skips')
+    s, r = run(V351G)
+    print(r)
+    check(s.gt == ('in', 'On') and s.gt_warps['through'] == 1 and s.gt_warps['0A'] == 1 and s.gt_faced == 1 and
+          s.gt_no['no free floor ahead of her in this room'] == 1 and s.gt_skip == 4 and s.gt_skip_tries == 3 and
+          s.gt_rooms == [('2:4', 2, 1, 1, 0, 1, 0), ('2:7', 0, 0, 0, 0, 1, 0)] and
+          dict(s.gt_room_no) == {'ahead': 1, 'her state': 1} and s.gt_map_open == 0,
+          'v3.51: the skips behind collision read (%r %r %r)' % (s.gt_skip, s.gt_skip_tries, s.gt_rooms))
+    check('2 room visit(s) with tries: 2 warp(s) (1 through walls, 1 behind the faced enemy, 0 ahead), 2 refused (ahead x1, her '
+          'state x1), 0 Action / Check press(es) taken back in fade-outs; 4 enemy(ies) in the cone skipped behind collision (in 3 '
+          'try(ies))' in r, 'v3.51: the ghost teleport summary counts the skips behind collision')
     s, r = run(V337I)  # v3.37 INV337
     print(r)
     check(s.inv == ('on', 'off', 'in') and s.inv_sw['extended toolbelt stays on'] == 1 and s.inv_sw['extended toolbelt off'] == 1,
@@ -1643,6 +1761,20 @@ def main():
           'v3.50: the enemy pursuit summary line')
     check('enemies follow setting: Victims at the start' in r and 'with no monsters following (Off / Victims): 1 monster(s)' in r,
           'v3.50: the setting line with Victims')
+    check('inside rooms' not in r and not s.ep and s.ep_site is None, 'v3.50 log: no in-room part')  # v3.51 EP351
+    s, r = run(V351EP)  # v3.51 EP351: Enemy Pursuit inside the room
+    print(r)
+    p = s.ep
+    check(s.ep_site == 'in' and s.ef_mode == 'Forgetful', 'v3.51: in-room install line (%r %r)' % (s.ep_site, s.ef_mode))
+    check(p['rooms'] == 2 and p['give'] == 5 and p['mon'] == 3 and p['ghost'] == 2 and p['again'] == 1 and p['down'] == 1 and
+          p['held'] == 3 and p['stock'] == 1, 'v3.51: the rooms\' lines (%r)' % dict(p))
+    check(p['v_give'] == 5 and p['v_unsensed'] == 2 and p['v_downed'] == 1 and p['v_far'] == 1 and p['v_untouched'] == 1 and
+          p['f_Hummer'] == 1 and p["f_victim's ghost"] == 2 and p['f_Sniffer Dog'] == 1 and p['f_Gum Head'] == 1,
+          'v3.51: the verbose give-ups by reason and family (%r)' % dict(p))
+    check("; inside rooms in: 5 gave up the chase in 2 room(s) (3 monster(s), 2 ghost(s); 1 again, 1 down when you walked off), 3 "
+          "set back in their rest, 1 left to the game [verbose: 5 lines: 2 unsensed, 1 downed, 1 far, 1 untouched; Gum Head 1, "
+          "Hummer 1, Sniffer Dog 1, victim's ghost 2]" in r, 'v3.51: the enemy pursuit summary has the in-room give-ups')
+    check(s.ef['lost'] == 2 and s.ef['sight'] == 2, 'v3.51: the door line still reads (%r)' % dict(s.ef))
     s, r = run(V349F)
     check('enemy pursuit:' not in r and s.ef_mode is None, 'v3.49 log: no enemy pursuit line')
     s, r = run(V349F3)
@@ -1715,6 +1847,25 @@ def main():
           'v3.50: a v3.49 log has no reasons part')
     s, r = run(V350RZMB)
     check(s.rzm_bad == ('Everywhere', 'This World'), 'v3.50: the unknown-value line with All Worlds in its list parses (%r)' % (s.rzm_bad,))
+    s, r = run(V351SN)  # v3.51 SN351: the event dogs and the second roll
+    print(r)
+    check(s.rzm and s.rzm[1] == 238 and s.rzm[4] == 238 and s.rzm_ev == (3, 3, 'On') and s.rzm_sess4 == (2, 'On', 3, 3),
+          'v3.51: the start line (238), the event dogs line and the session line parse (%r %r %r)' % (s.rzm, s.rzm_ev, s.rzm_sess4))
+    check(s.rzm_rooms['rooms'] == 3 and s.rzm_rooms['changed'] == 3 and s.rzm_rooms['again'] == 2 and s.rzm_rooms['ev_rooms'] == 2 and
+          s.rzm_rooms['ev_set'] == 3 and s.rzm_rooms['ev_clear'] == 3 and s.rzm_rooms['why_lines'] == 3 and s.rzm_lists == 3,
+          'v3.51: the room lines with the second roll and the event dogs parse (%r)' % (s.rzm_rooms,))
+    check('; event dogs 3 of 3 stock (rolled once story flag 130 is set), roll again On' in r and
+          '; 2 rolled again for their own type; event dogs in 2 room load(s): 3 rolled (story flag 130 set), 3 kept as placed '
+          '(flag clear)' in r and '; session: 2 rolled again (roll again On), event dogs 3 planned / 3 kept asleep' in r,
+          'v3.51: the summary shows the event dogs and the second roll')
+    check(not [v for v in s.warnings.values() if 'monsters' in v[3].lower()], 'v3.51: no Monsters line lands in the warnings (%r)' % (
+        list(s.warnings.values()),))
+    s, r = run(V351SN.replace(SN351_EVIN % (3, 'On'), SN351_EVIN % (5, 'Off')))
+    check(s.rzm_ev == (5, 3, 'Off') and '; event dogs 5 of 3 stock (NOT the stock count) (rolled once story flag 130 is set), roll '
+          'again Off' in r, 'v3.51: event dogs not the stock 3: said in the summary (%r)' % (s.rzm_ev,))
+    s, r = run(V350RZM)
+    check(s.rzm_ev is None and s.rzm_sess4 is None and 'event dogs' not in r and 'rolled again' not in r and
+          s.rzm_rooms['again'] == 0 and s.rzm_rooms['ev_rooms'] == 0, 'v3.51: a v3.50 log has no event dogs / second roll parts')
     s, r = run(V350R)  # v3.50 R302: the user's game today
     check(len(s.r3_own) == 1 and s.r3_own[0][2:4] == ('Playable Eileen', 'Playable Eileen') and s.r3_hook is None and
           len(s.r3_seed) == 4 and s.r3_anom == 0 and
@@ -1769,6 +1920,56 @@ def main():
           'room visit(s)' in r, 'v3.50: no scene pass: the portal is not available (%r)' % (s.fi,))
     s, r = run(V333_END)
     check(s.fi is None and 'fade in:' not in r, 'v3.50: no Fade In lines, no summary line')
+    s, r = run(V351MU)  # v3.51 MU351: the sound in the Extra Menu's lists
+    print(r)
+    check(s.mu_set == ('10:00:00', 'paused', '1') and s.mu[('load list', 'from the pause')] == 2 and s.mu[('load list', 'paused')] == 2
+          and s.mu[('load list', 'back in the pause')] == 1 and s.mu[('load list', 'a save loads')] == 1 and
+          s.mu[('save menu', 'paused')] == 1 and s.mu[('storage chest', 'loud')] == 1 and s.mu_anom == 1 and
+          s.mu_loud == [('10:00:40', 'storage chest', 'from the pause', 'PLAYS quietly')],
+          'v3.51: the Extra Menu sound lines read (%r %r %r)' % (s.mu_set, dict(s.mu), s.mu_loud))
+    check('extra menu sound: paused in the three lists as in the pause menu at the start (PauseSound=1); load list: opened 2 (2 from '
+          'the pause, music paused in 2), closed 2 (1 back in the pause, 1 a save loads); save menu: opened 1 (1 from the pause, music '
+          'paused in 1), closed 1 (1 back in the pause); storage chest: opened 1 (1 from the pause, music paused in 0), closed 0; the '
+          'music NOT paused 1 time(s): storage chest from the pause (PLAYS quietly) [10:00:40]; 1 ANOMALY line(s)' in r,
+          'v3.51: the Extra Menu sound summary line')
+    check(not [v for v in s.warnings.values() if 'sound in the' in v[3]], 'v3.51: no Extra Menu sound line lands in the warnings')
+    s, r = run(V351MU0)
+    print(r)
+    check(s.mu_set == ('10:00:00', 'v3.50', '0') and not s.mu_loud and s.mu[('load list', 'from play')] == 1 and
+          s.mu[('load list', 'back to play')] == 1 and
+          'extra menu sound: v3.50 (the music plays quietly in the three lists) at the start (PauseSound=0); load list: opened 2 (1 '
+          'from the pause, music paused in 0, 1 from play), closed 2 (1 back in the pause, 1 back to play)' in r and 'NOT paused' not in r,
+          'v3.51: PauseSound=0 and a list from play: counted, no fault (%r %r)' % (dict(s.mu), s.mu_loud))
+    s, r = run(V333_END)
+    check(s.mu_set is None and not s.mu and 'extra menu sound' not in r, 'v3.51: no Extra Menu sound lines, no summary line')
+    s, r = run(V351PT)  # v3.51 PT351: the tar portal and the hold
+    print(r)
+    check(s.fi == ('in', 'scene pass', 'Fade + Portal', '0.80') and s.fi_tar and s.fi_tar[1:] == ('Auto', '1') and s.fi_rooms == 1 and
+          s.fi_portals == 3 and s.fi_by == {'game': 1, 'Refined': 2} and s.fi_held == 2 and s.fi_real == 1 and s.fi_never == 1 and
+          len(s.fi_letgo) == 2 and s.fi_letgo[0][:6] == ('FFFF0007', "the game's own draw", 2.5, 'held to the end', "the ghost's own", 32) and
+          s.fi_letgo[1][3:8] == ('it is gone', "Refined's", 12, 10, 25) and s.fi_starts == {'follower': 3} and
+          s.fi_tar_starts == {'game, on a wall': 1, 'Refined, in the air': 1, 'Refined, on a wall': 1} and
+          s.fi_tar_drawn == ('10:00:09', "the game's own draw") and s.fi_cost == [1, 0.061, 0.2],
+          'v3.51: the tar portal lines read (%r %r %r %r %r)' % (s.fi_tar, dict(s.fi_by), s.fi_letgo, dict(s.fi_tar_starts), s.fi_cost))
+    check("fade in: Fade + Portal at the start (0.80 s; portal scene pass); 4 fade(s) in 1 room visit(s) (room load 2, follower 2); 3 "
+          "tar / blood portal(s), first drawn [10:00:09] (3D viewport); tar portal: the game's own draw, else Refined's (Auto), held; by "
+          "draw: game 1, Refined 2; 2 held; first tar portal drawn [10:00:09] (the game's own draw); portal draw at most 0.061 ms a "
+          "frame on average in a room (worst frame 0.200 ms); 2 let go (strands: Refined's 1, the ghost's own 1; moved 51 of 121 u; "
+          "early: it is gone 1); tar starts: Refined, in the air 1, Refined, on a wall 1, game, on a wall 1; 1 placeholder(s) turned real; 1 "
+          "portal(s) closed with nobody" in r, 'v3.51: the tar portal summary')
+    check(s.fi_fault is None and s.fi_gfault is None, 'v3.51: no fault read from a clean log')
+    s, r = run(V351PT2)
+    print(r)
+    check(s.fi_gfault == ('10:01:00', 'C0000005') and s.fi_fault is None and s.fi_tdm_bad == 'Splash' and
+          s.fi_notstock == ["00478440 (the bone trail's start)"] and
+          "NOT stock: 00478440 (the bone trail's start); unknown ini value: FadeInPortalDraw \"Splash\" -> Auto; FAULT in the game's own "
+          "portal draw (code C0000005) [10:01:00]: Refined's draw after" in r and 'off for the session' not in r,
+          'v3.51: a fault in the game\'s own draw is not Fade In\'s fault (%r %r %r)' % (s.fi_gfault, s.fi_fault, s.fi_notstock))
+    s, r = run(V351PT3)
+    print(r)
+    check(s.fi_tar and s.fi_tar[1] == 'Vortex' and s.fi_by == {'vortex': 1} and s.fi_held == 0 and s.fi_cost == [0, 0.0, 0.0] and
+          "tar portal NOT available (FadeInPortalDraw=Vortex): v3.50's blood vortex; by draw: vortex 1; 0 held" in r and
+          'NEVER DRAWN' not in r, 'v3.51: Vortex: v3.50\'s portal, no hold (%r %r)' % (s.fi_tar, dict(s.fi_by)))
     test_compare()  # v3.40 LG340
     print('%d failure(s)' % len(FAILS))
     return 1 if FAILS else 0

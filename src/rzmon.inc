@@ -32,6 +32,9 @@
 // monster in its room (every room a save visited holds them) is adopted (rolled; deleted when the roll gives another type)
 // instead of keeping the room stock (the user's v3.49 QA: 1 of 15 placements changed); All Worlds (any target in any world,
 // files as This World); the room line counts why each placement kept its stock type.
+// v3.51 SN351 (staging/v351_feedback/w4_sniffers/PLAN.md; the user's v3.50 QA item 4): the Subway's first Sniffer Dogs (room
+// 2:2's event dogs, spawn mode 7 / 6 / 6) roll too once story flag 0x130 is set (their cut-scene is over), else they stay as
+// placed; a roll that gives the placement's own type rolls once more (hidden [Randomizer] MonsterRollAgain=0: v3.50's roll).
 #include "rzmon_sim.h"
 
 static int g_rmFail;                 // faulted: off for this session
@@ -53,6 +56,9 @@ static RmProv g_rmProv;              // v3.49 fix2 RZ349-SAVE-001: what Refined 
 static int g_rmOther;                // v3.49 fix2: placements left as placed for a record Refined did not make (another writer)
 static volatile LONG g_rmQuotaOther;
 static int g_rmAdopted, g_rmAdoptChanged, g_rmRollStock, g_rmSame, g_rmAway, g_rmNone;  // v3.50 RM350: the reasons, the session
+static int g_rmRollAgain = 1;        // v3.51 SN351: [Randomizer] MonsterRollAgain (hidden, ini only; 0 = v3.50's roll)
+static int g_rmSelfEv = -1;          // v3.51 SN351: event dogs among the start's sources
+static int g_rmAgain, g_rmEvPlanned, g_rmEvAsleep;  // v3.51 SN351: the session: rolled again, event dogs planned / kept asleep
 
 // ---------------------------------------------------------------- texts (MSG_RZ0 + 28 .. + 29, MSG_RZ1 + 0 .. 15)
 // v3.50 RM350: All Worlds' value and description appended (RZ1 + 5 / + 6: the v3.49 ids stay as they were)
@@ -311,6 +317,7 @@ static void RmBeforeScriptC(int room, int d)
     for (i = 0; i < RM_TARGET_N; ++i)
         if (EnmLoadedHere(kRmTargets[i].type, kRmTargets[i].variant)) in.resident |= 1u << i;
     in.freeBones = *(volatile const int *)0xED73E4, in.totalBones = *(volatile const int *)0xED73EC;
+    in.released = ENM_DOGS_AWAKE, in.rollAgain = g_rmRollAgain;  // v3.51 SN351 (story flag 0x130: enemies.inc)
     RmPlanRoom(&in, &g_rmScan[vis], idx, m, rec, floorOk, pick, &st);
     // This World: the files of each target not resident here (EnmEnsureFiles; a failure puts its placements back)
     for (i = 0; i < RM_TARGET_N; ++i) {
@@ -357,7 +364,9 @@ static void RmBeforeScriptC(int room, int d)
             BYTE *r = RmRecLive(EnmScriptId(stage, half, room, s->n));
             if (r && RmRecRoom(r) == room) ENM_RECDEL(r);
         }
-        RmProvAfterBuild(stage, half, room, s, p->type, p->variant);  // v3.49 fix2 RZ349-SAVE-001
+        // v3.51 SN351: an event dog left asleep is not "built" by Refined: its record stays the game's own, so the first visit
+        // after its release adopts and rolls it (else Change Each Visit Off would keep Refined's stock record: a dog for good)
+        if (p->why != RMW_EVENT) RmProvAfterBuild(stage, half, room, s, p->type, p->variant);  // v3.49 fix2 RZ349-SAVE-001
         g_rmCurT[vis][idx[k]] = p->type != s->type || p->variant != s->variant ? p->type : 0;
         g_rmCurV[vis][idx[k]] = p->variant;
         if ((p->type != s->type) && !(g_rmTypes >> p->type & 1u) && !(g_rmSilent[stage] >> p->type & 1u)) {
@@ -370,7 +379,9 @@ static void RmBeforeScriptC(int room, int d)
             const char *why = p->why == RMW_STICKY ? "its record" : p->why == RMW_BONES ? "bones" : p->why == RMW_FILES ? "files"
                               : p->why == RMW_FLOOR ? "no floor" : p->why == RMW_AWAY ? "recorded elsewhere"
                               : p->why == RMW_OTHER ? "another writer's record" : p->why == RMW_NONE ? "no target" : p->why == RMW_WORDS ? "words not stock"
-                              : p->why == RMW_ROLL ? (ch ? "" : "rolled") : "its stock record";
+                              : p->why == RMW_EVENT ? "asleep for its event"  // v3.51 SN351: + the event dogs, the second roll
+                              : p->why == RMW_ROLL ? (ch ? (p->again ? "rolled again" : "") : (p->again ? "rolled it twice" : "rolled"))
+                              : "its stock record";
             const int w = _snprintf_s(list + o, sizeof list - o, _TRUNCATE, "%sn%d %s v%d%s%s v%d%s%s%s%s", o ? "; " : "", s->n,
                                       RmTypeName(s->type), s->variant, ch ? " -> " : " kept as ", RmTypeName(p->type), p->variant,
                                       *why ? " (" : "", why, *why ? ")" : "", p->adopt ? (p->drop ? " [the game's record, adopted and "
@@ -385,10 +396,15 @@ static void RmBeforeScriptC(int room, int d)
     g_rmKeptFloor += st.floor, g_rmFileTypes += loaded, g_rmFileKb += kb, g_rmLeft += other, g_rmDrops += drops;
     g_rmAdopted += st.adopted, g_rmAdoptChanged += st.adoptChanged, g_rmRollStock += st.rollStock, g_rmSame += st.same;  // v3.50 RM350
     g_rmAway += st.away, g_rmNone += st.none;
+    g_rmAgain += st.again, g_rmEvPlanned += st.eventPlanned, g_rmEvAsleep += st.event;  // v3.51 SN351
     if (LogQuota(&g_rmQuotaRoom, 4000)) {
-        char by[300];
-        int b = 0, t;
-        by[0] = 0;
+        char by[300], tail[160];  // v3.51 SN351: + tail (only when a placement rolled again or the room has event dogs)
+        int b = 0, t, e = 0;
+        by[0] = 0, tail[0] = 0;
+        if (st.again) e += sprintf_s(tail + e, sizeof tail - e, "; rolled again for their own type: %d", st.again);
+        if (st.event + st.eventPlanned)
+            e += sprintf_s(tail + e, sizeof tail - e, "; event dogs: %d, story flag 130 %s", st.event + st.eventPlanned,
+                           in.released ? "set (rolled as the others)" : "clear (kept as placed for their event)");
         for (t = 0; t < 0x13; ++t) {
             int c = 0;
             for (k = 0; k < m; ++k) c += pick[k].type == t;
@@ -397,10 +413,10 @@ static void RmBeforeScriptC(int room, int d)
         Log("randomizer: monsters: room %d:%d (visit %d, #%u): %d of %d placement(s) changed (%s): %s; %d kept their record's type, "
             "%d record(s) deleted; kept as placed: %d for the bone budget, %d for files, %d without a floor%s; files loaded for %d "
             "type(s) (%d KB); the game's own records: %d adopted (%d made as another type); stock type kept: %d rolled it, %d by a "
-            "stock record, %d recorded elsewhere, %d for another writer's record, %d with no target", stage, room, vis, in.visit,
+            "stock record, %d recorded elsewhere, %d for another writer's record, %d with no target%s", stage, room, vis, in.visit,
             st.changed, m, kRmMonName[mode], by, st.sticky, drops, st.bones, st.files, st.floor,
             other ? "; some words were not the stock value: left as found" : "", loaded, kb, st.adopted, st.adoptChanged,
-            st.rollStock, st.same, st.away, st.other, st.none);  // v3.50 RM350: + the adopted records and the reasons
+            st.rollStock, st.same, st.away, st.other, st.none, tail);  // v3.50 RM350: + the adopted records and the reasons  // v3.51 SN351: + tail
     }
     if (other && LogQuota(&g_rmQuotaAnom, 20))
         LogAnomaly("randomizer", "monsters: room %d:%d: %d placement word(s) did not hold the stock value (another mod?): left as found",
@@ -517,6 +533,8 @@ static void RmInit(void)  // randomizer.inc RzInit (GameplayInstall: before the 
     static RmScan s_sc;
     RmTexts();
     if (!g_iniFallback) g_rmSaveIni = GetPrivateProfileIntA("Randomizer", "MonsterSaveFilter", 1, g_iniPath) != 0;  // (hidden)
+    if (!g_iniFallback) g_rmRollAgain = GetPrivateProfileIntA("Randomizer", "MonsterRollAgain", 1, g_iniPath) != 0;  // v3.51 SN351 (hidden)
+    g_rmSelfEv = 0;  // v3.51 SN351
     __try {
         for (stage = 0; stage < RZ_STAGES; ++stage)
             for (v = 0; v < 2; ++v) {
@@ -527,6 +545,7 @@ static void RmInit(void)  // randomizer.inc RzInit (GameplayInstall: before the 
                 seen[scripts++] = p;
                 RmScanScript(RzWindow(), p, stage, &s_sc);
                 total += s_sc.n, kind2 += s_sc.kind2;
+                g_rmSelfEv += s_sc.events;  // v3.51 SN351
                 m = RmStockMatch(stage, v, p, &s_sc);
                 if (m == 0 || (m < 0 && (s_sc.n || s_sc.bad))) ++g_rmSelfBad;
             }
@@ -553,6 +572,10 @@ static void RmInit(void)  // randomizer.inc RzInit (GameplayInstall: before the 
             "are left alone)" : ": the stock scripts", t, g_rmSaveSite ? "in" : !g_rmSaveIni ? "off ([Randomizer] MonsterSaveFilter=0)"
             : "NOT in (unexpected bytes: a save may hold randomized monsters)");
     }
+    if (g_rmSelfN >= 0)  // v3.51 SN351
+        Log("randomizer: monsters: %d of the source placements are event Sniffer Dogs (spawn mode 6 / 7, stock: Subway room 2:2's "
+            "%d): rolled once story flag 130 is set (their cut-scene is over), else as placed; a roll of the placement's own type "
+            "rolls once more: %s ([Randomizer] MonsterRollAgain)", g_rmSelfEv, RM_STOCK_EVENTS, g_rmRollAgain ? "On" : "Off");
 }
 static void RmSessionLine(void)  // randomizer.inc RzSessionLine
 {
@@ -568,6 +591,10 @@ static void RmSessionLine(void)  // randomizer.inc RzSessionLine
         Log("randomizer: monsters session: the game's own records: %d adopted (%d made as another type); stock type kept: %d rolled "
             "it, %d by a stock record, %d recorded elsewhere, %d with no target", g_rmAdopted, g_rmAdoptChanged, g_rmRollStock, g_rmSame,
             g_rmAway, g_rmNone);
+    if (g_rmRooms)  // v3.51 SN351
+        Log("randomizer: monsters session: %d placement(s) rolled again for their own type (MonsterRollAgain %s); event dogs: %d "
+            "planned with story flag 130 set, %d kept as placed for their event (flag clear)", g_rmAgain, g_rmRollAgain ? "On" : "Off",
+            g_rmEvPlanned, g_rmEvAsleep);
     if (g_rmOther || g_rmProv.full)  // v3.49 fix2 RZ349-SAVE-001
         Log("randomizer: monsters session: %d placement(s) left as placed for a record Refined did not make (another writer); %d "
             "placement(s) of Refined's (%d full)", g_rmOther, g_rmProv.n, g_rmProv.full);

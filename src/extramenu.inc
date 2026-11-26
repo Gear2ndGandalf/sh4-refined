@@ -46,6 +46,11 @@ typedef void(__cdecl *EmText)(int, int, int, int, int, int);
 #define EM_CAPTURE EM_I(0x12E3E2C)           // frozen picture: 0 none, 1 take at frame end, 2 shown, 3 drop at frame end
 #define EM_PHASE EM_I(0xFD5C20)              // game phase: 0 gameplay, 1 cutscene, 2 overlay (world frozen)
 #include "em_seam_sim.h"                     // EmSeamCanOpen / EmSeamCanReturn (test\em_seam_test.c)
+// v3.51 MU351: the game's sound pause (SH4Decomp include/snd_fade.h gSndSys 0x13D6620; pausesound_sim.h, test\pausesound_test.c)
+#define MU_PAUSEMODE EM_I(0x13D6668)              // gSndSys.pauseMode: the last 0x56E960 mode (read only by its -1 case)
+#define MU_FADEMODE EM_I(0x13D666C)               // gSndSys.fadeMode: the master fade
+#define MU_MASTER (*(volatile float *)0x13CDBDC)  // the master fade volume (0x56C580): the music, the world's sounds
+#include "pausesound_sim.h"                       // MuBridgeAct / MuMusicState
 
 // ---------------------------------------------------------------- data (RE 1.3; CT 537-749)
 // row ids (pm_rows / pm_okt index), CT 598-612
@@ -91,6 +96,22 @@ static const BYTE *pm_eo_strs[3] = { pm_str_def, pm_str_dress, pm_str_nurse };  
 static int g_emSeamless = 1;
 static int g_emBridge, g_emBridgeFrames, g_emBridgeIdle, g_emSeamN;
 static void hkEmBridge(void);
+static int g_emPauseSound = 1;  // v3.51 MU351: hidden [ExtraMenu] PauseSound (1 = the pause's silence goes on in the lists; 0 = v3.50)
+
+// v3.51 MU351: one line per list opened / closed with the sound state (at most 400 a session); `watch` = opened or back
+// in the pause with PauseSound on: an ANOMALY when the music is not paused then
+static void MuLogSound(const char *list, const char *event, int watch)
+{
+    static LONG s_q, s_a;
+    const float master = MU_MASTER;
+    const int fade = MU_FADEMODE, pm = MU_PAUSEMODE, st = MuMusicState(master, fade);
+    if (LogQuota(&s_q, 400))
+        Log("extra menu: sound in the %s: %s: pause mode %d, master %.2f, fade %d: %s%s", list, event, pm, master, fade,
+            MuMusicName(st), g_emPauseSound ? "" : " (PauseSound=0: v3.50)");
+    if (watch && g_emPauseSound && st != MU_MUSIC_PAUSED && LogQuota(&s_a, 20))
+        LogAnomaly("extra menu", "the level music is not paused in the %s (%s; pause mode %d, master %.2f, fade %d)", list, event,
+                   pm, master, fade);
+}
 
 static int EmFault(EXCEPTION_POINTERS *e, const char *where)
 {
@@ -554,13 +575,27 @@ static void __cdecl pm_draw(void)
 // ---------------------------------------------------------------- v3.32 PM332: the seamless hand-over
 // The pause -> our overlay, in the confirm (game thread, inside 4F8E90 at sub-mode 2): what Resume (4F90C2) and then
 // 0x4F8DD0 would leave, minus everything that lets the world run. Kept: phase 2 (0x4EFAE0 never runs), the frozen
-// picture (no 4031F0 backup release, no 55A160(0)), the rumble stop, HUD off, events off. The sound goes the same way
-// as Resume + 0x4F8DD0 in one tick (56E960(-1), then (2): the target overlays always ran under pause mode 2).
+// picture (no 4031F0 backup release, no 55A160(0)), the rumble stop, HUD off, events off. The sound went the same way
+// as Resume + 0x4F8DD0 in one tick (56E960(-1), then (2)): the master to 1.0, then down to 0.2 for the whole list.
+// v3.51 MU351 (USER_FEEDBACK_v350 item 11): the pause's silence goes on, as the stock pause opens its map and memo list
+// (no sound call): pauseMode is only marked 2, so the targets' own leave (-1) fades in as in v3.50 (pausesound_sim.h).
 static int EmBridgeOpen(void)
 {
     if (!EmSeamCanOpen(g_emSeamless, EM_SUB, EM_PEND, EM_PHASE, EM_CAPTURE, pm_pe_open())) return 0;
-    EM_CALL1(0x56E960, -1);
-    EM_CALL1(0x56E960, 2);
+    {   // v3.51 MU351
+        static LONG s_q;
+        const int pm = MU_PAUSEMODE, act = MuBridgeAct(g_emPauseSound, pm);
+        if (act == MU_ACT_V350) {
+            EM_CALL1(0x56E960, -1);
+            EM_CALL1(0x56E960, 2);
+        } else {
+            if (act == MU_ACT_REPAUSE) EM_CALL1(0x56E960, 0);
+            if (act != MU_ACT_LEAVE) MU_PAUSEMODE = MU_MARK_MODE;
+            if (act != MU_ACT_KEEP && LogQuota(&s_q, 20))
+                LogAnomaly("extra menu", "the pause menu's sound was in mode %d (the pause's own is 0): %s", pm,
+                           act == MU_ACT_REPAUSE ? "paused again (0x56E960(0))" : "left as it is");
+        }
+    }
     EM_CB = (DWORD)(ULONG_PTR)hkEmBridge;
     EM_SUB = 1;  // 4F9110: no case of its own, only the callback runs: the hand-over overlay
     g_emBridge = 1;
@@ -901,6 +936,7 @@ static int ch_to_pause(void)
     ch_phase = 3;
     ch_status = 3;
     Log("extra menu: storage chest closed (held weapon refused %ld times)", ch_blocked);
+    MuLogSound("storage chest", "closed, back in the pause", 1);  // v3.51 MU351
     return 1;
 }
 
@@ -965,6 +1001,8 @@ static void ch_open(void)
     ch_phase = 0;
     ch_frames = 0;
     ch_blocked = 0;
+    {
+    const int seam = EmInBridge();  // v3.51 MU351: opened inside the pause
     if (!EmOverlay((DWORD)(ULONG_PTR)hkChCb)) {  // sub-mode 1: world and sound paused, input off (v3.32 PM332: EmOverlay)
         ch_status = -2;
         Log("extra menu: storage chest: overlay request failed");
@@ -974,6 +1012,8 @@ static void ch_open(void)
     ch_active = 1;
     ch_status = 1;
     Log("extra menu: storage chest opened");
+    MuLogSound("storage chest", seam ? "opened from the pause" : "opened from play", seam);  // v3.51 MU351
+    }
 }
 
 // ch_run: after 4CE1A0 left the overlay and the sub-mode is 0: the chest object's f4 4CE430 + the fade in
@@ -1037,6 +1077,7 @@ static void hkSaCb(void);  // v3.32 PM332
 // la_start_overlay: a fresh private nested-SM block, then the overlay with la_cb
 static void la_start_overlay(void)
 {
+    const int seam = EmInBridge();  // v3.51 MU351: opened inside the pause
     memset(la_sm, 0, sizeof la_sm);
     la_phase = 0;
     la_state = 0;
@@ -1052,11 +1093,13 @@ static void la_start_overlay(void)
     sa_frames = 0;
     sa_status = 11;
     Log("extra menu: load list opened");
+    MuLogSound("load list", seam ? "opened from the pause" : "opened from play", seam);  // v3.51 MU351
 }
 
 // sa_start_overlay: snap_save.bin must be resident; save = the notebook object 0BC7h's f1 + f2 state 0 (task 4CCDC0)
 static void sa_start_overlay(void)
 {
+    const int seam = EmInBridge();  // v3.51 MU351: opened inside the pause
     sa_loading = 0;
     if (!ch_resident(0xF000F00A)) {
         EmHudBack();  // v3.32 PM332: was 4F5070 (HUD on); from our overlay: back to the pause
@@ -1089,6 +1132,7 @@ static void sa_start_overlay(void)
     sa_stuck = 0;
     sa_status = 1;
     Log("extra menu: save menu opened");
+    MuLogSound("save menu", seam ? "opened from the pause" : "opened from play", seam);  // v3.51 MU351
 }
 
 // sa_wait: the file queue (timeout 900 frames, -7), re-checking idle every frame
@@ -1155,6 +1199,7 @@ static void sa_cb_body(void)
     EmToPause(PM_SAVE, 0);
     if (sa_status != -5) sa_status = 2;
     Log("extra menu: save menu closed");
+    MuLogSound("save menu", "closed, back in the pause", 1);  // v3.51 MU351
 }
 static void __cdecl sa_cb_c(void)
 {
@@ -1220,10 +1265,12 @@ static void la_cb_body(void)
             la_cb_run();
             la_state = (int)la_sm[2];
             if (la_sm[1]) {  // parent state advanced = left by cancel (it freed the I/O buffer, faded to black)
+                int back = 0;  // v3.51 MU351
                 la_phase = 3;
                 if (pm_ret_row == PM_LOAD && EmPauseOk()) {  // v3.32 PM332: our overlay -> the pause, fading in
                     EM_CALL0(0x4141B0);
                     EmToPause(PM_LOAD, 1);
+                    back = 1;
                 } else {
                     EM_CALL0(0x4F8E60);
                     EM_CALL0(0x4141B0);
@@ -1232,6 +1279,7 @@ static void la_cb_body(void)
                 la_active = 0;
                 sa_status = 12;
                 Log("extra menu: load list cancelled");
+                MuLogSound("load list", back ? "closed, back in the pause" : "closed, back to play", back);  // v3.51 MU351
             }
             return;
         }
@@ -1250,6 +1298,7 @@ static void la_cb_body(void)
     la_restart = 1;
     sa_status = 13;
     Log("extra menu: load game: slot read (stage %d room %d)", *(const int *)(la_buf + 0x14), *(const int *)(la_buf + 0x18));
+    MuLogSound("load list", "closed, a save loads (the room change takes the music over)", 0);  // v3.51 MU351
 }
 static void __cdecl la_cb_c(void)
 {
@@ -1716,6 +1765,11 @@ static void ExtraInstall(void)
     g_emSeamless = GetPrivateProfileIntA("ExtraMenu", "Seamless", 1, g_iniPath) != 0;
     Log("extra menu: Storage Chest / Save Game / Load Game %s", g_emSeamless ? "open and close inside the pause (the "
         "world stays frozen)" : "close and reopen the pause (Seamless=0: v3.31)");
+    // v3.51 MU351: hidden [ExtraMenu] PauseSound (default 1); 0 = v3.50's sound (the music back at 0.2 in the three menus)
+    g_emPauseSound = GetPrivateProfileIntA("ExtraMenu", "PauseSound", 1, g_iniPath) != 0;
+    if (g_emSeamless)
+        Log("extra menu: sound in the Storage Chest / Save Game / Load Game: %s ([ExtraMenu] PauseSound=%d)",
+            g_emPauseSound ? "paused as in the pause menu" : "plays quietly as in v3.50", g_emPauseSound);
     Log("extra menu: on, 8 patches (4F8A30 4F8F2E 4F8F5D 4F8FAC 4F8FE9 4F8EC1 4F8ED3 512235), engine in the 0x4EF982 "
         "dispatcher; rows Chest %ld Save %ld Load %ld QuickSave %ld QuickLoad %ld Eileen %ld (Option 6); Camera row (its page: "
         "the camera settings) while SH4 Refined's camera owns the view, now %s",

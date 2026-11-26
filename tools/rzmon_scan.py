@@ -11,7 +11,8 @@ story flags +0x44 / +0x48 (0x19 / 0x26), and commands 2-5 (single functions).
 The rule (src/rzmon_sim.h RmIsSource): kind 2; exactly one type command (7) and no 2-6 or 0x0A; a type of the source
 set (02, 03, 07, 08, 09, 0A); exactly one mode-word command with spawn mode 0, bits 4-7 0 or 1 (0x20..0x60 turn the
 body onto a wall or ceiling, 0x45DBC0), bits 12-15 only for a Tremer (its room box; a Gum Head's are its item); no id
-override; no story flag; difficulty mask 0x1F or none; one position; stage 2..8.
+override; no story flag; difficulty mask 0x1F or none; one position; stage 2..8. v3.51 SN351: + the event dogs (a Sniffer
+Dog in spawn mode 6 / 7, upright, no bits 12-15: asleep until story flag 0x130; Refined rolls them once it is set).
 
     py -3 tools/rzmon_scan.py [--exe path] [--list] [--header] [--summary]
 --list prints every enemy placement; --header prints the per-visit table for src/rzmon_sim.h. Reads only the exe.
@@ -156,6 +157,12 @@ def walk_room(img, p, room):
     return out
 
 
+def event_dog(r):
+    """v3.51 SN351: src/rzmon_sim.h RmEventDogMode (a Sniffer Dog asleep until story flag 0x130)"""
+    m = r['mode']
+    return r['type'] == 0x0A and m <= 0xFFFF and (m & 0xF) in (6, 7) and (m & 0xF0) <= 0x10 and not (m >> 12) & 0xF
+
+
 def why_not(stage, r):
     """'' = a source placement (src/rzmon_sim.h RmIsSource); else the reason"""
     if r['kind'] != 2:
@@ -168,7 +175,7 @@ def why_not(stage, r):
         return 'stage outside 2..8'
     if len(r['modeva']) != 1:
         return 'not one mode-word command'
-    if r['mode'] & 0xF or r['mode'] & ~0xFFFF:
+    if (r['mode'] & 0xF or r['mode'] & ~0xFFFF) and not event_dog(r):  # v3.51 SN351: + the event dogs
         return 'event spawn mode'
     if (r['mode'] & 0xF0) > 0x10:
         return 'on a wall or ceiling'
@@ -238,7 +245,8 @@ def main():
             (t, TYPE_TAB + 16 * t) + tuple(img.u32(TYPE_TAB + 16 * t + 4 * i) for i in range(4))))
     rows = scan(img)
     src = [x for x in rows if not x[6]]
-    print('kind-2 placements: %d; source placements: %d' % (len(rows), len(src)))
+    print('kind-2 placements: %d; source placements: %d (%d of them event dogs)' % (len(rows), len(src),
+                                                                                    sum(1 for x in src if event_dog(x[5]))))
     why = collections.Counter(x[6] for x in rows if x[6])
     for k, v in why.most_common():
         print('  not a source: %-36s %d' % (k, v))
@@ -277,7 +285,7 @@ def main():
             print('%X:%d room %02X n %3d type %02X%s mode %04X%s over %08X diff %X kill %d need %X forbid %X pos %.0f %.0f %.0f %s'
                   % (stage, visit, room, n, r['type'] & 0xFF, ' (cmd6)' if r['cmd6'] else '', r['mode'] & 0xFFFF,
                      '' if r['modeva'] else ' (none)', r['over'], r['diff'], r['kill'], r['need'], r['forbid'],
-                     r['pos'][0], r['pos'][1], r['pos'][2], w or 'SOURCE'))
+                     r['pos'][0], r['pos'][1], r['pos'][2], w or ('SOURCE (event dog)' if event_dog(r) else 'SOURCE')))
 
 
 if __name__ == '__main__':

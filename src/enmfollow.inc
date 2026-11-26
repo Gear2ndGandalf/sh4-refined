@@ -47,8 +47,9 @@ static void EfTexts(void)  // gameplay.inc GpTexts
     Encode(g_txtEf[EFM_L], 64, "Enemy Pursuit");
     for (v = 0; v < EF_PURSUIT_N; ++v) Encode(g_txtEf[EFM_V0 + v], 64, kEfPursuitName[v]);
     Encode(g_txtEf[EFM_D0 + EF_PURSUIT_RELENTLESS], 64, "Relentless: they spot you once, never give up.");
-    Encode(g_txtEf[EFM_D0 + EF_PURSUIT_NORMAL], 64, "Normal: unseen 10 s or downed, they lose you.");
-    Encode(g_txtEf[EFM_D0 + EF_PURSUIT_FORGETFUL], 64, "Forgetful: unseen 4 s, they lose you.");
+    // v3.51 EP351: they give up inside the room too (font 1: 395.2 / 404.0 of 416 px; were "... they lose you.")
+    Encode(g_txtEf[EFM_D0 + EF_PURSUIT_NORMAL], 64, "Normal: unseen 10 s, they quit, in rooms too.");
+    Encode(g_txtEf[EFM_D0 + EF_PURSUIT_FORGETFUL], 64, "Forgetful: unseen 4 s, they quit, in rooms too.");
     Encode(g_txtEf[EFM_NA], 64, "Not available in this game (see SH4Refined.log).");
 }
 static void EfSetLocked(int v)

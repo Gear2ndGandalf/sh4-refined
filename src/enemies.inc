@@ -101,6 +101,7 @@
 // empties the arrival watch (v3.49 logged a follower that came in after the save as "lost between the rooms").
 #include "enemies_sim.h"
 #include "pursuit_sim.h"  // v3.50 EF350
+#include "pursuit_room_sim.h"  // v3.51 EP351: Enemy Pursuit inside the room (the pure rules)
 
 #define ENM_LIST_MAX 40      // at most 40 enemies in the room list (Death Presence tracks 64)
 #define ENM_FREE_TASKS 40    // tasks (0x11B6020, 300 x 0x430) kept free (v3.36 TP336: of the first 300: TpGateFree)
@@ -225,6 +226,10 @@ static volatile LONG g_enmPursuit = EF_PURSUIT_DEFAULT;  // [Gameplay] EnemyPurs
 static EfTrack g_efTrack;                                // this room visit: when each enemy last sensed you
 static void EfRestoreAtLoad(int room);                   // enmfollow.inc: a load's followers come back (EnmWrap)
 static void EfInstall(void);                             // enmfollow.inc (EnemiesInstall)
+static int EpIgnores(unsigned id);                       // v3.51 EP351 pursuit_room.inc: it gave up the chase in this room
+static void EpRoomEnd(const char *why);                  // v3.51 EP351: the room line (a room load, a save load)
+static void EpTick(const float *pp);                     // v3.51 EP351 (EnmTickC)
+static void EpInstall(void);                             // v3.51 EP351 (EnemiesInstall)
 // a copy whose pursuit ends while it is on its way (the ledger's room 0) is made in its own room again
 static void EnmTransitHome(unsigned cid, int stage)
 {
@@ -1450,6 +1455,13 @@ static void EnmTakePursuers(const float *pp)
                 }
             }
         }
+        if (!lost && EpIgnores(id)) {  // v3.51 EP351: it gave up the chase in this room and has not taken it up again
+            lost = 3;
+            if (!pur) {
+                ++st.forgot;
+                continue;
+            }
+        }
         c[n].d2 = d2, c[n].ok = 1, c[n].prio = pur;
         p[n].id = id, p[n].type = type, p[n].variant = variant, p[n].ghost = gkind, p[n].copy = copy, p[n].prio = pur, p[n].how = how;
         p[n].ago = ago, p[n].lost = lost;  // v3.50 EF350
@@ -1670,6 +1682,7 @@ static void EnmDoorPass(int room)
     const int elevator = (*(volatile const BYTE *)0x13D8113 & 0x20) != 0;
     static EnmDoorCtx x;  // (1.6 KB of names: not on the game thread's stack)
     int i, why, pend = 0, pass;
+    EpRoomEnd("you left the room");  // v3.51 EP351: the room visit's in-room give-ups (before the serial moves on)
     for (i = 0; i < g_enmQN; ++i) {
         pend += !g_enmQ[i].done;
         // v3.38 REV338 R3: one without a pursuit (the pursuers' table was full) would stay on its way: it goes home
@@ -1736,6 +1749,7 @@ static void EnmDoorPass(int room)
                 if (LogQuota(&g_enmQuotaPursue, 300)) {
                     char why[64];
                     if (p->lost == 2) strcpy_s(why, sizeof why, "it lay down when you left");
+                    else if (p->lost == 3) strcpy_s(why, sizeof why, "it gave up the chase in that room");  // v3.51 EP351
                     else if (p->ago < 0.0f) strcpy_s(why, sizeof why, "it had not sensed you in that room");
                     else sprintf_s(why, sizeof why, "it had not sensed you for %.0f s", p->ago);
                     LogV("enemies: %s %08X (type %02X v%d) lost track of you at the door to room %d: %s (Enemy Pursuit %s; it "
@@ -2810,6 +2824,7 @@ static void EnmLoadWatch(const char *where)
         g_enmCdRoomKey = 0xFFFFFFFFu;  // (the countdown watch starts afresh)
         g_enmArrivedN = 0;  // v3.50 EF350: and the arrivals watched there (v3.49: "came into room 2 and is gone 4.2 s later")
         EfTrackReset(&g_efTrack, 0);  // v3.50 EF350
+        EpRoomEnd("a save load");      // v3.51 EP351: and the in-room give-ups' timers
     }
     g_enmLoadSeen = loading;
 }
@@ -3061,6 +3076,13 @@ static void EnmTickC(void)
         if (play && g_enmCdKeepOn) EnmCdWatch();
         if (play && g_enmLate.on) EnmLateTick();
     }
+    {   // v3.51 EP351: Enemy Pursuit inside the room (normal play, any Enemies Follow value)
+        if (*(volatile int *)0xFD5C20 == 0 && *(volatile int *)0xECB1B4 == 0 && *(void *volatile *)0xFD5BA0 &&
+            *(volatile int *)0xFD5A74 == 0 && stage >= 2 && stage <= 8 && ENM_MGR_ON()) {
+            EnmPlayerPos(pp, 0);
+            if (EnmFinite3(pp)) EpTick(pp);
+        }
+    }
     EnmFollowSay();  // v3.49 EF349: each change of the value, once
     if (!EnmFollowLive()) EnmPursueDrop("Enemies Follow is off");  // v3.35 GH335
     else {  // v3.49 EF349: by the value (was: != 2 -> the ghosts' pursuits end)
@@ -3230,5 +3252,7 @@ static void EnemiesInstall(void)
         g_enmLateCopies, g_enmCdKeepOn, g_enmCdKeepOn ? "a hit never shortens a ghost's down" : "the game's own down countdown",
         g_enmStoryFollow);  // v3.34 EN334; v3.35 GH335; v3.38 EN338
     EfInstall();  // v3.50 EF350: the followers' side file (0x4FC1A4 / 0x4FC6ED) and Enemy Pursuit's line
+    EpInstall();  // v3.51 EP351: Enemy Pursuit inside the room (calls only; its line)
 }
 #include "enmfollow.inc"  // v3.50 EF350: Enemy Pursuit's row, the followers' side file (save / load)
+#include "pursuit_room.inc"  // v3.51 EP351: Enemy Pursuit inside the room

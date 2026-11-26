@@ -981,6 +981,126 @@ static void Faced(void)
           GtConeKey(1, 200.0f) == GT_CONE_MAX && GtConeKey(1, 45.0f) == 45.0f, "faced: [Gameplay] GhostTeleportCone 35 (10 .. 90)");
 }
 
+// v3.51 TP351: the line from her to the enemy she faces against the room's collision; the cone's next enemy
+typedef struct { const GtWorld *w; const float *her; const float (*e)[3]; const int *wall; int calls; } TSightCtx;
+static int TSightTest(void *c, int i)  // teleport.inc GtFaceTest's sight half: 0 = in the open
+{
+    TSightCtx *x = (TSightCtx *)c;
+    ++x->calls;
+    return GtFoeSight(x->w, x->her, x->e[i], x->wall ? x->wall[i] : 0) == GTV_CLEAR ? 0 : 2;
+}
+static void TCands(const float her[3], const float (*e)[3], int n, GtCand *c)  // as GtFind fills them (standing, at her level)
+{
+    int i;
+    memset(c, 0, sizeof(GtCand) * (size_t)n);
+    for (i = 0; i < n; ++i) {
+        c[i].ok = 1, c[i].dy = e[i][1] - her[1], c[i].ang = GtOffFacing(her, 0.0f, e[i]);
+        c[i].d = sqrtf((e[i][0] - her[0]) * (e[i][0] - her[0]) + (e[i][2] - her[2]) * (e[i][2] - her[2]));
+    }
+}
+static void Sight(void)
+{
+    static TScene s;
+    const float her[3] = { 0.0f, 0.0f, 0.0f };
+    // 1. open floor: a clear line (the v3.50 behaviour: behind it)
+    TSceneInit(&s, 3000.0f);
+    Check(GtFoeSight(&s.w, her, (const float[3]){ 0.0f, 0.0f, 800.0f }, 0) == GTV_CLEAR &&
+          GtFoeSight(&s.w, her, (const float[3]){ 300.0f, 0.0f, 2500.0f }, 0) == GTV_CLEAR, "sight: open floor: in the open");
+    // 2. a full wall between (z 300 .. 340, 1000 high): behind collision (her chest line)
+    TWall(&s.t, -3100.0f, 3100.0f, 300.0f, 340.0f, 1000.0f);
+    Check(GtFoeSight(&s.w, her, (const float[3]){ 0.0f, 0.0f, 800.0f }, 0) == GTV_CHEST &&
+          GtFoeSight(&s.w, her, (const float[3]){ 200.0f, 0.0f, 360.0f }, 0) == GTV_CHEST, "sight: a wall between: behind "
+          "collision (also one just past it)");
+    Check(GtFoeSight(&s.w, her, (const float[3]){ 0.0f, 0.0f, 250.0f }, 0) == GTV_CLEAR, "sight: an enemy on her side of the wall, "
+          "50 u from it (touching it): in the open");
+    // 3. inside the wall (a ghost in it): its chest in solid
+    Check(GtFoeSight(&s.w, her, (const float[3]){ 0.0f, 0.0f, 320.0f }, 0) == GTV_INSIDE, "sight: an enemy inside the wall: inside a wall");
+    // 4. a thin turnstile (10 u, 120 high) between, on one level: her chest line passes over it, the low line does not
+    TSceneInit(&s, 3000.0f);
+    TWall(&s.t, -3100.0f, 3100.0f, 400.0f, 410.0f, 120.0f);
+    Check(GtFoeSight(&s.w, her, (const float[3]){ 0.0f, 0.0f, 900.0f }, 0) == GTV_LOW, "sight: a thin turnstile (10 u, 120 high) "
+          "between: behind collision (the low line)");
+    Check(GtFoeSight(&s.w, her, (const float[3]){ 0.0f, 0.0f, 390.0f }, 0) == GTV_CLEAR, "sight: an enemy touching the turnstile "
+          "on her side: in the open");
+    Check(GtFoeSight(&s.w, her, (const float[3]){ 0.0f, -30.0f, 900.0f }, 0) == GTV_LOW, "sight: the turnstile with the enemy 30 u "
+          "up (one level, GT_FLOOR_TOL): the low line still tested");
+    // 5. a counter 50 high: under both lines' reach? the low line (60 above) passes over it: in the open
+    TSceneInit(&s, 3000.0f);
+    TWall(&s.t, -3100.0f, 3100.0f, 400.0f, 440.0f, 50.0f);
+    Check(GtFoeSight(&s.w, her, (const float[3]){ 0.0f, 0.0f, 900.0f }, 0) == GTV_CLEAR, "sight: a 50 u step / kerb between: in "
+          "the open (she steps over it)");
+    // 6. a window: a wall with a hole from 100 to 250 above the floor: the chest line passes the hole, the low line hits
+    TSceneInit(&s, 3000.0f);
+    {
+        TBox *b = &s.t.b[s.t.nb++];
+        b->x0 = -3100.0f, b->x1 = 3100.0f, b->z0 = 400.0f, b->z1 = 440.0f, b->y0 = -100.0f, b->y1 = 0.0f;   // below the hole
+        b = &s.t.b[s.t.nb++];
+        b->x0 = -3100.0f, b->x1 = 3100.0f, b->z0 = 400.0f, b->z1 = 440.0f, b->y0 = -1000.0f, b->y1 = -250.0f;  // above it
+    }
+    Check(GtFoeSight(&s.w, her, (const float[3]){ 0.0f, 0.0f, 900.0f }, 0) == GTV_LOW, "sight: an enemy seen through a window: "
+          "behind collision");
+    // 7. another level: a raised floor 100 u up from z 500 on (no barrier): the low line would clip its edge; the chest line only
+    TSceneInit(&s, 3000.0f);
+    {
+        TBox *b = &s.t.b[s.t.nb++];
+        b->x0 = -3100.0f, b->x1 = 3100.0f, b->z0 = 500.0f, b->z1 = 3100.0f, b->y0 = -100.0f, b->y1 = 0.0f;
+    }
+    Check(GtFoeSight(&s.w, her, (const float[3]){ 0.0f, -100.0f, 1500.0f }, 0) == GTV_CLEAR, "sight: an enemy on a raised floor 100 u "
+          "up (no barrier): in the open");
+    Check(GtFoeSight(&s.w, (const float[3]){ 0.0f, -100.0f, 1500.0f }, (const float[3]){ 0.0f, 0.0f, 200.0f }, 0) == GTV_CLEAR,
+          "sight: from the raised floor down to an enemy below it: in the open");
+    Check(GtFoeSight(&s.w, (const float[3]){ 0.0f, -100.0f, 560.0f }, (const float[3]){ 0.0f, 0.0f, 450.0f }, 0) == GTV_CLEAR,
+          "sight: down past the edge to one just below it: in the open (the chest line clears the edge)");
+    TWall(&s.t, -3100.0f, 3100.0f, 2000.0f, 2040.0f, 1000.0f);  // a wall up there
+    Check(GtFoeSight(&s.w, her, (const float[3]){ 0.0f, -100.0f, 2500.0f }, 0) == GTV_CHEST, "sight: another level behind a wall: "
+          "behind collision");
+    // 8. a pillar beside the line: in the open; on it: behind collision
+    TSceneInit(&s, 3000.0f);
+    TWall(&s.t, 100.0f, 200.0f, 400.0f, 500.0f, 1000.0f);
+    Check(GtFoeSight(&s.w, her, (const float[3]){ 0.0f, 0.0f, 900.0f }, 0) == GTV_CLEAR &&
+          GtFoeSight(&s.w, her, (const float[3]){ 300.0f, 0.0f, 900.0f }, 0) == GTV_CHEST, "sight: a pillar beside the line / on it");
+    // 9. a ghost in its wall state, a collision that cannot answer, values that are not numbers: never in the open
+    Check(GtFoeSight(&s.w, her, (const float[3]){ 0.0f, 0.0f, 900.0f }, 1) == GTV_WALLSTATE, "sight: a ghost with its wall portal "
+          "open: in its wall");
+    s.t.unknown = 1;
+    Check(GtFoeSight(&s.w, her, (const float[3]){ 0.0f, 0.0f, 900.0f }, 0) == GTV_UNKNOWN, "sight: a collision that cannot answer: "
+          "not in the open (fail closed)");
+    s.t.unknown = 0;
+    Check(GtFoeSight(&s.w, her, (const float[3]){ NAN, 0.0f, 900.0f }, 0) == GTV_UNKNOWN &&
+          GtFoeSight(&s.w, (const float[3]){ 0.0f, INFINITY, 0.0f }, (const float[3]){ 0.0f, 0.0f, 900.0f }, 0) == GTV_UNKNOWN,
+          "sight: a position that is not a number: not in the open");
+    Check(kGtSightWhy[GTV_CHEST] && kGtSightWhy[GTV_UNKNOWN] && GTV_N == 6, "sight: every reason has a text");
+    // 10. the cone's next enemy: A straight ahead behind a wall, B 15 degrees off in the open, C behind her (never)
+    TSceneInit(&s, 3000.0f);
+    TWall(&s.t, -3100.0f, 40.0f, 300.0f, 340.0f, 1000.0f);  // a wall across her left and straight ahead (to x 40): B's line passes its end
+    {
+        const float e[4][3] = { { 0.0f, 0.0f, 900.0f }, { 268.0f, 0.0f, 1000.0f }, { 0.0f, 0.0f, -400.0f }, { -150.0f, 0.0f, 2000.0f } };
+        const int wall[4] = { 0, 0, 0, 0 }, wallB[4] = { 0, 1, 0, 0 };
+        GtCand c[4];
+        TSightCtx x;
+        int i;
+        x.w = &s.w, x.her = her, x.e = e, x.wall = wall, x.calls = 0;
+        TCands(her, e, 4, c);
+        Check(GtPickFaced(c, 4, GT_RANGE_DEF, GT_CONE_DEF) == 0, "next: v3.50 would take A (straight ahead, behind the wall)");
+        i = GtPickFacedVia(c, 4, GT_RANGE_DEF, GT_CONE_DEF, TSightTest, &x);
+        Check(i == 1 && c[0].skip && !c[1].skip && x.calls >= 2, "next: A behind collision is skipped: B (15 degrees off, in the "
+              "open) is the enemy she faces");
+        TCands(her, e, 4, c);
+        x.wall = wallB, x.calls = 0;
+        i = GtPickFacedVia(c, 4, GT_RANGE_DEF, GT_CONE_DEF, TSightTest, &x);
+        Check(i == -1 && c[0].skip && c[1].skip && !c[2].skip, "next: A behind the wall, B a ghost in its wall, D (4 degrees, behind "
+              "the wall too) skipped, C behind her never: none (the warp ahead)");
+        TSceneInit(&s, 3000.0f);  // no wall: A in the open, as v3.50
+        TCands(her, e, 4, c);
+        x.wall = wall, x.calls = 0;
+        Check(GtPickFacedVia(c, 4, GT_RANGE_DEF, GT_CONE_DEF, TSightTest, &x) == 0 && x.calls == 1, "next: all in the open: A, one "
+              "test (v3.50's pick)");
+        TCands(her, e, 4, c);
+        Check(GtPickFacedVia(c, 4, GT_RANGE_DEF, GT_CONE_DEF, NULL, NULL) == GtPickFaced(c, 4, GT_RANGE_DEF, GT_CONE_DEF) &&
+              GtPickFacedVia(c, 0, GT_RANGE_DEF, GT_CONE_DEF, TSightTest, &x) == -1, "next: no test = GtPickFaced; an empty list: none");
+    }
+}
+
 int main(int argc, char **argv)
 {
     static const int kHz[4] = { 30, 60, 120, 144 };
@@ -1000,6 +1120,7 @@ int main(int argc, char **argv)
     Through();  // v3.50 TP350
     Reach();
     Faced();
+    Sight();  // v3.51 TP351
     printf("%s: %d of %d checks passed\n", g_fail ? "FAILED" : "PASSED", g_n - g_fail, g_n);
     return g_fail ? 1 : 0;
 }

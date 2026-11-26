@@ -20,6 +20,10 @@
 // cone), from twice as far (GT_RANGE_DEF 5000); with none in the cone the warp ahead may pass a wall, a turnstile, a
 // fence, a counter or a gap (GtThruSearch) onto a spot where she can stand whose floor a route of the room reaches
 // (GtMapHas: the room's floor map, a flood by her own walking rules from the room's doors and her own standing places).
+//
+// v3.51 TP351 (the user's v3.50 QA item 2; staging/v351_feedback/w1_teleport/PLAN.md): an enemy she faces only through
+// collision (a wall, a prop, a turnstile between, inside a wall, a ghost in its wall) is not "faced": the next one in
+// the cone she has a clear line to, else the warp ahead (GtFoeSight, GtPickFacedVia).
 #ifndef TELEPORT_SIM_H
 #define TELEPORT_SIM_H
 #include <float.h>
@@ -852,5 +856,52 @@ static int GtThruOpen(const GtWorld *w, const float her[3], const float c[3])
     if (w->line(w->ctx, a, b) != 0) return 0;
     a[1] = her[1] - GT_REACH_LOW, b[1] = fy - GT_REACH_LOW;
     return w->line(w->ctx, a, b) == 0;
+}
+
+// ================================================================ v3.51 TP351: never behind an enemy on the other side of collision
+// The user's v3.50 QA item 2 (staging/v351_feedback/USER_FEEDBACK_v350.md): "If there is collision in the way, do not
+// teleport behind enemies on the other side, just teleport to or through the collision." Before an enemy in the cone
+// counts as the one she faces, the straight line from her to it is tested against the room's collision (the tree2 line
+// 0x561CD0 that the through-warp search and the floor map cast: walls, props, turnstiles, never characters), as
+// GtThruOpen tests a sample: from her chest (GT_CHEST_DY above her floor) to its chest (above its floor) and, when both
+// stand on one level (GT_FLOOR_TOL), from her low line (GT_REACH_LOW) to its (a turnstile, a counter, a fence below her
+// chest; on stairs or another level the low line would clip the steps' edges: the chest line only). Its chest inside
+// solid (a ghost inside a wall), or a ghost in its wall state (the caller's wallState: its own wall portal open), counts
+// as behind collision too. A query that cannot answer counts as blocked (fail closed: never behind an enemy not proven
+// in the open). The caller then takes the next enemy in the cone (GtPickFacedVia); none = the warp ahead (through the
+// wall onto reachable floor, or up to it), exactly as with no enemy in the cone.
+enum { GTV_CLEAR = 0, GTV_CHEST, GTV_LOW, GTV_INSIDE, GTV_WALLSTATE, GTV_UNKNOWN, GTV_N };
+static const char *const kGtSightWhy[GTV_N] = { "in the open", "a wall between (her chest line)",
+    "a low barrier between (a turnstile, a counter, a fence)", "inside a wall", "a ghost in its wall (its portal open)",
+    "the collision could not answer" };
+// her: her feet (y = her floor); foe: its floor point (x, its floor y, z). GTV_CLEAR = she has a clear line to it.
+static int GtFoeSight(const GtWorld *w, const float her[3], const float foe[3], int wallState)
+{
+    float a[3], b[3];
+    int r;
+    if (wallState) return GTV_WALLSTATE;
+    if (!_finite(her[0]) || !_finite(her[1]) || !_finite(her[2]) || !_finite(foe[0]) || !_finite(foe[1]) || !_finite(foe[2]))
+        return GTV_UNKNOWN;
+    if ((r = w->solid(w->ctx, foe[0], foe[1] - GT_CHEST_DY, foe[2])) != 0) return r < 0 ? GTV_UNKNOWN : GTV_INSIDE;
+    a[0] = her[0], a[1] = her[1] - GT_CHEST_DY, a[2] = her[2], b[0] = foe[0], b[1] = foe[1] - GT_CHEST_DY, b[2] = foe[2];
+    if ((r = w->line(w->ctx, a, b)) != 0) return r < 0 ? GTV_UNKNOWN : GTV_CHEST;
+    if (fabsf(foe[1] - her[1]) <= GT_FLOOR_TOL) {
+        a[1] = her[1] - GT_REACH_LOW, b[1] = foe[1] - GT_REACH_LOW;
+        if ((r = w->line(w->ctx, a, b)) != 0) return r < 0 ? GTV_UNKNOWN : GTV_LOW;
+    }
+    return GTV_CLEAR;
+}
+// GtPickFaced, then the caller's test of each pick (0 = it counts; else it is marked skip and the next in the cone is
+// picked: v3.50's "not in this room", v3.51's "behind collision"). The index, or -1: none left in the cone. At most n + 1
+// picks (each failed one leaves the cone for good).
+static int GtPickFacedVia(GtCand *c, int n, float range, float cone, int (*test)(void *ctx, int i), void *ctx)
+{
+    int k, i;
+    for (k = 0; k <= n; ++k) {
+        if ((i = GtPickFaced(c, n, range, cone)) < 0) return -1;
+        if (!test || test(ctx, i) == 0) return i;
+        c[i].skip = 1;
+    }
+    return -1;
 }
 #endif

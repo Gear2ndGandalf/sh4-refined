@@ -90,6 +90,13 @@ static void TestTexts(void)
           !RmModeOk(2, 0x10000), "mode words: spawn mode 0, upright, bits 12-15 only for a Tremer");
     CHECK(RmModeWord(9, 0x3110, 9, 0) == 0x3010 && RmModeWord(9, 0x3110, 0x0A, 1) == 0x0100 && RmModeWord(2, 0, 8, 1) == 0x100 &&
           RmModeWord(0x0A, 0x100, 0x0A, 0) == 0, "mode words given: the same type keeps its bits, another gets its variant only");
+    CHECK(RmEventDogMode(0x0A, 7) && RmEventDogMode(0x0A, 6) && RmEventDogMode(0x0A, 0x106) && RmEventDogMode(0x0A, 0x117) &&
+          !RmEventDogMode(0x0A, 3) && !RmEventDogMode(0x0A, 0x103) && !RmEventDogMode(0x0A, 0) && !RmEventDogMode(0x0A, 0x0026) &&
+          !RmEventDogMode(0x0A, 0x1007) && !RmEventDogMode(0x0A, 0x10007) && !RmEventDogMode(7, 6) && !RmEventDogMode(2, 7) &&
+          !RmEventDogMode(3, 6), "v3.51 SN351: event dogs: a Sniffer Dog in spawn mode 6 / 7, upright; never mode 3 alone, never "
+          "another type");
+    CHECK(RmModeWord(0x0A, 7, 0x0A, 1) == 0x107 && RmModeWord(0x0A, 6, 2, 0) == 0 && RmModeWord(0x0A, 7, 8, 1) == 0x100,
+          "v3.51 SN351: an event dog rolled a dog keeps its spawn mode; another type gets spawn mode 0");
     CHECK(RmSourceVariantOk(9, 2) && !RmSourceVariantOk(9, 3) && RmSourceVariantOk(8, 1) && !RmSourceVariantOk(8, 2) &&
           !RmSourceVariantOk(3, 1) && !RmSourceVariantOk(2, 1) && RmSourceVariantOk(0x0A, 1), "source variants");
     CHECK(RmPlaceCost(8) == 185 + 111 && RmPlaceCost(9) == 20 + 12 && RmPlaceCost(2) == 18 + 10, "bone estimates (enemies_sim.h)");
@@ -106,7 +113,7 @@ static void TestExe(const char *path)
                                                   0x4BF9F0, 0x476590, 0x477010, 0x477FD0, 0x4767C0, 0x477B00 };
     static const int kVariants[0x13] = { 0, 1, 1, 1, 1, 3, 2, 2, 2, 1, 2, 4, 2, 2, 1, 2, 2, 1, 1 };
     RzWin w;
-    int stage, v, t, scripts = 0, total = 0, kind2 = 0, roomMax = 0, words = 0, wordsOk = 0, cmdOk = 0, boss = 0, i;
+    int stage, v, t, scripts = 0, total = 0, kind2 = 0, roomMax = 0, words = 0, wordsOk = 0, cmdOk = 0, boss = 0, i, events = 0;
     unsigned seen[RZ_STAGES * 2];
     if (!LoadExe(path)) {
         CHECK(0, "the stock exe %s could not be read", path);
@@ -153,8 +160,14 @@ static void TestExe(const char *path)
                          (ImgU32(s->modeVa - 4) & 0xFFFFu) == 0x24;
                 cmdOk += (ImgU32(s->yVa - 8) & 0xFFFFu) == 8 && ImgU32(s->yVa - 8) >> 16 >= 3;  // (x, y, z, 1.0)
                 CHECK(s->typeVa >= RZ_SCRIPT_LO && s->yVa < RZ_SCRIPT_HI, "slot words inside the room scripts");
-                CHECK(RmIsSourceType(s->type) && RmModeOk(s->type, s->mw) && RmSourceVariantOk(s->type, s->variant) &&
-                      !(s->mw & 0xF) && s->room > 0 && s->room < 64 && stage >= 2 && stage <= 8, "slot rules");
+                CHECK(RmIsSourceType(s->type) && (s->event ? RmEventDogMode(s->type, s->mw) && (s->mw & 0xF) : RmModeOk(s->type,
+                      s->mw) && !(s->mw & 0xF)) && RmSourceVariantOk(s->type, s->variant) && s->room > 0 && s->room < 64 &&
+                      stage >= 2 && stage <= 8, "slot rules");  // v3.51 SN351: + the event dogs
+                if (s->event) {  // v3.51 SN351: only Subway room 2:2's three, all Sniffer Dogs v0
+                    ++events;
+                    CHECK(stage == 2 && v == 0 && s->room == 2 && s->n >= 1 && s->n <= 3 && s->type == 0x0A && !s->variant &&
+                          s->mw == (s->n == 1 ? 7u : 6u), "event dog %d:%d n%d mode %04X", stage, s->room, s->n, s->mw);
+                }
                 CHECK(RmSlotOf(sc, s->room, s->n) == k, "RmSlotOf finds it");
             }
             for (k = 0; k < RZ_ROOMS; ++k) boss += sc->roomBoss[k];
@@ -164,10 +177,12 @@ static void TestExe(const char *path)
             total += sc->n, kind2 += sc->kind2;
         }
     }
-    CHECK(total == RM_STOCK_TOTAL && total == 235 && kind2 == RM_STOCK_KIND2 && kind2 == 783,
-          "the stock exe: %d source placements of %d kind-2 (tools/rzmon_scan.py: 235 of 783)", total, kind2);
+    CHECK(total == RM_STOCK_TOTAL && total == 238 && kind2 == RM_STOCK_KIND2 && kind2 == 783,
+          "the stock exe: %d source placements of %d kind-2 (tools/rzmon_scan.py: 238 of 783; v3.50: 235)", total, kind2);
+    CHECK(events == RM_STOCK_EVENTS && events == 3 && g_sc[2][0].events == 3, "v3.51 SN351: the 3 event dogs of Subway room 2:2 "
+          "are sources (%d)", events);
     CHECK(roomMax == 20 && roomMax <= RM_ROOM_MAX, "at most %d sources in one room (20)", roomMax);
-    CHECK(words == wordsOk && words == 3 * 235, "every slot word holds the scanned "
+    CHECK(words == wordsOk && words == 3 * 238, "every slot word holds the scanned "
           "value (%d of %d)", wordsOk, words);
     CHECK(cmdOk == words, "every slot word sits right behind its command (7 / 0x0B, 0x0D, 0x24 / 8 with 3+ words): %d of %d", cmdOk, words);
     CHECK(boss > 0, "boss rooms flagged (%d)", boss);
@@ -440,6 +455,7 @@ static void RoomLoad(unsigned char *recs, RmProv *pv, const RmScan *sc, int stag
         unsigned char *r = (unsigned char *)RmRecFind(recs, RM_REC_N, id);
         if (p[k].drop && r && RmRecRoom(r) == room) memset(r, 0, RM_REC_SIZE), r = NULL;  // (EnemyRecordDelete)
         if (r && RmProvOurs(pv, r) && RmRecRoom(r) != room) continue;
+        if (p[k].why == RMW_EVENT) continue;  // v3.51 SN351: as rzmon.inc (an event dog left asleep stays the game's own)
         RmProvPut(pv, id, p[k].type, p[k].variant, s->type, s->variant);
     }
 }
@@ -800,7 +816,7 @@ static void TestMadeUp(void)
     g_bn = 0;
     Put(0, 1, 5);                                              // room 5
     Enemy(0x0A, 0);                                            // n 0: a dog (the room's first command is a tag 1: no flush)
-    Enemy(0x0A, 0x0006);                                       // n 1: an event dog (mode 6)
+    Enemy(0x0A, 0x0006);                                       // n 1: an event dog (mode 6): v3.51 SN351 a source (event)
     Enemy(0x03, 0x0120);                                       // n 2: a Hummer on a wall
     Enemy(0x07, 0x1100);                                       // n 3: a Gum Head with an item
     Enemy(0x09, 0x3110);                                       // n 4: a Tremer with its room box: a source
@@ -813,24 +829,29 @@ static void TestMadeUp(void)
     Enemy(0x0A, 0), Put(3, 1, 0x401000u);                      // n 11: its own create
     Put(1, 1, 2), Put(7, 1, 0x0A), Put(8, 3, 0, 0, 0), Put(0x0B, 1, 0), Put(0x0E, 1, 0x0F);  // n 12: difficulty mask 0F
     Enemy(0x10, 0);                                            // n 13: Walter (a boss room)
-    Put(1, 1, 4), Put(0x0F, 1, 9);                             // n 14: a pickup
+    Enemy(0x0A, 0x0003);                                       // n 14: v3.51 SN351: a dog in mode 3 alone: no source
+    Enemy(0x0A, 0x0027);                                       // n 15: v3.51 SN351: an event dog on a wall: no source
+    Enemy(0x07, 0x0006);                                       // n 16: v3.51 SN351: a Gum Head in mode 6: no source
+    Put(1, 1, 4), Put(0x0F, 1, 9);                             // n 17: a pickup
     Put(0, 1, 6);                                              // room 6
     Put(1, 1, 3);                                              // n 0: an NPC
     Enemy(0x02, 0);                                            // n 1: a Whitestool (the end of the room flushes the last)
     g_buf[g_bn++] = 0xF0F0F0F0u;
     w = BufWin();
-    CHECK(RmScanScript(&w, 0x10000u, 4, &sc) && sc.rooms == 2 && sc.kind2 == 15, "made up: scanned (rooms %d, kind2 %d)", sc.rooms,
+    CHECK(RmScanScript(&w, 0x10000u, 4, &sc) && sc.rooms == 2 && sc.kind2 == 18, "made up: scanned (rooms %d, kind2 %d)", sc.rooms,
           sc.kind2);
-    CHECK(sc.n == 3 && sc.s[0].room == 5 && sc.s[0].n == 0 && sc.s[0].type == 0x0A && sc.s[1].n == 4 && sc.s[1].type == 9 &&
-          sc.s[1].mw == 0x3110 && sc.s[2].room == 6 && sc.s[2].n == 1 && sc.s[2].type == 2, "made up: the sources (%d): n 0 dog, n 4 "
-          "Tremer, room 6 n 1 Whitestool", sc.n);
+    CHECK(sc.n == 4 && sc.s[0].room == 5 && sc.s[0].n == 0 && sc.s[0].type == 0x0A && !sc.s[0].event && sc.s[1].n == 1 &&
+          sc.s[1].type == 0x0A && sc.s[1].mw == 6 && sc.s[1].event && sc.s[2].n == 4 && sc.s[2].type == 9 && sc.s[2].mw == 0x3110 &&
+          !sc.s[2].event && sc.s[3].room == 6 && sc.s[3].n == 1 && sc.s[3].type == 2 && sc.events == 1, "made up: the sources (%d): "
+          "n 0 dog, n 1 event dog (v3.51 SN351), n 4 Tremer, room 6 n 1 Whitestool; mode 3 alone, a dog on a wall, a Gum Head in "
+          "mode 6: no source", sc.n);
     CHECK(sc.s[0].typeVa == 0x10000u + 4 * 5 && sc.s[0].modeVa == sc.s[0].typeVa + 4 * 6 && sc.s[0].yVa == sc.s[0].typeVa + 4 * 3,
           "made up: the words of n 0");
-    CHECK(sc.roomBoss[5] && !sc.roomBoss[6] && sc.roomN[5] == 2 && sc.roomN[6] == 1, "made up: room 5 has a boss");
+    CHECK(sc.roomBoss[5] && !sc.roomBoss[6] && sc.roomN[5] == 3 && sc.roomN[6] == 1, "made up: room 5 has a boss");
     CHECK(sc.roomCost[6] == RmPlaceCost(2) && sc.roomCost[5] > 10 * RmPlaceCost(0x0A), "made up: room costs");
     CHECK((sc.placed >> RmTargetIndex(0x0A, 0) & 1u) && !(sc.placed >> RmTargetIndex(9, 0) & 1u) && !(sc.placed >> RmTargetIndex(8, 1) & 1u) &&
           (sc.types >> 0x10 & 1u) && (sc.types >> 6 & 1u), "made up: the placed masks");
-    CHECK(RmScanScript(&w, 0x10000u, 1, &sc) && sc.n == 0 && sc.kind2 == 15, "made up: stage 1 (Room 302): no source");
+    CHECK(RmScanScript(&w, 0x10000u, 1, &sc) && sc.n == 0 && sc.kind2 == 18 && !sc.events, "made up: stage 1 (Room 302): no source");
     CHECK(RmScanScript(&w, 0x10000u, 9, &sc) && sc.n == 0, "made up: stage 9: no source");
     {
         RzWin s = w;
@@ -944,6 +965,234 @@ static void TestStack(void)
           RmSlotKey(1, 4, 0, 3, 2) != RmSlotKey(1, 4, 0, 3, 3) && RmSlotKey(1, 4, 0, 3, 2) == RmSlotKey(1, 4, 0, 3, 2), "the key");
 }
 
+// ---------------------------------------------------------------- v3.51 SN351: the event dogs, the second roll
+static void TestEventDogs(void)
+{
+    static RmPatchStack ps;
+    const RmScan *sc = &g_sc[2][0];  // Subway 1st half
+    int idx[RM_ROOM_MAX], m = RoomIdx(sc, 2, idx), k, seed, changed = 0, plans = 0, okAsleep = 1, okSame = 1, byType[0x20];
+    RmRec rec[RM_ROOM_MAX];
+    RmPick p[RM_ROOM_MAX], q[RM_ROOM_MAX];
+    RmPlanStat st;
+    unsigned char yes[RM_ROOM_MAX];
+    memset(yes, 1, sizeof yes), memset(byType, 0, sizeof byType);
+    CHECK(m == 3 && sc->s[idx[0]].event && sc->s[idx[1]].event && sc->s[idx[2]].event, "Subway room 2:2: 3 event dog sources (%d)", m);
+    if (m != 3) return;
+    for (seed = 1; seed <= 300; ++seed) {
+        RmPlanIn in = In(RMM_ALL, (unsigned)seed * 2654435761u, 2, 0, 2, 0, RM_ALL_TARGETS, RM_ALL_TARGETS);
+        NoRecs(rec, m);
+        RmPlanRoom(&in, sc, idx, m, rec, yes, p, &st);  // story flag 0x130 clear
+        for (k = 0; k < m; ++k) okAsleep &= p[k].why == RMW_EVENT && p[k].type == 0x0A && !p[k].variant && !p[k].drop && !p[k].adopt;
+        okAsleep &= st.event == 3 && !st.changed && !st.eventPlanned;
+        in.released = 1;  // the flag set: their cut-scene is over
+        RmPlanRoom(&in, sc, idx, m, rec, yes, q, &st);
+        okSame &= st.eventPlanned == 3 && !st.event;
+        for (k = 0; k < m; ++k) {
+            ++plans;
+            changed += q[k].type != 0x0A || q[k].variant;
+            ++byType[q[k].type & 0x1F];
+            okSame &= q[k].why != RMW_EVENT;
+        }
+    }
+    CHECK(okAsleep, "v3.51 SN351: story flag 130 clear: the event dogs stay as placed (asleep for their cut-scene), nothing deleted");
+    CHECK(okSame && changed * 10 > plans * 7 && byType[2] && byType[3] && byType[7] && byType[8] && byType[9], "v3.51 SN351: flag "
+          "130 set: the event dogs roll as the others (%d of %d changed; every type)", changed, plans);
+    {   // records: the flag clear keeps the game's own stock record (not adopted) and deletes Refined's of another type here;
+        // the flag set adopts the game's own ones (deleted when the roll gives another type)
+        RmPlanIn in = In(RMM_ALL, 5, 2, 0, 2, 3, RM_ALL_TARGETS, RM_ALL_TARGETS);
+        in.reroll = 1;
+        for (k = 0; k < m; ++k) rec[k].type = 0x0A, rec[k].variant = 0, rec[k].here = 1, rec[k].ours = 0;
+        rec[1].type = 8, rec[1].ours = 1;
+        RmPlanRoom(&in, sc, idx, m, rec, yes, p, &st);
+        CHECK(p[0].why == RMW_EVENT && p[1].why == RMW_EVENT && p[2].why == RMW_EVENT && !p[0].drop && p[1].drop && !p[2].drop &&
+              !p[0].adopt && !st.adopted && st.drops == 1 && !st.changed, "v3.51 SN351: flag clear: the game's own record kept, "
+              "Refined's Twin Victim record here deleted (the dog comes back as placed)");
+        rec[1].type = 0x0A, rec[1].ours = 0;
+        in.released = 1;
+        RmPlanRoom(&in, sc, idx, m, rec, yes, q, &st);
+        for (k = 0, okSame = 1; k < m; ++k)
+            okSame &= q[k].adopt && q[k].drop == (q[k].type != 0x0A || q[k].variant != 0);
+        CHECK(okSame && st.adopted == 3, "v3.51 SN351: flag set: the game's own records of the dogs adopted, deleted for another type");
+    }
+    {   // the planned words in a copy of the stock script: the retyped dogs are no event dogs any more; the restore is stock
+        RzWin w = ExeWin();
+        static RmScan after;
+        RmPlanIn in = In(RMM_ALL, 0, 2, 0, 2, 0, RM_ALL_TARGETS, RM_ALL_TARGETS);
+        int d, ok = 0, okRe = 1, tries;
+        in.released = 1;
+        for (tries = 0, seed = 1; tries < 1 && seed < 2000; ++seed) {  // a plan with a dog kept (any variant) and a dog retyped
+            int dog = 0, other = 0;
+            in.seed = (unsigned)seed;
+            NoRecs(rec, m);
+            RmPlanRoom(&in, sc, idx, m, rec, yes, p, &st);
+            for (k = 0; k < m; ++k) dog += p[k].type == 0x0A, other += p[k].type != 0x0A;
+            if (dog && other) ++tries;
+        }
+        memset(&ps, 0, sizeof ps);
+        d = RmStackPush(&ps);
+        for (k = 0; k < m; ++k) {
+            const RmSlot *s = &sc->s[idx[k]];
+            const unsigned mw = RmModeWord(s->type, s->mw, p[k].type, p[k].variant);
+            if (p[k].type == s->type && p[k].variant == s->variant) continue;
+            if (mw != s->mw) RmStackAdd(&ps, d, ImgPtr(s->modeVa), s->mw, mw);
+            RmStackAdd(&ps, d, ImgPtr(s->typeVa), s->type, p[k].type);
+        }
+        RmScanScript(&w, Script(2, 0), 2, &after);
+        for (k = 0; k < m; ++k) {
+            const int j = RmSlotOf(&after, 2, sc->s[idx[k]].n);
+            ok += j >= 0 && after.s[j].type == p[k].type && after.s[j].variant == p[k].variant;
+            okRe &= j >= 0 && after.s[j].event == (p[k].type == 0x0A);
+        }
+        CHECK(tries && ok == 3 && okRe, "v3.51 SN351: room 2:2 patched (seed %d): the planned types, a retyped dog in spawn mode 0 "
+              "(no event dog), a dog kept keeps its mode 6 / 7", seed - 1);
+        CHECK(RmStackPop(&ps, d) == 0 && ps.depth == 0, "v3.51 SN351: room 2:2's words restored");
+        RmScanScript(&w, Script(2, 0), 2, &after);
+        CHECK(RmStockMatch(2, 0, Script(2, 0), &after) == 1 && after.events == 3, "v3.51 SN351: the restored Subway script is stock");
+    }
+    {   // a new game, Change Each Visit Off: the first visit before the cut-scene leaves the dogs asleep (no provenance), they
+        // write the game's own records when the room is left; the next visit (the flag set) adopts and rolls them as fresh
+        static unsigned char recs[RM_REC_N * RM_REC_SIZE];
+        static RmProv pv;
+        RmPick a[RM_ROOM_MAX], b[RM_ROOM_MAX], f[RM_ROOM_MAX];
+        RmPlanStat sa, sb;
+        int okSeq = 1, n = 0;
+        for (seed = 1; seed <= 40; ++seed) {
+            RmPlanIn in = In(RMM_ALL, (unsigned)seed * 977u, 2, 0, 2, 0, RM_ALL_TARGETS, RM_ALL_TARGETS);
+            memset(recs, 0, sizeof recs), memset(&pv, 0, sizeof pv);
+            RoomLoad(recs, &pv, sc, 2, 0, 2, in, a, &sa);
+            okSeq &= sa.event == 3 && pv.n == 0;
+            RoomLeave(recs, sc, 2, 0, 2, a);
+            in.released = 1;
+            NoRecs(rec, m);
+            RmPlanRoom(&in, sc, idx, m, rec, yes, f, &st);  // a fresh plan (no records)
+            RoomLoad(recs, &pv, sc, 2, 0, 2, in, b, &sb);
+            for (k = 0; k < m; ++k) okSeq &= b[k].type == f[k].type && b[k].variant == f[k].variant && b[k].adopt;
+            okSeq &= sb.adopted == 3 && pv.n == 3;
+            n += sb.changed;
+        }
+        CHECK(okSeq && n > 60, "v3.51 SN351: Change Each Visit Off: asleep first (no provenance), then adopted and rolled as fresh (%d of "
+              "120 changed)", n);
+    }
+    {   // what the user will see: the seed of the v3.50 log, All Worlds, Change Each Visit On, the flag set (its save)
+        int vis;
+        printf("  v3.51 SN351: the user's Subway room 2:2 (seed 1398963150, All Worlds, Change Each Visit On, roll again On):");
+        for (vis = 1; vis <= 4; ++vis) {
+            RmPlanIn in = In(RMM_ALL, 1398963150u, 2, 0, 2, (unsigned)vis, RM_ALL_TARGETS, RM_ALL_TARGETS);
+            in.released = 1, in.reroll = 1, in.rollAgain = 1;
+            NoRecs(rec, m);
+            RmPlanRoom(&in, sc, idx, m, rec, yes, p, &st);
+            printf(" #%d", vis);
+            for (k = 0; k < m; ++k) printf(" %s v%d", RmTypeName(p[k].type), p[k].variant);
+            printf(";");
+        }
+        printf("\n");
+    }
+}
+static void TestRollAgain(void)
+{
+    // the user's v3.50 log (21:07 - 21:33; seed 1398963150, All Worlds, Change Each Visit On, Gum Heads in): every roll of
+    // Subway rooms 2:4 and 2:5, by visit (#); three kept their own type (2:4 #12, 2:5 n3 #2 and #4: a dog v1)
+    static const struct { int room, n; unsigned visit; unsigned char type, variant; } kLog[] = {
+        { 4, 1, 2, 7, 1 }, { 4, 1, 3, 7, 1 }, { 4, 1, 4, 7, 0 }, { 4, 1, 5, 7, 1 }, { 4, 1, 6, 8, 1 }, { 4, 1, 7, 2, 0 },
+        { 4, 1, 8, 8, 0 }, { 4, 1, 9, 9, 0 }, { 4, 1, 10, 9, 0 }, { 4, 1, 11, 7, 1 }, { 4, 1, 12, 0x0A, 0 }, { 4, 1, 13, 2, 0 },
+        { 4, 1, 14, 7, 0 }, { 4, 1, 15, 9, 0 }, { 4, 1, 16, 7, 0 }, { 5, 2, 1, 8, 1 }, { 5, 3, 1, 9, 0 }, { 5, 2, 2, 3, 0 },
+        { 5, 3, 2, 0x0A, 0 }, { 5, 2, 3, 8, 0 }, { 5, 3, 3, 2, 0 }, { 5, 2, 4, 7, 0 }, { 5, 3, 4, 0x0A, 1 } };
+    const int nLog = (int)(sizeof kLog / sizeof kLog[0]);
+    const RmScan *sc = &g_sc[2][0];
+    unsigned char yes[RM_ROOM_MAX];
+    int i, k, match = 0, again = 0, same = 0, own = 0, t, other = 0;
+    memset(yes, 1, sizeof yes);
+    for (i = 0; i < nLog; ++i) {
+        int idx[RM_ROOM_MAX], m = RoomIdx(sc, kLog[i].room, idx), j = -1;
+        RmRec rec[RM_ROOM_MAX];
+        RmPick a[RM_ROOM_MAX], b[RM_ROOM_MAX];
+        RmPlanStat sa, sb;
+        RmPlanIn in = In(RMM_ALL, 1398963150u, 2, 0, kLog[i].room, kLog[i].visit, 0, RM_ALL_TARGETS);
+        in.reroll = 1;
+        NoRecs(rec, m);
+        RmPlanRoom(&in, sc, idx, m, rec, yes, a, &sa);
+        in.rollAgain = 1;
+        RmPlanRoom(&in, sc, idx, m, rec, yes, b, &sb);
+        for (k = 0; k < m; ++k)
+            if (sc->s[idx[k]].n == kLog[i].n) j = k;
+        if (j < 0) continue;
+        match += a[j].type == kLog[i].type && a[j].variant == kLog[i].variant && !a[j].again;
+        if (kLog[i].type == 0x0A) {
+            ++own;
+            again += b[j].again && sb.again >= 1;
+            other += b[j].type != 0x0A;
+            printf("  v3.51 SN351: the log's room 2:%d n%d #%u: %s v%d kept; rolled again: %s v%d\n", kLog[i].room, kLog[i].n,
+                   kLog[i].visit, RmTypeName(a[j].type), a[j].variant, RmTypeName(b[j].type), b[j].variant);
+        } else {
+            same += b[j].type == a[j].type && b[j].variant == a[j].variant && !b[j].again;
+        }
+    }
+    CHECK(match == nLog, "v3.51 SN351: the sim replays the user's v3.50 log: %d of %d rolls of Subway 2:4 / 2:5 as logged", match, nLog);
+    CHECK(own == 3 && again == 3 && other >= 2 && same == nLog - 3, "v3.51 SN351: roll again: the %d logged dogs that stayed dogs "
+          "roll once more (%d), %d of them another type; the %d other rolls unchanged", own, again, other, same);
+    {   // Water Prison 2nd half, All Worlds, 200 seeds: the own type from about 1 in 9 to 1 in 81, never excluded
+        const RmScan *w4 = &g_sc[4][1];
+        int seed, ownOff = 0, ownOn = 0, total = 0, room, okAdopt = 1;
+        for (seed = 1; seed <= 200; ++seed)
+            for (room = 1; room < RZ_ROOMS; ++room) {
+                int idx[RM_ROOM_MAX], m = RoomIdx(w4, room, idx);
+                RmRec rec[RM_ROOM_MAX];
+                RmPick a[RM_ROOM_MAX], b[RM_ROOM_MAX];
+                RmPlanStat sa, sb;
+                RmPlanIn in = In(RMM_ALL, (unsigned)seed * 7919u, 4, 1, room, 0, RM_ALL_TARGETS, RM_ALL_TARGETS);
+                if (!m) continue;
+                in.freeBones = 1 << 24;
+                NoRecs(rec, m);
+                RmPlanRoom(&in, w4, idx, m, rec, yes, a, &sa);
+                in.rollAgain = 1;
+                RmPlanRoom(&in, w4, idx, m, rec, yes, b, &sb);
+                for (k = 0; k < m; ++k) {
+                    ++total;
+                    ownOff += a[k].type == w4->s[idx[k]].type;
+                    ownOn += b[k].type == w4->s[idx[k]].type;
+                }
+                if (seed <= 20) {  // the game's own stock records adopted: the same as a fresh game with the second roll too
+                    RmPick c[RM_ROOM_MAX];
+                    RmPlanStat sc2;
+                    for (k = 0; k < m; ++k) rec[k].type = w4->s[idx[k]].type, rec[k].variant = w4->s[idx[k]].variant, rec[k].here = 1;
+                    RmPlanRoom(&in, w4, idx, m, rec, yes, c, &sc2);
+                    for (k = 0; k < m; ++k) okAdopt &= c[k].type == b[k].type && c[k].variant == b[k].variant && c[k].adopt;
+                }
+            }
+        CHECK(total == 200 * 71 && ownOff * 100 > total * 8 && ownOff * 100 < total * 16 && ownOn > 0 && ownOn * 100 < total * 3,
+              "v3.51 SN351: roll again (All Worlds, 71 Water Prison sources x 200 seeds): their own type %d -> %d of %d", ownOff, ownOn,
+              total);
+        CHECK(okAdopt, "v3.51 SN351: roll again: adopted records roll as a fresh game");
+    }
+    {   // This Room with only the stock type resident: no other type fits, the plan is v3.50's
+        const RmScan *w4 = &g_sc[4][1];
+        Sum s1;
+        int diff;
+        RmPlanIn in = In(RMM_ROOM, 1234, 4, 1, 0, 0, 1u << RmTargetIndex(2, 0), RM_ALL_TARGETS);
+        PlanAll(w4, in, yes, &s1, g_pa);
+        in.rollAgain = 1;
+        PlanAll(w4, in, yes, &s1, g_pb);
+        CHECK(SamePlans(g_pa, g_pb, w4, &diff), "v3.51 SN351: roll again: a pool of the own type alone changes nothing (%d differ)", diff);
+    }
+    {   // Subway 1st half, This World without the Gum Head guard (Tremer, both dogs): dogs stay possible (about 4 in 9)
+        Sum s1, s2;
+        int seed, dogsOff = 0, dogsOn = 0, picks = 0;
+        for (seed = 1; seed <= 200; ++seed) {
+            RmPlanIn in = In(RMM_WORLD, (unsigned)seed * 31u, 2, 0, 0, 0, 0, RM_ALL_TARGETS & ~RM_GUM_TARGETS);
+            in.released = 1, in.freeBones = 1 << 24;
+            PlanAll(sc, in, yes, &s1, NULL);
+            in.rollAgain = 1;
+            PlanAll(sc, in, yes, &s2, NULL);
+            for (t = 0; t < RM_TARGET_N; ++t)
+                if (kRmTargets[t].type == 0x0A) dogsOff += s1.byTarget[t], dogsOn += s2.byTarget[t];
+            picks += s2.picks;
+        }
+        CHECK(picks == 200 * 11 && dogsOff * 100 > picks * 58 && dogsOff * 100 < picks * 75 && dogsOn * 100 > picks * 36 &&
+              dogsOn * 100 < picks * 53, "v3.51 SN351: Subway This World (no Gum Heads): dogs %d -> %d of %d (never none)", dogsOff,
+              dogsOn, picks);
+    }
+}
+
 int main(int argc, char **argv)
 {
     const char *exe = argc > 1 ? argv[1] : "C:\\ClaudeCode\\CModding\\SH4Decomp\\orig\\sh4.exe";
@@ -956,6 +1205,8 @@ int main(int argc, char **argv)
         TestAdopt();          // v3.50 RM350
         TestAllWorlds();      // v3.50 RM350
         TestSaveRoundTrip();  // v3.50 RM350
+        TestEventDogs();      // v3.51 SN351
+        TestRollAgain();      // v3.51 SN351
     }
     TestMadeUp();
     TestDesc();

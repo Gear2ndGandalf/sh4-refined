@@ -121,6 +121,16 @@ HB_PE_RING = re.compile(r"^hud bars: (?:Playable Eileen draws the player's curse
                         r"SH4PE_DrawsPlayerCurse (is not exported|\(\) returned -?\d+))")
 PERF_PLACE = re.compile(r'^perf: readout (at the top-left corner, clear of|under|right of|at the top-left corner, over) (.+?) \((\d+)x(\d+), S')
 CAM_PAGE = re.compile(r'^extra menu: Camera page (opened|closed)(?:: (.*))?')
+# v3.51 MU351: the sound in the Extra Menu's Storage Chest / Save Game / Load Game (extramenu.inc MuLogSound)
+MU_SET = re.compile(r'^extra menu: sound in the Storage Chest / Save Game / Load Game: (paused as in the pause menu|plays quietly as '
+                    r'in v3\.50) \(\[ExtraMenu\] PauseSound=([01])\)$')
+MU_LINE = re.compile(r'^extra menu: sound in the (load list|save menu|storage chest): (opened from the pause|opened from play|closed, '
+                     r'back in the pause|closed, back to play|closed, a save loads[^:]*): pause mode (-?\d+), master ([\d.]+), fade '
+                     r'(-?\d+): the level music (stays paused|PLAYS quietly|comes back|PLAYS)( \(PauseSound=0: v3\.50\))?$')
+MU_LISTS = ('load list', 'save menu', 'storage chest')
+MU_EVENTS = (('opened from the pause', 'from the pause'), ('opened from play', 'from play'),
+             ('closed, back in the pause', 'back in the pause'), ('closed, back to play', 'back to play'),
+             ('closed, a save loads', 'a save loads'))
 # v3.37 INV337: Extended Toolbelt / Stackable Items (inventory.inc): the install line, the switches, the counters
 INV_INSTALL = re.compile(r'^inventory: Extended Toolbelt (on|off|UNAVAILABLE) .*?, Stackable Items (on|off|UNAVAILABLE) .*?'
                          r'stack guards (in|OFF)')
@@ -146,7 +156,8 @@ GT_THRU = re.compile(r'^ghost teleport: through (\d+) u the way she faces')
 GT_FACED = 'the enemy she faces'  # in a GT_WARP line: behind the enemy she faces (v3.50), not the nearest (v3.43 .. v3.49)
 GT_ROOM = re.compile(r'^ghost teleport: room (\d+):(\d+) left: (\d+) warp\(s\) \((\d+) through walls, (\d+) behind the enemy she '
                      r'faces, (\d+) ahead\), (\d+) refused(?: \((.*?)\))?; (\d+) Action / Check press\(es\) taken back in '
-                     r'fade-outs; floor map (.*)$')
+                     r'fade-outs(?:; (\d+) enemy\(ies\) in the cone skipped behind collision in (\d+) try\(ies\))?; floor map (.*)$')
+# v3.51 TP351: + the enemies in the cone skipped behind collision (optional: a v3.50 room line has none)
 GT_MAP = re.compile(r'^ghost teleport: room (\d+):(\d+): the floor map is finished: (\d+) cell\(s\) a route of the room reaches, '
                     r'from (\d+) seed\(s\) \((\d+) without a floor\); ([\d.]+) ms over (\d+) run')
 # v3.46 OM346: Stick Movement (omni.inc): the install line, the mode changes, the bindings, the self-check, the counts
@@ -264,7 +275,17 @@ RZM_ROOM = re.compile(r"^randomizer: monsters: room (\d+):(\d+) \(visit (\d), #(
                       r"bone budget, (\d+) for files, (\d+) without a floor(; some words[^;]*)?; files loaded for (\d+) type\(s\) \((\d+) KB\)"
                       # v3.50 RM350: + the game's own records adopted and why the stock type was kept (v3.49 lines end before it)
                       r"(?:; the game's own records: (\d+) adopted \((\d+) made as another type\); stock type kept: (\d+) rolled it, (\d+) "
-                      r"by a stock record, (\d+) recorded elsewhere, (\d+) for another writer's record, (\d+) with no target)?$")
+                      r"by a stock record, (\d+) recorded elsewhere, (\d+) for another writer's record, (\d+) with no target)?"
+                      # v3.51 SN351: + the second roll and the event dogs (only when there are any)
+                      r"(?:; rolled again for their own type: (\d+))?(?:; event dogs: (\d+), story flag 130 (set|clear) \((?:rolled as "
+                      r"the others|kept as placed for their event)\))?$")
+# v3.51 SN351: the event dogs and the second roll at the start, and the session's counts
+RZM_EVIN = re.compile(r"^randomizer: monsters: (\d+) of the source placements are event Sniffer Dogs \(spawn mode 6 / 7, stock: Subway "
+                      r"room 2:2's (\d+)\): rolled once story flag 130 is set \(their cut-scene is over\), else as placed; a roll of the "
+                      r"placement's own type rolls once more: (On|Off) \(\[Randomizer\] MonsterRollAgain\)$")
+RZM_SESS4 = re.compile(r"^randomizer: monsters session: (\d+) placement\(s\) rolled again for their own type \(MonsterRollAgain "
+                       r"(On|Off)\); event dogs: (\d+) planned with story flag 130 set, (\d+) kept as placed for their event \(flag "
+                       r"clear\)$")
 RZM_SESS3 = re.compile(r"^randomizer: monsters session: the game's own records: (\d+) adopted \((\d+) made as another type\); stock type "
                        r"kept: (\d+) rolled it, (\d+) by a stock record, (\d+) recorded elsewhere, (\d+) with no target$")  # v3.50 RM350
 RZM_LIST = re.compile(r'^randomizer: monsters: room (\d+):(\d+): (n\d+ .+)$')
@@ -352,6 +373,15 @@ EF_LOST = re.compile(r'^enemies: through door \d+ from room \d+ to \d+: Enemy Pu
 EF_VALUES = r'(Relentless|Normal|Forgetful)'
 EF_IN = re.compile(r'^enemies: followers across saves (in|off|NOT in)\b.*?; Enemy Pursuit ' + EF_VALUES + ' ')
 EF_SET = re.compile(r'^gameplay: (?:\[Gameplay\] )?EnemyPursuit (?:read again: )?' + EF_VALUES + r'(?: applies now|$)')
+# v3.51 EP351: Enemy Pursuit inside the room (pursuit_room.inc): the install line, one verbose line per give-up, the room's line
+EP_IN = re.compile(r'^enemies: Enemy Pursuit in the room (in|off|NOT in)\b')
+EP_GIVE = re.compile(r'^enemies: (monster|copy|ghost|ghost copy) [0-9A-F]{8} \((?:([A-Za-z ]+), )?type ([0-9A-F]{2}) v\d+\) gave up the '
+                     r'chase in room \d+:\d+: (it had not sensed you|it was down when you walked off|farther than|it chased you)')
+EP_ROOM = re.compile(r'^enemies: room \d+:\d+ \(Enemy Pursuit ' + EF_VALUES + r'\): (\d+) gave up the chase in the room \((\d+) '
+                     r'monster\(s\), (\d+) ghost\(s\); (\d+) of them again, (\d+) down when you walked off\); (\d+) set back during '
+                     r"their rest; (\d+) left to the game's own rules")
+EP_WHY = {'it had not sensed you': 'unsensed', 'it was down when you walked off': 'downed', 'farther than': 'far',
+          'it chased you': 'untouched'}
 # v3.41 EN341: a ghost copy made in another room without its record (the way the game's own ghosts arrive)
 FOL_FRESH = re.compile(r"^enemies: ghost copy [0-9A-F]{8} \(type [0-9A-F]{2} v\d+\) (?:came into|is back in) room \d+ as the "
                        r"game's own ghosts arrive")
@@ -496,12 +526,18 @@ def hms(t):
 
 # v3.50 FI350: Fade In (fadein.inc)
 FI_MODE = r'(Off|Fade \+ Portal|Fade)'  # (the longer name first)
-FI_IN = re.compile(r'^fade in: in \(no exe patch: .*?; the portal (from the scene pass 004EFBFD|NOT available[^)]*\))\); '
-                   r'\[Gameplay\] FadeIn ' + FI_MODE + r', FadeInSeconds ([\d.]+)')
+# v3.51 PT351: "no code patch" (the step list's entry 8 is data) and the tar portal's part (optional: v3.50 logs read too)
+FI_IN = re.compile(r'^fade in: in \(no (?:exe|code) patch: .*?; the portal (from the scene pass 004EFBFD|NOT available[^)]*\))'
+                   r'(?:; the tar portal (.*?))?\); '
+                   r'\[Gameplay\] FadeIn ' + FI_MODE + r', FadeInSeconds ([\d.]+)(?:, FadeInPortalDraw (\w+), FadeInHold (\d))?')
 FI_OFF = re.compile(r'^fade in: OFF \((.+?)\); enemies appear as the game makes them')
 FI_ROOM = re.compile(r'^fade in: room (\d+):(\d+): (\d+) fade\(s\) \(room load (\d+), follower (\d+), wanderer (\d+), copy (\d+), '
                      r'revive (\d+), ghost (\d+), monster (\d+)\), (\d+) portal\(s\); (\d+) not faded \(stage (\d+), cut-scene (\d+), '
                      r'type (\d+), boss (\d+), event (\d+), dead (\d+), own draw (\d+), own portal (\d+), own fade (\d+)\)')
+# v3.51 PT351: the room line's portal part "P portal(s) (the game's own draw a, Refined's b, vortex c; h held; portal draw x ms a
+# frame, max y)" (taken out before FI_ROOM reads the rest, so v3.50's form reads as before)
+FI_ROOM_TAR = re.compile(r" \(the game's own draw (\d+), Refined's (\d+), vortex (\d+); (\d+) held; portal draw ([\d.]+) ms a frame, "
+                         r"max ([\d.]+)\)(?=; \d+ not faded)")
 FI_SRC = ('room load', 'follower', 'wanderer', 'copy', 'revive', 'ghost', 'monster')
 FI_SKIP = ('stage', 'cut-scene', 'type', 'boss', 'event', 'dead', 'own draw', 'own portal', 'own fade')
 FI_SET = re.compile(r'^fade in: FadeIn ' + FI_MODE + r'( applies now but could not be saved.*)?$')
@@ -509,8 +545,18 @@ FI_REREAD = re.compile(r'^fade in: \[Gameplay\] FadeIn read again: ' + FI_MODE +
 FI_BAD = re.compile(r'^fade in: \[Gameplay\] FadeIn "([^"]*)" is not Off / Fade / Fade \+ Portal: ' + FI_MODE + r' \(the default\)')
 FI_FAULT = re.compile(r'^fade in: a fault in (.+?) \(code ([0-9A-F]{8})')
 FI_START = re.compile(r'^fade in: (room load|follower|wanderer|copy|revive|ghost|monster) ([0-9A-F]{8}) \(type ([0-9A-F]{2})\) '
-                      r'fades in over ([\d.]+) s( from a blood portal)?')
-FI_DRAWN = re.compile(r'^fade in: a blood portal drawn \(viewport (3D|saved) ')
+                      r'fades in over ([\d.]+) s( from a blood portal| from a tar portal \((the game\'s own draw|Refined\'s draw), '
+                      r'(on a wall|in the air) (\d+) u behind; ([^)]*)\))?')
+FI_DRAWN = re.compile(r"^fade in: a (?:blood|tar) portal drawn \((?:(the game's own draw|Refined's draw), )?viewport (3D|saved) ")
+# v3.51 PT351: the hold's lines
+FI_LETGO = re.compile(r"^fade in: ([0-9A-F]{8}) \(type ([0-9A-F]{2})\) let go by its tar portal \((the game's own draw|Refined's draw)\) "
+                      r"after ([\d.]+) s \(([^)]*)\): strands: (none|the ghost's own|Refined's) (\d+); moved (\d+) of (\d+) u; no attack "
+                      r"for ([\d.]+) s; portal draw ([\d.]+) ms a frame \(max ([\d.]+), (\d+) frames\)")
+FI_REAL = re.compile(r'^fade in: ([0-9A-F]{8}) \(type ([0-9A-F]{2})\) is real now, ([\d.]+) s after its tar portal opened: its hold (?:starts|goes on)')
+FI_NEVER = re.compile(r'^fade in: ([0-9A-F]{8}) \(type ([0-9A-F]{2})\): its tar portal closed after ([\d.]+) s: it never came out')
+FI_GFAULT = re.compile(r"^fade in: a fault in the game's own portal draw \(code ([0-9A-F]{8}) at ([0-9A-Fa-fx]+)\)")
+FI_NOTSTOCK = re.compile(r'^fade in: ([0-9A-F]{8}) \((.+?)\) is not the stock code \(another mod\?\): the tar portal does without it')
+FI_TDM_BAD = re.compile(r'^fade in: \[Gameplay\] FadeInPortalDraw "([^"]*)" is not Auto / Refined / Vortex')
 FI_OWN = re.compile(r'^fade in: type ([0-9A-F]{2}) is drawn with a draw state of its own \(pre-draw ([0-9A-F]{8})\)')
 
 
@@ -586,6 +632,8 @@ class Session:
         self.gt_room_no = Counter()  # v3.50 TP350: refusals by kind, from the room visits' lines
         self.gt_maps = []         # v3.50 TP350: finished floor maps: (room, cells, seeds, no floor, ms)
         self.gt_map_open = 0      # v3.50 TP350: room visits left with the floor map not finished (or overflowed)
+        self.gt_skip = 0          # v3.51 TP351: enemies in the cone skipped behind collision (the room visits' lines)
+        self.gt_skip_tries = 0    # v3.51 TP351: the tries with such a skip
         self.fi = None            # v3.50 FI350: Fade In: ('in', portal, mode, seconds) or ('OFF', why) from the install line
         self.fi_rooms = 0         # v3.50 FI350: room visits with a Fade In line
         self.fi_src = Counter()   # v3.50 FI350: fades by source
@@ -597,6 +645,18 @@ class Session:
         self.fi_fault = None      # v3.50 FI350: (ts, where, code)
         self.fi_starts = Counter()  # v3.50 FI350: the verbose per-fade lines by source
         self.fi_own = set()       # v3.50 FI350: 'type 0A (pre-draw 0045C840)' drawn with a state of its own
+        self.fi_tar = None        # v3.51 PT351: (tar part of the install line, FadeInPortalDraw, FadeInHold) or None (v3.50)
+        self.fi_by = Counter()    # v3.51 PT351: portals by draw ('game', 'Refined', 'vortex'), from the room lines
+        self.fi_held = 0          # v3.51 PT351: ghosts held, from the room lines
+        self.fi_cost = [0, 0.0, 0.0]  # v3.51 PT351: room lines with a portal draw, the worst per-frame average, the worst frame (ms)
+        self.fi_letgo = []        # v3.51 PT351: (id, draw, s, why, strands, n, moved, unheld, no attack s, avg ms, max ms, frames)
+        self.fi_real = 0          # v3.51 PT351: placeholders that turned real (their hold goes on in the real ghost)
+        self.fi_never = 0         # v3.51 PT351: tar portals closed with nobody coming out
+        self.fi_tar_starts = Counter()  # v3.51 PT351: verbose starts by (draw, wall / air)
+        self.fi_gfault = None     # v3.51 PT351: (ts, code) a fault in the game's own portal draw
+        self.fi_notstock = []     # v3.51 PT351: game code the tar portal found changed
+        self.fi_tdm_bad = None    # v3.51 PT351: an unknown FadeInPortalDraw text
+        self.fi_tar_drawn = None  # v3.51 PT351: (ts, draw) of the first tar portal drawn
         self.om = None            # v3.46 OM346: (in / OFF, mode, dead zone) from the install line
         self.om_not = None        # v3.46 OM346: the site that was not stock
         self.om_sets = []         # v3.46 OM346: (ts, new, old, from)
@@ -646,6 +706,8 @@ class Session:
         self.rzm_sess = None      # v3.49 RZ349: the session line's groups
         self.rzm_sess3 = None     # v3.50 RM350: the session's adopted records and reasons (adopted, changed, rolled, by record, elsewhere, none)
         self.rzm_anom = 0         # v3.49 RZ349: its ANOMALY lines (not counted in rz_anom)
+        self.rzm_ev = None        # v3.51 SN351: (event dogs, stock event dogs, roll again On / Off) at the start
+        self.rzm_sess4 = None     # v3.51 SN351: (rolled again, roll again On / Off, event dogs planned, kept asleep) the session
         self.rzl = None           # v3.49 RZ349L: (EileenOutfit, Ghosts) at the start
         self.rzl_bad = []         # v3.49 RZ349L: (key, text, default) unknown ini values
         self.rzl_first = None     # v3.49 RZ349L: (ts, stage, room, outfit, its state, ghosts, their state)
@@ -702,6 +764,10 @@ class Session:
         self.open_ms = None       # v3.39 PR339: the boot screens skipped this many ms after the start
         self.open_saved = []      # v3.39 PR339: (ts, level) saved for the next start
         self.cam_page = [0, None]  # v3.37 CP337: pause Camera page openings, the settings at its last close
+        self.mu_set = None        # v3.51 MU351: (ts, 'paused' / 'v3.50', PauseSound) from the install line
+        self.mu = Counter()       # v3.51 MU351: (list, event short name) -> lines; (list, 'paused') -> opened from the pause, paused
+        self.mu_loud = []         # v3.51 MU351: (ts, list, event, verdict) the music not paused while the list stayed in the pause
+        self.mu_anom = 0          # v3.51 MU351: its ANOMALY lines
         self.hb_hide = []         # v3.38 HB338: (ts, 'on' / 'off') Hide Gauge as the curse meter saw it
         self.hb_ring = Counter()  # v3.38 HB338: 'faded out' / 'shown: <why>' counts (both rings)
         self.hb_pe_ring = None    # v3.41 CM341: (ts, 'pe' / 'refined', why) who draws the player's curse ring
@@ -717,6 +783,9 @@ class Session:
         self.ef_mode = None       # Enemy Pursuit at the start (the install line), (None: not in the log)
         self.ef_site = None       # 'in' / 'off' / 'NOT in'
         self.ef_modes = []        # (ts, value) each change
+        self.ep = Counter()       # v3.51 EP351: in-room give-ups: rooms, give, mon, ghost, again, down, held, stock; v_* the verbose
+                                  # lines (v_give, v_unsensed, v_downed, v_far, v_untouched, v_<family>)
+        self.ep_site = None       # v3.51 EP351: 'in' / 'off' / 'NOT in'
         self.sh = Counter()       # v3.40 SH340: composites, soft, frames, kept, scene / figure previews, rooms
         self.sh_edge = []         # v3.40 SH340: (ts, edge) at the start and each change
         self.sh_plans = OrderedDict()  # 'Soft 2560x1440' -> (passes, low size, taps, px)
@@ -770,7 +839,20 @@ class Session:
         self.sb_bar = None  # v3.49 SB349: ('blue' / 'yellow', why) of the lists' highlight bar
 
     def parse_fadein(self, ts, msg):  # v3.50 FI350: True = a Fade In line read
+        t = FI_ROOM_TAR.search(msg) if msg.startswith('fade in: room ') else None  # v3.51 PT351: the portal part
+        if t:
+            msg = msg[:t.start()] + msg[t.end():]
         m = FI_ROOM.match(msg)
+        if m and t:
+            g = t.groups()
+            for k, name in enumerate(('game', 'Refined', 'vortex')):
+                if int(g[k]):
+                    self.fi_by[name] += int(g[k])
+            self.fi_held += int(g[3])
+            if float(g[4]) > 0 or float(g[5]) > 0:
+                self.fi_cost[0] += 1
+                self.fi_cost[1] = max(self.fi_cost[1], float(g[4]))
+                self.fi_cost[2] = max(self.fi_cost[2], float(g[5]))
         if m:
             g = [int(x) for x in m.groups()]
             self.fi_rooms += 1
@@ -785,10 +867,40 @@ class Session:
         m = FI_START.match(msg)
         if m:
             self.fi_starts[m.group(1)] += 1
+            if m.group(6):  # v3.51 PT351
+                self.fi_tar_starts['%s, %s' % ('game' if m.group(6).startswith('the game') else 'Refined', m.group(7))] += 1
             return True
         m = FI_IN.match(msg)
         if m:
-            self.fi = ('in', 'scene pass' if m.group(1).startswith('from') else 'NOT available', m.group(2), m.group(3))
+            self.fi = ('in', 'scene pass' if m.group(1).startswith('from') else 'NOT available', m.group(3), m.group(4))
+            if m.group(2):  # v3.51 PT351
+                self.fi_tar = (m.group(2), m.group(5) or '?', m.group(6) or '?')
+            return True
+        m = FI_LETGO.match(msg)  # v3.51 PT351
+        if m:
+            g = m.groups()
+            self.fi_letgo.append((g[0], g[2], float(g[3]), g[4], g[5], int(g[6]), int(g[7]), int(g[8]), float(g[9]),
+                                  float(g[10]), float(g[11]), int(g[12])))
+            return True
+        m = FI_REAL.match(msg)
+        if m:
+            self.fi_real += 1
+            return True
+        m = FI_NEVER.match(msg)
+        if m:
+            self.fi_never += 1
+            return True
+        m = FI_GFAULT.match(msg)
+        if m:
+            self.fi_gfault = (ts, m.group(1))
+            return True
+        m = FI_NOTSTOCK.match(msg)
+        if m:
+            self.fi_notstock.append('%s (%s)' % m.groups())
+            return True
+        m = FI_TDM_BAD.match(msg)
+        if m:
+            self.fi_tdm_bad = m.group(1)
             return True
         m = FI_OFF.match(msg)
         if m:
@@ -813,7 +925,9 @@ class Session:
         m = FI_DRAWN.match(msg)
         if m:
             if self.fi_drawn is None:
-                self.fi_drawn = (ts, m.group(1))
+                self.fi_drawn = (ts, m.group(2))
+            if m.group(1) and not self.fi_tar_drawn:  # v3.51 PT351: the first tar portal drawn
+                self.fi_tar_drawn = (ts, 'the game\'s own draw' if m.group(1).startswith('the game') else 'Refined\'s draw')
             return True
         m = FI_OWN.match(msg)
         if m:
@@ -821,8 +935,53 @@ class Session:
             return True
         return False
 
+    def parse_mu(self, ts, msg):  # v3.51 MU351: True = a sound line of the Extra Menu's lists read
+        m = MU_SET.match(msg)
+        if m:
+            self.mu_set = (ts, 'paused' if m.group(1).startswith('paused') else 'v3.50', m.group(2))
+            return True
+        m = MU_LINE.match(msg)
+        if not m:
+            return False
+        lst, event, verdict = m.group(1), m.group(2), m.group(6)
+        short = next(s for e, s in MU_EVENTS if event.startswith(e))
+        self.mu[(lst, short)] += 1
+        if short == 'from the pause' and verdict == 'stays paused':
+            self.mu[(lst, 'paused')] += 1
+        if short in ('from the pause', 'back in the pause') and verdict != 'stays paused' and not m.group(7):
+            if len(self.mu_loud) < 20:
+                self.mu_loud.append((ts, lst, short, verdict))
+            self.mu[(lst, 'loud')] += 1
+        return True
+
+    def mu_line(self):  # v3.51 MU351: None when the log has none of its lines
+        if not self.mu_set and not self.mu:
+            return None
+        if self.mu_set:
+            line = 'extra menu sound: %s at the start (PauseSound=%s)' % (
+                'paused in the three lists as in the pause menu' if self.mu_set[1] == 'paused' else 'v3.50 (the music plays quietly in '
+                'the three lists)', self.mu_set[2])
+        else:
+            line = 'extra menu sound: (no start line)'
+        for lst in MU_LISTS:
+            opened = self.mu[(lst, 'from the pause')] + self.mu[(lst, 'from play')]
+            closed = sum(self.mu[(lst, s)] for s in ('back in the pause', 'back to play', 'a save loads'))
+            if not (opened or closed):
+                continue
+            line += '; %s: opened %d (%d from the pause, music paused in %d%s)' % (
+                lst, opened, self.mu[(lst, 'from the pause')], self.mu[(lst, 'paused')],
+                ', %d from play' % self.mu[(lst, 'from play')] if self.mu[(lst, 'from play')] else '')
+            parts = ['%d %s' % (self.mu[(lst, s)], s) for s in ('back in the pause', 'back to play', 'a save loads') if self.mu[(lst, s)]]
+            line += ', closed %d%s' % (closed, ' (%s)' % ', '.join(parts) if parts else '')
+        if self.mu_loud:
+            line += '; the music NOT paused %d time(s): %s' % (
+                sum(self.mu[(l, 'loud')] for l in MU_LISTS), ', '.join('%s %s (%s) [%s]' % (l, e, v, t) for t, l, e, v in self.mu_loud[:4]))
+        if self.mu_anom:
+            line += '; %d ANOMALY line(s)' % self.mu_anom
+        return line
+
     def fadein_line(self):  # v3.50 FI350: None when the log has no Fade In line
-        if not (self.fi or self.fi_rooms or self.fi_sets or self.fi_bad or self.fi_fault or self.fi_starts):
+        if not (self.fi or self.fi_rooms or self.fi_sets or self.fi_bad or self.fi_fault or self.fi_starts or self.fi_letgo):
             return None
         if self.fi is None:
             line = 'fade in: (no start line)'
@@ -835,8 +994,10 @@ class Session:
         if n:
             line += ' (%s)' % ', '.join('%s %d' % (k, self.fi_src[k]) for k in FI_SRC if self.fi_src[k])
         if self.fi_portals or self.fi_drawn:
-            line += '; %d blood portal(s), %s' % (self.fi_portals, 'first drawn [%s] (%s viewport)' % self.fi_drawn
-                                                 if self.fi_drawn else 'NEVER DRAWN')
+            line += '; %d %s portal(s), %s' % (self.fi_portals, 'blood' if self.fi_tar is None else 'tar / blood',
+                                               'first drawn [%s] (%s viewport)' % self.fi_drawn
+                                               if self.fi_drawn else 'NEVER DRAWN')
+        line += self.fadein_tar_part()  # v3.51 PT351
         k = sum(self.fi_skip.values())
         if k:
             line += '; not faded %d (%s)' % (k, ', '.join('%s %d' % (r, self.fi_skip[r]) for r in FI_SKIP if self.fi_skip[r]))
@@ -852,6 +1013,48 @@ class Session:
             line += '; FAULT in %s (code %s) [%s]: off for the session' % (self.fi_fault[1], self.fi_fault[2], self.fi_fault[0])
         return line
 
+    def fadein_tar_part(self):  # v3.51 PT351: the tar portal and the hold ('' when the log has none of it)
+        out = ''
+        if self.fi_tar is not None:
+            tar, tdm, hold = self.fi_tar
+            if tar.startswith('NOT available'):
+                out += '; tar portal %s' % tar
+            else:
+                draw = 'Refined\'s draw' if 'FadeInPortalDraw=Refined' in tar or 'the game\'s is not stock' in tar else \
+                    'the game\'s own draw, else Refined\'s'
+                out += '; tar portal: %s (%s), %s' % (draw, tdm, 'held' if hold == '1' and 'no hold' not in tar else 'NOT held')
+        if sum(self.fi_by.values()) or self.fi_held:
+            out += '; by draw: %s; %d held' % (', '.join('%s %d' % (k, self.fi_by[k]) for k in ('game', 'Refined', 'vortex')
+                                                      if self.fi_by[k]) or 'none', self.fi_held)
+        tar_drawn = self.fi_tar_drawn
+        if tar_drawn:
+            out += '; first tar portal drawn [%s] (%s)' % tar_drawn
+        elif self.fi_by['game'] or self.fi_by['Refined']:
+            out += '; tar portal NEVER DRAWN'
+        if self.fi_cost[0]:
+            out += '; portal draw at most %.3f ms a frame on average in a room (worst frame %.3f ms)' % (self.fi_cost[1], self.fi_cost[2])
+        if self.fi_letgo:
+            n = len(self.fi_letgo)
+            st = Counter(x[4] for x in self.fi_letgo)
+            early = Counter(x[3] for x in self.fi_letgo if x[3] != 'held to the end')
+            moved, unheld = sum(x[6] for x in self.fi_letgo), sum(x[7] for x in self.fi_letgo)
+            out += '; %d let go (strands: %s; moved %d of %d u%s)' % (
+                n, ', '.join('%s %d' % (k, st[k]) for k in sorted(st)), moved, unheld,
+                '; early: ' + ', '.join('%s %d' % (k, early[k]) for k in sorted(early)) if early else '')
+        if self.fi_tar_starts:
+            out += '; tar starts: %s' % ', '.join('%s %d' % (k, self.fi_tar_starts[k]) for k in sorted(self.fi_tar_starts))
+        if self.fi_real:
+            out += '; %d placeholder(s) turned real' % self.fi_real
+        if self.fi_never:
+            out += '; %d portal(s) closed with nobody' % self.fi_never
+        if self.fi_notstock:
+            out += '; NOT stock: %s' % ', '.join(self.fi_notstock)
+        if self.fi_tdm_bad is not None:
+            out += '; unknown ini value: FadeInPortalDraw "%s" -> Auto' % self.fi_tdm_bad
+        if self.fi_gfault:
+            out += '; FAULT in the game\'s own portal draw (code %s) [%s]: Refined\'s draw after' % (self.fi_gfault[1], self.fi_gfault[0])
+        return out
+
     def fol_mode_line(self):  # v3.49 EF349: Enemies Follow's value (None while it is Off all along, or not in the log)
         if not self.fol_modes and self.fol_mode in (None, 'Off') and not any(self.fol_home):
             return None
@@ -865,7 +1068,7 @@ class Session:
 
     def ef_line(self):  # v3.50 EF350: followers across saves, Enemy Pursuit (None when nothing of it is in the log)
         e = self.ef
-        if self.ef_mode is None and not e and not self.ef_modes:
+        if self.ef_mode is None and not e and not self.ef_modes and not self.ep and self.ep_site is None:  # v3.51 EP351: + ep
             return None
         line = 'enemy pursuit: %s at the start' % (self.ef_mode or 'not in the log')
         if self.ef_modes:
@@ -883,6 +1086,17 @@ class Session:
                      e['r_kind']))
         if e['r_no']:
             line += '; %d found but not restored (another room, or Follow off)' % e['r_no']
+        p = self.ep  # v3.51 EP351
+        if self.ep_site is not None or p:
+            line += ('; inside rooms %s: %d gave up the chase in %d room(s) (%d monster(s), %d ghost(s); %d again, %d down when you '
+                     'walked off), %d set back in their rest, %d left to the game' % (
+                         self.ep_site or 'not in the log', p['give'], p['rooms'], p['mon'], p['ghost'], p['again'], p['down'],
+                         p['held'], p['stock']))
+            if p['v_give']:
+                fams = sorted(k[2:] for k in p if k.startswith('f_'))
+                line += (' [verbose: %d lines: %d unsensed, %d downed, %d far, %d untouched%s]' % (
+                    p['v_give'], p['v_unsensed'], p['v_downed'], p['v_far'], p['v_untouched'],
+                    '; ' + ', '.join('%s %d' % (f, p['f_' + f]) for f in fams) if fams else ''))
         return line
 
     def drop_level_line(self):  # v3.38 DR338
@@ -1235,6 +1449,11 @@ class Session:
                 for key, i in (('adopted', 16), ('adopt_changed', 17), ('roll_stock', 18), ('same', 19), ('away', 20),
                                ('other_rec', 21), ('none', 22)):
                     r[key] += int(g[i])
+            if g[23] is not None:  # v3.51 SN351
+                r['again'] += int(g[23])
+            if g[24] is not None:  # v3.51 SN351
+                r['ev_rooms'] += 1
+                r['ev_set' if g[25] == 'set' else 'ev_clear'] += int(g[24])
             for part in g[7].split(', '):
                 name, _, n = part.rpartition(' ')
                 if name and n.isdigit():
@@ -1247,6 +1466,14 @@ class Session:
         if m:
             self.rzm_misc['other'] += 1
             self.rzm_misc['other_n'] += int(m.group(3))
+            return True
+        m = RZM_EVIN.match(msg)  # v3.51 SN351
+        if m:
+            self.rzm_ev = (int(m.group(1)), int(m.group(2)), m.group(3))
+            return True
+        m = RZM_SESS4.match(msg)  # v3.51 SN351
+        if m:
+            self.rzm_sess4 = (int(m.group(1)), m.group(2), int(m.group(3)), int(m.group(4)))
             return True
         m = RZM_SESS3.match(msg)  # v3.50 RM350
         if m:
@@ -1289,6 +1516,9 @@ class Session:
             r = self.rzm
             line += '%s at the start; self-check %d of %d source placements (%d enemy placements) in %d scripts (%s); save filter %s' % (
                 r[0], r[1], r[4], r[2], r[3], r[6], r[8])
+            if self.rzm_ev:  # v3.51 SN351
+                line += '; event dogs %d of %d stock%s (rolled once story flag 130 is set), roll again %s' % (
+                    self.rzm_ev[0], self.rzm_ev[1], '' if self.rzm_ev[0] == self.rzm_ev[1] else ' (NOT the stock count)', self.rzm_ev[2])
         else:
             line += '(no start line)'
         if self.rzm_bad:
@@ -1315,6 +1545,11 @@ class Session:
                          "%d recorded elsewhere, %d for another writer's record, %d with no target" % (
                              r['adopted'], r['adopt_changed'], r['adopted'] - r['adopt_changed'], r['roll_stock'], r['same'], r['away'],
                              r['other_rec'], r['none']))
+            if r['again']:  # v3.51 SN351
+                line += '; %d rolled again for their own type' % r['again']
+            if r['ev_rooms']:  # v3.51 SN351
+                line += '; event dogs in %d room load(s): %d rolled (story flag 130 set), %d kept as placed (flag clear)' % (
+                    r['ev_rooms'], r['ev_set'], r['ev_clear'])
         if self.rzm_lists:
             line += ' (%d verbose list(s))' % self.rzm_lists
         if self.rzm_misc['files']:
@@ -1340,6 +1575,8 @@ class Session:
                                                                    s[16], s[17], s[18]))
         if self.rzm_sess3:  # v3.50 RM350
             line += '; session records: %d adopted (%d changed)' % self.rzm_sess3[:2]
+        if self.rzm_sess4:  # v3.51 SN351
+            line += '; session: %d rolled again (roll again %s), event dogs %d planned / %d kept asleep' % self.rzm_sess4
         if self.rzm_anom:
             line += '; %d ANOMALY line(s)' % self.rzm_anom
         return line
@@ -1703,6 +1940,8 @@ class Session:
                 self.r3_anom += 1
             if body.startswith('regeneration: '):  # v3.47 RG347
                 self.rg_anom += 1
+            if body.startswith(('extra menu: the level music is not paused', "extra menu: the pause menu's sound was in mode")):  # v3.51 MU351
+                self.mu_anom += 1
             if body.startswith('randomizer: monsters'):  # v3.49 RZ349
                 self.rzm_anom += 1
             elif body.startswith(('randomizer: outfit: ', 'randomizer: ghosts: ')):  # v3.49 RZ349L  # v3.49 MERGE: counted apart, as the Monsters' (not in rz_anom: the Items line keeps its own count)
@@ -2216,6 +2455,9 @@ class Session:
             what = 'PE HUD' if m.group(2).startswith("Playable Eileen's HUD") else 'stock gauge'
             self.perf_place['%sx%s' % (m.group(3), m.group(4))] = (where, what, ts)
             return
+        if msg.startswith('extra menu: sound in the '):  # v3.51 MU351
+            if self.parse_mu(ts, msg):
+                return
         m = CAM_PAGE.match(msg)
         if m:
             if m.group(1) == 'opened':
@@ -2270,6 +2512,26 @@ class Session:
             m = EF_IN.match(msg)
             if m:
                 self.ef_site, self.ef_mode = m.group(1), m.group(2)
+                return
+        if msg.startswith('enemies: '):  # v3.51 EP351: Enemy Pursuit inside the room
+            m = EP_ROOM.match(msg)
+            if m:
+                g = [int(x) for x in m.groups()[1:]]
+                p = self.ep
+                p['rooms'] += 1
+                for k, v in zip(('give', 'mon', 'ghost', 'again', 'down', 'held', 'stock'), g):
+                    p[k] += v
+                return
+            m = EP_GIVE.match(msg)
+            if m:
+                p = self.ep
+                p['v_give'] += 1
+                p['v_' + EP_WHY[m.group(4)]] += 1
+                p['f_' + (m.group(2) or "victim's ghost")] += 1
+                return
+            m = EP_IN.match(msg)
+            if m:
+                self.ep_site = m.group(1)
                 return
         m = EF_LOST.match(msg)  # v3.50 EF350
         if m:
@@ -2366,7 +2628,9 @@ class Session:
                 k, _, v = part.rpartition(' ')
                 if k and v.isdigit():
                     self.gt_room_no[k] += int(v)
-            self.gt_map_open += 'not finished' in g[9] or 'OVERFLOW' in g[9]
+            self.gt_skip += int(g[9] or 0)  # v3.51 TP351
+            self.gt_skip_tries += int(g[10] or 0)
+            self.gt_map_open += 'not finished' in g[11] or 'OVERFLOW' in g[11]
             return
         m = GT_MAP.match(msg)
         if m:
@@ -2693,6 +2957,9 @@ class Session:
         if self.cam_page[0] or self.cam_page[1]:
             last = self.cam_page[1]
             say('  pause Camera page: opened %d time(s)%s' % (self.cam_page[0], ('; last closed with %s  [%s]' % (last[0][:200], last[1])) if last else ''))
+        line = self.mu_line()  # v3.51 MU351: the sound in the Extra Menu's lists
+        if line:
+            say('  ' + line)
         # v3.37 INV337: Extended Toolbelt / Stackable Items
         if self.inv or self.inv_sw or self.inv_counts:
             head = '  inventory: '
@@ -2744,6 +3011,8 @@ class Session:
                              len(rr), sum(r[1] for r in rr), sum(r[2] for r in rr), sum(r[3] for r in rr), sum(r[4] for r in rr),
                              sum(r[5] for r in rr), ' (%s)' % ', '.join('%s x%d' % kv for kv in self.gt_room_no.most_common(7))
                              if self.gt_room_no else '', sum(r[6] for r in rr)))
+                if self.gt_skip:  # v3.51 TP351
+                    line += '; %d enemy(ies) in the cone skipped behind collision (in %d try(ies))' % (self.gt_skip, self.gt_skip_tries)
             if self.gt_maps or self.gt_map_open:
                 mp = self.gt_maps
                 line += '; floor maps: %d finished%s%s' % (

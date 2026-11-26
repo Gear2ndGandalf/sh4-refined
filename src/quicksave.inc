@@ -425,6 +425,7 @@ static int __cdecl QsTick(void)
     BG_RUN(BGC_T_OTHER, HpTick());     // v3.36 HE336: the hit-shape pool's free count (hitpool.inc; its own __try)
     BG_RUN(BGC_T_OTHER, EvTick());     // v3.36 HE336: the enemy records' per-room line, after EnmTick's purge (recevict.inc)
     BG_RUN(BGC_T_OTHER, R3Tick());  // v3.50 R302: Room 302's walk factor, the first-tick owner decision, the visit counts (room302.inc; its own __try)
+    BG_RUN(BGC_T_OTHER, FiTick());  // v3.51 PT351: Fade In's tar portal: the held ghost slowed, its actions held, its strands snapped (fadein.inc; its own __try)
     BG_RUN(BGC_T_CAM, CamTick());    // v3.33 CAM333: the camera's owner re-check, ini polls, hook integrity (camera.inc; its own __try)
     if (g_bldTick) {  // v3.25.0: Blood Colour without its reader patches: keep the saved value stock (review REV-008)
         __try {
