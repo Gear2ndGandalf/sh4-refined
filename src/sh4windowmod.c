@@ -108,7 +108,7 @@
 #include "ol_words.h"  // v3.53 OL1: the Options words (generated from the plan's layout_data.py; test\ol_words_test.c)
 
 #ifndef SH4WM_VERSION  // a test build may name itself (cl /DSH4WM_VERSION=...)
-#define SH4WM_VERSION "3.57.0"  // v3.57 OLP1: 3.57.0 (the Options Layout session's pass 1: 48 rows re-worded, Turn or Strafe, Reroll, Quick Charge x1.5 / x2 / x3 (the ini words unchanged), 16 EXTRA texts, the Player folder row's own line)  // v3.56 MERGE: 3.56.0 (SD356 Sound: Background Mute / Play (the buffers' global focus, four one-byte sites), an inaudible keep-awake tone, a device watch that says when a restart is needed; FR356 the final room's contraption and spear spot follow the frame rate (three sites), the rate guard 180 -> 120 -> 60 when the play frames run late (hidden [Window] RateGuard); PW356 After Shock dims the copies over her in the Shoulder camera (hidden AfterImageOtsFade 30), the effect budget's high-rate fallback (two spark levels first: v3.55's levels 1 - 9 are 3 - 11; hidden EffectBudgetHighRate); PV356 the Effects page's preview: the pause keeps Thermal's heat and Spirit Vision's ghosts, Refined's own scene with no paused game ([ScreenEffects] PreviewScene, PreviewLayers); MN356 a click opens a folder row (hidden [Options] FolderClick), every value its own line (vlines.inc), the pause row Eileen, each pause row drawn once (hidden [ExtraMenu] StockShadow); RI356 the Randomizer: Specials (turned round), Room 302 Items Off / Shuffle / Random, Reroll Visits By Room / By World, no Seed / New Seed rows (the seed in small type), no "Next room."; ER356 Enemies Return Off / By Room / By World (the Tremer site 0x48ACE5, hidden ReturnTremers); RE356 Enemies Off / Same World / All Worlds (+ the victims' ghosts), Spawn Site Off / On; MERGE ONE world-visit rule (worldvisit_sim.h: the game's own load signal, gEnemyManager.stage -2 after a save's apply, ER356's kinds + RI356's visit serials, one WvOnRoomLoad in EnmWrap; Spawn Site on RzVisitSalt), the rate guard waits for the budget only while it can still shed (BgRateMayStepNow), a pause capture is no late frame for either (PvCapNew), the page strip shares the folder click's refusal (FcBusy); the MSG_V56 block, MN356 V56 + 0 .. 15, SD356 + 112 .. 115); v3.55 OL56: 3.55.0 (the Options layout, rounds R5 + R6: the stock rows on their plan pages (the sound three on Sound, Music / Effects Volume by name through the one exe patch 0x525672 (the bar test by the record's input), Invert Look / Head Bob / Left / Right in Controls > Room 302, the Subtitles / Film Grain / Shadows switches row 0 of their folders (pure folders), Blood Colour on Gameplay; Renderer back on Display, Menu Font / Start-Up on Interface, Interface > Pause Menu again; every page at the plan's count, 10 rows at most); hidden [Options] StockMoves=0 = v3.54's interim layout; the pause Extra Menu's Eileen Outfit and its Camera page in the Options names; one text block MSG_V55; no ini key or written value changes)  // v3.54 OL34: 3.54.0 (the Options layout, rounds R3 + R4: the six pages Display, Controls, Interface, Sound, Effects, Gameplay and their folders (PLAN section 6's ids, LP_MAX 22, a third level Controls > Camera > Steering); Option 5 = Gameplay with Player / Combat / Items / Enemies / Powers / Randomizer; Option 4's rows on Display / Controls > Camera / Room 302; Option 6 = Interface > Menus with Menu Font and Start-Up; Screen Effects = the top page Effects with Film Grain > and Shadows >; v3.52's Sound page = top page 3; the stock rows stay on their stock pages until R5 (PLAN section 4's fallbacks: 11 rows at most); every row keeps its record, ini key and words; one text block MSG_V54; no new exe site)  // // v3.53 MERGE: 3.53.0 (the Options layout, rounds R1 + R2: OL1 every Options label, value and description in the plan's words on the rows where they are (ol_words.h from layout_data.py; stock rows renamed through Refined's copies of their records, BGM / SE Volume keep their labels; page titles are plain names; no ini key or word changes); OL2 the look: a page strip under the title, a blue triangle on folder rows, "Parent > Page" titles on hidden pages, the dependent rows grey and inert while their switch is off with the reason first, the glyph lines (hidden [Options] Look); MERGE the grey line is one line of at most 52 characters (the reason, then the row's own line, else the reason alone), the reasons and crumbs read OL1's names, titles are taken whole, value-less rows are not measured; one MSG_V53 block, OL1 V53 + 0 .. 89 / 400 .. 409 / 420, OL2 + 512 .. 551; no new exe site); v3.52 MERGE: 3.52.0 (SH352 Shadows: the Darkness row 25 -> 100 % (Left lighter), a reason logged for every composite that is not soft (4:1F and cut-scene 0x43 have no real-time shadow in the game); EP352 Enemy Pursuit: Forgetful's victims' ghosts give up at 1200 u / 3 s, after 8 s or 3 s out of sight, both levels keep a ghost calm after its rest and set its dives back; HB352 Enemy Health Bars only for enemies the game draws in the room, a boss's bar at any distance; TP352 Ghost Teleport: every landing proven by her body and the floor map, freed from a wall after a warp; QL352 the Extra Menu's Quick Load inside the pause (hidden [ExtraMenu] QuickLoadInPause); FX352 Depth of Field with a close camera, Bloom Off / Low / Medium / High / Ultra (migrated once), the Otherworld Lens at 70 % (hidden LensBase); SND352 Sound: Mono / Stereo / Headphones / Surround, the Sound page (Stereo Width, Room Reverb, Night Mode), eleven exe sites; MERGE the sound keeper waits while Quick Load from the pause holds the sound (sound_sim.h SndKeepStep); the MSG_V52 block, SND352 V52 + 0 .. 18); v3.51 MERGE: 3.51.0 (MU351 the level music stays paused in the Extra Menu's Storage Chest / Save Game / Load Game (hidden [ExtraMenu] PauseSound); SN351 Randomizer Monsters: the Subway's first Sniffer Dogs (room 2:2's event dogs) roll once story flag 130 is set, a roll of the own type rolls once more (hidden [Randomizer] MonsterRollAgain); TP351 Ghost Teleport never behind an enemy on the other side of collision (hidden GhostTeleportBehindCollision); EP351 Enemy Pursuit inside the room: monsters give up after 10 / 4 s unsensed, victims' ghosts when far or after a long chase, then rest (hidden PursuitInRoom); PT351 Fade + Portal's tar portal: the game's own wall-portal draws and the ghost's own strands (data site 0x62BC98), the arriving ghost held 2.5 s (hidden FadeInPortalDraw / FadeInHold); MERGE a ghost in the tar portal's hold is not judged by Enemy Pursuit (its timers start when the hold ends); the MSG_V51 text block, none used); v3.50 MERGE: 3.50.0 (RM350 Randomizer Monsters: a save's own stock records are adopted and rolled (This World now works in a save-based game) + the All Worlds value; RL350 Eileen Outfit: every companion outfit, a draw per room load (at most two rooms alike, the final fight keeps its outfit), Ghosts Spots 800 + away, never at another ghost's place, their records moved with them; R302 Room 302's look / walk rows for Henry and Eileen (Option 4 > Room 302, export SH4R_Room302 @200; the hand-over with Playable Eileen: inert until PE v1.25.0 yields, its look sites 0x52DF74 / 0x52DCC6 / 0x52DD14 only then); TP350 Ghost Teleport behind the enemy she faces only, from 5000, and ahead through walls onto reachable floor; EF350 Enemies Follow "Victims" (was Victims Only), Enemy Pursuit Relentless / Normal / Forgetful, the followers kept across a save / load (side file; 0x4FC1A4 / 0x4FC6ED); FI350 Fade In: monsters and victims fade in over 0.8 s, arriving ghosts from a blood portal; the MSG_V50 text block); v3.49 MERGE: 3.49.0 (GT349 Ghost Teleport held = continuous warps after each fade-in, no cooldown, never across or into a walk-in event zone, no warp at a door / room change / fade / script; SH349 Shadow Darkness on the Tremers' wall shadows ([Shadows] TremerShadows, hook 0x45F4CA); SB349 the save / load list's highlight bar in the game's blue ([SaveBanks] ListBar, 11 bytes at 0x56FDCF) + the pointer kept on the Bank row; LK349 [Input] OmniLook: Room 302's analog right-stick look; EF349 Enemies Follow Victims Only (values 0 Off / 1 Monsters / 2 Victims Only / 3 Monsters + Victims); RZ349 Randomizer Monsters Off / This Room / This World + the save filter 0x465468; RZ349L Randomizer Eileen Outfit (companion) and Ghosts Spots; the MSG_RZ1 text block); v3.48 MERGE: 3.48.0 (OM348 Option 2's row is Omni-Directional Movement Off / On, On = v3.47's Analog, Direction removed and migrated to On; SB348 the save list's Bank row: Left / Right 1 bank, Q / E and the shoulders 10 banks (round 2: not the triggers), the mouse held on an arrow repeats, one log line per settled change; RZ348 the Randomizer folder on Option 5: Seed, New Seed, Items Off / Shuffle / Random, Keep Specials, Room 302; round 2: weapons in the pool, the pickup looks like its new item, Change Each Visit); v3.47 MERGE: 3.47.0 (PX347 the pixel checks read each cell at its centre + the source, DF347 the depth of field eases in, SB347 the save list's Bank row in the Menu Font + clickable arrows, CT347 Stick Movement on Option 2 (Control) + SH4R_StickAmount export 199 + the focus-loss line, RG347 Refined's own Regeneration); v3.46 OM346 (Stick Movement: 360-degree / analog left stick); v3.45 MERGE (QS345 the player texts + DoF Low / Medium / High + items log once, RB345 a read back that works under dgVoodoo2); v3.44 MERGE (CS344 shader forms + pixel check + Bloom Very High, DF344 DoF alignment + Screen Effects rows + lighter panels, GT344 Run+Action / Richard fade / forward warp, FN344 Menu Font row + 16-bit renderer removed); v3.43 MERGE: 3.43.0 (SH343 shadow c1 read-back + Darkness 40 / 25 %, GT343 Ghost Teleport, QC343 Quick Charge (replaces Tireless; export 198), DF343 Depth of Field, PP343 Bloom / Colour Grading / Otherworld Lens, FN343 HD menu font); v3.42 MERGE (EG342 2D pixel alignment + edge quads, SM342 Room 302 DP off / Curse Meter Off-On / shadow Darkness / peep gate); v3.41 MERGE: 3.41.0 (SH341 one Soft + pause picture on the GPU, EN341 ghost copies, VW341 window views / edges, DP341 Death Presence gate); v3.40 MERGE: 3.40.0 (SH340 shadows + LG340 logs); v3.39 PR339: 3.39.0; v3.39 PR339 (Presentation clean-up, Renderer, Opening, F7 preview); v3.38.1 HF3381: 3.38.1; v3.38.1 HF3381 (the curse meter fades under Hide Gauge: no wake on a drift); v3.38 MERGE: 3.38.0 (HB338 + EN338 + DR338; v3.37 MERGE: 3.37.0, MN337 + INV337 + CP337; v3.36.1 TL3361: 3.36.1; v3.36 MERGE: 3.36.0; v3.35.1 HF3351: 3.35.1; v3.35 W0: 3.35.0; v3.34 PEC334: 3.34.0; v3.33 LOG333: 3.33.0; v3.32 MERGE: 3.32.0; v3.31 MERGE: 3.31.0; v3.30 MERGE: 3.30.0; v3.29 merge: was still "3.27.2" in v3.28.0)
+#define SH4WM_VERSION "3.58.0"  // v3.58 MERGE: 3.58.0 (the v3.57 QA round, eight parts: SD358 Music / Effects Volume 0 silent (the game's -60 dB floor; the stream 0x2774 kept at its set level, site 0x40B2E7; hidden [Sound] ZeroSilent), Background Mute through the game's Windows sound sessions (hidden SessionMute, the marker file SH4Refined.muted, WM_CLOSE unmutes first); GX358 Shadows Off as the game's Off (the Shadows page preview and Echo's ground discs follow it), the effect budget's quick rules when two powers start at a high rate (hidden [Graphics] EffectBudgetQuick), the rate guard's 1 s window while the budget has nothing left to shed; GT358 Ghost Teleport's clean fade (her body after the actor models, a depth pre-pass and pixel shader 5, site 0x4EF905; Thermal / Spirit Vision fade with her; hidden GhostTeleportFadeDraw); FI358 Reveal Method's portal bigger from more pieces, sticky tar strands about 3 s (hidden FadeInStrandSeconds / FadeInPortalPieces / FadeInStrands); EN358 the randomizer's victims follow through doors, no bar before the game draws an enemy, bars fade with the body, Walter downed keeps his bar + a revive bar; RZ358 Reroll never brings the dead back (Enemies Return alone decides), Extra Enemies' copies drawn by the randomizer (hidden CopyRecordGuard); PV358 Effects > Preview Off / Stock / Live (the stock picture a file, SH4Refined_preview_stock.dds), Filter Strength Low / Medium / High / Ultra, the Depth of Field > folder (Effects 11 rows), the preview's heat bodies write depth; MN358 one value box per page (both arrows still for every value, the bar arrows 0x5256B6 / 0x5256E2, the pause Camera page's ">"; hidden [Options] ValueBox), Reveal Method, Ultra, the Extra Enemies and Item Stacks lines; MERGE GvOverride keeps PV358's depth write and GT358's pre-pass, FiInit keeps FI358's keys and MN358's label; one MSG_V58 block, PV358 V58 + 16 .. 28); v3.57 OLP1: 3.57.0 (the Options Layout session's pass 1: 48 rows re-worded, Turn or Strafe, Reroll, Quick Charge x1.5 / x2 / x3 (the ini words unchanged), 16 EXTRA texts, the Player folder row's own line)  // v3.56 MERGE: 3.56.0 (SD356 Sound: Background Mute / Play (the buffers' global focus, four one-byte sites), an inaudible keep-awake tone, a device watch that says when a restart is needed; FR356 the final room's contraption and spear spot follow the frame rate (three sites), the rate guard 180 -> 120 -> 60 when the play frames run late (hidden [Window] RateGuard); PW356 After Shock dims the copies over her in the Shoulder camera (hidden AfterImageOtsFade 30), the effect budget's high-rate fallback (two spark levels first: v3.55's levels 1 - 9 are 3 - 11; hidden EffectBudgetHighRate); PV356 the Effects page's preview: the pause keeps Thermal's heat and Spirit Vision's ghosts, Refined's own scene with no paused game ([ScreenEffects] PreviewScene, PreviewLayers); MN356 a click opens a folder row (hidden [Options] FolderClick), every value its own line (vlines.inc), the pause row Eileen, each pause row drawn once (hidden [ExtraMenu] StockShadow); RI356 the Randomizer: Specials (turned round), Room 302 Items Off / Shuffle / Random, Reroll Visits By Room / By World, no Seed / New Seed rows (the seed in small type), no "Next room."; ER356 Enemies Return Off / By Room / By World (the Tremer site 0x48ACE5, hidden ReturnTremers); RE356 Enemies Off / Same World / All Worlds (+ the victims' ghosts), Spawn Site Off / On; MERGE ONE world-visit rule (worldvisit_sim.h: the game's own load signal, gEnemyManager.stage -2 after a save's apply, ER356's kinds + RI356's visit serials, one WvOnRoomLoad in EnmWrap; Spawn Site on RzVisitSalt), the rate guard waits for the budget only while it can still shed (BgRateMayStepNow), a pause capture is no late frame for either (PvCapNew), the page strip shares the folder click's refusal (FcBusy); the MSG_V56 block, MN356 V56 + 0 .. 15, SD356 + 112 .. 115); v3.55 OL56: 3.55.0 (the Options layout, rounds R5 + R6: the stock rows on their plan pages (the sound three on Sound, Music / Effects Volume by name through the one exe patch 0x525672 (the bar test by the record's input), Invert Look / Head Bob / Left / Right in Controls > Room 302, the Subtitles / Film Grain / Shadows switches row 0 of their folders (pure folders), Blood Colour on Gameplay; Renderer back on Display, Menu Font / Start-Up on Interface, Interface > Pause Menu again; every page at the plan's count, 10 rows at most); hidden [Options] StockMoves=0 = v3.54's interim layout; the pause Extra Menu's Eileen Outfit and its Camera page in the Options names; one text block MSG_V55; no ini key or written value changes)  // v3.54 OL34: 3.54.0 (the Options layout, rounds R3 + R4: the six pages Display, Controls, Interface, Sound, Effects, Gameplay and their folders (PLAN section 6's ids, LP_MAX 22, a third level Controls > Camera > Steering); Option 5 = Gameplay with Player / Combat / Items / Enemies / Powers / Randomizer; Option 4's rows on Display / Controls > Camera / Room 302; Option 6 = Interface > Menus with Menu Font and Start-Up; Screen Effects = the top page Effects with Film Grain > and Shadows >; v3.52's Sound page = top page 3; the stock rows stay on their stock pages until R5 (PLAN section 4's fallbacks: 11 rows at most); every row keeps its record, ini key and words; one text block MSG_V54; no new exe site)  // // v3.53 MERGE: 3.53.0 (the Options layout, rounds R1 + R2: OL1 every Options label, value and description in the plan's words on the rows where they are (ol_words.h from layout_data.py; stock rows renamed through Refined's copies of their records, BGM / SE Volume keep their labels; page titles are plain names; no ini key or word changes); OL2 the look: a page strip under the title, a blue triangle on folder rows, "Parent > Page" titles on hidden pages, the dependent rows grey and inert while their switch is off with the reason first, the glyph lines (hidden [Options] Look); MERGE the grey line is one line of at most 52 characters (the reason, then the row's own line, else the reason alone), the reasons and crumbs read OL1's names, titles are taken whole, value-less rows are not measured; one MSG_V53 block, OL1 V53 + 0 .. 89 / 400 .. 409 / 420, OL2 + 512 .. 551; no new exe site); v3.52 MERGE: 3.52.0 (SH352 Shadows: the Darkness row 25 -> 100 % (Left lighter), a reason logged for every composite that is not soft (4:1F and cut-scene 0x43 have no real-time shadow in the game); EP352 Enemy Pursuit: Forgetful's victims' ghosts give up at 1200 u / 3 s, after 8 s or 3 s out of sight, both levels keep a ghost calm after its rest and set its dives back; HB352 Enemy Health Bars only for enemies the game draws in the room, a boss's bar at any distance; TP352 Ghost Teleport: every landing proven by her body and the floor map, freed from a wall after a warp; QL352 the Extra Menu's Quick Load inside the pause (hidden [ExtraMenu] QuickLoadInPause); FX352 Depth of Field with a close camera, Bloom Off / Low / Medium / High / Ultra (migrated once), the Otherworld Lens at 70 % (hidden LensBase); SND352 Sound: Mono / Stereo / Headphones / Surround, the Sound page (Stereo Width, Room Reverb, Night Mode), eleven exe sites; MERGE the sound keeper waits while Quick Load from the pause holds the sound (sound_sim.h SndKeepStep); the MSG_V52 block, SND352 V52 + 0 .. 18); v3.51 MERGE: 3.51.0 (MU351 the level music stays paused in the Extra Menu's Storage Chest / Save Game / Load Game (hidden [ExtraMenu] PauseSound); SN351 Randomizer Monsters: the Subway's first Sniffer Dogs (room 2:2's event dogs) roll once story flag 130 is set, a roll of the own type rolls once more (hidden [Randomizer] MonsterRollAgain); TP351 Ghost Teleport never behind an enemy on the other side of collision (hidden GhostTeleportBehindCollision); EP351 Enemy Pursuit inside the room: monsters give up after 10 / 4 s unsensed, victims' ghosts when far or after a long chase, then rest (hidden PursuitInRoom); PT351 Fade + Portal's tar portal: the game's own wall-portal draws and the ghost's own strands (data site 0x62BC98), the arriving ghost held 2.5 s (hidden FadeInPortalDraw / FadeInHold); MERGE a ghost in the tar portal's hold is not judged by Enemy Pursuit (its timers start when the hold ends); the MSG_V51 text block, none used); v3.50 MERGE: 3.50.0 (RM350 Randomizer Monsters: a save's own stock records are adopted and rolled (This World now works in a save-based game) + the All Worlds value; RL350 Eileen Outfit: every companion outfit, a draw per room load (at most two rooms alike, the final fight keeps its outfit), Ghosts Spots 800 + away, never at another ghost's place, their records moved with them; R302 Room 302's look / walk rows for Henry and Eileen (Option 4 > Room 302, export SH4R_Room302 @200; the hand-over with Playable Eileen: inert until PE v1.25.0 yields, its look sites 0x52DF74 / 0x52DCC6 / 0x52DD14 only then); TP350 Ghost Teleport behind the enemy she faces only, from 5000, and ahead through walls onto reachable floor; EF350 Enemies Follow "Victims" (was Victims Only), Enemy Pursuit Relentless / Normal / Forgetful, the followers kept across a save / load (side file; 0x4FC1A4 / 0x4FC6ED); FI350 Fade In: monsters and victims fade in over 0.8 s, arriving ghosts from a blood portal; the MSG_V50 text block); v3.49 MERGE: 3.49.0 (GT349 Ghost Teleport held = continuous warps after each fade-in, no cooldown, never across or into a walk-in event zone, no warp at a door / room change / fade / script; SH349 Shadow Darkness on the Tremers' wall shadows ([Shadows] TremerShadows, hook 0x45F4CA); SB349 the save / load list's highlight bar in the game's blue ([SaveBanks] ListBar, 11 bytes at 0x56FDCF) + the pointer kept on the Bank row; LK349 [Input] OmniLook: Room 302's analog right-stick look; EF349 Enemies Follow Victims Only (values 0 Off / 1 Monsters / 2 Victims Only / 3 Monsters + Victims); RZ349 Randomizer Monsters Off / This Room / This World + the save filter 0x465468; RZ349L Randomizer Eileen Outfit (companion) and Ghosts Spots; the MSG_RZ1 text block); v3.48 MERGE: 3.48.0 (OM348 Option 2's row is Omni-Directional Movement Off / On, On = v3.47's Analog, Direction removed and migrated to On; SB348 the save list's Bank row: Left / Right 1 bank, Q / E and the shoulders 10 banks (round 2: not the triggers), the mouse held on an arrow repeats, one log line per settled change; RZ348 the Randomizer folder on Option 5: Seed, New Seed, Items Off / Shuffle / Random, Keep Specials, Room 302; round 2: weapons in the pool, the pickup looks like its new item, Change Each Visit); v3.47 MERGE: 3.47.0 (PX347 the pixel checks read each cell at its centre + the source, DF347 the depth of field eases in, SB347 the save list's Bank row in the Menu Font + clickable arrows, CT347 Stick Movement on Option 2 (Control) + SH4R_StickAmount export 199 + the focus-loss line, RG347 Refined's own Regeneration); v3.46 OM346 (Stick Movement: 360-degree / analog left stick); v3.45 MERGE (QS345 the player texts + DoF Low / Medium / High + items log once, RB345 a read back that works under dgVoodoo2); v3.44 MERGE (CS344 shader forms + pixel check + Bloom Very High, DF344 DoF alignment + Screen Effects rows + lighter panels, GT344 Run+Action / Richard fade / forward warp, FN344 Menu Font row + 16-bit renderer removed); v3.43 MERGE: 3.43.0 (SH343 shadow c1 read-back + Darkness 40 / 25 %, GT343 Ghost Teleport, QC343 Quick Charge (replaces Tireless; export 198), DF343 Depth of Field, PP343 Bloom / Colour Grading / Otherworld Lens, FN343 HD menu font); v3.42 MERGE (EG342 2D pixel alignment + edge quads, SM342 Room 302 DP off / Curse Meter Off-On / shadow Darkness / peep gate); v3.41 MERGE: 3.41.0 (SH341 one Soft + pause picture on the GPU, EN341 ghost copies, VW341 window views / edges, DP341 Death Presence gate); v3.40 MERGE: 3.40.0 (SH340 shadows + LG340 logs); v3.39 PR339: 3.39.0; v3.39 PR339 (Presentation clean-up, Renderer, Opening, F7 preview); v3.38.1 HF3381: 3.38.1; v3.38.1 HF3381 (the curse meter fades under Hide Gauge: no wake on a drift); v3.38 MERGE: 3.38.0 (HB338 + EN338 + DR338; v3.37 MERGE: 3.37.0, MN337 + INV337 + CP337; v3.36.1 TL3361: 3.36.1; v3.36 MERGE: 3.36.0; v3.35.1 HF3351: 3.35.1; v3.35 W0: 3.35.0; v3.34 PEC334: 3.34.0; v3.33 LOG333: 3.33.0; v3.32 MERGE: 3.32.0; v3.31 MERGE: 3.31.0; v3.30 MERGE: 3.30.0; v3.29 merge: was still "3.27.2" in v3.28.0)
 #endif
 
 static HMODULE g_self;
@@ -388,6 +388,7 @@ static const KeyInfo kIniKeys[] = {
     { "ScreenEffects", "PreviewCapture", "1", "1: the first pause in gameplay saves that (unfiltered) picture as PreviewImage when the file does not exist. 0: off." },
     { "ScreenEffects", "NoiseColour", "Stock", "The grain's colour: Stock (each type's own), Mono, Full Colour, Red, Green, Blue, Amber or Sepia." },
     { "ScreenEffects", "Filter", "None", "Filter over the scene in gameplay: None (the game's), CRT, Vivid, Sepia, Old Film, Night Vision, Night Vision Mono, Thermal, Spirit Vision (a black world of edge lines; ghosts, their damage areas, wall portals, holy candles and soul flames glow through walls) or Vignette." },
+    { "ScreenEffects", "FilterStrength", "High", "How far the Filter takes the picture: Low (35 %), Medium (65 %), High (the filter's full look, as before v3.58) or Ultra (each look's amounts x 1.35; Thermal and Spirit Vision as High). Thermal's hot bodies and Spirit Vision's ghosts and soul fires stay full at every strength. Read only with the marker FilterStrengthV=358 (v3.15 wrote this key too; its old value is read once as High)." },  // v3.58 PV358
     { "ScreenEffects", "ThermalGhost", "", "Thermal: more enemy types to hide, hex (08 = Twin Victim). The ghosts 0B to 0F are hidden already." },
     { "ScreenEffects", "ThermalNotGhost", "", "Thermal: ghost types to show (hot) instead: 0B victims, 0C Cynthia, 0D Jasper, 0E Andrew, 0F Richard." },
     { "ScreenEffects", "ThermalCoolSeconds", "30", "Thermal: seconds a dead enemy takes to cool from hot to cold (0 = at once, up to 600)." },
@@ -404,14 +405,14 @@ static const KeyInfo kIniKeys[] = {
     { "Sound", "Mode", "Stereo", "Mono (every sound in the middle; stereo music and streams folded), Stereo (sounds placed smoothly left and right), Headphones (Stereo, and every sound also reaches the other ear, at most 9 dB down) or Surround (the game's Dolby Digital 3D sound, for 5.1 / 7.1 or Windows spatial sound). The save keeps the game's own Monaural / Stereo / Dolby Digital; missing here = taken from it once." },  // v3.52 SND352
     { "Sound", "Width", "100", "Stereo Width in percent, 0 to 100 (the Sound page steps by 10): how far sounds and streams spread left and right. 0 = all in the middle. Not in Mono." },  // v3.52 SND352
     { "Sound", "Reverb", "On", "Room Reverb: On = the game's own room echo (Waves Reverb, 12 area presets), off in the PC port so far; Off = dry, as the PC port. Also 1, 0." },  // v3.52 SND352
-    { "Sound", "Background", "Mute", "Background: Mute or Play. Mute = the game's own: its sounds are silent while another window is in front. Play = the game stays audible behind other windows (applies to sounds that start after the change). Also 0, 1." },  // v3.56 SD356
+    { "Sound", "Background", "Mute", "Background: Mute or Play. Mute = silent while another window is in front (SH4 Refined mutes the game's sound session: every sound at once, also the ones playing). Play = the game stays audible behind other windows. Also 0, 1." },  // v3.56 SD356  // v3.58 SD358: Mute by the sound session
     { "Sound", "NightMode", "Off", "Night Mode: Off, Low or High. Narrows the range of the volumes the game sets: quiet sounds louder, the loudest quieter (Low 0.7, High 0.5 around -20 dB). Also 0, 1, 2." },  // v3.52 SND352
     { "Shadows", "TremerShadows", "1", "1: Shadow Darkness also applies to the Tremers' (the leeches') wall shadows, a ribbon the game draws outside the real-time shadows (their edge stays their texture's: Soft cannot blur it). 0: the game's own. Needs a game restart." },  // v3.49 SH349
     { "ScreenEffects", "Bloom", "Off", "Bright lights glow (lamps, windows, flames): Off, Low, Medium, High or Ultra (also 0 to 4), each clearly stronger. Never on the HUD or menus; cut-scenes follow Cutscenes. A value written before v3.52 is read once with its old meaning (High -> Medium, Very High -> High; the hidden BloomV=352 marks a v3.52 value)." },  // v3.43 PP343  // v3.52 FX352: five levels
     { "ScreenEffects", "Grading", "Off", "Colour grading: Off, PS2 (greener, slightly foggy), Otherworld (cold, drained), Apartment (warm) or Bleach (half the colour, harder contrast). Not with the Filters that set the colours themselves." },  // v3.43 PP343
     { "ScreenEffects", "Lens", "Off", "Otherworld Lens: On = a colour fringe and edge warp that fades in while a ghost (Cynthia, the victims, the Wheelchair), the companion Eileen's curse or a Room 302 haunting is in the room: at 70 % (hidden LensBase, percent), full halfway into its aura. Off." },  // v3.43 PP343  // v3.52 FX352: when it shows
-    { "ScreenEffects", "PreviewKey", "F7", "A key that saves the current clean gameplay frame as PreviewImage, the picture behind the Screen Effects page (F1 to F12, or a Windows key code). None = off." },  // v3.39 PR339: F7 (was None); v3.39 REV339: only a missing key gets it (an existing None stays)
-    { "ScreenEffects", "PreviewScene", "Scene", "What the Effects page shows with no paused game (the title menu): Scene = SH4 Refined's own room with a figure and a ghost, made for every filter (Thermal's heat, Spirit Vision's glow and soul fire); Picture = PreviewImage first (as before v3.56)." },  // v3.56 PV356
+    { "ScreenEffects", "PreviewKey", "F7", "A key that saves the current clean gameplay frame as PreviewImage, the picture behind the Screen Effects page (F1 to F12, or a Windows key code). None = off. Since v3.58 the page shows it with Preview Live on the title menu when there is no stock picture SH4Refined_preview_stock.dds; F7 never writes the stock picture." },  // v3.39 PR339: F7 (was None); v3.39 REV339: only a missing key gets it (an existing None stays)
+    { "ScreenEffects", "Preview", "Live", "What the Effects pages (Effects, Film Grain, Depth of Field, Shadows) show behind them: Off = nothing (the game's own menu background; the filters still apply in play); Stock = the stock picture SH4Refined_preview_stock.dds in the game folder, also in a pause (without the file: SH4 Refined's own drawn scene); Live = the stock picture on the title menu, the paused scene in a pause (without the file: PreviewImage, else the drawn scene). v3.56's hidden PreviewScene is read once and migrated to Live." },  // v3.58 PV358: Preview (was v3.56 PV356's hidden PreviewScene: migrated once in preview.inc PvInstall, the old key removed)
     { "ScreenEffects", "PreviewLayers", "1", "1: each pause keeps Thermal's hot bodies and Spirit Vision's ghosts and soul fires for the Effects page opened from it. 0: off (that page shows their palette / edges only, as before v3.56)." },  // v3.56 PV356
     { "Window", "FitWrapper", "1", "GOG's dxcfg.ini draws at the game's own size, in a window. 1 means on, 0 means off." },
     { "Window", "Borderless", "0", "Whole screen without a frame (Options > Display Mode, Alt+Enter). 1 means on, 0 means off." },
@@ -582,6 +583,7 @@ static void(__cdecl *g_subTick)(void);  // the hidden test trigger, run by the 0
 enum { FX_NOISE, FX_NTYPE, FX_NCOLOUR, FX_FILTER, FX_CUT, FX_N };  // v3.22.0: + Cut-scenes (user item 17)
 #define FX_PP_ROWS 3  // v3.43 PP343: Bloom, Colour Grading, Otherworld Lens after Cut-scenes (post.inc; their own text block)
 #define FX_DOF_ROWS 2  // v3.44 DF344: Depth of Field, DoF Strength after the post rows (dof.inc DofBuildRows; the MSG_DOF0 block)
+#define FX_PV_ROWS 2  // v3.58 PV358: Filter Strength, Preview after the DoF rows (preview.inc PvBuildRows; MSG_V58 + 16 ..)
 #define FX_VMAX 11
 #define FX_FILTERS 10
 static const int kFxCount[FX_N] = { 4, 7, 8, FX_FILTERS, 2 };
@@ -1382,7 +1384,7 @@ enum { MSG_ASPECT = MSG_BASE, MSG_ASPECT_DESC, MSG_ASP0, MSG_RES0 = MSG_ASP0 + A
        MSG_VIBV0, MSG_VIBD = MSG_VIBV0 + 4,  // v3.14.0
        MSG_FXT, MSG_FXL0, MSG_FXD0 = MSG_FXL0 + FX_N + 1, MSG_FXV0 = MSG_FXD0 + FX_N + 1,  // v3.15.0: + Back
        MSG_FXROWD = MSG_FXV0 + FX_N * FX_VMAX,
-       MSG_GP0, MSG_PC0 = MSG_GP0 + 128, MSG_HB0 = MSG_PC0 + 48, MSG_CAM0 = MSG_HB0 + 32, MSG_PERF0 = MSG_CAM0 + 256, MSG_INV0 = MSG_PERF0 + 8, MSG_SHD0 = MSG_INV0 + 16, MSG_DOF0 = MSG_SHD0 + 32, MSG_PP0 = MSG_DOF0 + 32, MSG_GT0 = MSG_PP0 + 48, MSG_FN0 = MSG_GT0 + 16, MSG_OM0 = MSG_FN0 + 16, MSG_RG0 = MSG_OM0 + 16, MSG_SB0 = MSG_RG0 + 16, MSG_RZ0 = MSG_SB0 + 16, MSG_RZ1 = MSG_RZ0 + 32, MSG_V50 = MSG_RZ1 + 32, MSG_V51 = MSG_V50 + 64, MSG_V52 = MSG_V51 + 32, MSG_V53 = MSG_V52 + 64, MSG_V54 = MSG_V53 + 576, MSG_V55 = MSG_V54 + 128, MSG_V56 = MSG_V55 + 64, MSG_END = MSG_V56 + 128 };  // v3.56 MERGE: one MSG_V56 block for all eight (SD356, FR356, PW356, PV356, MN356, RI356 and ER356 wrote it; RE356 did not): V56 + 0 .. 15 MN356 vlines.inc (the value lines ring, 16 of 16), + 112 .. 115 SD356 sound.inc SDM_* (4 of its 16); RI356 + 16 .. 31, RE356 + 32 .. 47, ER356 + 48 .. 63, PW356 + 64 .. 79, PV356 + 80 .. 95, FR356 + 96 .. 111 and + 116 .. 127 unused (their words go through the layout pool / their own blocks; the unused ids reach ShText's catch-all); MSG_V56 30739, MSG_END 30867 = 0x7893 (probe356)  // v3.55 OL56: one block MSG_V55 (64; layout.inc hands out MSG_V54 + 0 .. 127 and MSG_V55 + 0 .. 63 as one pool of 192: the stock moves' labels, lines and titles); MSG_END 30739 = 0x7813  // v3.54 OL34: one block MSG_V54 (layout.inc: the new pages' titles, rows and lines)  // v3.53 MERGE: one MSG_V53 block for both (w2 OL1 and w3 OL2 wrote it): V53 + 0 .. 89 OL1 OLT_* (90 texts), + 400 .. 409 the Filter lines, + 420 the Renderer line (+ 90 .. 399, 410 .. 419, 421 .. 511 free); + 512 .. 535 OL2 crumb titles, + 536 .. 542 the reasons, + 544 .. 551 the grey lines (+ 543, 552 .. 575 free); MsgText answers both above every catch-all (probe353); MSG_V53 29971, MSG_END 30547 = 0x7753  // v3.53 OL1: + the MSG_V53 block (BRIEF_COMMON: w2 OL1 V53 + 0..511 (the Options words: OlText, OLT_*), w3 OL2 + 512..575; w1 none; the merge writes it once)  // v3.53 OL2: + the MSG_V53 block (BRIEF_COMMON: w2 OL1 V53 + 0..511, w3 OL2 look.inc LK_* V53 + 512..575 (40 used: titles 512..535, reasons 536..543, grey descriptions 544..551), w1 none; MSG_END 30547 = 0x7753, under any 16-bit id limit; the merge writes it once)  // v3.52 EP352: + the MSG_V52 block (BRIEF_COMMON: w1 V52 + 0..23, w2 + 24..27, w3 + 28..39, w4 + 40..43, w5 + 44..47, w6 + 48..51, w7 EP352 + 52..55 (none used: the Enemy Pursuit row keeps its V50 ids), + 56..63 unused; the merge writes it once)  // v3.52 HB352: + the MSG_V52 block (BRIEF_COMMON: w1 V52 + 0..23, w2 HB352 + 24..27 (none used), w3 + 28..39, w4 + 40..43, w5 + 44..47, w6 + 48..51, w7 + 52..55, + 56..63 unused; the merge writes it once)  // v3.52 TP352: + the MSG_V52 block (BRIEF_COMMON: w5 teleport V52 + 44..47, TP352 uses none; the merge writes it once)  // v3.52 QL352: + the MSG_V52 block (BRIEF_COMMON: w1 V52 + 0..23, w2 + 24..27, w3 + 28..39, w4 + 40..43, w5 + 44..47, w6 QL352 + 48..51 (none used), w7 + 52..55; the merge writes it once)  // v3.52 FX352: + the MSG_V52 block (BRIEF_COMMON: w1 V52 + 0..23, w2 + 24..27, w3 FX352 + 28..39 (none used: the Bloom, Otherworld Lens and Depth of Field rows keep their MSG_PP0 / MSG_DOF0 texts), w4 + 40..43, w5 + 44..47, w6 + 48..51, w7 + 52..55; the merge writes it once)  // v3.52 SND352: + the MSG_V52 block (BRIEF_COMMON: w1 SND352 sound.inc SNDM_* V52 + 0..23 (19 used), w2 + 24..27, w3 + 28..39, w4 + 40..43, w5 + 44..47, w6 + 48..51, w7 + 52..55, + 56..63 unused; the merge writes it once)  // v3.51 MERGE: one MSG_V51 block for all five (w5 MU351, w1 TP351, w2 EP351, w3 PT351 wrote it; w4 SN351 did not edit this file): V51 + 0 .. 3 TP351, + 4 .. 15 EP351, + 16 .. 23 PT351, + 24 .. 27 SN351, + 28 .. 31 MU351, none used (the Enemy Pursuit and Fade In rows keep their V50 ids); the unused ids reach ShText's catch-all range as the unused blocks before; MSG_END 29907 (probe351)  // v3.51 MU351: + the MSG_V51 block (BRIEF_COMMON: w1 V51 + 0..3, w2 + 4..15, w3 + 16..23, w4 + 24..27, w5 MU351 + 28..31 (none used); the merge writes it once)  // v3.51 TP351: + the MSG_V51 block (BRIEF_COMMON: w1 teleport V51 + 0..3 (TP351 uses none), w2 + 4..15, w3 + 16..23, w4 + 24..27, w5 + 28..31; the merge writes it once)  // v3.51 EP351: + the MSG_V51 block (BRIEF_COMMON: w1 V51 + 0..3, w2 EP351 + 4..15 (none used: the Enemy Pursuit row keeps its V50 ids), w3 + 16..23, w4 + 24..27, w5 + 28..31; the merge writes it once)  // v3.51 PT351: + the MSG_V51 block (BRIEF_COMMON: w1 V51 + 0..3, w2 + 4..15, w3 PT351 + 16..23 (none used: the Fade In row keeps its V50 texts), w4 + 24..27, w5 + 28..31; the merge writes it once)  // v3.50 MERGE: one MSG_V50 block for all six (every worker wrote it): V50 + 0 .. 7 TP350 (none used), + 8 .. 15 FI350 fadein.inc FIM_* (8 of 8), + 16 .. 31 EF350 enmfollow.inc EFM_* (8 of 16), + 32 .. 63 R302 room302.inc R3M_* (30 of 32); RM350 RMT_ALL / RMT_DALL = RZ1 + 5 / + 6 (its RZ1 + 0 .. 15), RL350 none (RZ0 + 30 .. 31 and RZ1 + 24 .. 31 still free); MSG_END 29875 (probe350)  // v3.50 RM350: the v3.50 block (BRIEF_COMMON; the merge writes it once; RM350 uses none of it: rzmon.inc RMT_ALL / RMT_DALL = RZ1 + 5 / + 6)  // v3.50 RL350: + the MSG_V50 block (BRIEF_COMMON: w1 + 0..7, w4 + 8..15, w5 + 16..31, w6 + 32..63; the merge writes it once; RL350 uses none of it)  // v3.50 R302: + the MSG_V50 block (BRIEF_COMMON: w1 V50 + 0..7, w4 + 8..15, w5 + 16..31, w6 R302 room302.inc R3M_* + 32..63)  // v3.50 TP350: + the MSG_V50 block (BRIEF_COMMON: w1 teleport V50 + 0..7 (TP350 uses none), w4 + 8..15, w5 + 16..31, w6 + 32..63)  // v3.50 EF350: + the MSG_V50 block (BRIEF_COMMON; EF350 enmfollow.inc EFM_*: V50 + 16 .. 23 of its V50 + 16 .. 31)  // v3.50 FI350: the v3.50 block (BRIEF_COMMON: w1 V50 + 0..7, w4 FI350 fadein.inc FIM_* V50 + 8..15, w5 V50 + 16..31, w6 V50 + 32..63)  // v3.49 MERGE: one MSG_RZ1 block for both (RZ349 rzmon.inc RMT_*: RZ0 + 28 .. 29 and RZ1 + 0 .. 4 of its RZ1 + 0 .. 15; RZ349L rzlooks.inc RZLM_*: RZ1 + 16 .. 23 of its RZ1 + 16 .. 31; RZ0 + 30 .. 31 unused)  // v3.49 RZ349: + the MSG_RZ1 block (w3 RZ349 rzmon.inc: RZ0 + 28 .. 29 and RZ1 + 0 .. 15; w4: RZ0 + 30 .. 31 and RZ1 + 16 .. 31)  // v3.49 RZ349L: + the MSG_RZ1 block (BRIEF_COMMON: w3 RZ1 + 0..15, w4 rzlooks.inc RZLM_* at RZ1 + 16.., 8 of 16)  // v3.48 RZ348: + the MSG_RZ0 block (randomizer.inc RZM_*, 25 of 32)  // v3.47 MERGE: the v3.47 text-id chain (BRIEF_COMMON): MSG_OM0 (w1 CT347 omni.inc OMM_*, 11 of 16), MSG_RG0 (w4 RG347 regen.inc RGT_*, 6 of 16), MSG_SB0 (w3 SB347: reserved, no text used)  // v3.46 OM346: + the MSG_OM0 block (omni.inc OMM_*, 11 of 16)  // v3.43 MERGE: the v3.43 text-id chain (BRIEF_COMMON; DOF = DF343 dof.inc DFM_*, PP = PP343 post.inc PPM_*, GT = GT343 teleport.inc, FN = FN343: reserved, font.inc has no row)  // v3.42 SM342: the SHD block 16 -> 32 (the Shadows page's Darkness row: SHM_N 11 -> 18)  // v3.40 SH340: MSG_SHD0.. = shadows.inc's texts (SHM_*; was MSG_END = MSG_INV0 + 16)  // v3.37 MERGE: MSG_INV0.. = inventory.inc's texts (INVM_*, W2 INV337)  // v3.37 CP337: MSG_PERF0.. = perfhud.inc's texts (PERFT_*; was MSG_END = MSG_CAM0 + 256)  // v3.33 CAM333: MSG_CAM0.. = camera.inc's texts (CAMT_*; was MSG_END = MSG_HB0 + 32)  // v3.29 merge: the gameplay block 64 -> 128 (v3.29 AFTERIMAGE / v3.30 ECHO / v3.31 ENEMIES each raised it to 96, SUPPLY DROPS to 80; GPM_N is 105 with all of them); PLAYER PACK: MSG_PC0.. = playercheats.inc's texts (PCM_*); HUD BARS: MSG_HB0.. = hudbars.inc's texts  // v3.25.0: MSG_GP0.. = gameplay.inc's texts (GPM_*)  // v3.10.0: MSG_PAD0..+44 = Button Config pad names (buttoncfg.inc)  // v3.30 MERGE: unchanged; GPM_N 121 of 128 (AS330 + 2, ECHO330 + 7, EN330 + 7)  // v3.31 MERGE: unchanged (no new text id in v3.31)  // v3.32 MERGE: GPM_N 124 of 128 (NC332 + 3), HBM_N 16 of 32 (DHS332 + 2)
+       MSG_GP0, MSG_PC0 = MSG_GP0 + 128, MSG_HB0 = MSG_PC0 + 48, MSG_CAM0 = MSG_HB0 + 32, MSG_PERF0 = MSG_CAM0 + 256, MSG_INV0 = MSG_PERF0 + 8, MSG_SHD0 = MSG_INV0 + 16, MSG_DOF0 = MSG_SHD0 + 32, MSG_PP0 = MSG_DOF0 + 32, MSG_GT0 = MSG_PP0 + 48, MSG_FN0 = MSG_GT0 + 16, MSG_OM0 = MSG_FN0 + 16, MSG_RG0 = MSG_OM0 + 16, MSG_SB0 = MSG_RG0 + 16, MSG_RZ0 = MSG_SB0 + 16, MSG_RZ1 = MSG_RZ0 + 32, MSG_V50 = MSG_RZ1 + 32, MSG_V51 = MSG_V50 + 64, MSG_V52 = MSG_V51 + 32, MSG_V53 = MSG_V52 + 64, MSG_V54 = MSG_V53 + 576, MSG_V55 = MSG_V54 + 128, MSG_V56 = MSG_V55 + 64, MSG_V58 = MSG_V56 + 128, MSG_END = MSG_V58 + 128 };  // v3.58 PV358: + the MSG_V58 block (BRIEF_COMMON: w1 V58 + 0..15, w2 PV358 preview.inc PVX_* + 16..31 (13 used), w3 + 32..47, w4 + 48..63, w5 + 64..79, w6 + 80..95, w7 + 96..111, w8 + 112..127; the merge writes it once)  // v3.56 MERGE: one MSG_V56 block for all eight (SD356, FR356, PW356, PV356, MN356, RI356 and ER356 wrote it; RE356 did not): V56 + 0 .. 15 MN356 vlines.inc (the value lines ring, 16 of 16), + 112 .. 115 SD356 sound.inc SDM_* (4 of its 16); RI356 + 16 .. 31, RE356 + 32 .. 47, ER356 + 48 .. 63, PW356 + 64 .. 79, PV356 + 80 .. 95, FR356 + 96 .. 111 and + 116 .. 127 unused (their words go through the layout pool / their own blocks; the unused ids reach ShText's catch-all); MSG_V56 30739, MSG_END 30867 = 0x7893 (probe356)  // v3.55 OL56: one block MSG_V55 (64; layout.inc hands out MSG_V54 + 0 .. 127 and MSG_V55 + 0 .. 63 as one pool of 192: the stock moves' labels, lines and titles); MSG_END 30739 = 0x7813  // v3.54 OL34: one block MSG_V54 (layout.inc: the new pages' titles, rows and lines)  // v3.53 MERGE: one MSG_V53 block for both (w2 OL1 and w3 OL2 wrote it): V53 + 0 .. 89 OL1 OLT_* (90 texts), + 400 .. 409 the Filter lines, + 420 the Renderer line (+ 90 .. 399, 410 .. 419, 421 .. 511 free); + 512 .. 535 OL2 crumb titles, + 536 .. 542 the reasons, + 544 .. 551 the grey lines (+ 543, 552 .. 575 free); MsgText answers both above every catch-all (probe353); MSG_V53 29971, MSG_END 30547 = 0x7753  // v3.53 OL1: + the MSG_V53 block (BRIEF_COMMON: w2 OL1 V53 + 0..511 (the Options words: OlText, OLT_*), w3 OL2 + 512..575; w1 none; the merge writes it once)  // v3.53 OL2: + the MSG_V53 block (BRIEF_COMMON: w2 OL1 V53 + 0..511, w3 OL2 look.inc LK_* V53 + 512..575 (40 used: titles 512..535, reasons 536..543, grey descriptions 544..551), w1 none; MSG_END 30547 = 0x7753, under any 16-bit id limit; the merge writes it once)  // v3.52 EP352: + the MSG_V52 block (BRIEF_COMMON: w1 V52 + 0..23, w2 + 24..27, w3 + 28..39, w4 + 40..43, w5 + 44..47, w6 + 48..51, w7 EP352 + 52..55 (none used: the Enemy Pursuit row keeps its V50 ids), + 56..63 unused; the merge writes it once)  // v3.52 HB352: + the MSG_V52 block (BRIEF_COMMON: w1 V52 + 0..23, w2 HB352 + 24..27 (none used), w3 + 28..39, w4 + 40..43, w5 + 44..47, w6 + 48..51, w7 + 52..55, + 56..63 unused; the merge writes it once)  // v3.52 TP352: + the MSG_V52 block (BRIEF_COMMON: w5 teleport V52 + 44..47, TP352 uses none; the merge writes it once)  // v3.52 QL352: + the MSG_V52 block (BRIEF_COMMON: w1 V52 + 0..23, w2 + 24..27, w3 + 28..39, w4 + 40..43, w5 + 44..47, w6 QL352 + 48..51 (none used), w7 + 52..55; the merge writes it once)  // v3.52 FX352: + the MSG_V52 block (BRIEF_COMMON: w1 V52 + 0..23, w2 + 24..27, w3 FX352 + 28..39 (none used: the Bloom, Otherworld Lens and Depth of Field rows keep their MSG_PP0 / MSG_DOF0 texts), w4 + 40..43, w5 + 44..47, w6 + 48..51, w7 + 52..55; the merge writes it once)  // v3.52 SND352: + the MSG_V52 block (BRIEF_COMMON: w1 SND352 sound.inc SNDM_* V52 + 0..23 (19 used), w2 + 24..27, w3 + 28..39, w4 + 40..43, w5 + 44..47, w6 + 48..51, w7 + 52..55, + 56..63 unused; the merge writes it once)  // v3.51 MERGE: one MSG_V51 block for all five (w5 MU351, w1 TP351, w2 EP351, w3 PT351 wrote it; w4 SN351 did not edit this file): V51 + 0 .. 3 TP351, + 4 .. 15 EP351, + 16 .. 23 PT351, + 24 .. 27 SN351, + 28 .. 31 MU351, none used (the Enemy Pursuit and Fade In rows keep their V50 ids); the unused ids reach ShText's catch-all range as the unused blocks before; MSG_END 29907 (probe351)  // v3.51 MU351: + the MSG_V51 block (BRIEF_COMMON: w1 V51 + 0..3, w2 + 4..15, w3 + 16..23, w4 + 24..27, w5 MU351 + 28..31 (none used); the merge writes it once)  // v3.51 TP351: + the MSG_V51 block (BRIEF_COMMON: w1 teleport V51 + 0..3 (TP351 uses none), w2 + 4..15, w3 + 16..23, w4 + 24..27, w5 + 28..31; the merge writes it once)  // v3.51 EP351: + the MSG_V51 block (BRIEF_COMMON: w1 V51 + 0..3, w2 EP351 + 4..15 (none used: the Enemy Pursuit row keeps its V50 ids), w3 + 16..23, w4 + 24..27, w5 + 28..31; the merge writes it once)  // v3.51 PT351: + the MSG_V51 block (BRIEF_COMMON: w1 V51 + 0..3, w2 + 4..15, w3 PT351 + 16..23 (none used: the Fade In row keeps its V50 texts), w4 + 24..27, w5 + 28..31; the merge writes it once)  // v3.50 MERGE: one MSG_V50 block for all six (every worker wrote it): V50 + 0 .. 7 TP350 (none used), + 8 .. 15 FI350 fadein.inc FIM_* (8 of 8), + 16 .. 31 EF350 enmfollow.inc EFM_* (8 of 16), + 32 .. 63 R302 room302.inc R3M_* (30 of 32); RM350 RMT_ALL / RMT_DALL = RZ1 + 5 / + 6 (its RZ1 + 0 .. 15), RL350 none (RZ0 + 30 .. 31 and RZ1 + 24 .. 31 still free); MSG_END 29875 (probe350)  // v3.50 RM350: the v3.50 block (BRIEF_COMMON; the merge writes it once; RM350 uses none of it: rzmon.inc RMT_ALL / RMT_DALL = RZ1 + 5 / + 6)  // v3.50 RL350: + the MSG_V50 block (BRIEF_COMMON: w1 + 0..7, w4 + 8..15, w5 + 16..31, w6 + 32..63; the merge writes it once; RL350 uses none of it)  // v3.50 R302: + the MSG_V50 block (BRIEF_COMMON: w1 V50 + 0..7, w4 + 8..15, w5 + 16..31, w6 R302 room302.inc R3M_* + 32..63)  // v3.50 TP350: + the MSG_V50 block (BRIEF_COMMON: w1 teleport V50 + 0..7 (TP350 uses none), w4 + 8..15, w5 + 16..31, w6 + 32..63)  // v3.50 EF350: + the MSG_V50 block (BRIEF_COMMON; EF350 enmfollow.inc EFM_*: V50 + 16 .. 23 of its V50 + 16 .. 31)  // v3.50 FI350: the v3.50 block (BRIEF_COMMON: w1 V50 + 0..7, w4 FI350 fadein.inc FIM_* V50 + 8..15, w5 V50 + 16..31, w6 V50 + 32..63)  // v3.49 MERGE: one MSG_RZ1 block for both (RZ349 rzmon.inc RMT_*: RZ0 + 28 .. 29 and RZ1 + 0 .. 4 of its RZ1 + 0 .. 15; RZ349L rzlooks.inc RZLM_*: RZ1 + 16 .. 23 of its RZ1 + 16 .. 31; RZ0 + 30 .. 31 unused)  // v3.49 RZ349: + the MSG_RZ1 block (w3 RZ349 rzmon.inc: RZ0 + 28 .. 29 and RZ1 + 0 .. 15; w4: RZ0 + 30 .. 31 and RZ1 + 16 .. 31)  // v3.49 RZ349L: + the MSG_RZ1 block (BRIEF_COMMON: w3 RZ1 + 0..15, w4 rzlooks.inc RZLM_* at RZ1 + 16.., 8 of 16)  // v3.48 RZ348: + the MSG_RZ0 block (randomizer.inc RZM_*, 25 of 32)  // v3.47 MERGE: the v3.47 text-id chain (BRIEF_COMMON): MSG_OM0 (w1 CT347 omni.inc OMM_*, 11 of 16), MSG_RG0 (w4 RG347 regen.inc RGT_*, 6 of 16), MSG_SB0 (w3 SB347: reserved, no text used)  // v3.46 OM346: + the MSG_OM0 block (omni.inc OMM_*, 11 of 16)  // v3.43 MERGE: the v3.43 text-id chain (BRIEF_COMMON; DOF = DF343 dof.inc DFM_*, PP = PP343 post.inc PPM_*, GT = GT343 teleport.inc, FN = FN343: reserved, font.inc has no row)  // v3.42 SM342: the SHD block 16 -> 32 (the Shadows page's Darkness row: SHM_N 11 -> 18)  // v3.40 SH340: MSG_SHD0.. = shadows.inc's texts (SHM_*; was MSG_END = MSG_INV0 + 16)  // v3.37 MERGE: MSG_INV0.. = inventory.inc's texts (INVM_*, W2 INV337)  // v3.37 CP337: MSG_PERF0.. = perfhud.inc's texts (PERFT_*; was MSG_END = MSG_CAM0 + 256)  // v3.33 CAM333: MSG_CAM0.. = camera.inc's texts (CAMT_*; was MSG_END = MSG_HB0 + 32)  // v3.29 merge: the gameplay block 64 -> 128 (v3.29 AFTERIMAGE / v3.30 ECHO / v3.31 ENEMIES each raised it to 96, SUPPLY DROPS to 80; GPM_N is 105 with all of them); PLAYER PACK: MSG_PC0.. = playercheats.inc's texts (PCM_*); HUD BARS: MSG_HB0.. = hudbars.inc's texts  // v3.25.0: MSG_GP0.. = gameplay.inc's texts (GPM_*)  // v3.10.0: MSG_PAD0..+44 = Button Config pad names (buttoncfg.inc)  // v3.30 MERGE: unchanged; GPM_N 121 of 128 (AS330 + 2, ECHO330 + 7, EN330 + 7)  // v3.31 MERGE: unchanged (no new text id in v3.31)  // v3.32 MERGE: GPM_N 124 of 128 (NC332 + 3), HBM_N 16 of 32 (DHS332 + 2)
 static BYTE g_txtAspect[32], g_txtAspectDesc[48], g_txtAsp[ASP_N][16], g_txtRes[ASP_N][6][16];
 static BYTE g_resLen[ASP_N][6];  // v1.6: characters of each Resolution label (the arrow rule)
 static BYTE g_txtDisp[32], g_txtDispDesc[64], g_txtDm[DM_N][16];  // v3.53 OL1: the description 48 -> 64 (47 characters)
@@ -1409,7 +1411,7 @@ static int g_fpsRow;                       // v1.9: the Frame Rate row is there
 // value at +8). Option 4: Display Mode, Monitor, Aspect Ratio, 1st / 3rd Person FOV, Frame Rate, Exit.
 static DWORD g_rowsSub[(SUB_N + 1) * 7 + 1], g_rowsOthers[8 * 7 + 1];  // v3.13.0
 static DWORD g_rowsControl[7 * 7 + 1];  // v3.14.0
-static DWORD g_rowsFx[(FX_N + FX_PP_ROWS + FX_DOF_ROWS + 1) * 7 + 1];  // v3.15.0; v3.43 PP343: + FX_PP_ROWS; v3.44 DF344: + FX_DOF_ROWS
+static DWORD g_rowsFx[(FX_N + FX_PP_ROWS + FX_DOF_ROWS + FX_PV_ROWS + 1) * 7 + 1];  // v3.58 PV358: + FX_PV_ROWS  // v3.15.0; v3.43 PP343: + FX_PP_ROWS; v3.44 DF344: + FX_DOF_ROWS
 static DWORD g_rowsPlayer[11 * 7 + 1], g_rowsEnemy[8 * 7 + 1];  // v3.50 EF350: Enemies 7 -> 8 (+ Enemy Pursuit; w4 may add one more)  // v3.50 MERGE: full with FI350's Fade In (7 rows + Back; GpEnemyFits)  // v3.37 MN337: Player 10 -> 11 (One-Hit Kill joined, Curse Meter left: 10 with PE)  // v3.25.0 (gameplay.inc); PLAYER PACK: 9 (8 rows + Back; was 5); HUD BARS: + Curse Meter (v3.29 merge: 10, the page limit)  // v3.31 ENEMIES: 4 rows (was 2); HUD BARS: + Health Bars; SUPPLY DROPS: + Supply Drops (v3.29 merge: 6)  // v3.30 EN330: + Revive Enemies (7)
 static DWORD g_rowsSpecial[6 * 7 + 1];  // v3.27.0: the Special page (room for the later special-mod rows)
 static DWORD g_rowsRando[11 * 7 + 1];  // v3.48 RZ348: the Randomizer page (6 rows today; room for Monsters, Mix, Ghosts, Looks)
@@ -1511,7 +1513,7 @@ static void Encode(BYTE *out, size_t n, const char *s)  // byte-mode game string
     X(OLT_GRADE_VD2, OLW_EFFECTS_COLOUR_GRADE_VD_OTHERWORLD) X(OLT_GRADE_VD3, OLW_EFFECTS_COLOUR_GRADE_VD_APARTMENT) \
     X(OLT_GRADE_VD4, OLW_EFFECTS_COLOUR_GRADE_VD_BLEACH) \
     X(OLT_LENS_VD_OFF, OLW_EFFECTS_OTHERWORLD_LENS_VD_OFF) X(OLT_LENS_VD_ON, OLW_EFFECTS_OTHERWORLD_LENS_VD_ON) \
-    X(OLT_DOF_VD_CUT, OLW_EFFECTS_DEPTH_OF_FIELD_VD_CUT_SCENES) X(OLT_DOF_VD_ALWAYS, OLW_EFFECTS_DEPTH_OF_FIELD_VD_ALWAYS) \
+    X(OLT_DOF_VD_CUT, OLW_DOF_DEPTH_OF_FIELD_VD_CUT_SCENES) X(OLT_DOF_VD_ALWAYS, OLW_DOF_DEPTH_OF_FIELD_VD_ALWAYS) /* v3.58 PV358: the dof page's words */ \
     X(OLT_SHE_VD_STOCK, OLW_SHADOWS_EDGE_VD_STOCK) X(OLT_SHE_VD_SOFT, OLW_SHADOWS_EDGE_VD_SOFT) \
     X(OLT_BACK_PRES, OLW_BACK_PRESENTATION) \
     X(OLT_MS_VD_X2, OLW_PLAYER_MOVE_SPEED_VD_X2) X(OLT_OHK_VD_ON, OLW_COMBAT_ONE_HIT_KILL_VD_ON) \
@@ -1526,7 +1528,7 @@ typedef char OlTextsFit[OLT_N <= 512 ? 1 : -1];  // OL1's ids: V53 + 0 .. 511
 // (MSG_V53 = 29971, MSG_END = 30547 = 0x7753 by v3.51's probe (MSG_END 29907 then): every id still fits a signed 16-bit
 // word; the game's text calls take an int, the row records a dword, so no id limit binds below 0x7FFF)
 typedef char OlEndFits[MSG_END <= 0x7FFF && MSG_V53 == MSG_BASE + 1299 && MSG_V54 == MSG_V53 + 576 && MSG_V55 == MSG_V54 + 128 &&
-                       MSG_V56 == MSG_V55 + 64 && MSG_END == MSG_V56 + 128 ? 1 : -1];  // v3.54 OL34  // v3.55 OL56: + MSG_V55  // v3.56 MERGE: + MSG_V56 (written by seven workers, kept once)
+                       MSG_V56 == MSG_V55 + 64 && MSG_V58 == MSG_V56 + 128 && MSG_END == MSG_V58 + 128 ? 1 : -1];  // v3.58 PV358: + MSG_V58  // v3.54 OL34  // v3.55 OL56: + MSG_V55  // v3.56 MERGE: + MSG_V56 (written by seven workers, kept once)
 #define OL_FILTERS 10  // the Filter row's values (FX_FILTERS, defined below)
 static BYTE g_txtOl[OLT_N][96];
 static BYTE g_txtOlFilter[OL_FILTERS][128];  // the Filter row's value lines (+ the PreviewKey sentence): V53 + 400 ..
@@ -1687,6 +1689,14 @@ static void DofBuildPage(const DWORD *stockRows);
 static void DofInstall(void);
 static int DofBuildRows(DWORD *rows, int row0);  // v3.44 DF344: its rows on the Screen Effects page
 static int DofFxRowChanged(int row);             // v3.44 DF344: -1 = not one of its rows
+// v3.58 PV358: preview.inc: Effects > Filter Strength and Preview (origin rows of the Screen Effects page, after the DoF rows)
+static const BYTE *PvText(int id);               // MSG_V58 + 16 .. 31
+static int PvBuildRows(DWORD *rows, int row0);   // the two rows (2), their texts
+static int PvFxRowChanged(int row);              // -1 = not one of its rows
+static void PvSnapshot(void);
+static int PvChanged(void);
+static void PvDiscard(void);
+static int PvFilterDesc(int f);                  // FxDesc3: the Filter line + the F7 sentence where F7 changes the page (0 = the usual line)
 // v3.53 OL2: look.inc (included last): the Options look of the layout plan's round R2 (page strip, folder triangles,
 // "Parent > Page" titles, the dependent rows grey with their reason, the glyph lines)
 static const BYTE *LkText(int id);
@@ -1718,6 +1728,7 @@ static int FcClickHit(void);         // HitRectI at 0x525E05: a click on a folde
 static void FcFrameNote(int slot);   // RowChangedDraw: a click while a page slides or fades is logged
 static const BYTE *__cdecl MsgText(int id)
 {
+    if (id >= MSG_V58 + 16 && id < MSG_V58 + 32) return PvText(id);  // v3.58 PV358: preview.inc (Filter Strength, Preview; the newest block first)
     if (id >= MSG_V56 + 112 && id < MSG_V56 + 128) return SdText(id);  // v3.56 SD356: sound.inc (the newest block first, above every catch-all)
     if (id >= MSG_V56 && id < MSG_V56 + 16) return VlText(id);  // v3.56 MN356: vlines.inc (MN356's V56 + 0 .. 15; the newest block first)
     if (id >= MSG_V54 && id < MSG_V55 + 64) return Ol4Text(id);  // v3.54 OL34: layout.inc (the newest block first, above every catch-all)  // v3.55 OL56: + MSG_V55 (one pool)
@@ -1841,7 +1852,7 @@ static int __cdecl PadChanged(const BYTE *obj)  // v3.5.1: also the ini-kept set
            (g_snapOn && (g_fovSel != g_snapFov || g_fovFpSel != g_snapFovFp || g_fpsSel != g_snapFps ||
                          (g_sparkleOn != 0) != (g_snapShine != 0) || EmChanged() || PresChanged() || SubChanged() || VibChanged() ||
                          FxChanged() || GpChanged() || CamChanged() || ShChanged() || PpChanged() || DofChanged() ||
-                         FnChanged() || OmChanged() || R3Changed() || SndChanged()));  // v3.52 SND352: + SndChanged (Option 1's Sound row, the Sound page)  // v3.50 R302: + R3Changed (the Room 302 page)  // v3.47 CT347: + OmChanged (Option 2's Stick Movement; was in GpChanged)  // v3.44 FN344: + FnChanged  // v3.43 MERGE: + PpChanged (PP343), + DofChanged (DF343)  // v3.40 SH340: + ShChanged  // v3.33 CAM333: + CamChanged; v3.39 PR339: PresChanged (was GfxChanged, PerfChanged)
+                         FnChanged() || OmChanged() || R3Changed() || SndChanged() || PvChanged()));  // v3.58 PV358: + PvChanged  // v3.52 SND352: + SndChanged (Option 1's Sound row, the Sound page)  // v3.50 R302: + R3Changed (the Room 302 page)  // v3.47 CT347: + OmChanged (Option 2's Stick Movement; was in GpChanged)  // v3.44 FN344: + FnChanged  // v3.43 MERGE: + PpChanged (PP343), + DofChanged (DF343)  // v3.40 SH340: + ShChanged  // v3.33 CAM333: + CamChanged; v3.39 PR339: PresChanged (was GfxChanged, PerfChanged)
 }
 
 static __declspec(naked) void StockRowChanged(void)  // the stock 523AA0 as a subroutine (eax row, edx page, ecx obj)
@@ -1860,6 +1871,9 @@ static __declspec(naked) void StockRowChanged(void)  // the stock 523AA0 as a su
 // yellow. A slot holding Option 4 / 5 must answer for its own rows, not for the stock page of that slot number (the
 // first build coloured Option 4's Display Mode by Option 1's Resolution test). -1 = let the stock test answer.
 static void SubmenuArrow(int row, int slot, const BYTE *obj, int xoff);
+static void VbxRowNote(int slot);  // v3.58 MN358: valbox.inc (the row's page box for this row's draw)
+static int VbxColMove(int lp);     // v3.58 MN358: valbox.inc (look.inc's folder triangle)
+static void VbxPanelX(int lp, float *x0, float *x1);  // v3.58 MN358: valbox.inc (screenfx.inc's value panel)
 // v3.54 OL34 (R0 section 2, R4-2): the stock test of a stock record answers by the record's own page and row (the cfg
 // byte the exit scan compares for that pair), wherever the record sits now (a stock record on another page or row would
 // otherwise be asked about the slot's stock page: it never turned yellow, or the wrong row did)
@@ -1880,6 +1894,7 @@ static int __cdecl RowChangedDraw(int row, int slot, const BYTE *obj, int xoff)
     int k = 0, lp, op, orow, arg, kind;
     g_drawSlot = slot;  // v3.19.0 C2b: the 0x52570E stub asks about this row
     g_drawRow = row;
+    VbxRowNote(slot);  // v3.58 MN358: the value box of the row's page (0x52570E / 0x525802 / 0x52587C / the bar arrows read it)
     SubmenuArrow(row, slot, obj, xoff);  // v3.19.0 C3; v3.21.0: + the slot's slide offset
     LkRowDraw(row, slot, obj, xoff);  // v3.53 OL2: the page strip (row 0) and a folder row's triangle
     if (row == 0) FcFrameNote(slot);  // v3.56 MN356: a click while the page slides or fades is logged
@@ -1918,6 +1933,10 @@ static int __cdecl RowChangedDraw(int row, int slot, const BYTE *obj, int xoff)
         {   // v3.44 DF344: Depth of Field / DoF Strength (after the post rows)
             const int d = DofFxRowChanged(row);
             if (d >= 0) return d;
+        }
+        {   // v3.58 PV358: Filter Strength / Preview (after the DoF rows)
+            const int p = PvFxRowChanged(row);
+            if (p >= 0) return p;
         }
         if (row >= FX_N) return PpRowChanged(row - FX_N);  // v3.43 PP343 (Back: not one of them)
         return g_snapOn && row >= 0 && row < FX_N && g_fx[row] != g_snapFx[row];
@@ -2293,7 +2312,12 @@ static int __cdecl FxGet4(void) { return (int)g_fx[4]; }
 static int __cdecl FxDesc0(void) { return MSG_FXD0 + 0; }
 static int __cdecl FxDesc1(void) { return MSG_FXD0 + 1; }
 static int __cdecl FxDesc2(void) { return MSG_FXD0 + 2; }
-static int __cdecl FxDesc3(void) { return (unsigned)g_fx[FX_FILTER] < OL_FILTERS ? MSG_V53 + OLT_FILTER0 + (int)g_fx[FX_FILTER] : MSG_FXD0 + 3; }  // v3.53 OL1: a line per filter
+static int __cdecl FxDesc3(void)  // v3.58 PV358: + the F7 sentence where F7 changes the page (PvFilterDesc)
+{
+    const int d = PvFilterDesc((int)g_fx[FX_FILTER]);
+    if (d) return d;
+    return (unsigned)g_fx[FX_FILTER] < OL_FILTERS ? MSG_V53 + OLT_FILTER0 + (int)g_fx[FX_FILTER] : MSG_FXD0 + 3;  // v3.53 OL1: a line per filter
+}  // v3.53 OL1: a line per filter
 static int __cdecl FxDesc4(void) { return OlLine(g_fx[FX_CUT] ? OLT_CUT_VD_OFF : OLT_CUT_VD_ON); }  // v3.53 OL1: On / Off lines
 static int __cdecl FxDescBack(void) { return MSG_FXD0 + FX_N; }
 // Back: Enter fades (or slides) back to Option 3, cursor on Noise Effect (request 4)
@@ -2700,6 +2724,8 @@ static int ActiveCursor(void)
 static float LabelW(const BYTE *s);
 static int GpLongValW(int page, int row);  // v3.31 ENEMIES: gameplay.inc (Enemies Follow's long value)
 #include "arrowfit_sim.h"  // v3.33 MENU333: AfRowShift / AF_COLW (test\arrowfit_test.c)
+#include "valbox_sim.h"  // v3.58 MN358: the page's value box (valbox.inc; test\valbox_test.c)
+static const VbxBox *g_vbxRow;  // v3.58 MN358: the box of the row being drawn (valbox.inc VbxRowNote; NULL = the rules below)
 static int RowValWidths(int page, int row, float *w, int max, float *cur);  // v3.33 MENU333
 static int LongValW(int page, int row)
 {
@@ -2739,8 +2765,9 @@ static int ArrowShiftOld(int op, int cur, int entry);
 static int ArrowShift(int page)
 {
     const int cur = ActiveCursor(), entry = (signed char)CFG[0x20];
-    const int lw = LongValW(g_lpage, cur);
-    int op, orow, arg, old;
+    int lw, op, orow, arg, old;
+    if (g_vbxRow) return g_vbxRow->shift;  // v3.58 MN358: the page's box (the drawn row's page: either slot of a slide)
+    lw = LongValW(g_lpage, cur);
     OlRowAt(g_lpage, cur, &op, &orow, &arg);  // v3.54 OL34: the old rules by the row's origin page / row
     old = ArrowShiftOld(op, orow, entry);
     (void)page;  // the stock page id (g_stockView) is 7 on our pages: the logical page decides
@@ -3063,10 +3090,17 @@ static __declspec(naked) void hkRowLabel(void)
         ret
     }
 }
+static int __cdecl VbxValueX(int id, int x);  // v3.58 MN358: valbox.inc
 static __declspec(naked) void hkRowValue(void)  // v3.33 MERGE: 0x525802, as hkRowLabel
 {
     __asm {
         pushad
+        push dword ptr [esp + 24h]  // v3.58 MN358: x
+        push esi                    // the value id
+        call VbxValueX              // the value centred in its page's box (x itself when the box is off)
+        add esp, 8
+        mov [esp + 24h], eax        // the caller's x argument: the stock draw (5239A0) and RowValueC both read it
+        mov eax, [esp + 1Ch]        // the flash count back (the saved eax)  // v3.58 MN358
         mov ecx, [esp + 28h]  // the palette index
         mov edx, [esp + 24h]  // x
         push ecx
@@ -3085,18 +3119,32 @@ static __declspec(naked) void hkRowValue(void)  // v3.33 MERGE: 0x525802, as hkR
         ret
     }
 }
+#include "valbox.inc"  // v3.58 MN358: the page's value box (the four stubs below and 0x52587C ask it)
 // v3.19.0 C2b: 0x52570E (draw) and 0x525CE3 (mouse rects) stubs for long values
+// v3.58 MN358: -1 = the stock path (was 0); >= 0 = the moved path (the value box's move, 0 included)
 static int __cdecl ValueColC(void)
 {
     int w;
-    if ((unsigned)g_drawSlot >= 3) return 0;
+    if (g_vbxRow) return g_vbxRow->move;  // v3.58 MN358
+    if ((unsigned)g_drawSlot >= 3) return -1;
     w = LongValW(g_slotPage[g_drawSlot], g_drawRow);
-    return w ? LongMove(w) : 0;
+    return w ? LongMove(w) : -1;
 }
 static int __cdecl MouseColC(int row)
 {
-    const int lw = LongValW(g_lpage, row);
-    if (!lw) return 0;
+    int lw;
+    {   // v3.58 MN358: the cursor row's three rects where the page's box puts the arrows
+        const VbxBox *b = VbxOf(g_lpage);
+        if (b) {
+            int dl, dv, dvw, dr;
+            VbxRectDeltas(VbxMouseBox(b, row), &dl, &dv, &dvw, &dr);  // (a volume bar whose arrows stayed: the stock rects)
+            g_mouseValDx = dv, g_mouseValW = dvw, g_mouseAdj = dr;
+            return -dl;
+        }
+    }
+    lw = LongValW(g_lpage, row);
+    if (!lw) return -1;
+    g_mouseValDx = g_mouseValW = 0;  // v3.58 MN358: the value rect stays (v3.57)
     g_mouseAdj = (lw - 100 + 6) - LongMove(lw);  // the right arrow's rect where it is drawn
     return LongMove(lw);
 }
@@ -3108,8 +3156,8 @@ static __declspec(naked) void hkValueCol(void)  // 52570E: was `mov al,[1091ADCh
         call ValueColC
         mov [esp + 28], eax      // into the saved eax
         popad
-        test eax, eax
-        jnz moved
+        cmp eax, -1              // v3.58 MN358: -1 = stock (was 0: the box's move may be 0)
+        jne moved
         mov al, byte ptr ds:[1091ADCh]
         jmp dword ptr [g_back525713]
     moved:
@@ -3127,14 +3175,19 @@ static __declspec(naked) void hkMouseCol(void)  // 525CE3: was `cmp byte ptr [10
         add esp, 4
         mov [esp + 28], eax
         popad
-        test eax, eax
-        jnz moved
+        cmp eax, -1                     // v3.58 MN358: -1 = stock (was 0)
+        jne moved
         cmp byte ptr ds:[1091ADCh], 2
         jmp dword ptr [g_back525CEA]
     moved:
         sub dword ptr [esp + 6Ch], eax  // the left arrow follows the column
         mov eax, dword ptr [g_mouseAdj]
         add dword ptr [esp + 24h], eax  // the right arrow's rect where it is drawn
+        mov eax, dword ptr [g_mouseValDx]  // v3.58 MN358: the value rect between the arrows
+        add dword ptr [esp + 54h], eax
+        mov eax, dword ptr [g_mouseValW]
+        add dword ptr [esp + 5Ch], eax
+        mov dword ptr [esp + 2Ch], 14h  // v3.58 MN358: the right arrow rect's width (the stock 525CEA, which this path skips)
         jmp dword ptr [g_to525D9D]
     }
 }
@@ -3163,6 +3216,7 @@ static void LoadSlot(int slot, int lp)
     const DWORD title = LkTitleFor(lp);  // v3.53 OL2: a hidden page's "Parent > Page" (else g_lpTitle[lp])
     int i, cur;
     LkDecorate(lp);  // v3.53 OL2: folder rows without "Press", the dependent rows' thunks (Refined's own records only)
+    VbxForget(lp);  // v3.58 MN358: its value box is measured again at its first draw
     *(DWORD *)(ULONG_PTR)(0x655058 + 4 * slot) = (DWORD)(ULONG_PTR)t;
     *(DWORD *)(ULONG_PTR)(0x655074 + 4 * slot) = (DWORD)(ULONG_PTR)t;
     *(DWORD *)(ULONG_PTR)(0x655080 + 4 * slot) = (DWORD)(ULONG_PTR)t;
@@ -3238,6 +3292,7 @@ static void __cdecl ResetPages(void)
     ShSnapshot();  // v3.40 SH340
     PpSnapshot();  // v3.43 PP343
     DofSnapshot();  // v3.43 DF343
+    PvSnapshot();  // v3.58 PV358
     FnSnapshot();  // v3.44 FN344
     R3Snapshot();  // v3.50 R302
     SndSnapshot();  // v3.52 SND352
@@ -3275,6 +3330,7 @@ static void __cdecl DiscardOwn(void)
         ShDiscard();  // v3.40 SH340
         PpDiscard();  // v3.43 PP343
         DofDiscard();  // v3.43 DF343
+        PvDiscard();  // v3.58 PV358
         FnDiscard();  // v3.44 FN344
         R3Discard();  // v3.50 R302
         SndDiscard();  // v3.52 SND352: the Sound rows back, and the engine re-applied (the game's discard skips Sound)
@@ -3677,6 +3733,7 @@ static int PokeBranch(DWORD va, BYTE op, const void *to, int len)
     memcpy(b + 1, &rel, 4);
     return Poke(va, b, len);
 }
+#include "valbox_site.inc"  // v3.58 MN358: the value box's bar-arrow sites and VbxInstall (after Poke / PokeBranch / SiteOk)
 
 // The 13 reads of [0x1091B1C] in the stock page special cases (opcode bytes checked, then the operand repointed).
 static const struct { DWORD va; BYTE pre[2]; int prelen; } kPageReads[] = {
@@ -5045,7 +5102,8 @@ static void ApplyAspectMenu(void)
         }
         for (r = 0; r < FX_N; ++r)
             for (v = 0; v < kFxCount[r]; ++v) {
-                Encode(g_txtFxV[r][v], sizeof g_txtFxV[r][v], r == FX_FILTER ? OlShow(OLM_EFFECTS_FILTER, kFxName[r][v]) : kFxName[r][v]);  // v3.53 OL1: Night Vision Mono shows Night Mono
+                Encode(g_txtFxV[r][v], sizeof g_txtFxV[r][v], r == FX_FILTER ? OlShow(OLM_EFFECTS_FILTER, kFxName[r][v]) :
+                       r == FX_NOISE ? OlShow(OLM_GRAIN_STRENGTH, kFxName[r][v]) : kFxName[r][v]);  // v3.53 OL1: Night Vision Mono shows Night Mono  // v3.58 MN358: Very High shows Ultra
                 g_fxIds[r][v] = MSG_FXV0 + r * FX_VMAX + v;
             }
     }
@@ -5163,6 +5221,7 @@ static void ApplyAspectMenu(void)
             for (k = 0; k < FX_N; ++k) FillRow(g_rowsFx + 7 * k, kIn[k], kGet[k], g_fxIds[k], kFxCount[k], MSG_FXL0 + k, kDesc[k]);
             nb = FX_N + PpBuildRows(g_rowsFx + 7 * FX_N);  // v3.43 PP343: Bloom, Colour Grading, Otherworld Lens (0 rows when off)
             nb += DofBuildRows(g_rowsFx + 7 * nb, nb);  // v3.44 DF344: Depth of Field, DoF Strength (0 rows when it is not installed)
+            nb += PvBuildRows(g_rowsFx + 7 * nb, nb);  // v3.58 PV358: Filter Strength, Preview
             memcpy(g_rowsFx + 7 * nb, stockRows + 6 * 7, 7 * 4);  // Exit's record with our input / label / description
             g_rowsFx[7 * nb + 0] = (DWORD)(ULONG_PTR)FxBackIn;
             g_rowsFx[7 * nb + 5] = MSG_FXL0 + FX_N;
@@ -5215,7 +5274,7 @@ static void ApplyAspectMenu(void)
         if (!lbl) g_subArrows = 1;  // no colour cue: keep the v3.19 arrows
         {   // v3.33 MERGE: a value's colour (Fly greyed while no over-the-shoulder camera is on); optional, alone
             static const Site kVal = { 0x525802, { 0xE8, 0x99, 0xE1, 0xFF, 0xFF }, 5 };
-            if (SiteOk(&kVal) && PokeBranch(0x525802, 0xE8, hkRowValue, 5))
+            if (SiteOk(&kVal) && PokeBranch(0x525802, 0xE8, hkRowValue, 5) && (g_vbxHooks |= 2))  // v3.58 MN358: + the value box's x
                 Log("options: greyed values drawn grey (0x525802)");
             else
                 Log("options: 0x525802 is not stock: No Clip's Fly is not drawn grey (the row still refuses it without a camera)");
@@ -5231,6 +5290,7 @@ static void ApplyAspectMenu(void)
         static const Site kM = { 0x525CE3, { 0x80, 0x3D, 0xDC, 0x1A, 0x09, 0x01, 0x02 }, 7 };
         if (SiteOk(&kV) && SiteOk(&kM) && PokeBranch(0x52570E, 0xE9, hkValueCol, 5)) {
             if (PokeBranch(0x525CE3, 0xE9, hkMouseCol, 7)) {
+                g_vbxHooks |= 1;  // v3.58 MN358
                 Log("options: long values move their column (0052570E draw, 00525CE3 mouse)");
             } else if (!Poke(0x52570E, kV.stock, 5)) {
                 Log("options: 0052570E could not be put back");
@@ -5239,6 +5299,7 @@ static void ApplyAspectMenu(void)
             Log("options: 0052570E / 00525CE3 are not stock: long values keep the right-arrow shift only");
         }
     }
+    VbxInstall();  // v3.58 MN358: the value box (after the 0x52570E / 0x525CE3 / 0x525802 hooks it rides on)
     if (g_fovRow) {  // v1.9
         SetFov(FovIndexOf(g_fovIni), 0, 0);  // v2.0: degrees
         SetFov(FovIndexOf(FovFpAllowedDeg(g_fovFpIni)), 0, 1);  // v3.3; v3.3.5: Default or 100..120 only
@@ -7518,6 +7579,9 @@ static LRESULT CALLBACK HookProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
             }
             return res;
         }
+        break;
+    case WM_CLOSE:
+        SndBgExit();  // v3.58 SD358: sound.inc: the sound sessions Refined muted behind other windows are unmuted first
         break;
     case WM_SYSCOMMAND:
         if ((wp & 0xFFF0) == SC_MINIMIZE && g_keepActive) return 0;

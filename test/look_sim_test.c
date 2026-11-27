@@ -132,10 +132,10 @@ static void TestCompose(void)
     CHECK(LkComposeLine("x", "y", 52, o, 0) == 0, "compose: no buffer");
     {   // every dependent row's w2 lines (look.inc kLkOwnIn order) under each reason: one line of at most 52, the reason first
         static const char *const kOwn[] = {
-            OLW_GRAIN_STRENGTH_D, OLW_GRAIN_GRAIN_TYPE_D, OLW_GRAIN_GRAIN_COLOUR_D, OLW_EFFECTS_BLUR_STRENGTH_D, OLW_OFF_SESSION,
+            OLW_GRAIN_STRENGTH_D, OLW_GRAIN_GRAIN_TYPE_D, OLW_GRAIN_GRAIN_COLOUR_D, OLW_DOF_STRENGTH_D /* v3.58 PV358 */, OLW_OFF_SESSION,
             OLW_POWERS_ECHO_COUNT_D, OLW_SOUND_STEREO_WIDTH_D, OLW_SOUND_STEREO_WIDTH_VD_100, OLW_SND_WIDTH_STOCK, OLW_NA_SESSION,
             OLW_SHADOWS_EDGE_VD_STOCK, OLW_SHADOWS_EDGE_VD_SOFT, OLW_SHADOWS_DARKNESS_D, OLW_SHD_DARK_NOPREVIEW,
-            OLW_STEERING_WALL_MARGIN_D,
+            OLW_STEERING_WALL_MARGIN_D, OLW_EFFECTS_FILTER_STRENGTH_D, OLW_EFFECTS_FILTER_STRENGTH_VD_ULTRA,  // v3.58 PV358
         };
         for (i = 0; i < LKR_N; ++i)
             for (j = 0; j < (int)(sizeof kOwn / sizeof kOwn[0]); ++j) {
@@ -243,7 +243,7 @@ static void TestReasonRules(void)
 {
     static const char *const kNames[LKR_N] = { OLW_L_FILM_GRAIN, OLW_EFFECTS_DEPTH_OF_FIELD_L, OLW_POWERS_ECHO_DOUBLES_L,
                                                OLW_SOUND_SOUND_MODE_V_MONO, OLW_L_SHADOWS, OLW_CAMERA_CAMERA_V_SHOULDER,
-                                               OLW_STEERING_WALL_ZOOM_L };  // v3.53 MERGE: w2 OL1's row names
+                                               OLW_STEERING_WALL_ZOOM_L, OLW_EFFECTS_FILTER_L /* v3.58 PV358 */ };  // v3.53 MERGE: w2 OL1's row names
     int i;
     for (i = 0; i < LKR_N; ++i) {
         const char *s = kLkReason[i];

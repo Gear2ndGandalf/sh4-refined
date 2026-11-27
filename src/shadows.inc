@@ -164,7 +164,7 @@ static int __cdecl ShDarkIn(BYTE *cfg, int count)
     if (v >= 0 && v < SH_DARK_N) ShDarkSet(kShDarkPct[v], 1);
     return 0;
 }
-static int __cdecl ShDarkDesc(void) { return MSG_SHD0 + (g_shPrevOn && g_fxPrevHook ? SHM_DARK_D : SHM_DARK_DP); }
+static int __cdecl ShDarkDesc(void) { return MSG_SHD0 + (g_shPrevOn && g_fxPrevHook && !PvPreviewOff() ? SHM_DARK_D : SHM_DARK_DP); }  // v3.58 PV358: no "line" without the preview
 static void ShSet(int v, int save)
 {
     if (v < 0 || v >= SH_EDGE_N) return;
@@ -687,20 +687,35 @@ static void ShNsNote(DWORD key, int why, DWORD tf)
         Log("shadows: room %lX:%02lX: a composite not soft: %s (darkness %08lX, edge %s, Darkness %d %%; once a room)", key >> 16,
             key & 0xFFFF, kShNsWhy[why], tf, kShEdgeName[ShEdgeGet()], (int)g_shDark);
 }
+// v3.58 GX358: the stock Realtime Shadow switch (cfg+0x19, 0 = Off) and the stock test of its two readers now
+// (shadows_sim.h ShStockDraws: Off keeps the real-time shadows only in the game's own rooms)
+static unsigned g_shRoomOff, g_shCompSeen;  // composites this room while the switch is Off; composites this session
+static int ShRealOn(void) { return *(volatile BYTE *)0x1091AE9 != 0; }
+static int ShStockShadowsHere(void)
+{
+    __try {
+        return ShStockDraws(ShRealOn(), 0, *(volatile int *)0xFD5A90, *(volatile int *)0xFD5A94, (*(volatile int *)0x10775DC & 1) != 0);
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        return 1;
+    }
+}
 static void ShRoomTick(int why, DWORD tf, float ms)  // v3.52 SH352: why / tf (was soft)
 {
     const DWORD key = (DWORD)*(volatile int *)0xFD5A90 << 16 | ((DWORD)*(volatile int *)0xFD5A94 & 0xFFFF);
     if (why < 0 || why >= SHN_N) why = SHN_FAIL;  // v3.52 SH352
     if (key != g_shRoomKey) {
         if (g_shRoomCalls && g_shRoomKey != 0xFFFFFFFFu) {
-            char tail[SH_NS_TEXT_MAX];
+            char tail[SH_NS_TEXT_MAX], off[80];
             ShNsText(tail, sizeof tail, &g_shRoomNs);  // v3.52 SH352
+            off[0] = 0;  // v3.58 GX358: the composites the game drew with Shadows Off (its own Off list)
+            if (g_shRoomOff) sprintf_s(off, sizeof off, "; %u with Shadows Off (the game keeps this room's)", g_shRoomOff);
             LogV("shadows: room %lX:%02lX: %u composites over %u frames (at most %u in a frame), %u soft; ours %.3f ms a composite on "
-                 "average, %.3f at most; edge %s; render targets %.1f MB; darkness %d %%%s", g_shRoomKey >> 16, g_shRoomKey & 0xFFFF, g_shRoomCalls,
+                 "average, %.3f at most; edge %s; render targets %.1f MB; darkness %d %%%s%s", g_shRoomKey >> 16, g_shRoomKey & 0xFFFF, g_shRoomCalls,
                  g_shRoomFrames, g_shRoomMaxN, g_shRoomSoft, g_shRoomCalls ? g_shRoomMs / g_shRoomCalls : 0.0, g_shRoomMsMax,
-                 kShEdgeName[ShEdgeGet()], ShMb(g_shVram), (int)g_shDark, tail);  // v3.42 SM342: + darkness  // v3.52 SH352: + the tail
+                 kShEdgeName[ShEdgeGet()], ShMb(g_shVram), (int)g_shDark, tail, off);  // v3.42 SM342: + darkness  // v3.52 SH352: + the tail  // v3.58 GX358: + off
         }
         g_shRoomKey = key;
+        g_shRoomOff = 0;  // v3.58 GX358
         g_shRoomCalls = g_shRoomSoft = g_shRoomFrames = g_shRoomMaxN = 0;
         g_shRoomMs = 0.0;
         g_shRoomMsMax = 0.0f;
@@ -709,6 +724,15 @@ static void ShRoomTick(int why, DWORD tf, float ms)  // v3.52 SH352: why / tf (w
     if (g_shFrameSeen != g_fxFrame) g_shFrameSeen = g_fxFrame, g_shFrameN = 0, ++g_shRoomFrames;
     if (++g_shFrameN > g_shRoomMaxN) g_shRoomMaxN = g_shFrameN;
     ++g_shRoomCalls;
+    if (g_shCompSeen++ && !ShRealOn()) {  // v3.58 GX358: with Shadows Off only the game's own rooms draw (the session's first call aside)
+        ++g_shRoomOff;
+        if (!ShStockShadowsHere()) {
+            static volatile LONG s_q;
+            if (LogQuota(&s_q, 4))
+                LogAnomaly("shadows", "a real-time shadow composite with Shadows Off in stage %lX room %lX, which is not on the game's Off "
+                                      "list (something else drew it; logged 4 times at most)", key >> 16, key & 0xFFFF);
+        }
+    }
     g_shRoomSoft += why == SHN_SOFT;
     g_shRoomMs += ms;
     if (ms > g_shRoomMsMax) g_shRoomMsMax = ms;
@@ -1190,7 +1214,7 @@ static void ShRibbonInstall(void)
 static int ShMode(int *why)
 {
     ShPrevIn in;
-    in.previewOn = g_shPrevOn;
+    in.previewOn = g_shPrevOn && !PvPreviewOff();  // v3.58 PV358: Effects > Preview Off: no split preview either (the game's background)
     in.backdropHook = g_fxPrevHook;
     in.failed = g_shFailed;
     in.pausedGame = FxGameplay() && *(volatile int *)0xFD5C20 == 2;
@@ -1288,10 +1312,21 @@ static void ShPreviewDraw(void)
         FxSaved sv;
         const ShPlan *pl = NULL;
         float split;
+        // v3.58 GX358: Shadows Off: the preview shows the game's Off (in play: the paused room's own rule, its frame without
+        // the shadow; from the title: no figure's shadow), no split
+        const int offHere = FxGameplay() ? !ShStockShadowsHere() : !ShRealOn();
+        static int s_offWas = -1;
+        static volatile LONG s_qOff;
+        if (offHere != s_offWas) {
+            if ((s_offWas >= 0 || offHere) && LogQuota(&s_qOff, 40))  // (bounded: a row held on the page flips it often)
+                LogV("shadows: the Shadows page's preview: %s", offHere ? "Shadows Off: no real-time shadow here, as the game's Off (the "
+                     "picture without it, no split)" : "the split shadows again (Shadows On, or a room the game keeps them in)");
+            s_offWas = offHere;
+        }
         if (mode == SHP_SCENE) w = g_shMaskRt.w, h = g_shMaskRt.h, tf = g_shCapTf;
         else w = (int)FxW(), h = (int)FxH(), tf = g_shLastTf ? g_shLastTf : 0x32000000u;  // stage 1's darkness until one is seen
         split = (float)(w / 2);
-        if (w >= 2 * SH_RT_MIN && h >= 2 * SH_RT_MIN && FxSave(dev, &sv, 3)) {
+        if (!offHere && w >= 2 * SH_RT_MIN && h >= 2 * SH_RT_MIN && FxSave(dev, &sv, 3)) {  // v3.58 GX358: + !offHere
             if (FAILED(((GetSurf_t)VT(dev, VT_GETRT))(dev, &rt))) rt = NULL;
             if (FAILED(((GetSurf_t)VT(dev, SHV_GETDS))(dev, &ds))) ds = NULL;
             if (rt && (mode == SHP_SCENE ? g_shMaskRt.tex != NULL : ShCardMask(dev, w, h, tf, rt, ds, &sv.vp))) {
@@ -1342,6 +1377,23 @@ static void ShFrameEnd(void)
 {
     ShKeepIn k;
     int why, shown;
+    {   // v3.58 GX358: the stock Realtime Shadow switch (Effects > Shadows > Shadows): said at the start and when it changes
+        static int s_was = -1;
+        static volatile LONG s_q;
+        const int on = ShRealOn();
+        if (on != s_was) {
+            if (s_was < 0 || LogQuota(&s_q, 40)) {
+                if (on)
+                    Log("shadows: Shadows On (the game's Realtime Shadow, cfg+0x19): real-time shadows wherever the game draws them");
+                else
+                    Log("shadows: Shadows Off (the game's Realtime Shadow, cfg+0x19, read by the game every frame: at once): no real-time "
+                        "shadows, as the game's Off, except in the rooms the game keeps them (Room 302's living room, the Water Prison, "
+                        "Hospital rooms 1 / 1F); here (stage %X room %X): %s; the Tremers' wall shadows stay (the game never hides them)",
+                        *(volatile int *)0xFD5A90, *(volatile int *)0xFD5A94, ShStockShadowsHere() ? "kept" : "none");
+            }
+            s_was = on;
+        }
+    }
     if (!g_shOn) return;
     k.capture = *(volatile int *)0x12E3E2C;
     if (k.capture == 1) g_shPauseFrame = g_fxFrame;

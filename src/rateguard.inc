@@ -10,6 +10,10 @@
 // change; a rate stepped down from twice in a run stays down. The effect budget (budget.inc; w5 PW356's power shedding)
 // acts first: a window that misses while it is still stepping down is held (at most 3 in a row). Included after
 // perfhud.inc (reads budget.inc's BgLevel, quicksave.inc's g_qsLoading, InFront). Hidden [Window] RateGuard=0: off.
+// v3.58 GX358 (USER_FEEDBACK_v357 item 13): while the effect budget has nothing left to shed (its quick go-ahead,
+// BgRateQuickNow: 0.5 s far late or 1 s late with nothing to take), the last second of play frames decides (the quick
+// window, rateguard_sim.h FrgFrameEx): over 1.15 x the frame steps down at once. Never across a load, a pause, a capture,
+// a door or the game out of front (they break the window as before). Off with [Graphics] EffectBudgetQuick=0.
 #include "rateguard_sim.h"
 
 static int g_frgOn = 1;                  // hidden [Window] RateGuard (1 = on, the default; 0 = off)
@@ -59,8 +63,9 @@ static void FrgInit(void)
         Log("rate guard: on (hidden [Window] RateGuard=0 turns it off): above 60 fps, when the play frames' mean over %.0f s is over "
             "%.2f x the frame in %d windows in a row (the effect budget sheds first: up to %d windows held), the game steps down "
             "180 -> 120 -> 60 for this run; back up after %.0f minutes clean at the next room change, a rate stepped down from %d "
-            "times stays down; the ini's FrameRate never changes (top now %d)", FRG_WIN_MS / 1000.0f, FRG_MISS_K, FRG_MISS_WINS,
-            FRG_HOLD_MAX, FRG_RETRY_MS / 60000.0f, FRG_LOCK_DOWNS, top);
+            "times stays down; the ini's FrameRate never changes; v3.58: while the effect budget has nothing left to shed, its last "
+            "%.0f s decides (top now %d)", FRG_WIN_MS / 1000.0f, FRG_MISS_K, FRG_MISS_WINS,
+            FRG_HOLD_MAX, FRG_RETRY_MS / 60000.0f, FRG_LOCK_DOWNS, FRG_FAST_MS / 1000.0f, top);  // v3.58 GX358: + the quick window
 }
 
 // FpsUserChanged (the Frame Rate row, the discard, the V-Sync cap refresh): n = the choice, eff = after the V-Sync cap
@@ -123,17 +128,21 @@ static void FrgFrameEnd(void)
         g_frgPrevPlay = play;
         return;
     }
-    ev = FrgFrame(&g_frg, ms, rate, FrgShedding());
+    ev = FrgFrameEx(&g_frg, ms, rate, FrgShedding(), BgRateQuickNow());  // v3.58 GX358: + the quick window (the budget's go-ahead)
     switch (ev) {
     case FRG_EV_DOWN:
         InterlockedExchange(&g_frgCap, g_frg.cap);
         FrgEffWrite();
-        if (LogQuota(&g_frgLogQ, 60))
-            Log("rate guard: %d -> %d: the play frames took %.2f ms on average against %.2f (%.2f x) in %d windows of %.0f s in a "
-                "row (stage %lX room %lX; effect budget level %d)%s; [Window] FrameRate stays %d", g_frg.lastFrom, g_frg.cap,
-                g_frg.lastMean, g_frg.lastTarget, g_frg.lastTarget > 0.0f ? g_frg.lastMean / g_frg.lastTarget : 0.0f, FRG_MISS_WINS,
-                FRG_WIN_MS / 1000.0f, key >> 16, key & 0xFFFF, lv,
+        if (LogQuota(&g_frgLogQ, 60)) {
+            char how[96];  // v3.58 GX358: the quick window says so
+            if (g_frg.lastFast) sprintf_s(how, sizeof how, "in the last %.0f s, the effect budget with nothing left to shed", FRG_FAST_MS / 1000.0f);
+            else sprintf_s(how, sizeof how, "in %d windows of %.0f s in a row", FRG_MISS_WINS, FRG_WIN_MS / 1000.0f);
+            Log("rate guard: %d -> %d: the play frames took %.2f ms on average against %.2f (%.2f x) %s (stage %lX room %lX; effect "
+                "budget level %d)%s; [Window] FrameRate stays %d", g_frg.lastFrom, g_frg.cap,
+                g_frg.lastMean, g_frg.lastTarget, g_frg.lastTarget > 0.0f ? g_frg.lastMean / g_frg.lastTarget : 0.0f, how,
+                key >> 16, key & 0xFFFF, lv,
                 FrgLocked(&g_frg, g_frg.lastFrom) ? "; stepped down from it twice: not tried again this run" : "", (int)g_fpsUser);
+        }
         break;
     case FRG_EV_RETRY:
         if (LogQuota(&g_frgLogQ, 60))

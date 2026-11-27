@@ -88,13 +88,13 @@ static void TestTree(int moves)
     {
         static const struct { int id; const char *plan; int parent; } kIds[] = {
             { 6, "subtitles", 2 }, { 7, "pause", 2 }, { 8, "grain", 4 }, { 9, "shadows", 4 }, { 10, "player", 5 }, { 11, "camera", 1 },
-            { 12, "room302", 1 }, { 13, "combat", 5 }, { 15, "enemies", 5 }, { 16, "items", 5 }, { 18, "powers", 5 }, { 19, "rando", 5 },
+            { 12, "room302", 1 }, { 13, "combat", 5 }, { 14, "dof", 4 } /* v3.58 PV358 */, { 15, "enemies", 5 }, { 16, "items", 5 }, { 18, "powers", 5 }, { 19, "rando", 5 },
             { 21, "steering", 11 } };
         for (i = 0; i < (int)(sizeof kIds / sizeof kIds[0]); ++i)
             CHECK(kOlPage[kIds[i].id].plan && !strcmp(kOlPage[kIds[i].id].plan, kIds[i].plan) && kOlPage[kIds[i].id].parent == kIds[i].parent,
                   "page %d is %s under %d (PLAN section 6)", kIds[i].id, kIds[i].plan, kIds[i].parent);
-        CHECK(kOlPage[14].parent == -2 && kOlPage[17].parent == -2 && kOlPage[20].parent == -2 && !kOlPage[14].rows && !kOlPage[17].rows &&
-              !kOlPage[20].rows, "ids 14, 17, 20 stay free");
+        CHECK(kOlPage[17].parent == -2 && kOlPage[20].parent == -2 && !kOlPage[17].rows && !kOlPage[20].rows,
+              "ids 17, 20 stay free");  // v3.58 PV358: 14 is Effects > Depth of Field
     }
     for (lp = LP_N; lp < LP_MAX; ++lp) {
         const int par = kOlPage[lp].parent;
@@ -137,8 +137,9 @@ static void TestRows(int moves)
         if (!kOlPage[lp].rows) continue;
         n = OlRowCount(kOlPage[lp].rows, moves);
         CHECK(n >= 2 && n <= OL_MAX_ROWS && n < OL_ROWS, "moves %d: page %d (%s): %d rows", moves, lp, kOlPage[lp].title, n);
-        if (moves)  // v3.55 OL56: PLAN section 5's counts (10 rows at most: pitch 26)
-            CHECK(n <= 10, "moves 1: page %d (%s): %d rows (the plan's ceiling is 10)", lp, kOlPage[lp].title, n);
+        if (moves)  // v3.55 OL56: PLAN section 5's counts (10 rows at most: pitch 26)  // v3.58 PV358: Effects 11 (the session's decision)
+            CHECK(n <= 10 || (lp == LP_EFFECTS && n == OL_MAX_ROWS), "moves 1: page %d (%s): %d rows (the plan's ceiling is 10; Effects 11)", lp,
+                  kOlPage[lp].title, n);
         else
             CHECK(n <= 10 || lp == LP_DISPLAY || lp == LP_INTERFACE || lp == LP_EFFECTS,
                   "moves 0: page %d: 11 rows only where PLAN section 4's fallbacks put them (Display, Interface, Effects)", lp);
@@ -333,16 +334,17 @@ static const Interim54 kV354[] = {
     { LP_SUBT, { "subtitles/Size", "subtitles/Colour", "subtitles/Edge", "subtitles/Box", "subtitles/Appear", "subtitles/Vanish", "+" } },
     { LP_MENUS, { "pause/Storage Chest", "pause/Save Game", "pause/Load Game", "pause/Quick Save", "pause/Quick Load", "pause/Eileen",
                   "pause/Save Banks", "interface/Menu Font", "interface/Start-Up", "+" } },  // v3.56 MN356: "pause/Eileen" (was Eileen Outfit)
-    { LP_SOUND, { "sound/Stereo Width", "sound/Room Reverb", "sound/Night Mode", "sound/Background", "+" } },  // v3.56 SD356: + Background
-    { LP_EFFECTS, { "effects/Film Grain", "effects/Filter", "effects/Cut-scene Filter", "effects/Bloom", "effects/Colour Grade",
-                    "effects/Otherworld Lens", "effects/Depth of Field", "effects/Blur Strength", "effects/Shadows", "display/Renderer", "+" } },
+    { LP_SOUND, { "sound/Stereo Width", "sound/Room Reverb", "sound/Night Mode", "sound/Background", "display/Renderer", "+" } },  // v3.56 SD356: + Background  // v3.58 PV358: + Renderer (was on Effects)
+    { LP_EFFECTS, { "effects/Film Grain", "effects/Filter", "effects/Filter Strength", "effects/Cut-scene Filter", "effects/Bloom",
+                    "effects/Colour Grade", "effects/Otherworld Lens", "effects/Depth of Field", "effects/Shadows", "effects/Preview", "+" } },  // v3.58 PV358
+    { LP_DOF, { "dof/Depth of Field", "dof/Strength", "+" } },  // v3.58 PV358
     { LP_GRAIN, { "grain/Strength", "grain/Grain Type", "grain/Grain Colour", "+" } },
     { LP_SHADOWS, { "shadows/Edge", "shadows/Darkness", "+" } },
     { LP_GAMEPLAY, { "gameplay/Player", "gameplay/Combat", "gameplay/Items", "gameplay/Enemies", "gameplay/Powers", "gameplay/Randomizer", "+" } },
     { LP_PLAYER, { "player/Move Speed", "player/Regeneration", "player/Medallion", "player/Grab Escape", "player/No Clip", "+" } },
     { LP_COMBAT, { "combat/One-Hit Kill", "combat/Dark Pact", "combat/Quick Charge", "combat/Life Steal", "combat/Ammo Saver", "+" } },
     { LP_ITEMS, { "items/Item Shine", "items/Toolbelt", "items/Item Stacks", "items/Supply Drops", "+" } },
-    { LP_ENEMIES, { "enemies/Extra Enemies", "enemies/Door Chase", "enemies/Pursuit", "enemies/Enemies Return", "enemies/Fade In", "+" } },
+    { LP_ENEMIES, { "enemies/Extra Enemies", "enemies/Door Chase", "enemies/Pursuit", "enemies/Enemies Return", "enemies/Reveal Method", "+" } },  // v3.58 MN358: Reveal Method (was Fade In)
     { LP_POWERS, { "powers/Death Presence", "powers/After Shock", "powers/Echo Doubles", "powers/Echo Count", "powers/Ghost Teleport", "+" } },
     { LP_RANDO, { "rando/Items", "rando/Specials", "rando/Room 302 Items", "rando/Enemies", "rando/Spawn Site", "rando/Eileen Outfit",
                   "rando/Reroll", "+" } },  // v3.57 OLP1: Reroll (was Reroll Visits)  // v3.56 RI356: Specials (was Keep Specials); no Seed / New Seed rows; v3.56 RE356: Monsters -> Enemies, Ghosts -> Spawn Site
@@ -367,7 +369,7 @@ static void TestExactV354(void)
         }
     }
     for (lp = 0, i = 0; lp < LP_MAX; ++lp) i += kOlPage[lp].rows != 0;
-    CHECK(pages == i && pages == 19, "v3.54: all %d pages listed (%d)", i, pages);
+    CHECK(pages == i && pages == 20, "v3.54: all %d pages listed (%d)", i, pages);  // v3.58 PV358: 20 (+ Depth of Field)
     // the combo row and the fallback names
     CHECK(ROW(LP_INTERFACE, 1)->kind == OLK_COMBO && ROW(LP_INTERFACE, 1)->arg == LP_SUBT, "v3.54: Interface's Subtitles is the combo row");
     CHECK(!strcmp(OlTitle(LP_MENUS, 0), "Menus") && !strcmp(OlTitle(LP_MENUS, 1), "Pause Menu"), "the Pause Menu folder: Menus with StockMoves=0");
@@ -391,8 +393,10 @@ int main(void)
     // the counts of PLAN section 5 (StockMoves=1) and of v3.54 (StockMoves=0)
     {
         // v3.56 RI356: the Randomizer (page 19) 10 -> 8 rows (no Seed / New Seed rows) in both layouts; v3.56 SD356: Sound 7 -> 8 / 4 -> 5
-        static const int kPlanN[LP_MAX] = { 9, 7, 10, 8, 10, 8, 8, 8, 5, 4, 6, 9, 9, 6, 0, 6, 5, 0, 6, 8, 0, 7 };
-        static const int kV354N[LP_MAX] = { 11, 10, 11, 5, 11, 7, 7, 10, 4, 3, 6, 9, 6, 6, 0, 6, 5, 0, 6, 8, 0, 7 };
+        // v3.58 PV358: Effects 10 -> 11 (+ Filter Strength, Preview; Depth of Field > holds Depth of Field / Strength), page 14
+        // Depth of Field 3; StockMoves=0: Effects stays 11 (Renderer to Sound: 5 -> 6)
+        static const int kPlanN[LP_MAX] = { 9, 7, 10, 8, 11, 8, 8, 8, 5, 4, 6, 9, 9, 6, 3, 6, 5, 0, 6, 8, 0, 7 };
+        static const int kV354N[LP_MAX] = { 11, 10, 11, 6, 11, 7, 7, 10, 4, 3, 6, 9, 6, 6, 3, 6, 5, 0, 6, 8, 0, 7 };
         for (lp = 0; lp < LP_MAX; ++lp) {
             CHECK(OlRowCount(kOlPage[lp].rows, 1) == kPlanN[lp], "StockMoves=1: page %d has %d rows (PLAN section 5: %d)", lp,
                   OlRowCount(kOlPage[lp].rows, 1), kPlanN[lp]);

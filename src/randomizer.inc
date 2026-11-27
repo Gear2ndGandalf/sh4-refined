@@ -69,6 +69,7 @@ static int g_rzFail;            // faulted: off for this session
 static int g_rzSelfN = -1, g_rzSelfW;  // the start's scan: plain pickups / weapon spots found (-1 = not scanned)
 static int g_rzSelfBad;         // world visits whose scripts are not the stock ones (left alone)
 static int g_rzBadSaid[RZ_STAGES][2];
+static int g_rzNoModelsSaid[RZ_STAGES];  // v3.58 MN358: the "not both in the world's file list" line, once per stage a session
 static RzWeapons g_rzWt;        // round 2: the weapons a spot may take (built at the start from every script)
 static int g_rzWtOn;            // the weapon table is built (else the weapon spots stay, no weapon is drawn)
 static int g_rzOwnedOk;         // ItemIsObtained 0x4F69C0 is the stock code (its byte array 0x13D7FF8 is read)
@@ -633,9 +634,11 @@ static void RzBeforeScriptC(int room, int d)
     }
     if (!g_rzVisitOk[visit]) return;
     if (!RzModelsListed(stage)) {
-        if (!g_rzBadSaid[stage][visit]++)
-            LogAnomaly("randomizer", "stage %d: item_model.bin / wp_model.bin are not both in the world's file list: its pickups are "
-                       "left alone", stage);
+        // v3.58 MN358: by design (a story interlude such as stage 11 loads no pickup models: nothing to draw a new item with),
+        // so a plain line, once per stage a session (was an ANOMALY once per stage and half; tools\logcheck.py reads both)
+        if (!g_rzNoModelsSaid[stage]++)
+            Log("randomizer: stage %d: item_model.bin / wp_model.bin are not both in the world's file list: its pickups are "
+                "left alone (by design: this stage loads no pickup models)", stage);
         return;
     }
     list[0] = 0;

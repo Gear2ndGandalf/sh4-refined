@@ -2459,7 +2459,7 @@ static int EchoDrawAll(void *dev, const FxSaved *game, int look)
         if (ok && aura && nspr) {
             FxBase(dev);
             SvZ(dev, 2);  // the visible part only (reversed Z: GREATEREQUAL), no z write: the bodies hide what is behind them
-            if (look == 0 && g_echoDiscK > 0.01f) drawnSpr += EchoSprites(dev, vp, look, 1, spr, nspr);  // the ground shadows (v3.35 FX335: faded by the budget)
+            if (look == 0 && g_echoDiscK > 0.01f && ShStockShadowsHere()) drawnSpr += EchoSprites(dev, vp, look, 1, spr, nspr);  // the ground shadows (v3.35 FX335: faded by the budget)  // v3.58 GX358: not with Shadows Off (the game's Off rule: shadows.inc)
             drawnSpr += EchoSprites(dev, vp, look, 0, spr, nspr);
         }
         QueryPerformanceCounter(&q2);

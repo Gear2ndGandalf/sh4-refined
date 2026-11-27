@@ -139,6 +139,31 @@ static const char *const kBgLevelText[BGL_N] = {
 #define BG_HR_RETRY    20.0f   // s before the next blind try after a take-back; doubles each time ...
 #define BG_HR_RETRY_MAX 120.0f // ... to this; a new room starts again at BG_HR_RETRY
 #define BG_YIELD_S      1.0f   // BgRateMayStep: frames have missed this long with nothing the budget can shed
+// v3.58 GX358 (USER_FEEDBACK_v357 item 13: "Powers on simultaneously slowed down the game for a few seconds, but then it
+// sped back up"; the user's log 01:02:05: Echo Doubles x3 and Death Presence start beside After Shock at 180 fps, the
+// budget steps 0 -> 11 one level a second, about 11 s of late frames at a true logic rate). The quick rules, at a high
+// rate only and only with g->quick (the caller's hidden [Graphics] EffectBudgetQuick=1; 0 = every rule v3.56's):
+//  * the start step: when two or more powers start drawing within BG_PRE_WIN_S of each other (a power starts when it draws
+//    after BG_PRE_IDLE_S of play without drawing: a door, a pause or a cut-scene is not play and starts nothing), the
+//    level goes at once to the deepest one that changes something (their sparks, copies, puffs and bodies thinned: no
+//    late frame first) ...
+//  * ... then the refill: a level lighter after each BG_PRE_UP_S of frames on time; when frames run late again for
+//    BG_PRE_DOWN_S the last level comes back and the refill ends (v3.56's rules from there, the back-off doubled). With the
+//    log's frame times: no 250 ms stretch over 1.06 x the frame (test\gx358_test.c; v3.56's rules: about 11 s);
+//  * the quick step: frames far over (BG_HR_FAST_LATE of them late, smoothed) with the effects' work as evidence step
+//    BG_HR_FAST_S apart (v3.56: 0.75 s over, 1 s between steps);
+//  * the quick go-ahead: so late, nothing left to shed for BG_HR_YIELD_FAST_S (v3.56: 1 s) lets the frame-rate guard act.
+enum { BG_PW_ECHO, BG_PW_AI, BG_PW_DP, BG_PW_GT, BG_PW_N };  // the powers the start step watches (bits of `drawing`)
+#define BG_PW_ON_MS     0.03f  // a power's own draw work this frame (the ledger) above this: it draws
+#define BG_PRE_IDLE_S   5.0f   // s of play without drawing: its next draw is a start
+#define BG_PRE_WIN_S    1.0f   // starts this close together are one start of several powers
+#define BG_PRE_UP_S     0.50f  // the refill: on time this long, one level lighter
+#define BG_PRE_DOWN_S   0.25f  // ... late this long, the last level back and the refill ends
+#define BG_PRE_WAIT_S   3.00f  // ... neither on time nor late this long: the refill ends (v3.56's rules)
+#define BG_HR_FAST_LATE 0.75f  // the quick step and go-ahead: this share of the frames late (smoothed) ...
+#define BG_HR_FAST_S    0.25f  // ... steps this far apart (over this long, held this long)
+#define BG_HR_YIELD_FAST_S 0.50f  // ... nothing left to shed this long: the frame-rate guard may act
+enum { BGK_NORMAL, BGK_REFILL_UP, BGK_REFILL_BACK, BGK_QUICK };  // what the frame's step was (g->stepKind)
 
 static float BgTargetMs(float t60, float frameMs)
 {
@@ -171,6 +196,16 @@ typedef struct {
     int lastBlind;          // the last step down was blind
     int blindSteps, blindKept, takeBacks;
     float yieldT;           // s of frames missing at a high rate with nothing the budget can shed (BgRateMayStep)
+    // v3.58 GX358: the quick rules (budget_sim.h's v3.58 notes; all 0 / off from BgGovReset but the clocks)
+    int quick;              // set by the caller: the quick rules at a high rate ([Graphics] EffectBudgetQuick; 0 = v3.56)
+    float pwIdle[BG_PW_N];  // s of play since each power last drew (long ago at the start)
+    float pwStart[BG_PW_N]; // s of play since each power last started
+    int preArmed;           // a start of several powers may take the start step (again once the starts are old)
+    unsigned preMask;       // the powers of the last start step
+    int pre, preUps;        // the refill runs; its steps up so far
+    float preLateT, preWaitT;  // s late in a row in the refill; s since its last decision
+    int stepKind;           // this frame's step (BGK_*)
+    int preSteps, preBacks, quickSteps;  // counts
 } BgGov;
 static void BgGovReset(BgGov *g)
 {
@@ -178,6 +213,11 @@ static void BgGovReset(BgGov *g)
     g->backoff = BG_UP_S;
     g->holdT = g->sinceUp = g->sinceDown = 1.0e6f;
     g->blindRetry = BG_HR_RETRY;  // v3.56 PW356
+    {   // v3.58 GX358: no power has drawn yet
+        int p;
+        for (p = 0; p < BG_PW_N; ++p) g->pwIdle[p] = g->pwStart[p] = 1.0e6f;
+        g->preArmed = 1;
+    }
 }
 // v3.56 PW356: a frame target of a high rate (120 fps and up)
 static int BgHighRate(float targetFrameMs) { return targetFrameMs > 1.0f && targetFrameMs <= BG_HR_FRAME_MS + 1e-3f; }
@@ -189,7 +229,10 @@ static void BgGovRoomNew(BgGov *g)
 }
 // v3.56 PW356: the frame-rate guard (w7 FR356) may lower the logic rate now: frames have missed at a high rate for
 // BG_YIELD_S while the budget had nothing to shed (no useful level left, no power drawing, or blind steps on hold)
-static int BgRateMayStep(const BgGov *g) { return g->hr && g->yieldT >= BG_YIELD_S; }
+static int BgRateMayStep(const BgGov *g)
+{
+    return g->hr && g->yieldT >= (g->quick && g->lateE >= BG_HR_FAST_LATE ? BG_HR_YIELD_FAST_S : BG_YIELD_S);  // v3.58 GX358: + the quick go-ahead
+}
 // the next useful level above / below `from` (useful bit L = level L changes something now); -1 none
 static int BgNextUp(unsigned useful, int from)  // a heavier thinning
 {
@@ -205,6 +248,110 @@ static int BgNextDown(unsigned useful, int from)  // a lighter one (0 is always 
         if (useful >> l & 1u) return l;
     return 0;
 }
+// v3.58 GX358: the deepest level that changes something (0 none)
+static int BgTopUseful(unsigned useful)
+{
+    int l;
+    for (l = BG_MAX; l > 0; --l)
+        if (useful >> l & 1u) return l;
+    return 0;
+}
+// v3.58 GX358: the powers drawing this frame (bits BG_PW_*) from their own draw work in the ledger and Ghost Teleport's fade
+static unsigned BgPowerMask(float echoMs, float aiMs, float dpMs, int gtFade)
+{
+    return (echoMs > BG_PW_ON_MS ? 1u << BG_PW_ECHO : 0u) | (aiMs > BG_PW_ON_MS ? 1u << BG_PW_AI : 0u) |
+           (dpMs > BG_PW_ON_MS ? 1u << BG_PW_DP : 0u) | (gtFade ? 1u << BG_PW_GT : 0u);
+}
+// v3.58 GX358: one play frame (a skipped one too: the powers start in the first frames after a pause), before
+// BgGovStep: the powers drawing now, the frame's length, a high rate or not, the useful levels. Returns 1 when it took the
+// start step (two or more powers started within BG_PRE_WIN_S; the level is then the deepest useful one, the refill runs).
+static int BgGovPowers(BgGov *g, unsigned drawing, float dtS, int hr, unsigned useful)
+{
+    int p, n = 0, top;
+    unsigned mask = 0u;
+    if (!(dtS > 0.0f)) dtS = 0.0f;
+    if (dtS > 0.5f) dtS = 0.5f;
+    for (p = 0; p < BG_PW_N; ++p) {
+        if (g->pwStart[p] < 1.0e6f) g->pwStart[p] += dtS;
+        if (drawing >> p & 1u) {
+            if (g->pwIdle[p] >= BG_PRE_IDLE_S) g->pwStart[p] = 0.0f;  // drawn after a long while: a start
+            g->pwIdle[p] = 0.0f;
+        } else if (g->pwIdle[p] < 1.0e6f) g->pwIdle[p] += dtS;
+        if (g->pwStart[p] <= BG_PRE_WIN_S) ++n, mask |= 1u << p;
+    }
+    if (n < 2) {
+        g->preArmed = 1;
+        return 0;
+    }
+    if (!g->quick || g->hrOff || !hr || !g->preArmed) return 0;
+    g->preArmed = 0;  // one step a start
+    top = BgTopUseful(useful);
+    if (top <= g->level) return 0;
+    g->preMask = mask;
+    g->level = top;
+    g->holdT = g->sinceDown = 0.0f;
+    g->overT = g->calmT = 0.0f;
+    g->settled = 0.0f;
+    g->blindPend = 0;
+    g->lastBlind = 0;
+    g->pre = 1, g->preUps = 0, g->preLateT = g->preWaitT = 0.0f;
+    ++g->preSteps;
+    ++g->downs;
+    return 1;
+}
+// v3.58 GX358: the refill after a start step (BgGovStep, a counted high-rate frame); 1 = it decided this frame (*ret the
+// step: -1 a level lighter, +1 the last level back), 0 = v3.56's rules decide (the refill has ended)
+static int BgGovRefill(BgGov *g, int hr, float dtS, unsigned useful, int *ret)
+{
+    const int late = g->lateE >= BG_LATE_ON;
+    int nx;
+    *ret = 0;
+    if (!hr || !g->quick || g->hrOff) {
+        g->pre = 0;
+        return 0;
+    }
+    g->overT = 0.0f;
+    g->preWaitT += dtS;
+    if (!g->preUps && g->holdT < BG_HR_POST0) {  // the start level shows first (what it thins fades out in 0.5 s): not judged yet
+        g->preLateT = g->calmT = 0.0f;
+        return 1;
+    }
+    g->preLateT = late ? g->preLateT + dtS : 0.0f;
+    g->calmT = !late && g->lateE < BG_HR_CALM ? g->calmT + dtS : 0.0f;
+    if (late && g->preLateT >= BG_PRE_DOWN_S && g->preUps > 0) {  // (late at the start level itself: it waits, below)
+        g->pre = 0;
+        if ((nx = BgNextUp(useful, g->level)) > 0) {  // the last level lighter was one too many
+            g->backoff = g->backoff * 2.0f > BG_UP_MAX ? BG_UP_MAX : g->backoff * 2.0f;
+            g->level = nx;
+            g->holdT = g->sinceDown = 0.0f;
+            g->calmT = 0.0f;
+            g->settled = 0.0f;
+            g->stepKind = BGK_REFILL_BACK;
+            ++g->downs, ++g->preBacks;
+            *ret = 1;
+            return 1;
+        }
+        return 0;
+    }
+    if (!late && g->calmT >= BG_PRE_UP_S && g->holdT >= BG_PRE_UP_S && g->level > 0) {
+        g->level = BgNextDown(useful, g->level);
+        g->holdT = g->sinceUp = 0.0f;
+        g->calmT = 0.0f;
+        g->settled = 0.0f;
+        g->preWaitT = 0.0f;
+        g->stepKind = BGK_REFILL_UP;
+        ++g->ups, ++g->preUps;
+        if (!g->level) g->pre = 0;  // all back
+        *ret = -1;
+        return 1;
+    }
+    if (g->preWaitT >= BG_PRE_WAIT_S) {  // no level lighter for long (late at the start level too: nothing deeper to take,
+        // the frame-rate guard's go-ahead counts meanwhile): v3.56's rules from here
+        g->pre = 0;
+        return 0;
+    }
+    return 1;
+}
 // One frame: dtS its length (s), frameMs the same in ms, costMs the effects' work in it, targetFrameMs the game's frame
 // (1000 / rate), t60 the target share at 60 fps (BgTargetMs scales it). skip: a frame that must not count (the room's or
 // a load's first 1.5 s, a warm-up, the first frames after a pause; the caller decides). Returns +1 a level down (thinner),
@@ -218,8 +365,9 @@ static int BgGovStep(BgGov *g, float dtS, float frameMs, float costMs, float tar
     const float T = BgTargetMs(t60, targetFrameMs);
     const int hr = !g->hrOff && BgHighRate(targetFrameMs);  // v3.56 PW356
     float a, late;
-    int over, calm, nx, ev;
+    int over, calm, nx, ev, fast;
     g->verdict = 0;  // v3.56 PW356
+    g->stepKind = BGK_NORMAL;  // v3.58 GX358
     if (skip || !(dtS > 0.0f) || dtS > 0.5f || !(frameMs > 0.0f) || frameMs >= BG_SPIKE_MS || !(targetFrameMs > 1.0f)) return 0;
     if (!hr) useful &= ~BG_HR_LEVELS;  // v3.56 PW356: the spark levels only at a high rate
     if (!(costMs >= 0.0f)) costMs = 0.0f;
@@ -246,6 +394,11 @@ static int BgGovStep(BgGov *g, float dtS, float frameMs, float costMs, float tar
         calm = g->lateE < BG_LATE_CALM && g->costE < BG_COST_HARD * T;
         g->yieldT = 0.0f;
     }
+    if (g->pre) {  // v3.58 GX358: the refill after a start step decides first
+        int r;
+        if (BgGovRefill(g, hr, dtS, useful, &r)) return r;
+    }
+    fast = g->quick && hr && ev && g->lateE >= BG_HR_FAST_LATE;  // v3.58 GX358: the quick step
     if (over) g->overT += dtS, g->calmT = 0.0f;
     else {
         g->overT -= dtS;
@@ -276,7 +429,8 @@ static int BgGovStep(BgGov *g, float dtS, float frameMs, float costMs, float tar
             }
         }
     }
-    if (g->overT >= BG_DOWN_S && g->holdT >= BG_HOLD_DOWN && !g->blindPend && (nx = BgNextUp(useful, g->level)) > 0) {
+    if (g->overT >= (fast ? BG_HR_FAST_S : BG_DOWN_S) && g->holdT >= (fast ? BG_HR_FAST_S : BG_HOLD_DOWN) && !g->blindPend &&
+        (nx = BgNextUp(useful, g->level)) > 0) {  // v3.58 GX358: + the quick step's times
         if (g->sinceUp < BG_REBOUND) g->backoff = g->backoff * 2.0f > BG_UP_MAX ? BG_UP_MAX : g->backoff * 2.0f;
         g->lastBlind = hr && !ev;  // v3.56 PW356: no evidence now: a blind step (judged at its settle time)
         if (g->lastBlind) g->blindPend = 1, g->blindBase = g->level, g->blindAt = g->frameE, g->postSum = g->postW = 0.0, ++g->blindSteps;
@@ -285,6 +439,7 @@ static int BgGovStep(BgGov *g, float dtS, float frameMs, float costMs, float tar
         g->overT = g->calmT = 0.0f;
         g->settled = 0.0f;
         ++g->downs;
+        if (fast) g->stepKind = BGK_QUICK, ++g->quickSteps;  // v3.58 GX358
         return 1;
     }
     if (g->level > 0 && g->holdT >= BG_HOLD_UP) {

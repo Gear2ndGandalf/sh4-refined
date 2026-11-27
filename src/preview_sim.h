@@ -40,6 +40,8 @@ typedef struct {
     int ghostLive;   // the live filter is Spirit Vision: it collects its ghosts and souls itself (GvLive)
     int fails;       // faults / failed copies this session (PV_FAILS_OFF: off)
 } PvCapIn;
+// (v3.58 PV358: kept under every Preview value: a filter changed in Options during a pause lays them over the pause menu's
+// picture too, FxBackdropFrame; PreviewLayers=0 is still their off switch)
 enum { PVL_HEAT = 1, PVL_SPIRIT = 2 };
 #define PV_FAILS_OFF 3
 // the layers this capture frame needs, as play's own rules: heat in play and real-time cut-scenes (ThermHeatLive's
@@ -84,26 +86,61 @@ static int PvCaptureMask(const PvCapIn *in, int gpuPic, int haveHeat, int haveSp
 }
 
 // ---------------------------------------------------------------- 2. the page: its backdrop and the layer over it
-enum { PVB_PAUSE, PVB_SCENE, PVB_PICTURE, PVB_STOCK };
-static const char *const kPvBack[4] = { "the paused scene", "SH4 Refined's preview scene", "the preview picture (PreviewImage)",
-                                        "the stock hallway" };
+// v3.58 PV358 (USER_FEEDBACK_v357, Effects Preview): [ScreenEffects] Preview Off / Stock / Live (default Live) decides the
+// backdrop of the Effects pages (Effects, Film Grain >, Depth of Field >; Shadows > its own split preview):
+//   Off    no backdrop: the game's own menu background (the hallway widget), no filter preview, no text panels;
+//   Stock  the stock picture SH4Refined_preview_stock.dds (a file in the game folder, never inside the dll) on the title
+//          menu and in a pause; without the file SH4 Refined's own drawn scene (v3.56 PV356);
+//   Live   a pause: the paused scene with its heat / spirit layers (v3.56); else the stock picture, else PreviewImage
+//          (preview.dds: F7's), else the scene.
+// PVB_STOCK keeps its v3.56 meaning (the game's hallway: the last fallback); PVB_STOCKPIC is the stock picture file.
+enum { PVB_PAUSE, PVB_SCENE, PVB_PICTURE, PVB_STOCK, PVB_STOCKPIC, PVB_OFF, PVB_N };  // v3.58 PV358: + STOCKPIC, OFF
+static const char *const kPvBack[PVB_N] = { "the paused scene", "SH4 Refined's preview scene", "the preview picture (PreviewImage)",
+                                            "the stock hallway", "the stock picture (SH4Refined_preview_stock.dds)",
+                                            "the game's own menu background (Preview Off)" };
+enum { PVM_OFF, PVM_STOCK, PVM_LIVE, PVM_N };  // v3.58 PV358: [ScreenEffects] Preview
+static const char *const kPvModeName[PVM_N] = { "Off", "Stock", "Live" };
+#define PVM_DEFAULT PVM_LIVE
+#define PV_STOCK_FILE "SH4Refined_preview_stock.dds"
 typedef struct {
+    int mode;        // v3.58 PV358: PVM_*
     int pausePic;    // this pause's picture (FxPauseTex)
-    int sceneOn;     // [ScreenEffects] PreviewScene=Scene
+    int stockOk;     // v3.58 PV358: the stock picture loaded (asked only when it decides)
     int picture;     // PreviewImage loaded (asked only when it decides)
     int sceneOk;     // the scene can be drawn (not off after a fault)
 } PvBackIn;
-// with a paused game its own picture; else Scene: Refined's scene (then the picture, the hallway), Picture: the
-// picture (then the scene, the hallway)
-static int PvBackdrop(const PvBackIn *in)
+static int PvBackdrop(const PvBackIn *in)  // v3.58 PV358: by Preview (was by PreviewScene)
 {
-    if (in->pausePic) return PVB_PAUSE;
-    if (in->sceneOn && in->sceneOk) return PVB_SCENE;
-    if (in->picture) return PVB_PICTURE;
+    if (in->mode == PVM_OFF) return PVB_OFF;
+    if (in->mode == PVM_LIVE && in->pausePic) return PVB_PAUSE;
+    if (in->stockOk) return PVB_STOCKPIC;
+    if (in->mode == PVM_LIVE && in->picture) return PVB_PICTURE;
     return in->sceneOk ? PVB_SCENE : PVB_STOCK;
 }
-// does the backdrop pick need the picture file? (only when the scene does not decide first)
-static int PvBackNeedsPicture(int pausePic, int sceneOn, int sceneOk) { return !pausePic && !(sceneOn && sceneOk); }
+// what the pick asks for, in its order (each file only when it decides; v3.58 PV358)
+static int PvBackNeedsPause(int mode) { return mode == PVM_LIVE; }
+static int PvBackNeedsStock(int mode, int pausePic) { return mode != PVM_OFF && !(mode == PVM_LIVE && pausePic); }
+static int PvBackNeedsPicture(int mode, int pausePic, int stockOk) { return mode == PVM_LIVE && !pausePic && !stockOk; }
+// v3.58 PV358: the Filter row's F7 sentence ("Press F7 in play for a new preview.") only where F7 changes what the page
+// shows: Live outside a pause with no stock picture (PreviewImage, or the scene / hallway that an F7 picture replaces)
+static int PvF7Shows(int mode, int back)
+{
+    return mode == PVM_LIVE && (back == PVB_PICTURE || back == PVB_SCENE || back == PVB_STOCK);
+}
+// v3.58 PV358: two paths name the same file (case-blind, / or \): F7 / the auto-capture never write the stock picture
+static int PvSamePath(const char *a, const char *b)
+{
+    if (!a || !b || !a[0]) return 0;
+    for (; *a && *b; ++a, ++b) {
+        int x = (unsigned char)*a, y = (unsigned char)*b;
+        if (x >= 'a' && x <= 'z') x -= 32;
+        if (y >= 'a' && y <= 'z') y -= 32;
+        if (x == '/') x = '\\';
+        if (y == '/') y = '\\';
+        if (x != y) return 0;
+    }
+    return *a == *b;
+}
 enum { PVP_NONE, PVP_PAUSE_HEAT, PVP_PAUSE_SPIRIT, PVP_SCENE_HEAT, PVP_SCENE_SPIRIT, PVP_N };
 static const char *const kPvPage[PVP_N] = { "no layer", "the pause's heat layer", "the pause's spirit layer",
                                             "the scene's heat (figure, footprints)", "the scene's spirit (ghost glow, soul fire)" };
@@ -130,6 +167,102 @@ static int PvParseScene(const char *s, int *known)
     if (!_stricmp(s, "Picture") || !strcmp(s, "0")) return 0;
     *known = 0;
     return 1;
+}
+
+// ---------------------------------------------------------------- v3.58 PV358: the ini of Preview and Filter Strength
+// [ScreenEffects] Preview Off / Stock / Live (also 0 / 1 / 2). *known 0: not a value (Live)
+static int PvParseMode(const char *s, int *known)
+{
+    int v;
+    *known = 1;
+    if (s && s[0])
+        for (v = 0; v < PVM_N; ++v)
+            if (!_stricmp(s, kPvModeName[v]) || (s[0] == '0' + v && !s[1])) return v;
+    *known = 0;
+    return PVM_DEFAULT;
+}
+// what PvInstall does with the two keys (NULL = the key is missing): Preview read (OK / BAD: not a value, Live and
+// rewritten), both missing (MISSING: Live added), v3.56's hidden PreviewScene alone (MIGRATE: Live written, the old key
+// removed: "Scene / Picture -> Live"), both present (STALE: Preview decides, the old key removed)
+enum { PVI_OK, PVI_BAD, PVI_MISSING, PVI_MIGRATE, PVI_STALE };
+static int PvModeIni(const char *preview, const char *scene, int *mode)
+{
+    int known = 1;
+    *mode = PVM_DEFAULT;
+    if (preview) {
+        *mode = PvParseMode(preview, &known);
+        if (!known) return PVI_BAD;
+        return scene ? PVI_STALE : PVI_OK;
+    }
+    return scene ? PVI_MIGRATE : PVI_MISSING;
+}
+// [ScreenEffects] FilterStrength Low / Medium / High / Ultra (also 0 .. 3), default High (the fixed strength of v3.16 -
+// v3.57). v3.15 wrote the same key (Low / Medium / High, default Medium) and v3.16 stopped reading it (left in old ini
+// files: the user's has "FilterStrength=Medium"), so a value counts only with the marker FilterStrengthV=358 beside it; a
+// value without the marker is v3.15's and reads as High (rewritten once, logged).
+enum { PVS_LOW, PVS_MEDIUM, PVS_HIGH, PVS_ULTRA, PVS_N };
+static const char *const kPvFsName[PVS_N] = { "Low", "Medium", "High", "Ultra" };
+#define PVS_DEFAULT PVS_HIGH
+#define PV_FS_MARK "358"
+static int PvParseFs(const char *s, int *known)
+{
+    int v;
+    *known = 1;
+    if (s && s[0])
+        for (v = 0; v < PVS_N; ++v)
+            if (!_stricmp(s, kPvFsName[v]) || (s[0] == '0' + v && !s[1])) return v;
+    *known = 0;
+    return PVS_DEFAULT;
+}
+enum { PVF_OK, PVF_BAD, PVF_MISSING, PVF_LEGACY };
+static int PvFsIni(const char *value, const char *marker, int *v)
+{
+    int known;
+    *v = PVS_DEFAULT;
+    if (!value || !value[0]) return PVF_MISSING;
+    if (!marker || strcmp(marker, PV_FS_MARK)) return PVF_LEGACY;  // (any other marker: not ours either)
+    *v = PvParseFs(value, &known);
+    return known ? PVF_OK : PVF_BAD;
+}
+
+// ---------------------------------------------------------------- v3.58 PV358: Filter Strength's effect on a filter
+// High is the look of v3.16 - v3.57, untouched (no extra draw, the constants as they were: PvFsLook is the identity).
+// Low / Medium: the filter is drawn as at High, then the plain picture of the same frame (copied before the filter) is
+// laid back over it at 1 - k (k 0.35 / 0.65): "how far from the plain picture" for every filter alike. Thermal's hot
+// bodies and Spirit Vision's ghost glow, auras, portals and soul fires are drawn after that mix, at full strength (their
+// layers' look), so both stay readable at Low; the Effects page's layers too.
+// Ultra: each look's own amounts x 1.35 away from neutral (saturation, contrast, brightness, tone mix, chroma, vignette,
+// scanlines, aperture grille, grain, flicker; Vivid's sharpening, Night Vision's bloom). Thermal's palette and Spirit
+// Vision's edge world are already the whole picture: Ultra draws them as High.
+static const float kPvFsK[PVS_N] = { 0.35f, 0.65f, 1.0f, 1.35f };
+enum { PVT_OTHER, PVT_TONE, PVT_CRT, PVT_VIVID, PVT_NV, PVT_THERMAL, PVT_GHOST };  // the look families (FxLook's tech)
+typedef struct { int fam; float mix, con, bri, px, vig, scan, mask, grain, flicker; } PvFsLookV;
+// the alpha of the plain picture laid back (0: none)
+static float PvFsMixAlpha(int v) { return v == PVS_LOW || v == PVS_MEDIUM ? 1.0f - kPvFsK[v] : 0.0f; }
+// does this strength need the plain copy before the filter? (Low / Medium, a filter on)
+static int PvFsNeedsCopy(int v, int filterOn) { return filterOn && PvFsMixAlpha(v) > 0.0f; }
+static float PvFsCap1(float x) { return x > 1.0f ? 1.0f : x; }
+// Ultra: the look's amounts x k from neutral (1 = changed); every other strength: untouched (0)
+static int PvFsLook(PvFsLookV *L, int v)
+{
+    const float k = kPvFsK[PVS_ULTRA];
+    if (v != PVS_ULTRA || L->fam == PVT_THERMAL || L->fam == PVT_GHOST) return 0;
+    L->con = 1.0f + (L->con - 1.0f) * k;
+    L->bri *= k;
+    L->flicker *= k;
+    L->vig = PvFsCap1(L->vig * k);
+    L->scan = PvFsCap1(L->scan * k);
+    L->mask = PvFsCap1(L->mask * k);
+    L->grain = PvFsCap1(L->grain * k);
+    if (L->fam == PVT_TONE) L->mix = PvFsCap1(L->mix * k);           // the tone's share (Sepia 0.88 -> 1)
+    else if (L->fam == PVT_CRT || L->fam == PVT_VIVID) L->mix *= k;  // negative: the extra saturation
+    if (L->fam == PVT_CRT) L->px *= k;                               // the colour fringe
+    return 1;
+}
+// Ultra: the shader constants FxConsts takes from macros, not the look: Vivid's sharpening (c2), Night Vision's bloom (c4)
+static int PvFsConstK(int fam, int v, int reg)
+{
+    return v == PVS_ULTRA && ((fam == PVT_VIVID && reg == 2) || (fam == PVT_NV && reg == 4));
 }
 
 // ---------------------------------------------------------------- 3. the heat key (the Thermal layer's composite)

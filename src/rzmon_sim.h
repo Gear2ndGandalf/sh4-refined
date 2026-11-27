@@ -44,6 +44,14 @@
 //   +0x33 variant, +0x36 stage, +0x37 room. A record is written when a monster's room is left (its destroy) and read by
 //   the next create of that id (the spawn gate's 4 = the type's restore): so a retyped monster's record holds its new
 //   type, and the placement must be made as that type again while the record lives (RmPlanRoom's record rule).
+// v3.58 RZ358 (staging/v358_feedback/w3_rando/PLAN.md; the user's v3.57 QA: "Randomizer Reroll ignores Enemies Return
+// setting and forces killed enemies to always respawn on room change when set to By Room"): a reroll redraws WHAT stands
+// where, never WHETHER the dead are back. A placement whose body lies in its room (its record, state 0x0B) keeps the
+// type it died as (RMW_DEAD: no roll, no drop: before v3.58 a reroll to another type deleted the body record and the
+// monster stood again); one whose kill bit is set stays as placed (RMW_KILLED: the gate never makes it). Enemies Return
+// alone brings them back (enemies.inc, before the plan). The slot keeps its kill index (commands 0x10 / 0x2A), and a
+// save keeps a randomized body dead as a kill bit (RmSaveKeepDead). Extra Enemies' copies draw their own types
+// (RmCopyDraw, rzmon.inc RmCopyPlan).
 #ifndef RZMON_SIM_H
 #define RZMON_SIM_H
 #include "rando_sim.h"
@@ -205,6 +213,7 @@ typedef struct {
     unsigned short room, n;        // the room and the object number (the low word of the script id)
     unsigned char type, variant;   // the stock type and variant
     unsigned char event;           // v3.51 SN351: an event dog (RmEventDogMode): rolled only once story flag 0x130 is set
+    short kill;                    // v3.58 RZ358: its kill index (commands 0x10 / 0x2A, ObjInfo +0x20; 0 = none)
 } RmSlot;
 typedef struct {
     int n, kind2, overflow, bad, rooms, roomMax;
@@ -220,6 +229,7 @@ typedef struct {
 typedef struct {
     int kind, tcmds, cmd6, cmd0a, funcs, modes, overs, flags, diffs, posN, type;
     unsigned typeVa, mw, modeVa, diff, yVa, pos[3];
+    unsigned kill;  // v3.58 RZ358: the kill index (0x52C530 cases 0x10 / 0x2A: the last one written)
 } RmObj;
 static int RmTypeOfRow(unsigned p)  // command 6's row pointer -> the type (-1 = not a row of the table)
 {
@@ -259,6 +269,7 @@ static void RmObjFlush(const RmObj *o, int stage, int room, int n, RmScan *out)
         s->room = (unsigned short)room, s->n = (unsigned short)n;
         s->type = (unsigned char)o->type, s->variant = (unsigned char)(o->mw >> 8 & 0xFu);
         s->event = (unsigned char)RmEventDogMode(o->type, o->mw);  // v3.51 SN351
+        s->kill = (short)(o->kill <= 0x7FFFu ? o->kill : 0);      // v3.58 RZ358
         out->events += s->event;
         if (++out->roomN[room] > out->roomMax) out->roomMax = out->roomN[room];
     }
@@ -314,6 +325,7 @@ static void RmScanRoom(const RzWin *w, unsigned p, int stage, int room, RmScan *
             break;
         case 0x0F: case 0x29: ++o.overs; break;
         case 0x19: case 0x26: if (num >= 1 && RzRd(w, p + 4, &a) && a) o.flags = 1; break;
+        case 0x10: case 0x2A: if (num >= 1 && RzRd(w, p + 4, &a)) o.kill = a; break;  // v3.58 RZ358: the kill index
         }
         first = 0;
         p += 4u * (num + 1u);
@@ -413,11 +425,14 @@ typedef struct {
     int freeBones, totalBones;  // the bone pool now (0xED73E4 / 0xED73EC)
     int released;               // v3.51 SN351: story flag 0x130 is set (byte 0x13D80C6 bit 0): the event dogs may roll
     int rollAgain;              // v3.51 SN351: a roll that gives the placement's own type rolls once more (another type in the pool)
+    unsigned dead;              // v3.58 RZ358: bit k: rec[k] is a body lying here (state 0x0B, this stage, this room)
+    unsigned killed;            // v3.58 RZ358: bit k: slot k's kill bit is set (the gate answers 3: never made)
 } RmPlanIn;
 // the game's record of a placement (the caller reads the 64 records): type -1 = none; here = in this room; ours = Refined
 // made that monster as exactly that type and variant (v3.49 fix2 RZ349-SAVE-001: the provenance table RmProv, below)
 typedef struct { int type, variant, here, ours; } RmRec;
-enum { RMW_SAME, RMW_ROLL, RMW_STICKY, RMW_AWAY, RMW_BONES, RMW_FLOOR, RMW_FILES, RMW_NONE, RMW_OTHER, RMW_WORDS, RMW_EVENT, RMW_N };  // fix2: + OTHER  // v3.50 RM350: + WORDS (a word not the stock value: put back)  // v3.51 SN351: + EVENT (an event dog before story flag 0x130: as placed)
+enum { RMW_SAME, RMW_ROLL, RMW_STICKY, RMW_AWAY, RMW_BONES, RMW_FLOOR, RMW_FILES, RMW_NONE, RMW_OTHER, RMW_WORDS, RMW_EVENT,
+       RMW_DEAD, RMW_KILLED, RMW_N };  // v3.58 RZ358: + DEAD (its body lies here: the type it died as), KILLED (its kill bit)  // fix2: + OTHER  // v3.50 RM350: + WORDS (a word not the stock value: put back)  // v3.51 SN351: + EVENT (an event dog before story flag 0x130: as placed)
 // drop: the record in this room is deleted first; adopt (v3.50 RM350): the placement's record here was the game's own record
 // of its stock monster (not Refined's): adopted, rolled like a fresh placement (RmPlanRoom rule 0); again (v3.51 SN351): the
 // first roll gave its own type and it rolled once more
@@ -427,7 +442,7 @@ typedef struct { unsigned char type, variant, why, drop, adopt, again; } RmPick;
 // more for their own type), event (event dogs kept as placed: story flag 0x130 clear), eventPlanned (event dogs planned as the
 // others: the flag set)
 typedef struct { int n, changed, sticky, away, bones, floor, files, drops, none, cost0, cost, limit, other, adopted, adoptChanged,
-                 rollStock, same, again, event, eventPlanned; } RmPlanStat;
+                 rollStock, same, again, event, eventPlanned, dead, killed; } RmPlanStat;  // v3.58 RZ358: + dead, killed
 // This Room: the resident targets; This World: also every target this world places (the stage's two halves: the same
 // world's monsters, its sound tables; their files are loaded at the room load); v3.50 RM350 All Worlds: every target of any
 // world (the files of each one not resident loaded at the room load; its sounds may be missing outside its own worlds)
@@ -461,6 +476,10 @@ static unsigned RmPool(const RmPlanIn *in)
 //    that does not fit keeps the stock type;
 // 5. whatever the pick, a record of Refined's (or an adopted one, v3.50 RM350) in this room of another type than the pick is
 //    deleted (drop).
+// (v3.58 RZ358, before every rule) the dead stay dead, whatever the reroll: a slot whose kill bit is set keeps its stock
+//    words (RMW_KILLED: the gate never makes it; its record, if any, is kept); a body lying here (in->dead: its record's
+//    state 0x0B, this stage, this room) that is Refined's or of the stock type keeps the type it died as (RMW_DEAD: never
+//    rolled, adopted or dropped; no floor or bone rule: it lies there already). Another writer's body follows rule 0.
 // v3.50 RM350: is rec the game's own record of slot s's stock monster in this room (rule 0's adoption)?
 static int RmRecAdopt(const RmRec *r, const RmSlot *s)
 {
@@ -491,8 +510,13 @@ static void RmPlanRoom(const RmPlanIn *in, const RmScan *sc, const int *idx, int
         int ti, delta;
         p.type = s->type, p.variant = s->variant, p.why = RMW_SAME, p.drop = 0, p.again = 0;  // v3.51 SN351: + again
         const int rStock = r->type == s->type && r->variant == s->variant, rKeeps = r->type >= 0 && !(in->reroll && r->here);
+        const int dead = (in->dead >> k & 1u) && r->type >= 0 && r->here && (r->ours || rStock);  // v3.58 RZ358
         p.adopt = (unsigned char)RmRecAdopt(r, s);  // v3.50 RM350
-        if (s->event && !in->released) {  // v3.51 SN351: an event dog before its release: as placed (its events read it)
+        if (in->killed >> k & 1u) {  // v3.58 RZ358: its kill bit: never made (any type); words and record as they are
+            p.adopt = 0, p.why = RMW_KILLED;
+        } else if (dead) {  // v3.58 RZ358: its body lies here: the type it died as (the reroll never brings it back)
+            p.adopt = 0, p.type = (unsigned char)r->type, p.variant = (unsigned char)r->variant, p.why = RMW_DEAD;
+        } else if (s->event && !in->released) {  // v3.51 SN351: an event dog before its release: as placed (its events read it)
             p.adopt = 0, p.why = RMW_EVENT;
         } else if (r->type >= 0 && !r->ours && !p.adopt) {  // v3.49 fix2: not Refined's record: as placed, the record kept
             p.why = rStock ? RMW_AWAY : RMW_OTHER;   // v3.50 RM350: the stock one elsewhere = recorded elsewhere (was SAME)
@@ -514,15 +538,17 @@ static void RmPlanRoom(const RmPlanIn *in, const RmScan *sc, const int *idx, int
                 p.type = kRmTargets[t].type, p.variant = kRmTargets[t].variant, p.why = RMW_ROLL;
             }
         }
-        if ((p.type != s->type || p.variant != s->variant) && RmIsFlyer(s->type) && !RmIsFlyer(p.type) && !(floorOk && floorOk[k]))
+        if (p.why != RMW_DEAD && (p.type != s->type || p.variant != s->variant) && RmIsFlyer(s->type) && !RmIsFlyer(p.type) &&
+            !(floorOk && floorOk[k]))  // v3.58 RZ358: (a body lies where it died)
             p.type = s->type, p.variant = s->variant, p.why = RMW_FLOOR;
         delta = RmPlaceCost(p.type) - RmPlaceCost(s->type);
-        if (delta > 0 && cur + delta > st->limit) {
+        if (delta > 0 && cur + delta > st->limit && p.why != RMW_DEAD) {  // v3.58 RZ358: (a body is never made another type)
             p.type = s->type, p.variant = s->variant, p.why = RMW_BONES;
             delta = 0;
         }
         cur += delta;
-        if (r->type >= 0 && (r->ours || p.adopt) && r->here && !(r->type == p.type && r->variant == p.variant))
+        if (r->type >= 0 && (r->ours || p.adopt) && r->here && !(r->type == p.type && r->variant == p.variant) &&
+            p.why != RMW_KILLED && p.why != RMW_DEAD)  // v3.58 RZ358: a dead one's record is never deleted
             p.drop = 1;  // fix2: + ours  // v3.50 RM350: + adopted
         out[k] = p;
         {
@@ -530,7 +556,8 @@ static void RmPlanRoom(const RmPlanIn *in, const RmScan *sc, const int *idx, int
             st->changed += changed;
             st->adopted += p.adopt, st->adoptChanged += p.adopt && changed;  // v3.50 RM350
             st->rollStock += p.why == RMW_ROLL && !changed, st->same += p.why == RMW_SAME;
-            st->again += p.again, st->event += p.why == RMW_EVENT, st->eventPlanned += s->event && p.why != RMW_EVENT;  // v3.51 SN351
+            st->again += p.again, st->event += p.why == RMW_EVENT, st->eventPlanned += s->event && p.why != RMW_EVENT && p.why != RMW_KILLED && p.why != RMW_DEAD;  // v3.51 SN351  // v3.58 RZ358: (a dead dog is not planned)
+            st->dead += p.why == RMW_DEAD, st->killed += p.why == RMW_KILLED;  // v3.58 RZ358
         }
         st->sticky += p.why == RMW_STICKY, st->away += p.why == RMW_AWAY, st->bones += p.why == RMW_BONES;
         st->floor += p.why == RMW_FLOOR, st->none += p.why == RMW_NONE, st->drops += p.drop, st->other += p.why == RMW_OTHER;
@@ -556,6 +583,65 @@ static void RmRevertPick(RmPick *p, const RmSlot *s, const RmRec *r, RmPlanStat 
 {
     RmPickBack(p, s, r, st, RMW_FILES);  // v3.50 RM350 (the same rule, shared with the words' fallback)
     ++st->files;
+}
+// v3.58 RZ358: a dead pick (RMW_DEAD of another type than the stock one) that cannot be made as its body's type here (its
+// files, a word that is not the stock value), or a body of Refined's in a room left as placed (Enemies Off, a full room):
+// the body record stays and the placement stays empty for this room's script run (its kill bit set for the run and
+// cleared right after it: the gate's 3, as Enemies Follow keeps a follower's home empty) when it has a kill index
+// (RMD_HIDE); without one nothing can keep it dead and keep the record safe for the stock create: the record goes as
+// before v3.58 (RMD_LOST, logged; no stock source placement lacks a kill index: test/rzmon_sim_test.c)
+enum { RMD_HIDE = 1, RMD_LOST = 2 };
+static int RmDeadFallback(const RmSlot *s) { return s && s->kill > 0 ? RMD_HIDE : RMD_LOST; }
+
+// ---------------------------------------------------------------- v3.58 RZ358: Extra Enemies' copies draw their own types
+// With Enemies Same World / All Worlds each copy (k = 1..3) of a randomized room's original draws its own type by the
+// placements' rules and seed (RmPool: the world's or every world's targets, the story rule, the Gum Heads' guard), salted
+// by k, so copies differ from their original and from each other; the visit salt is the placements' (Reroll By Room /
+// By World). A copy may be every target but the Tremer (Enemy Copies never copies 09). Originals that are no source, or
+// whose plan kept them out of the draw (a body, a kill bit, an event dog asleep, another writer's record, recorded
+// elsewhere), keep copies of their own type.
+#define RM_TREMER_TARGET (1u << 6)                           // kRmTargets[6] = 09 v0 (test/rzmon_sim_test.c checks it)
+#define RM_COPY_TARGETS (RM_ALL_TARGETS & ~RM_TREMER_TARGET)
+#define RM_COPY_K 3                                          // = enemies_sim.h ENM_COPY_MAXK (x4)
+static int RmCopiesDrawn(int type, int why)  // does an original made as `type` (its plan's why) get copies of drawn types?
+{
+    if (!EnmCopyMonster(type) || type == 0x11) return 0;
+    return why != RMW_DEAD && why != RMW_KILLED && why != RMW_EVENT && why != RMW_OTHER && why != RMW_AWAY;
+}
+static unsigned RmCopyKey(const RmPlanIn *in, const RmSlot *s, int k)
+{
+    return RzHash4(RzVisitKey(RmSlotKey(in->seed, in->stage, in->half, s->room, s->n), in->visit), 0x434F5059u, (unsigned)k,
+                   0x524D3538u);
+}
+// copy k of slot s: the target index it is made as, -1 = none in the pool (it keeps its original's type)
+static int RmCopyDraw(const RmPlanIn *in, const RmSlot *s, int k)
+{
+    const unsigned pool = RmPool(in) & RM_COPY_TARGETS;
+    const int cnt = RmBitCount(pool);
+    if (!cnt || !s || k < 1 || k > RM_COPY_K) return -1;
+    return RmNthBit(pool, (int)(RmCopyKey(in, s, k) % (unsigned)cnt));
+}
+// The enemy records at a room exit (recevict.inc's alloc: a free slot, else a copy's record, else the game's lowest
+// class): may the room's copies write theirs without taking a real record? Worst case every real write comes first: those
+// take the free slots, then the other stages' monster records (classes 1 / 2 / 6, the game's own first choice); the first
+// copy's write then finds a free slot, or another stage's record, only while freeRecs + otherStage > realWrites; after it
+// the table holds a copy's record, which every later write takes first. RM_CRG_STRICT: a free slot only (no real record of
+// any stage); RM_CRG_OFF: v3.57 (no test). realWrites = the room's real enemies (each writes at the exit) and the
+// followers still on their way. [Gameplay] CopyRecordGuard (hidden, enemies.inc).
+enum { RM_CRG_OFF, RM_CRG_WORLD, RM_CRG_STRICT, RM_CRG_N };
+static int RmCopyRecordsOk(int mode, int freeRecs, int otherStage, int realWrites)
+{
+    if (mode == RM_CRG_OFF) return 1;
+    if (mode == RM_CRG_STRICT) return freeRecs > realWrites;
+    return freeRecs + otherStage > realWrites;
+}
+// a descriptor made as (type, variant) from slot s's stock words (RmFixDesc, also back to the stock type): the type's 4
+// functions (row) and the mode word RmModeWord gives. (A copy of a retyped original that draws the stock type.)
+static void RmFixDescTo(unsigned char *desc, const RmSlot *s, int type, int variant, const unsigned *row)
+{
+    const unsigned mw = RmModeWord(s->type, s->mw, type, variant);
+    memcpy(desc + 4, row, 16);
+    memcpy(desc + 0x24, &mw, 4);
 }
 
 // ---------------------------------------------------------------- the descriptor transform (enemies.inc EnmWalkC)
@@ -642,6 +728,35 @@ static int RmOffDrops(const RmProv *p, const unsigned char *r, int stage, int ro
 // cleared as EnemyRecordDelete 0x464380 clears one (0x50 zero bytes): a save never holds a monster Refined randomized (it
 // comes back as placed). Every other record stays, also one of another type that Refined did not make. The live records
 // are not touched. n cleared (nothing while Refined randomized nothing)
+// v3.58 RZ358: before RmSaveClean, a randomized monster lying dead (its record: state 0x0B, a monster's type, a world
+// stage, a kill index) stays dead in the save: its kill bit is set in the save's own copy of the kill bits (bits: the
+// 32 dwords at the copy's start; the record is then cleared by RmSaveClean as before). After a load the gate answers 3
+// whatever the placement is made as (no record of another type for the stock create); Enemies Return clears that bit
+// when it brings the room's / world's dead back (By Room / By World), as the game's own kill bits. A pinned ghost (its
+// 0x0B is the Sword's) and a body without a kill index are left to RmSaveClean (back as placed after a load: as v3.57).
+// *lost = such bodies without a kill index. Returns the bodies kept dead.
+static int RmSaveKeepDead(unsigned char *bits, const unsigned char *recs, const RmProv *p, int *lost)
+{
+    int i, n = 0;
+    if (lost) *lost = 0;
+    if (!p || !p->n) return 0;
+    for (i = 0; i < RM_REC_N; ++i, recs += RM_REC_SIZE) {
+        short k;
+        int w;
+        unsigned m, v;
+        if (!RmProvRetyped(p, recs) || RmRecState(recs) != 0x0B || EnmGhostType(RmRecType(recs))) continue;
+        memcpy(&k, recs + 0x30, 2);
+        if (k <= 0 || !EnmKillBit(RmRecStage(recs), k, &w, &m) || RmRecStage(recs) < 2 || RmRecStage(recs) > 8) {
+            if (lost) ++*lost;
+            continue;
+        }
+        memcpy(&v, bits + 4 * w, 4);
+        v |= m;
+        memcpy(bits + 4 * w, &v, 4);
+        ++n;
+    }
+    return n;
+}
 static int RmSaveClean(unsigned char *recs, const RmProv *p)
 {
     int i, n = 0;

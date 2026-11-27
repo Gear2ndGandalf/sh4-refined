@@ -397,7 +397,7 @@ static const char *const kGpDescTxt[GP_N] = { OLW_PLAYER_MOVE_SPEED_D, OLW_PLAYE
                                               "Playable Eileen's healing after time unhurt.",  // review REV-010: GpSnapshot puts in PE's RegenDelay
                                               OLW_COMBAT_ONE_HIT_KILL_D, OLW_POWERS_DEATH_PRESENCE_D, OLW_POWERS_AFTER_SHOCK_D,
                                               OLW_POWERS_ECHO_DOUBLES_D, OLW_POWERS_ECHO_COUNT_D,
-                                              OLW_EXTRA_ENEMIES_R1_D,  // v3.53 OL1: + "Next room." (it applies at the next room)
+                                              OLW_ENEMIES_EXTRA_ENEMIES_D,  // v3.58 MN358: no "Next room." (the user; was OLW_EXTRA_ENEMIES_R1_D)
                                               OLW_ENEMIES_DOOR_CHASE_D, OLW_ITEMS_SUPPLY_DROPS_D, OLW_ENEMIES_ENEMIES_RETURN_D };
 static const float kMoveK[4] = { 1.0f, 1.25f, 1.5f, 2.0f };
 static const float kMedK[4] = { 1.0f, 2.0f, 3.0f, 4.0f };

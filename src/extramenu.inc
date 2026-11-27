@@ -498,9 +498,24 @@ static void pm_text(int bank, int id, int x, int y, int align)
 // v3.37 CP337: the Camera page: the header, each setting right-aligned label / value (the Eileen row's columns), the
 // cursor row's value between < >, Back centred; under the rows the cursor row's description and the hint (the view
 // changes when play resumes: the world is not drawn under the pause).
+// v3.58 MN358: the page's widest value (every value of every setting row, the Custom text too): one room for ">"
+static float pm_cam_widest(void)
+{
+    float m = 0.0f;
+    int r, i;
+    for (r = 0; r < CAMR_N; ++r)
+        for (i = 0; i <= g_camN[r] && i < CAM_VMAX; ++i) {
+            float w;
+            if (i == g_camN[r] && g_camCust[r] < 0) break;
+            w = LabelW(CamText((int)g_camIds[r][i]));
+            if (w > m) m = w;
+        }
+    return m;
+}
 static void pm_cam_draw(void)
 {
     int i, r, yl = pm_y0, grey;  // v3.53 OL2: + grey
+    const int vx = pm_eo_x + 0x12, room = VbxPmOn() ? VbxPmRoom(vx, pm_cam_widest()) : -1;  // v3.58 MN358: -1 = v3.57 (">" after the value)
     pm_col = pm_hdr_col;
     pm_text(-1, EM_RAW(CamPauseTitle()), 0x100, pm_y0 - PM_CAM_HDR, 1);
     for (i = 0; i < pm_n; ++i) {
@@ -518,11 +533,11 @@ static void pm_cam_draw(void)
         pm_text(-1, EM_RAW(CamPauseLabel(r)), pm_eo_x - 0x0A, y, 2);
         v = CamPauseValue(r);
         if (!v) continue;
-        pm_text(-1, EM_RAW(v), pm_eo_x + 0x12, y, 0);
+        pm_text(-1, EM_RAW(v), room >= 0 ? VbxPmTextX(vx, room, LabelW(v)) : vx, y, 0);  // v3.58 MN358: centred in the page's room
         if (sel && !grey) {  // v3.53 OL2: no < > on a grey row (it cannot change)
             pm_col = 0x606060;
             pm_text(-1, EM_RAW(pm_str_lt), pm_eo_x - 4, y, 0);
-            pm_text(-1, EM_RAW(pm_str_gt), pm_eo_x + 0x12 + (int)(LabelW(v) + 0.5f) + 6, y, 0);
+            pm_text(-1, EM_RAW(pm_str_gt), room >= 0 ? VbxPmGtX(vx, room) : vx + (int)(LabelW(v) + 0.5f) + 6, y, 0);  // v3.58 MN358: one x
         }
     }
     r = (unsigned)EM_CUR < (unsigned)pm_n ? pm_vis[EM_CUR] - PM_CAMR0 : CAMR_N;

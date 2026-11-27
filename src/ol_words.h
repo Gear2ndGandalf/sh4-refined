@@ -473,6 +473,16 @@
 #define OLW_EFFECTS_FILTER_VD_SPIRIT_VISION          "Spirit Vision: the unseen made visible."  /* Effects / Filter / Spirit Vision */
 #define OLW_EFFECTS_FILTER_V_VIGNETTE                "Vignette"  /* Effects / Filter */
 #define OLW_EFFECTS_FILTER_VD_VIGNETTE               "Vignette: darker corners."  /* Effects / Filter / Vignette */
+#define OLW_EFFECTS_FILTER_STRENGTH_L                "Filter Strength"  /* Effects / Filter Strength */
+#define OLW_EFFECTS_FILTER_STRENGTH_D                "How far the filter takes the picture."  /* Effects / Filter Strength */
+#define OLW_EFFECTS_FILTER_STRENGTH_V_LOW            "Low"  /* Effects / Filter Strength */
+#define OLW_EFFECTS_FILTER_STRENGTH_VD_LOW           "Low: a light touch; heat and ghosts stay clear."  /* Effects / Filter Strength / Low */
+#define OLW_EFFECTS_FILTER_STRENGTH_V_MEDIUM         "Medium"  /* Effects / Filter Strength */
+#define OLW_EFFECTS_FILTER_STRENGTH_VD_MEDIUM        "Medium: about two thirds of the filter."  /* Effects / Filter Strength / Medium */
+#define OLW_EFFECTS_FILTER_STRENGTH_V_HIGH           "High"  /* Effects / Filter Strength */
+#define OLW_EFFECTS_FILTER_STRENGTH_VD_HIGH          "High: the filter's full look."  /* Effects / Filter Strength / High */
+#define OLW_EFFECTS_FILTER_STRENGTH_V_ULTRA          "Ultra"  /* Effects / Filter Strength */
+#define OLW_EFFECTS_FILTER_STRENGTH_VD_ULTRA         "Ultra: stronger; Thermal and Spirit Vision as High."  /* Effects / Filter Strength / Ultra */
 #define OLW_EFFECTS_CUT_SCENE_FILTER_L               "Cut-scene Filter"  /* Effects / Cut-scene Filter */
 #define OLW_EFFECTS_CUT_SCENE_FILTER_D               "Filter and Bloom in cut-scenes too."  /* Effects / Cut-scene Filter */
 #define OLW_EFFECTS_CUT_SCENE_FILTER_V_ON            "On"  /* Effects / Cut-scene Filter */
@@ -510,23 +520,33 @@
 #define OLW_EFFECTS_OTHERWORLD_LENS_V_ON             "On"  /* Effects / Otherworld Lens */
 #define OLW_EFFECTS_OTHERWORLD_LENS_VD_ON            "On: shows near ghosts and hauntings."  /* Effects / Otherworld Lens / On */
 #define OLW_EFFECTS_DEPTH_OF_FIELD_L                 "Depth of Field"  /* Effects / Depth of Field */
-#define OLW_EFFECTS_DEPTH_OF_FIELD_D                 "Blur by distance from you."  /* Effects / Depth of Field */
-#define OLW_EFFECTS_DEPTH_OF_FIELD_V_OFF             "Off"  /* Effects / Depth of Field */
-#define OLW_EFFECTS_DEPTH_OF_FIELD_VD_OFF            "Off: everything stays sharp."  /* Effects / Depth of Field / Off */
-#define OLW_EFFECTS_DEPTH_OF_FIELD_V_CUT_SCENES      "Cut-scenes"  /* Effects / Depth of Field */
-#define OLW_EFFECTS_DEPTH_OF_FIELD_VD_CUT_SCENES     "Cut-scenes: only in cut-scenes."  /* Effects / Depth of Field / Cut-scenes */
-#define OLW_EFFECTS_DEPTH_OF_FIELD_V_ALWAYS          "Always"  /* Effects / Depth of Field */
-#define OLW_EFFECTS_DEPTH_OF_FIELD_VD_ALWAYS         "Always: in play too."  /* Effects / Depth of Field / Always */
-#define OLW_EFFECTS_BLUR_STRENGTH_L                  "Blur Strength"  /* Effects / Blur Strength */
-#define OLW_EFFECTS_BLUR_STRENGTH_D                  "How strong the depth of field is."  /* Effects / Blur Strength */
-#define OLW_EFFECTS_BLUR_STRENGTH_V_LOW              "Low"  /* Effects / Blur Strength */
-#define OLW_EFFECTS_BLUR_STRENGTH_VD_LOW             "Low: a gentle blur, far away only."  /* Effects / Blur Strength / Low */
-#define OLW_EFFECTS_BLUR_STRENGTH_V_MEDIUM           "Medium"  /* Effects / Blur Strength */
-#define OLW_EFFECTS_BLUR_STRENGTH_VD_MEDIUM          "Medium: a clear blur behind you."  /* Effects / Blur Strength / Medium */
-#define OLW_EFFECTS_BLUR_STRENGTH_V_HIGH             "High"  /* Effects / Blur Strength */
-#define OLW_EFFECTS_BLUR_STRENGTH_VD_HIGH            "High: a strong blur."  /* Effects / Blur Strength / High */
+#define OLW_EFFECTS_DEPTH_OF_FIELD_D                 "Blur by distance, and how strong."  /* Effects / Depth of Field */
 #define OLW_EFFECTS_SHADOWS_L                        "Shadows"  /* Effects / Shadows */
 #define OLW_EFFECTS_SHADOWS_D                        "Shadows, their edge and darkness."  /* Effects / Shadows */
+#define OLW_EFFECTS_PREVIEW_L                        "Preview"  /* Effects / Preview */
+#define OLW_EFFECTS_PREVIEW_D                        "What these pages show behind them."  /* Effects / Preview */
+#define OLW_EFFECTS_PREVIEW_V_OFF                    "Off"  /* Effects / Preview */
+#define OLW_EFFECTS_PREVIEW_VD_OFF                   "Off: no preview; the game's own menu background."  /* Effects / Preview / Off */
+#define OLW_EFFECTS_PREVIEW_V_STOCK                  "Stock"  /* Effects / Preview */
+#define OLW_EFFECTS_PREVIEW_VD_STOCK                 "Stock: the stock picture, also in a pause."  /* Effects / Preview / Stock */
+#define OLW_EFFECTS_PREVIEW_V_LIVE                   "Live"  /* Effects / Preview */
+#define OLW_EFFECTS_PREVIEW_VD_LIVE                  "Live: the stock picture; a pause shows its scene."  /* Effects / Preview / Live */
+#define OLW_DOF_DEPTH_OF_FIELD_L                     "Depth of Field"  /* Effects > Depth of Field / Depth of Field */
+#define OLW_DOF_DEPTH_OF_FIELD_D                     "Blur by distance from you."  /* Effects > Depth of Field / Depth of Field */
+#define OLW_DOF_DEPTH_OF_FIELD_V_OFF                 "Off"  /* Effects > Depth of Field / Depth of Field */
+#define OLW_DOF_DEPTH_OF_FIELD_VD_OFF                "Off: everything stays sharp."  /* Effects > Depth of Field / Depth of Field / Off */
+#define OLW_DOF_DEPTH_OF_FIELD_V_CUT_SCENES          "Cut-scenes"  /* Effects > Depth of Field / Depth of Field */
+#define OLW_DOF_DEPTH_OF_FIELD_VD_CUT_SCENES         "Cut-scenes: only in cut-scenes."  /* Effects > Depth of Field / Depth of Field / Cut-scenes */
+#define OLW_DOF_DEPTH_OF_FIELD_V_ALWAYS              "Always"  /* Effects > Depth of Field / Depth of Field */
+#define OLW_DOF_DEPTH_OF_FIELD_VD_ALWAYS             "Always: in play too."  /* Effects > Depth of Field / Depth of Field / Always */
+#define OLW_DOF_STRENGTH_L                           "Strength"  /* Effects > Depth of Field / Strength */
+#define OLW_DOF_STRENGTH_D                           "How strong the blur is."  /* Effects > Depth of Field / Strength */
+#define OLW_DOF_STRENGTH_V_LOW                       "Low"  /* Effects > Depth of Field / Strength */
+#define OLW_DOF_STRENGTH_VD_LOW                      "Low: a gentle blur, far away only."  /* Effects > Depth of Field / Strength / Low */
+#define OLW_DOF_STRENGTH_V_MEDIUM                    "Medium"  /* Effects > Depth of Field / Strength */
+#define OLW_DOF_STRENGTH_VD_MEDIUM                   "Medium: a clear blur behind you."  /* Effects > Depth of Field / Strength / Medium */
+#define OLW_DOF_STRENGTH_V_HIGH                      "High"  /* Effects > Depth of Field / Strength */
+#define OLW_DOF_STRENGTH_VD_HIGH                     "High: a strong blur."  /* Effects > Depth of Field / Strength / High */
 #define OLW_GRAIN_FILM_GRAIN_L                       "Film Grain"  /* Effects > Film Grain / Film Grain */
 #define OLW_GRAIN_FILM_GRAIN_D                       "Grain on or off."  /* Effects > Film Grain / Film Grain */
 #define OLW_GRAIN_FILM_GRAIN_V_OFF                   "Off"  /* Effects > Film Grain / Film Grain */
@@ -541,8 +561,8 @@
 #define OLW_GRAIN_STRENGTH_VD_NORMAL                 "Normal: the game's own amount."  /* Effects > Film Grain / Strength / Normal */
 #define OLW_GRAIN_STRENGTH_V_HIGH                    "High"  /* Effects > Film Grain / Strength */
 #define OLW_GRAIN_STRENGTH_VD_HIGH                   "High: half again the game's grain."  /* Effects > Film Grain / Strength / High */
-#define OLW_GRAIN_STRENGTH_V_VERY_HIGH               "Very High"  /* Effects > Film Grain / Strength */
-#define OLW_GRAIN_STRENGTH_VD_VERY_HIGH              "Very High: twice the game's grain."  /* Effects > Film Grain / Strength / Very High */
+#define OLW_GRAIN_STRENGTH_V_ULTRA                   "Ultra"  /* Effects > Film Grain / Strength */
+#define OLW_GRAIN_STRENGTH_VD_ULTRA                  "Ultra: twice the game's grain."  /* Effects > Film Grain / Strength / Ultra */
 #define OLW_GRAIN_GRAIN_TYPE_L                       "Grain Type"  /* Effects > Film Grain / Grain Type */
 #define OLW_GRAIN_GRAIN_TYPE_D                       "The grain's look. Stock is the game's."  /* Effects > Film Grain / Grain Type */
 #define OLW_GRAIN_GRAIN_TYPE_V_STOCK                 "Stock"  /* Effects > Film Grain / Grain Type */
@@ -580,7 +600,7 @@
 #define OLW_SHADOWS_SHADOWS_L                        "Shadows"  /* Effects > Shadows / Shadows */
 #define OLW_SHADOWS_SHADOWS_D                        "Real-time shadows on or off."  /* Effects > Shadows / Shadows */
 #define OLW_SHADOWS_SHADOWS_V_OFF                    "Off"  /* Effects > Shadows / Shadows */
-#define OLW_SHADOWS_SHADOWS_VD_OFF                   "Off: no real-time shadows."  /* Effects > Shadows / Shadows / Off */
+#define OLW_SHADOWS_SHADOWS_VD_OFF                   "Off: none (the game keeps them in a few rooms)."  /* Effects > Shadows / Shadows / Off */
 #define OLW_SHADOWS_SHADOWS_V_ON                     "On"  /* Effects > Shadows / Shadows */
 #define OLW_SHADOWS_SHADOWS_VD_ON                    "On: real-time shadows, as in the game."  /* Effects > Shadows / Shadows / On */
 #define OLW_SHADOWS_EDGE_L                           "Edge"  /* Effects > Shadows / Edge */
@@ -734,7 +754,7 @@
 #define OLW_ITEMS_ITEM_STACKS_V_OFF                  "Off"  /* Gameplay > Items / Item Stacks */
 #define OLW_ITEMS_ITEM_STACKS_VD_OFF                 "Off: one item per slot, as in the game."  /* Gameplay > Items / Item Stacks / Off */
 #define OLW_ITEMS_ITEM_STACKS_V_ON                   "On"  /* Gameplay > Items / Item Stacks */
-#define OLW_ITEMS_ITEM_STACKS_VD_ON                  "On: pickups, gifts and the chest stack."  /* Gameplay > Items / Item Stacks / On */
+#define OLW_ITEMS_ITEM_STACKS_VD_ON                  "On: supplies, ammo and items stack up to 99."  /* Gameplay > Items / Item Stacks / On */
 #define OLW_ITEMS_SUPPLY_DROPS_L                     "Supply Drops"  /* Gameplay > Items / Supply Drops */
 #define OLW_ITEMS_SUPPLY_DROPS_D                     "Kills sometimes leave an item."  /* Gameplay > Items / Supply Drops */
 #define OLW_ITEMS_SUPPLY_DROPS_V_OFF                 "Off"  /* Gameplay > Items / Supply Drops */
@@ -748,13 +768,13 @@
 #define OLW_ENEMIES_EXTRA_ENEMIES_L                  "Extra Enemies"  /* Gameplay > Enemies / Extra Enemies */
 #define OLW_ENEMIES_EXTRA_ENEMIES_D                  "More of every monster and ghost."  /* Gameplay > Enemies / Extra Enemies */
 #define OLW_ENEMIES_EXTRA_ENEMIES_V_OFF              "Off"  /* Gameplay > Enemies / Extra Enemies */
-#define OLW_ENEMIES_EXTRA_ENEMIES_VD_OFF             "Off: the game's own numbers. Next room."  /* Gameplay > Enemies / Extra Enemies / Off */
+#define OLW_ENEMIES_EXTRA_ENEMIES_VD_OFF             "Off: the game's own numbers."  /* Gameplay > Enemies / Extra Enemies / Off */
 #define OLW_ENEMIES_EXTRA_ENEMIES_V_X2               "x2"  /* Gameplay > Enemies / Extra Enemies */
-#define OLW_ENEMIES_EXTRA_ENEMIES_VD_X2              "x2: twice as many. Next room."  /* Gameplay > Enemies / Extra Enemies / x2 */
+#define OLW_ENEMIES_EXTRA_ENEMIES_VD_X2              "x2: twice as many."  /* Gameplay > Enemies / Extra Enemies / x2 */
 #define OLW_ENEMIES_EXTRA_ENEMIES_V_X3               "x3"  /* Gameplay > Enemies / Extra Enemies */
-#define OLW_ENEMIES_EXTRA_ENEMIES_VD_X3              "x3: three times as many. Next room."  /* Gameplay > Enemies / Extra Enemies / x3 */
+#define OLW_ENEMIES_EXTRA_ENEMIES_VD_X3              "x3: three times as many."  /* Gameplay > Enemies / Extra Enemies / x3 */
 #define OLW_ENEMIES_EXTRA_ENEMIES_V_X4               "x4"  /* Gameplay > Enemies / Extra Enemies */
-#define OLW_ENEMIES_EXTRA_ENEMIES_VD_X4              "x4: four times as many. Next room."  /* Gameplay > Enemies / Extra Enemies / x4 */
+#define OLW_ENEMIES_EXTRA_ENEMIES_VD_X4              "x4: four times as many."  /* Gameplay > Enemies / Extra Enemies / x4 */
 #define OLW_ENEMIES_DOOR_CHASE_L                     "Door Chase"  /* Gameplay > Enemies / Door Chase */
 #define OLW_ENEMIES_DOOR_CHASE_D                     "Who follows you through doors."  /* Gameplay > Enemies / Door Chase */
 #define OLW_ENEMIES_DOOR_CHASE_V_OFF                 "Off"  /* Gameplay > Enemies / Door Chase */
@@ -781,14 +801,14 @@
 #define OLW_ENEMIES_ENEMIES_RETURN_VD_BY_ROOM        "By Room: back each time you enter their room."  /* Gameplay > Enemies / Enemies Return / By Room */
 #define OLW_ENEMIES_ENEMIES_RETURN_V_BY_WORLD        "By World"  /* Gameplay > Enemies / Enemies Return */
 #define OLW_ENEMIES_ENEMIES_RETURN_VD_BY_WORLD       "By World: back when you enter the world again."  /* Gameplay > Enemies / Enemies Return / By World */
-#define OLW_ENEMIES_FADE_IN_L                        "Fade In"  /* Gameplay > Enemies / Fade In */
-#define OLW_ENEMIES_FADE_IN_D                        "How monsters and ghosts appear."  /* Gameplay > Enemies / Fade In */
-#define OLW_ENEMIES_FADE_IN_V_OFF                    "Off"  /* Gameplay > Enemies / Fade In */
-#define OLW_ENEMIES_FADE_IN_VD_OFF                   "Off: they appear at once, as in the game."  /* Gameplay > Enemies / Fade In / Off */
-#define OLW_ENEMIES_FADE_IN_V_FADE                   "Fade"  /* Gameplay > Enemies / Fade In */
-#define OLW_ENEMIES_FADE_IN_VD_FADE                  "Fade: they fade in."  /* Gameplay > Enemies / Fade In / Fade */
-#define OLW_ENEMIES_FADE_IN_V_PORTAL                 "Portal"  /* Gameplay > Enemies / Fade In */
-#define OLW_ENEMIES_FADE_IN_VD_PORTAL                "Portal: fade in; ghosts tear out of tar."  /* Gameplay > Enemies / Fade In / Portal */
+#define OLW_ENEMIES_REVEAL_METHOD_L                  "Reveal Method"  /* Gameplay > Enemies / Reveal Method */
+#define OLW_ENEMIES_REVEAL_METHOD_D                  "How monsters and ghosts arrive."  /* Gameplay > Enemies / Reveal Method */
+#define OLW_ENEMIES_REVEAL_METHOD_V_OFF              "Off"  /* Gameplay > Enemies / Reveal Method */
+#define OLW_ENEMIES_REVEAL_METHOD_VD_OFF             "Off: they appear at once, as in the game."  /* Gameplay > Enemies / Reveal Method / Off */
+#define OLW_ENEMIES_REVEAL_METHOD_V_FADE_IN          "Fade In"  /* Gameplay > Enemies / Reveal Method */
+#define OLW_ENEMIES_REVEAL_METHOD_VD_FADE_IN         "Fade In: they fade in."  /* Gameplay > Enemies / Reveal Method / Fade In */
+#define OLW_ENEMIES_REVEAL_METHOD_V_PORTAL           "Portal"  /* Gameplay > Enemies / Reveal Method */
+#define OLW_ENEMIES_REVEAL_METHOD_VD_PORTAL          "Portal: they fade in; ghosts tear out of tar."  /* Gameplay > Enemies / Reveal Method / Portal */
 #define OLW_POWERS_DEATH_PRESENCE_L                  "Death Presence"  /* Gameplay > Powers / Death Presence */
 #define OLW_POWERS_DEATH_PRESENCE_D                  "A dark fog round you drains all life."  /* Gameplay > Powers / Death Presence */
 #define OLW_POWERS_DEATH_PRESENCE_V_OFF              "Off"  /* Gameplay > Powers / Death Presence */
@@ -943,7 +963,6 @@
 #define OLW_OMNI_PE                                  "On: any angle (Eileen keeps her own speed)."  /* R1 */
 #define OLW_OMNI_BIND                                "Movement is not on a stick: no effect."  /* R1 */
 #define OLW_OMNI_NOSRC                               "The stick could not be read: no effect."  /* R1 */
-#define OLW_EXTRA_ENEMIES_R1_D                       "More of every monster and ghost. Next room."  /* R1 */
 #define OLW_RESERVED                                 ""  /* R1 */
 #define OLW_T_CAMERA                                 "Camera"  /* R4 */
 #define OLW_T_STEERING                               "Steering"  /* R4 */
@@ -958,6 +977,9 @@
 #define OLW_MENUS_D                                  "The pause list, the menu font and the start-up."  /* R4 */
 #define OLW_GRAIN_SWITCH_D                           "Grain on or off. Settings: Effects > Film Grain."  /* R4 */
 #define OLW_SHADOWS_SWITCH_D                         "Real-time shadows. Settings: Effects > Shadows."  /* R4 */
+#define OLW_T_DOF                                    "Depth of Field"  /* R4 */
+#define OLW_L_BLUR_STRENGTH                          "Blur Strength"  /* R4 */
+#define OLW_PV_STOCK_NOFILE                          "Stock: no picture file; Refined's own scene."  /* R4 */
 
 // every text with its kind (L label, V value, D description, T title, S a sentence added to a description)
 #define OL_WORDS_LIST(X) \
@@ -1430,6 +1452,16 @@
     X('D', OLW_EFFECTS_FILTER_VD_SPIRIT_VISION, "OLW_EFFECTS_FILTER_VD_SPIRIT_VISION") \
     X('V', OLW_EFFECTS_FILTER_V_VIGNETTE, "OLW_EFFECTS_FILTER_V_VIGNETTE") \
     X('D', OLW_EFFECTS_FILTER_VD_VIGNETTE, "OLW_EFFECTS_FILTER_VD_VIGNETTE") \
+    X('L', OLW_EFFECTS_FILTER_STRENGTH_L, "OLW_EFFECTS_FILTER_STRENGTH_L") \
+    X('D', OLW_EFFECTS_FILTER_STRENGTH_D, "OLW_EFFECTS_FILTER_STRENGTH_D") \
+    X('V', OLW_EFFECTS_FILTER_STRENGTH_V_LOW, "OLW_EFFECTS_FILTER_STRENGTH_V_LOW") \
+    X('D', OLW_EFFECTS_FILTER_STRENGTH_VD_LOW, "OLW_EFFECTS_FILTER_STRENGTH_VD_LOW") \
+    X('V', OLW_EFFECTS_FILTER_STRENGTH_V_MEDIUM, "OLW_EFFECTS_FILTER_STRENGTH_V_MEDIUM") \
+    X('D', OLW_EFFECTS_FILTER_STRENGTH_VD_MEDIUM, "OLW_EFFECTS_FILTER_STRENGTH_VD_MEDIUM") \
+    X('V', OLW_EFFECTS_FILTER_STRENGTH_V_HIGH, "OLW_EFFECTS_FILTER_STRENGTH_V_HIGH") \
+    X('D', OLW_EFFECTS_FILTER_STRENGTH_VD_HIGH, "OLW_EFFECTS_FILTER_STRENGTH_VD_HIGH") \
+    X('V', OLW_EFFECTS_FILTER_STRENGTH_V_ULTRA, "OLW_EFFECTS_FILTER_STRENGTH_V_ULTRA") \
+    X('D', OLW_EFFECTS_FILTER_STRENGTH_VD_ULTRA, "OLW_EFFECTS_FILTER_STRENGTH_VD_ULTRA") \
     X('L', OLW_EFFECTS_CUT_SCENE_FILTER_L, "OLW_EFFECTS_CUT_SCENE_FILTER_L") \
     X('D', OLW_EFFECTS_CUT_SCENE_FILTER_D, "OLW_EFFECTS_CUT_SCENE_FILTER_D") \
     X('V', OLW_EFFECTS_CUT_SCENE_FILTER_V_ON, "OLW_EFFECTS_CUT_SCENE_FILTER_V_ON") \
@@ -1468,22 +1500,32 @@
     X('D', OLW_EFFECTS_OTHERWORLD_LENS_VD_ON, "OLW_EFFECTS_OTHERWORLD_LENS_VD_ON") \
     X('L', OLW_EFFECTS_DEPTH_OF_FIELD_L, "OLW_EFFECTS_DEPTH_OF_FIELD_L") \
     X('D', OLW_EFFECTS_DEPTH_OF_FIELD_D, "OLW_EFFECTS_DEPTH_OF_FIELD_D") \
-    X('V', OLW_EFFECTS_DEPTH_OF_FIELD_V_OFF, "OLW_EFFECTS_DEPTH_OF_FIELD_V_OFF") \
-    X('D', OLW_EFFECTS_DEPTH_OF_FIELD_VD_OFF, "OLW_EFFECTS_DEPTH_OF_FIELD_VD_OFF") \
-    X('V', OLW_EFFECTS_DEPTH_OF_FIELD_V_CUT_SCENES, "OLW_EFFECTS_DEPTH_OF_FIELD_V_CUT_SCENES") \
-    X('D', OLW_EFFECTS_DEPTH_OF_FIELD_VD_CUT_SCENES, "OLW_EFFECTS_DEPTH_OF_FIELD_VD_CUT_SCENES") \
-    X('V', OLW_EFFECTS_DEPTH_OF_FIELD_V_ALWAYS, "OLW_EFFECTS_DEPTH_OF_FIELD_V_ALWAYS") \
-    X('D', OLW_EFFECTS_DEPTH_OF_FIELD_VD_ALWAYS, "OLW_EFFECTS_DEPTH_OF_FIELD_VD_ALWAYS") \
-    X('L', OLW_EFFECTS_BLUR_STRENGTH_L, "OLW_EFFECTS_BLUR_STRENGTH_L") \
-    X('D', OLW_EFFECTS_BLUR_STRENGTH_D, "OLW_EFFECTS_BLUR_STRENGTH_D") \
-    X('V', OLW_EFFECTS_BLUR_STRENGTH_V_LOW, "OLW_EFFECTS_BLUR_STRENGTH_V_LOW") \
-    X('D', OLW_EFFECTS_BLUR_STRENGTH_VD_LOW, "OLW_EFFECTS_BLUR_STRENGTH_VD_LOW") \
-    X('V', OLW_EFFECTS_BLUR_STRENGTH_V_MEDIUM, "OLW_EFFECTS_BLUR_STRENGTH_V_MEDIUM") \
-    X('D', OLW_EFFECTS_BLUR_STRENGTH_VD_MEDIUM, "OLW_EFFECTS_BLUR_STRENGTH_VD_MEDIUM") \
-    X('V', OLW_EFFECTS_BLUR_STRENGTH_V_HIGH, "OLW_EFFECTS_BLUR_STRENGTH_V_HIGH") \
-    X('D', OLW_EFFECTS_BLUR_STRENGTH_VD_HIGH, "OLW_EFFECTS_BLUR_STRENGTH_VD_HIGH") \
     X('L', OLW_EFFECTS_SHADOWS_L, "OLW_EFFECTS_SHADOWS_L") \
     X('D', OLW_EFFECTS_SHADOWS_D, "OLW_EFFECTS_SHADOWS_D") \
+    X('L', OLW_EFFECTS_PREVIEW_L, "OLW_EFFECTS_PREVIEW_L") \
+    X('D', OLW_EFFECTS_PREVIEW_D, "OLW_EFFECTS_PREVIEW_D") \
+    X('V', OLW_EFFECTS_PREVIEW_V_OFF, "OLW_EFFECTS_PREVIEW_V_OFF") \
+    X('D', OLW_EFFECTS_PREVIEW_VD_OFF, "OLW_EFFECTS_PREVIEW_VD_OFF") \
+    X('V', OLW_EFFECTS_PREVIEW_V_STOCK, "OLW_EFFECTS_PREVIEW_V_STOCK") \
+    X('D', OLW_EFFECTS_PREVIEW_VD_STOCK, "OLW_EFFECTS_PREVIEW_VD_STOCK") \
+    X('V', OLW_EFFECTS_PREVIEW_V_LIVE, "OLW_EFFECTS_PREVIEW_V_LIVE") \
+    X('D', OLW_EFFECTS_PREVIEW_VD_LIVE, "OLW_EFFECTS_PREVIEW_VD_LIVE") \
+    X('L', OLW_DOF_DEPTH_OF_FIELD_L, "OLW_DOF_DEPTH_OF_FIELD_L") \
+    X('D', OLW_DOF_DEPTH_OF_FIELD_D, "OLW_DOF_DEPTH_OF_FIELD_D") \
+    X('V', OLW_DOF_DEPTH_OF_FIELD_V_OFF, "OLW_DOF_DEPTH_OF_FIELD_V_OFF") \
+    X('D', OLW_DOF_DEPTH_OF_FIELD_VD_OFF, "OLW_DOF_DEPTH_OF_FIELD_VD_OFF") \
+    X('V', OLW_DOF_DEPTH_OF_FIELD_V_CUT_SCENES, "OLW_DOF_DEPTH_OF_FIELD_V_CUT_SCENES") \
+    X('D', OLW_DOF_DEPTH_OF_FIELD_VD_CUT_SCENES, "OLW_DOF_DEPTH_OF_FIELD_VD_CUT_SCENES") \
+    X('V', OLW_DOF_DEPTH_OF_FIELD_V_ALWAYS, "OLW_DOF_DEPTH_OF_FIELD_V_ALWAYS") \
+    X('D', OLW_DOF_DEPTH_OF_FIELD_VD_ALWAYS, "OLW_DOF_DEPTH_OF_FIELD_VD_ALWAYS") \
+    X('L', OLW_DOF_STRENGTH_L, "OLW_DOF_STRENGTH_L") \
+    X('D', OLW_DOF_STRENGTH_D, "OLW_DOF_STRENGTH_D") \
+    X('V', OLW_DOF_STRENGTH_V_LOW, "OLW_DOF_STRENGTH_V_LOW") \
+    X('D', OLW_DOF_STRENGTH_VD_LOW, "OLW_DOF_STRENGTH_VD_LOW") \
+    X('V', OLW_DOF_STRENGTH_V_MEDIUM, "OLW_DOF_STRENGTH_V_MEDIUM") \
+    X('D', OLW_DOF_STRENGTH_VD_MEDIUM, "OLW_DOF_STRENGTH_VD_MEDIUM") \
+    X('V', OLW_DOF_STRENGTH_V_HIGH, "OLW_DOF_STRENGTH_V_HIGH") \
+    X('D', OLW_DOF_STRENGTH_VD_HIGH, "OLW_DOF_STRENGTH_VD_HIGH") \
     X('L', OLW_GRAIN_FILM_GRAIN_L, "OLW_GRAIN_FILM_GRAIN_L") \
     X('D', OLW_GRAIN_FILM_GRAIN_D, "OLW_GRAIN_FILM_GRAIN_D") \
     X('V', OLW_GRAIN_FILM_GRAIN_V_OFF, "OLW_GRAIN_FILM_GRAIN_V_OFF") \
@@ -1498,8 +1540,8 @@
     X('D', OLW_GRAIN_STRENGTH_VD_NORMAL, "OLW_GRAIN_STRENGTH_VD_NORMAL") \
     X('V', OLW_GRAIN_STRENGTH_V_HIGH, "OLW_GRAIN_STRENGTH_V_HIGH") \
     X('D', OLW_GRAIN_STRENGTH_VD_HIGH, "OLW_GRAIN_STRENGTH_VD_HIGH") \
-    X('V', OLW_GRAIN_STRENGTH_V_VERY_HIGH, "OLW_GRAIN_STRENGTH_V_VERY_HIGH") \
-    X('D', OLW_GRAIN_STRENGTH_VD_VERY_HIGH, "OLW_GRAIN_STRENGTH_VD_VERY_HIGH") \
+    X('V', OLW_GRAIN_STRENGTH_V_ULTRA, "OLW_GRAIN_STRENGTH_V_ULTRA") \
+    X('D', OLW_GRAIN_STRENGTH_VD_ULTRA, "OLW_GRAIN_STRENGTH_VD_ULTRA") \
     X('L', OLW_GRAIN_GRAIN_TYPE_L, "OLW_GRAIN_GRAIN_TYPE_L") \
     X('D', OLW_GRAIN_GRAIN_TYPE_D, "OLW_GRAIN_GRAIN_TYPE_D") \
     X('V', OLW_GRAIN_GRAIN_TYPE_V_STOCK, "OLW_GRAIN_GRAIN_TYPE_V_STOCK") \
@@ -1738,14 +1780,14 @@
     X('D', OLW_ENEMIES_ENEMIES_RETURN_VD_BY_ROOM, "OLW_ENEMIES_ENEMIES_RETURN_VD_BY_ROOM") \
     X('V', OLW_ENEMIES_ENEMIES_RETURN_V_BY_WORLD, "OLW_ENEMIES_ENEMIES_RETURN_V_BY_WORLD") \
     X('D', OLW_ENEMIES_ENEMIES_RETURN_VD_BY_WORLD, "OLW_ENEMIES_ENEMIES_RETURN_VD_BY_WORLD") \
-    X('L', OLW_ENEMIES_FADE_IN_L, "OLW_ENEMIES_FADE_IN_L") \
-    X('D', OLW_ENEMIES_FADE_IN_D, "OLW_ENEMIES_FADE_IN_D") \
-    X('V', OLW_ENEMIES_FADE_IN_V_OFF, "OLW_ENEMIES_FADE_IN_V_OFF") \
-    X('D', OLW_ENEMIES_FADE_IN_VD_OFF, "OLW_ENEMIES_FADE_IN_VD_OFF") \
-    X('V', OLW_ENEMIES_FADE_IN_V_FADE, "OLW_ENEMIES_FADE_IN_V_FADE") \
-    X('D', OLW_ENEMIES_FADE_IN_VD_FADE, "OLW_ENEMIES_FADE_IN_VD_FADE") \
-    X('V', OLW_ENEMIES_FADE_IN_V_PORTAL, "OLW_ENEMIES_FADE_IN_V_PORTAL") \
-    X('D', OLW_ENEMIES_FADE_IN_VD_PORTAL, "OLW_ENEMIES_FADE_IN_VD_PORTAL") \
+    X('L', OLW_ENEMIES_REVEAL_METHOD_L, "OLW_ENEMIES_REVEAL_METHOD_L") \
+    X('D', OLW_ENEMIES_REVEAL_METHOD_D, "OLW_ENEMIES_REVEAL_METHOD_D") \
+    X('V', OLW_ENEMIES_REVEAL_METHOD_V_OFF, "OLW_ENEMIES_REVEAL_METHOD_V_OFF") \
+    X('D', OLW_ENEMIES_REVEAL_METHOD_VD_OFF, "OLW_ENEMIES_REVEAL_METHOD_VD_OFF") \
+    X('V', OLW_ENEMIES_REVEAL_METHOD_V_FADE_IN, "OLW_ENEMIES_REVEAL_METHOD_V_FADE_IN") \
+    X('D', OLW_ENEMIES_REVEAL_METHOD_VD_FADE_IN, "OLW_ENEMIES_REVEAL_METHOD_VD_FADE_IN") \
+    X('V', OLW_ENEMIES_REVEAL_METHOD_V_PORTAL, "OLW_ENEMIES_REVEAL_METHOD_V_PORTAL") \
+    X('D', OLW_ENEMIES_REVEAL_METHOD_VD_PORTAL, "OLW_ENEMIES_REVEAL_METHOD_VD_PORTAL") \
     X('L', OLW_POWERS_DEATH_PRESENCE_L, "OLW_POWERS_DEATH_PRESENCE_L") \
     X('D', OLW_POWERS_DEATH_PRESENCE_D, "OLW_POWERS_DEATH_PRESENCE_D") \
     X('V', OLW_POWERS_DEATH_PRESENCE_V_OFF, "OLW_POWERS_DEATH_PRESENCE_V_OFF") \
@@ -1900,7 +1942,6 @@
     X('D', OLW_OMNI_PE, "OLW_OMNI_PE") \
     X('D', OLW_OMNI_BIND, "OLW_OMNI_BIND") \
     X('D', OLW_OMNI_NOSRC, "OLW_OMNI_NOSRC") \
-    X('D', OLW_EXTRA_ENEMIES_R1_D, "OLW_EXTRA_ENEMIES_R1_D") \
     X('V', OLW_RESERVED, "OLW_RESERVED") \
     X('T', OLW_T_CAMERA, "OLW_T_CAMERA") \
     X('T', OLW_T_STEERING, "OLW_T_STEERING") \
@@ -1915,6 +1956,9 @@
     X('D', OLW_MENUS_D, "OLW_MENUS_D") \
     X('D', OLW_GRAIN_SWITCH_D, "OLW_GRAIN_SWITCH_D") \
     X('D', OLW_SHADOWS_SWITCH_D, "OLW_SHADOWS_SWITCH_D") \
+    X('T', OLW_T_DOF, "OLW_T_DOF") \
+    X('L', OLW_L_BLUR_STRENGTH, "OLW_L_BLUR_STRENGTH") \
+    X('D', OLW_PV_STOCK_NOFILE, "OLW_PV_STOCK_NOFILE") \
 
 // the screen words that differ from the ini words (PLAN section 7): the row shows the screen word, the ini keeps its
 // own; a value outside a map shows as it is written
@@ -1938,12 +1982,13 @@ enum {
     OLM_PAUSE_EILEEN,  /* Interface > Pause Menu > Eileen: [ExtraMenu] Eileen */
     OLM_EFFECTS_FILTER,  /* Effects > Filter: [ScreenEffects] Filter */
     OLM_GRAIN_FILM_GRAIN,  /* Effects > Film Grain > Film Grain: cfg+0x14 */
+    OLM_GRAIN_STRENGTH,  /* Effects > Film Grain > Strength: [ScreenEffects] NoiseStrength */
     OLM_SHADOWS_SHADOWS,  /* Effects > Shadows > Shadows: cfg+0x19 */
     OLM_COMBAT_QUICK_CHARGE,  /* Gameplay > Combat > Quick Charge: [Gameplay] QuickCharge */
     OLM_COMBAT_LIFE_STEAL,  /* Gameplay > Combat > Life Steal: [Gameplay] LifeSteal */
     OLM_ITEMS_TOOLBELT,  /* Gameplay > Items > Toolbelt: [Gameplay] ExtendedToolbelt */
     OLM_ENEMIES_DOOR_CHASE,  /* Gameplay > Enemies > Door Chase: [Gameplay] EnemyFollow */
-    OLM_ENEMIES_FADE_IN,  /* Gameplay > Enemies > Fade In: [Gameplay] FadeIn */
+    OLM_ENEMIES_REVEAL_METHOD,  /* Gameplay > Enemies > Reveal Method: [Gameplay] FadeIn */
     OLM_POWERS_ECHO_DOUBLES,  /* Gameplay > Powers > Echo Doubles: [Gameplay] Echo */
     OLM_N };
 typedef struct { int map; const char *ini, *show; } OlMapEntry;
@@ -1961,6 +2006,7 @@ typedef struct { int map; const char *ini, *show; } OlMapEntry;
     X("pause", "Interface > Pause Menu", "interface") \
     X("sound", "Sound", "") \
     X("effects", "Effects", "") \
+    X("dof", "Effects > Depth of Field", "effects") \
     X("grain", "Effects > Film Grain", "effects") \
     X("shadows", "Effects > Shadows", "effects") \
     X("gameplay", "Gameplay", "") \
@@ -2048,13 +2094,16 @@ typedef struct { int map; const char *ini, *show; } OlMapEntry;
     X("sound", "Background", 'v', "") \
     X("effects", "Film Grain", 'f', "grain") \
     X("effects", "Filter", 'v', "") \
+    X("effects", "Filter Strength", 'v', "") \
     X("effects", "Cut-scene Filter", 'v', "") \
     X("effects", "Bloom", 'v', "") \
     X("effects", "Colour Grade", 'v', "") \
     X("effects", "Otherworld Lens", 'v', "") \
-    X("effects", "Depth of Field", 'v', "") \
-    X("effects", "Blur Strength", 'v', "") \
+    X("effects", "Depth of Field", 'f', "dof") \
     X("effects", "Shadows", 'f', "shadows") \
+    X("effects", "Preview", 'v', "") \
+    X("dof", "Depth of Field", 'v', "") \
+    X("dof", "Strength", 'v', "") \
     X("grain", "Film Grain", 'v', "") \
     X("grain", "Strength", 'v', "") \
     X("grain", "Grain Type", 'v', "") \
@@ -2087,7 +2136,7 @@ typedef struct { int map; const char *ini, *show; } OlMapEntry;
     X("enemies", "Door Chase", 'v', "") \
     X("enemies", "Pursuit", 'v', "") \
     X("enemies", "Enemies Return", 'v', "") \
-    X("enemies", "Fade In", 'v', "") \
+    X("enemies", "Reveal Method", 'v', "") \
     X("powers", "Death Presence", 'v', "") \
     X("powers", "After Shock", 'v', "") \
     X("powers", "Echo Doubles", 'v', "") \
@@ -2242,6 +2291,10 @@ typedef struct { int map; const char *ini, *show; } OlMapEntry;
     X("effects", "Filter", OLW_EFFECTS_FILTER_D, OLW_EFFECTS_FILTER_V_THERMAL, OLW_EFFECTS_FILTER_VD_THERMAL) \
     X("effects", "Filter", OLW_EFFECTS_FILTER_D, OLW_EFFECTS_FILTER_V_SPIRIT_VISION, OLW_EFFECTS_FILTER_VD_SPIRIT_VISION) \
     X("effects", "Filter", OLW_EFFECTS_FILTER_D, OLW_EFFECTS_FILTER_V_VIGNETTE, OLW_EFFECTS_FILTER_VD_VIGNETTE) \
+    X("effects", "Filter Strength", OLW_EFFECTS_FILTER_STRENGTH_D, OLW_EFFECTS_FILTER_STRENGTH_V_LOW, OLW_EFFECTS_FILTER_STRENGTH_VD_LOW) \
+    X("effects", "Filter Strength", OLW_EFFECTS_FILTER_STRENGTH_D, OLW_EFFECTS_FILTER_STRENGTH_V_MEDIUM, OLW_EFFECTS_FILTER_STRENGTH_VD_MEDIUM) \
+    X("effects", "Filter Strength", OLW_EFFECTS_FILTER_STRENGTH_D, OLW_EFFECTS_FILTER_STRENGTH_V_HIGH, OLW_EFFECTS_FILTER_STRENGTH_VD_HIGH) \
+    X("effects", "Filter Strength", OLW_EFFECTS_FILTER_STRENGTH_D, OLW_EFFECTS_FILTER_STRENGTH_V_ULTRA, OLW_EFFECTS_FILTER_STRENGTH_VD_ULTRA) \
     X("effects", "Cut-scene Filter", OLW_EFFECTS_CUT_SCENE_FILTER_D, OLW_EFFECTS_CUT_SCENE_FILTER_V_ON, OLW_EFFECTS_CUT_SCENE_FILTER_VD_ON) \
     X("effects", "Cut-scene Filter", OLW_EFFECTS_CUT_SCENE_FILTER_D, OLW_EFFECTS_CUT_SCENE_FILTER_V_OFF, OLW_EFFECTS_CUT_SCENE_FILTER_VD_OFF) \
     X("effects", "Bloom", OLW_EFFECTS_BLOOM_D, OLW_EFFECTS_BLOOM_V_OFF, OLW_EFFECTS_BLOOM_VD_OFF) \
@@ -2256,18 +2309,21 @@ typedef struct { int map; const char *ini, *show; } OlMapEntry;
     X("effects", "Colour Grade", OLW_EFFECTS_COLOUR_GRADE_D, OLW_EFFECTS_COLOUR_GRADE_V_BLEACH, OLW_EFFECTS_COLOUR_GRADE_VD_BLEACH) \
     X("effects", "Otherworld Lens", OLW_EFFECTS_OTHERWORLD_LENS_D, OLW_EFFECTS_OTHERWORLD_LENS_V_OFF, OLW_EFFECTS_OTHERWORLD_LENS_VD_OFF) \
     X("effects", "Otherworld Lens", OLW_EFFECTS_OTHERWORLD_LENS_D, OLW_EFFECTS_OTHERWORLD_LENS_V_ON, OLW_EFFECTS_OTHERWORLD_LENS_VD_ON) \
-    X("effects", "Depth of Field", OLW_EFFECTS_DEPTH_OF_FIELD_D, OLW_EFFECTS_DEPTH_OF_FIELD_V_OFF, OLW_EFFECTS_DEPTH_OF_FIELD_VD_OFF) \
-    X("effects", "Depth of Field", OLW_EFFECTS_DEPTH_OF_FIELD_D, OLW_EFFECTS_DEPTH_OF_FIELD_V_CUT_SCENES, OLW_EFFECTS_DEPTH_OF_FIELD_VD_CUT_SCENES) \
-    X("effects", "Depth of Field", OLW_EFFECTS_DEPTH_OF_FIELD_D, OLW_EFFECTS_DEPTH_OF_FIELD_V_ALWAYS, OLW_EFFECTS_DEPTH_OF_FIELD_VD_ALWAYS) \
-    X("effects", "Blur Strength", OLW_EFFECTS_BLUR_STRENGTH_D, OLW_EFFECTS_BLUR_STRENGTH_V_LOW, OLW_EFFECTS_BLUR_STRENGTH_VD_LOW) \
-    X("effects", "Blur Strength", OLW_EFFECTS_BLUR_STRENGTH_D, OLW_EFFECTS_BLUR_STRENGTH_V_MEDIUM, OLW_EFFECTS_BLUR_STRENGTH_VD_MEDIUM) \
-    X("effects", "Blur Strength", OLW_EFFECTS_BLUR_STRENGTH_D, OLW_EFFECTS_BLUR_STRENGTH_V_HIGH, OLW_EFFECTS_BLUR_STRENGTH_VD_HIGH) \
+    X("effects", "Preview", OLW_EFFECTS_PREVIEW_D, OLW_EFFECTS_PREVIEW_V_OFF, OLW_EFFECTS_PREVIEW_VD_OFF) \
+    X("effects", "Preview", OLW_EFFECTS_PREVIEW_D, OLW_EFFECTS_PREVIEW_V_STOCK, OLW_EFFECTS_PREVIEW_VD_STOCK) \
+    X("effects", "Preview", OLW_EFFECTS_PREVIEW_D, OLW_EFFECTS_PREVIEW_V_LIVE, OLW_EFFECTS_PREVIEW_VD_LIVE) \
+    X("dof", "Depth of Field", OLW_DOF_DEPTH_OF_FIELD_D, OLW_DOF_DEPTH_OF_FIELD_V_OFF, OLW_DOF_DEPTH_OF_FIELD_VD_OFF) \
+    X("dof", "Depth of Field", OLW_DOF_DEPTH_OF_FIELD_D, OLW_DOF_DEPTH_OF_FIELD_V_CUT_SCENES, OLW_DOF_DEPTH_OF_FIELD_VD_CUT_SCENES) \
+    X("dof", "Depth of Field", OLW_DOF_DEPTH_OF_FIELD_D, OLW_DOF_DEPTH_OF_FIELD_V_ALWAYS, OLW_DOF_DEPTH_OF_FIELD_VD_ALWAYS) \
+    X("dof", "Strength", OLW_DOF_STRENGTH_D, OLW_DOF_STRENGTH_V_LOW, OLW_DOF_STRENGTH_VD_LOW) \
+    X("dof", "Strength", OLW_DOF_STRENGTH_D, OLW_DOF_STRENGTH_V_MEDIUM, OLW_DOF_STRENGTH_VD_MEDIUM) \
+    X("dof", "Strength", OLW_DOF_STRENGTH_D, OLW_DOF_STRENGTH_V_HIGH, OLW_DOF_STRENGTH_VD_HIGH) \
     X("grain", "Film Grain", OLW_GRAIN_FILM_GRAIN_D, OLW_GRAIN_FILM_GRAIN_V_OFF, OLW_GRAIN_FILM_GRAIN_VD_OFF) \
     X("grain", "Film Grain", OLW_GRAIN_FILM_GRAIN_D, OLW_GRAIN_FILM_GRAIN_V_ON, OLW_GRAIN_FILM_GRAIN_VD_ON) \
     X("grain", "Strength", OLW_GRAIN_STRENGTH_D, OLW_GRAIN_STRENGTH_V_LOW, OLW_GRAIN_STRENGTH_VD_LOW) \
     X("grain", "Strength", OLW_GRAIN_STRENGTH_D, OLW_GRAIN_STRENGTH_V_NORMAL, OLW_GRAIN_STRENGTH_VD_NORMAL) \
     X("grain", "Strength", OLW_GRAIN_STRENGTH_D, OLW_GRAIN_STRENGTH_V_HIGH, OLW_GRAIN_STRENGTH_VD_HIGH) \
-    X("grain", "Strength", OLW_GRAIN_STRENGTH_D, OLW_GRAIN_STRENGTH_V_VERY_HIGH, OLW_GRAIN_STRENGTH_VD_VERY_HIGH) \
+    X("grain", "Strength", OLW_GRAIN_STRENGTH_D, OLW_GRAIN_STRENGTH_V_ULTRA, OLW_GRAIN_STRENGTH_VD_ULTRA) \
     X("grain", "Grain Type", OLW_GRAIN_GRAIN_TYPE_D, OLW_GRAIN_GRAIN_TYPE_V_STOCK, OLW_GRAIN_GRAIN_TYPE_VD_STOCK) \
     X("grain", "Grain Type", OLW_GRAIN_GRAIN_TYPE_D, OLW_GRAIN_GRAIN_TYPE_V_FINE, OLW_GRAIN_GRAIN_TYPE_VD_FINE) \
     X("grain", "Grain Type", OLW_GRAIN_GRAIN_TYPE_D, OLW_GRAIN_GRAIN_TYPE_V_COARSE, OLW_GRAIN_GRAIN_TYPE_VD_COARSE) \
@@ -2354,9 +2410,9 @@ typedef struct { int map; const char *ini, *show; } OlMapEntry;
     X("enemies", "Enemies Return", OLW_ENEMIES_ENEMIES_RETURN_D, OLW_ENEMIES_ENEMIES_RETURN_V_OFF, OLW_ENEMIES_ENEMIES_RETURN_VD_OFF) \
     X("enemies", "Enemies Return", OLW_ENEMIES_ENEMIES_RETURN_D, OLW_ENEMIES_ENEMIES_RETURN_V_BY_ROOM, OLW_ENEMIES_ENEMIES_RETURN_VD_BY_ROOM) \
     X("enemies", "Enemies Return", OLW_ENEMIES_ENEMIES_RETURN_D, OLW_ENEMIES_ENEMIES_RETURN_V_BY_WORLD, OLW_ENEMIES_ENEMIES_RETURN_VD_BY_WORLD) \
-    X("enemies", "Fade In", OLW_ENEMIES_FADE_IN_D, OLW_ENEMIES_FADE_IN_V_OFF, OLW_ENEMIES_FADE_IN_VD_OFF) \
-    X("enemies", "Fade In", OLW_ENEMIES_FADE_IN_D, OLW_ENEMIES_FADE_IN_V_FADE, OLW_ENEMIES_FADE_IN_VD_FADE) \
-    X("enemies", "Fade In", OLW_ENEMIES_FADE_IN_D, OLW_ENEMIES_FADE_IN_V_PORTAL, OLW_ENEMIES_FADE_IN_VD_PORTAL) \
+    X("enemies", "Reveal Method", OLW_ENEMIES_REVEAL_METHOD_D, OLW_ENEMIES_REVEAL_METHOD_V_OFF, OLW_ENEMIES_REVEAL_METHOD_VD_OFF) \
+    X("enemies", "Reveal Method", OLW_ENEMIES_REVEAL_METHOD_D, OLW_ENEMIES_REVEAL_METHOD_V_FADE_IN, OLW_ENEMIES_REVEAL_METHOD_VD_FADE_IN) \
+    X("enemies", "Reveal Method", OLW_ENEMIES_REVEAL_METHOD_D, OLW_ENEMIES_REVEAL_METHOD_V_PORTAL, OLW_ENEMIES_REVEAL_METHOD_VD_PORTAL) \
     X("powers", "Death Presence", OLW_POWERS_DEATH_PRESENCE_D, OLW_POWERS_DEATH_PRESENCE_V_OFF, OLW_POWERS_DEATH_PRESENCE_VD_OFF) \
     X("powers", "Death Presence", OLW_POWERS_DEATH_PRESENCE_D, OLW_POWERS_DEATH_PRESENCE_V_WEAK, OLW_POWERS_DEATH_PRESENCE_VD_WEAK) \
     X("powers", "Death Presence", OLW_POWERS_DEATH_PRESENCE_D, OLW_POWERS_DEATH_PRESENCE_V_STRONG, OLW_POWERS_DEATH_PRESENCE_VD_STRONG) \
@@ -2425,6 +2481,7 @@ static const OlMapEntry kOlMap[] = {
     { OLM_EFFECTS_FILTER, "Night Vision Mono", "Night Mono" },
     { OLM_GRAIN_FILM_GRAIN, "0", "Off" },
     { OLM_GRAIN_FILM_GRAIN, "1", "On" },
+    { OLM_GRAIN_STRENGTH, "Very High", "Ultra" },
     { OLM_SHADOWS_SHADOWS, "0", "Off" },
     { OLM_SHADOWS_SHADOWS, "1", "On" },
     { OLM_COMBAT_QUICK_CHARGE, "1.5x", "x1.5" },
@@ -2435,7 +2492,8 @@ static const OlMapEntry kOlMap[] = {
     { OLM_ITEMS_TOOLBELT, "Off", "10 Items" },
     { OLM_ITEMS_TOOLBELT, "On", "20 Items" },
     { OLM_ENEMIES_DOOR_CHASE, "Monsters + Victims", "Both" },
-    { OLM_ENEMIES_FADE_IN, "Fade + Portal", "Portal" },
+    { OLM_ENEMIES_REVEAL_METHOD, "Fade", "Fade In" },
+    { OLM_ENEMIES_REVEAL_METHOD, "Fade + Portal", "Portal" },
     { OLM_POWERS_ECHO_DOUBLES, "Shadow Copy", "Copy" },
     { OLM_POWERS_ECHO_DOUBLES, "Shadow Cast", "Cast" },
 };

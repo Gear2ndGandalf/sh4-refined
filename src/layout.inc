@@ -97,11 +97,11 @@ static int OlBlue(int page, int row)
     if (!g_olOn) return (page == 0 && (row == 1 || row == 2)) || (page == 1 && row == 0);  // the stock pages: Brightness, Gamma, Button Config
     return (unsigned)page < LP_MAX && (unsigned)row < (unsigned)g_lpCount[page] && row < OL_ROWS && OlBlueKind(g_olKind[page][row]);
 }
-static int OlFxPage(int lp) { return g_olOn && (lp == LP_EFFECTS || lp == LP_GRAIN); }
+static int OlFxPage(int lp) { return g_olOn && (lp == LP_EFFECTS || lp == LP_GRAIN || lp == LP_DOF); }  // v3.58 PV358: + Effects > Depth of Field
 
 // ---------------------------------------------------------------- thunks: a folder's input, fixed lines, the camera rows
 #define OL_OPEN(n) static int __cdecl OlOpen##n(BYTE *c, int k) { (void)c; (void)k; return GpOpen(n); }
-OL_OPEN(6) OL_OPEN(7) OL_OPEN(8) OL_OPEN(9) OL_OPEN(10) OL_OPEN(11) OL_OPEN(12) OL_OPEN(13) OL_OPEN(15) OL_OPEN(16)
+OL_OPEN(6) OL_OPEN(7) OL_OPEN(8) OL_OPEN(9) OL_OPEN(10) OL_OPEN(11) OL_OPEN(12) OL_OPEN(13) OL_OPEN(14) OL_OPEN(15) OL_OPEN(16)  // v3.58 PV358: + 14
 OL_OPEN(18) OL_OPEN(19) OL_OPEN(21)
 static const void *OlOpenFn(int lp)
 {
@@ -114,6 +114,7 @@ static const void *OlOpenFn(int lp)
     case 11: return OlOpen11;
     case 12: return OlOpen12;
     case 13: return OlOpen13;
+    case 14: return OlOpen14;  // v3.58 PV358: Effects > Depth of Field
     case 15: return OlOpen15;
     case 16: return OlOpen16;
     case 18: return OlOpen18;
@@ -261,6 +262,8 @@ static void OlSrcIn(int s, const void **a, const void **b)
     case OLS_NCOL: *a = FxIn2; break;
     case OLS_SHEDGE: *a = ShEdgeIn; break;
     case OLS_SHDARK: *a = ShDarkIn; break;
+    case OLS_FSTR: *a = PvFsIn; break;  // v3.58 PV358
+    case OLS_PREVIEW: *a = PvModeIn; break;  // v3.58 PV358
     case OLS_MOVE: *a = kGpIn[GP_MOVE]; break;
     case OLS_REGEN: *a = kGpIn[GP_REGEN]; break;
     case OLS_MED: *a = kGpIn[GP_MED]; break;
@@ -462,7 +465,7 @@ static void OlLayoutBuild(void)
         memset(g_olOp[lp], -1, sizeof g_olOp[lp]);
         memset(g_olOr[lp], -1, sizeof g_olOr[lp]);
     }
-    for (i = 0; i < LP_MAX - 3; ++i) OlBuildPage(kOlBuildOrder[i], (const DWORD *)(ULONG_PTR)kExitAt);
+    for (i = 0; i < OL_PAGES; ++i) OlBuildPage(kOlBuildOrder[i], (const DWORD *)(ULONG_PTR)kExitAt);  // v3.58 PV358: OL_PAGES (was LP_MAX - 3)
     for (lp = LP_N; lp < LP_MAX; ++lp) {  // the tree: a page's parent and the row that opens it (Back lands there)
         const int par = kOlPage[lp].parent;
         int r;
@@ -490,7 +493,7 @@ static void OlLayoutBuild(void)
         if (own && g_lpParent[LP_SHADOWS] >= 0) g_shMenu = 1;
     }
     Log("options layout: R5 + R6 (OL56), stock moves %s%s: the cycle Display, Controls, Interface, Sound, Effects, Gameplay; %d pages "  // v3.55 OL56
-        "(folders: Subtitles, %s, Film Grain, Shadows, Player, Camera, Room 302, Combat, Enemies, Items, Powers, Randomizer, Steering); "
+        "(folders: Subtitles, %s, Film Grain, Depth of Field, Shadows, Player, Camera, Room 302, Combat, Enemies, Items, Powers, Randomizer, Steering); "  // v3.58 PV358: + Depth of Field
         "%d rows placed, %d folder rows, %d left out%s%s; %d of %d texts%s",
         g_olMoves ? "on" : "off", g_olMovesWhy, pages, OlTitle(LP_MENUS, g_olMoves), g_olPlaced, g_olFolders, g_olMissing,
         g_olMissing ? ": " : "", g_olMissed, g_ol4Used, OL4_N, over || g_ol4Full ? " (OVER A LIMIT)" : "");

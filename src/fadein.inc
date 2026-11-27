@@ -47,14 +47,32 @@
 // and the rest of the hold over; a ghost that the game itself sends out of a wall (its own portal, GhostWork +0x50, or
 // 0x482CC0's strands) is let go at once: the game's own portal does it. v3.50's crimson vortex stays as
 // FadeInPortalDraw=Vortex (and when the step list is not stock).
+//
+// v3.58 FI358 (USER_FEEDBACK_v357 Improvements: "it is smaller than the victims ... add to the effect with more similar
+// effects on and around it ... stretchy tar-like substance stick to the victims for a few seconds and let the portal stay
+// open for that long too"; staging/v358_feedback/w5_portal/PLAN.md). Reveal Method's Portal: in the tar portal's draw
+// (after the game's pass 2, this frame's bones) the arriving body is measured (its bones, else its type's box after
+// 0.35 s) and the portal is laid out to 1.24 x its height: the first portal at v3.57's size plus up to FadeInPortalPieces
+// (9) more of the same around it (below, above, the sides, the corners, one over it: the game's own grid 0x4868B0 called
+// once a piece, or Refined's disc; each at most the first one's size, never one stretched piece; on a wall a piece that
+// is not on the wall is left out) and two more blot sets over the whole (the game's 0x486E80, 25 blots and their drips
+// each). Refined's sticky strands (FadeInStrands 16; 8 beside a victim's / Cynthia's own 32) hold on to its bones (else
+// points of its box) and follow it for FadeInStrandSeconds (3 s) after it is in: thinner as they age and stretch, more
+// sag, a blob of tar where each holds on; they snap one by one over the last 1.3 s (one stretched past 900 u at once),
+// the wall end whipping back, the body end dropping off. The ghost's own strands go on as long (0x482CF0 then). The
+// portal stays open until then and closes, the pieces around first (it shrinks to its centre). The hold (2.5 s, slowed,
+// no attack) and Enemy Pursuit's start after it are unchanged. The effect budget's spark levels thin the pieces around
+// it (60 / 35 %) and the two outer blot sets. One verbose line when a portal closes (its pieces, size against the body,
+// the strands' time). Monsters keep the fade only: the game has no portal of its own for them (WallGhostCreate is the
+// ghosts'). FadeInStrandSeconds 0 + FadeInPortalPieces 0 = v3.57's size and timeline (the strands keep the new look).
 #include "fadein_sim.h"
 
 enum { FIM_L, FIM_V0, FIM_D0 = FIM_V0 + FI_MODE_N, FIM_NA = FIM_D0 + FI_MODE_N, FIM_N };
 #define MSG_FI0 (MSG_V50 + 8)
 typedef char FiTextsFit[FIM_N <= 8 ? 1 : -1];  // MSG_V50 + 8 .. 15 (BRIEF_COMMON: w4's ids)
-static const char *const kFiDescTxt[FI_MODE_N] = { OLW_ENEMIES_FADE_IN_VD_OFF, OLW_ENEMIES_FADE_IN_VD_FADE,  // v3.53 OL1: the plan's lines
+static const char *const kFiDescTxt[FI_MODE_N] = { OLW_ENEMIES_REVEAL_METHOD_VD_OFF, OLW_ENEMIES_REVEAL_METHOD_VD_FADE_IN,  // v3.53 OL1: the plan's lines  // v3.58 MN358: Reveal Method (was Fade In), Fade In (was Fade)
                                                    OLW_FADEIN_V_VORTEX };
-static const char kFiDescTar[] = OLW_ENEMIES_FADE_IN_VD_PORTAL;  // v3.53 OL1  // v3.51 PT351 (FadeInPortalDraw=Vortex: the line above)
+static const char kFiDescTar[] = OLW_ENEMIES_REVEAL_METHOD_VD_PORTAL;  // v3.53 OL1  // v3.58 MN358  // v3.51 PT351 (FadeInPortalDraw=Vortex: the line above)
 static BYTE g_txtFi[FIM_N][56];
 static DWORD g_fiIds[FI_MODE_N];
 static volatile LONG g_fiMode = FI_MODE_DEFAULT;  // the row (any thread writes it under gameplay.inc's lock)
@@ -94,11 +112,24 @@ typedef struct {
     int strands, nStr;              // FI_TS_*
     const BYTE *gb, *pool;          // the game's strands: its ghost block and bone trail ...
     float anchor[3];                // ... and the trail's plane point (it is still ours)
-    float sa[FI_STR_OWN][3], sb[FI_STR_OWN][3];  // Refined's strands: anchors on the plane, bone points last seen
-    int sbone[FI_STR_OWN];
+    float sa[FI_STRANDS_MAX][3], sb[FI_STRANDS_MAX][3];  // Refined's strands: anchors on the plane, body points last seen
+    int sbone[FI_STRANDS_MAX];      // (v3.58 FI358: up to FI_STRANDS_MAX; -1 = a point of its box, sbo)
     int drawN, drawnNow;            // frames its tar portal was drawn
     double drawMs;
     float drawMax;
+    // v3.58 FI358: the bigger, stickier portal (fadein_sim.h FiBig / FiBody / FiStick*)
+    float sEnd;                     // the strands' end (s after the hold's start): the portal closes from here
+    float sCut;                     // an early end of the strands (the hold let go early, the ghost gone; < 0 none)
+    int strEnded;                   // the ghost's own strands let go (0x482CF0) or not ours any more
+    int measured;                   // the body was measured (its bones, else its type) and the pieces laid out
+    FiBody body;
+    FiBig big;
+    FiTarLayout L2[FI_SETS_MAX - 1];   // the blot sets over the whole portal
+    int nOwn, ownWant, ownStarted, ownBox;  // Refined's sticky strands (beside the ghost's own: half as many)
+    float sbo[FI_STRANDS_MAX][3];   // a box strand's point from the work position
+    float sat[FI_STRANDS_MAX], len0[FI_STRANDS_MAX], sdrop[FI_STRANDS_MAX][3];  // snap moment, first length, where it snapped
+    int sdropSet[FI_STRANDS_MAX], nLoose;
+    int gridsMax, setsMax;          // the most pieces / blot sets drawn in one frame (the close line)
 } FiPortal;
 static FiPortal g_fiPortal[FI_PORTAL_MAX];
 static int g_fiTdm = FI_TDM_AUTO;              // v3.51 PT351: [Gameplay] FadeInPortalDraw (hidden)
@@ -117,6 +148,13 @@ static int g_fiVpOk;
 static LONG g_fiVpStamp = -1;
 static volatile LONG g_fiQuotaStart, g_fiQuotaRoom, g_fiQuotaDraw;
 static int g_fiFullSaid;  // v3.50 FI350-001: the table was full of enemies drawn at once (said once a room visit)
+static float g_fiStick = FI_STICK_DEFAULT;     // v3.58 FI358: [Gameplay] FadeInStrandSeconds (hidden)
+static int g_fiPieces = FI_PIECES_DEFAULT;     // v3.58 FI358: [Gameplay] FadeInPortalPieces (hidden)
+static int g_fiStrN = FI_STRANDS_DEFAULT;      // v3.58 FI358: [Gameplay] FadeInStrands (hidden)
+static volatile LONG g_fiQuotaClose;           // v3.58 FI358: the close lines
+static float g_fiDtLast, g_fiFrameEma = 1000.0f / 60.0f;  // v3.58 FI358: the last drawn frame's step (s); frames (ms, smoothed)
+static float g_fiMsEma, g_fiSelfK = 1.0f;      // v3.58 FI358: the portals' draw (ms a frame, smoothed); their own share
+static volatile LONG g_fiQuotaSelf;
 #define FI_SEE_THROUGH(m, t) ((void(__cdecl *)(void *, float))0x45C880)((m), (t))  // the game's see-through enemy draw
 
 static const BYTE *FiText(int id) { return id >= MSG_FI0 && id < MSG_FI0 + FIM_N ? g_txtFi[id - MSG_FI0] : g_txtFi[0]; }
@@ -143,7 +181,10 @@ static void FiClockTick(void)  // once a drawn frame (g_fxFrame)
     if (g_fxFrame == g_fiClockFrame) return;
     QueryPerformanceCounter(&now);
     if (g_fiQpc.QuadPart && QueryPerformanceFrequency(&f) && f.QuadPart) dt = (double)(now.QuadPart - g_fiQpc.QuadPart) / (double)f.QuadPart;
-    g_fiClock += FiClockStep(dt, g_fxFrame == g_fiClockFrame + 1);
+    g_fiDtLast = (float)FiClockStep(dt, g_fxFrame == g_fiClockFrame + 1);  // v3.58 FI358 (kept for the portals' own limit)
+    if (g_fxFrame == g_fiClockFrame + 1 && dt > 0.0 && dt < 0.25)
+        g_fiFrameEma += ((float)dt * 1000.0f - g_fiFrameEma) * 0.05f;
+    g_fiClock += g_fiDtLast;
     g_fiQpc = now;
     g_fiClockFrame = g_fxFrame;
 }
@@ -286,8 +327,9 @@ static int FiPortalSlot(void)  // a free one; else the oldest that holds no ghos
     int i, k = -1;
     for (i = 0; i < FI_PORTAL_MAX; ++i)
         if (!g_fiPortal[i].on) return i;
-    for (i = 0; i < FI_PORTAL_MAX; ++i)
-        if (!(g_fiPortal[i].held && !g_fiPortal[i].released) && (k < 0 || g_fiPortal[i].t0 < g_fiPortal[k].t0)) k = i;
+    for (i = 0; i < FI_PORTAL_MAX; ++i)  // v3.58 FI358: nor one whose ghost's own strands are still ours (they hold on after the hold)
+        if (!(g_fiPortal[i].held && (!g_fiPortal[i].released || !g_fiPortal[i].strEnded)) &&
+            (k < 0 || g_fiPortal[i].t0 < g_fiPortal[k].t0)) k = i;
     return k;
 }
 // returns its index + 1 (0: none)
@@ -322,6 +364,14 @@ static int FiPortalStart(const BYTE *task, const BYTE *w, unsigned id, int type,
     p->fn = *(const DWORD *)(task + 0x404);
     FiTarLayoutMake(&p->L, FiHash(id ^ (unsigned)(g_fiClock * 1000.0) ^ 0x5EEDu));
     if (kind != FI_TD_VORTEX) p->tr = g_fiClock, p->rel = FiTarRelease(0.0f);  // (the hold starts with the portal)
+    // v3.58 FI358: the strands hold to sEnd and the portal stays open as long; the first portal alone until the body is
+    // measured (FiMeasure, in the draw: this frame's bones); the blot sets over the whole portal
+    p->sEnd = FiStickEnd(g_fiSec, g_fiStick);
+    p->sCut = -1.0f;
+    if (kind != FI_TD_VORTEX) p->rel = p->sEnd;
+    FiBigMake(&p->big, p->L.seed, p->sx, p->sy, p->sx, p->sy, 0.0f, 0.0f, 0);
+    FiTarLayoutMake(&p->L2[0], FiHash(p->L.seed ^ 0xA11Cu));
+    FiTarLayoutMake(&p->L2[1], FiHash(p->L.seed ^ 0xB22Du));
     ++g_fiSt.byDraw[kind];
     return k + 1;
 }
@@ -341,7 +391,8 @@ static void FiPortalSay(const FiPortal *p, char *b, size_t n)  // the start line
 static void FiPortalFollow(FiPortal *p, const BYTE *task, const BYTE *w, unsigned id, int type)
 {
     const int was = p->placeholder;
-    if (!p->on || p->kind == FI_TD_VORTEX || p->id != id || p->released) return;
+    // v3.58 FI358: after the hold too while Refined's strands still hold on to it (they follow the body)
+    if (!p->on || p->kind == FI_TD_VORTEX || p->id != id || (p->released && (p->nOwn == 0 || p->sCut >= 0.0f))) return;
     p->task = task, p->work = w, p->type = type;
     p->fn = *(const DWORD *)(task + 0x404);
     p->havePrev = 0;
@@ -539,6 +590,29 @@ static int FiPortalMesh(void *dev, const Viewport8 *vp, const FiPortal *p, float
     }
     return 1;
 }
+// v3.58 FI358: one verbose line when a tar portal closes: its pieces, its size against the body, the strands' time, when
+static void FiCloseSay(const FiPortal *p, float age)
+{
+    FiClose c;
+    char b[480];
+    int j, drips = 0;
+    if (!LogQuota(&g_fiQuotaClose, 400)) return;
+    memset(&c, 0, sizeof c);
+    c.id = p->id, c.type = p->type, c.at = age;
+    c.grids = p->gridsMax, c.gridsOf = p->big.nOn, c.sets = p->setsMax;
+    for (j = 0; j < p->setsMax && j < FI_SETS_MAX; ++j) drips += j ? p->L2[j - 1].nd : p->L.nd;
+    c.drips = drips;
+    c.w = 2.0f * p->big.tx, c.h = 2.0f * p->big.ty;
+    c.body = p->measured ? FiBodyH(&p->body) : 0.0f;
+    c.bones = !p->measured ? -1 : p->body.bones ? 1 : 0;
+    c.strGame = p->strands == FI_TS_GAME ? p->nStr : 0;
+    c.strOwn = p->nOwn, c.ownBox = p->ownBox, c.snapped = p->nOwn - p->nLoose, c.loose = p->nLoose;
+    c.stickTo = p->sCut >= 0.0f && p->sCut < p->sEnd ? p->sCut : p->sEnd;
+    c.stick = c.stickTo - g_fiSec > 0.0f ? c.stickTo - g_fiSec : 0.0f;
+    c.ms = p->drawMs, c.msMax = p->drawMax, c.frames = p->drawN;
+    FiCloseText(&c, b, sizeof b);
+    LogV("fade in: %s", b);
+}
 static int FiPortalsExpire(void)  // the portals whose time is over go (any Fade In value); returns those left
 {
     const float life = FiPortalLife(g_fiSec);
@@ -549,10 +623,16 @@ static int FiPortalsExpire(void)  // the portals whose time is over go (any Fade
             const float age = (float)(g_fiClock - p->t0);
             if (p->kind == FI_TD_VORTEX) {
                 if (age > life) p->on = 0;
-            } else if (FiTarDone(age, p->rel) && !(p->held && !p->released)) {  // v3.51 PT351: a holding one waits for its tick
-                if (p->placeholder && LogQuota(&g_fiQuotaHold, 400))
-                    LogV("fade in: %08X (type %02X): its tar portal closed after %.1f s: it never came out (still the arrival's "
-                         "placeholder)", p->id, p->type, age);
+            } else if ((FiTarDone(age, p->rel) && !(p->held && !p->released) && (p->strEnded || !p->held)) ||
+                       age > p->rel + FI_TAR_CLOSE_S + 12.0f) {  // v3.51 PT351: a holding one waits for its tick (v3.58 FI358:
+                                                                // and for its strands; never 12 s past its time)
+                if (p->placeholder) {
+                    if (LogQuota(&g_fiQuotaHold, 400))
+                        LogV("fade in: %08X (type %02X): its tar portal closed after %.1f s: it never came out (still the "
+                             "arrival's placeholder)", p->id, p->type, age);
+                } else if (p->held) {
+                    FiCloseSay(p, age);  // v3.58 FI358
+                }
                 p->on = 0;
             }
         }
@@ -609,6 +689,10 @@ static void FiDrawFrame(void)  // items.inc SparkleFrame (the scene pass 0x4EFBF
     if (*(volatile int *)0xFD5C20 != 0 || !FxGameplay()) return;
     __try {
         FiFrameTick();  // a room visit with no enemy drawn yet starts its clock here
+        if (!g_fiPortalN && g_fiSelfK < 1.0f) {  // v3.58 FI358: no portal: the own limit comes back (0.3 / s)
+            g_fiMsEma = 0.0f;
+            g_fiSelfK = FiSelfKeepStep(g_fiSelfK, 0.0f, g_fiFrameEma, g_fiDtLast);
+        }
         if (g_fiPortalN && FiPortalsExpire() && g_fiMode == FI_MODE_PORTAL && g_fiPortalOk && FiAnyVortex()) FiPortalsDraw();  // v3.51 PT351: vortices only
     } __except (FiFaultNote(GetExceptionInformation())) {
         FiFailNow("the portal draw");
@@ -647,29 +731,15 @@ static int FiBone(const BYTE *work, int b, float o[3])
     memcpy(o, mats + 16 * b + 12, 12);
     return _finite(o[0] + o[1] + o[2]) && fabsf(o[0] - w[0]) < 400.0f && fabsf(o[1] - w[1]) < 400.0f && fabsf(o[2] - w[2]) < 400.0f;
 }
-// Refined's own strands: up to FI_STR_OWN bones in front of the plane, each tied to the point of the plane behind it
-static void FiOwnStrandsStart(FiPortal *p)
+// v3.58 FI358: Refined's sticky strands start in the tar portal's draw (FiStickStart, after the game's pass 2: this frame's
+// bones; v3.57 started them at the tick, where a ghost made this frame had no bones yet: the user's Jasper got "strands:
+// none 0"). Here only how many: FadeInStrands, half of it beside the ghost's own 32 (v3.57's 12 alone with
+// FadeInStrandSeconds 0)
+static void FiStickWant(FiPortal *p)
 {
-    const unsigned s0 = p->L.seed;
-    int tries, n = 0;
-    for (tries = 0; tries < 48 && n < FI_STR_OWN; ++tries) {
-        const int b = (int)((s0 + (unsigned)tries * 7u) % 24u);
-        float q[3], d;
-        int j, k, dup = 0;
-        for (k = 0; k < n; ++k) dup |= p->sbone[k] == b;
-        if (dup || !FiBone(p->work, b, q)) continue;
-        d = (q[0] - p->c[0]) * p->n[0] + (q[1] - p->c[1]) * p->n[1] + (q[2] - p->c[2]) * p->n[2];
-        if (d < 5.0f) continue;  // behind the plane (in the wall): no strand
-        {
-            const unsigned h = FiHash(s0 + (unsigned)n * 977u);
-            const float ju = (FiRnd01(h) - 0.5f) * 48.0f, jv = (FiRnd01(h ^ 1u) - 0.5f) * 48.0f;
-            for (j = 0; j < 3; ++j) p->sa[n][j] = q[j] - p->n[j] * d + p->ax[j] * ju + p->ay[j] * jv;
-        }
-        memcpy(p->sb[n], q, sizeof q);
-        p->sbone[n++] = b;
-    }
-    p->nStr = n;
-    p->strands = n ? FI_TS_OWN : FI_TS_NONE;
+    const int game = p->strands == FI_TS_GAME;
+    if (!(g_fiStick > 0.0f)) p->ownWant = game ? 0 : (g_fiStrN < FI_STR_OWN ? g_fiStrN : FI_STR_OWN);
+    else p->ownWant = game ? g_fiStrN / 2 : g_fiStrN;
 }
 // the hold's first tick: the ghost's own strands from the portal's plane to its bones (0x478440 as 0x482CC0 calls it, with
 // our plane for its wall point; state +0x7D = 1: its update steps them, its record draw 0x482D60 shows them), else ours
@@ -694,19 +764,31 @@ static void FiStrandsStart(FiPortal *p)
             }
         }
     }
-    if (p->strands == FI_TS_NONE && p->kind != FI_TD_VORTEX) FiOwnStrandsStart(p);
+    if (p->kind != FI_TD_VORTEX) FiStickWant(p);  // v3.58 FI358 (was: Refined's 12 here when the ghost has none)
 }
 // the ghost's own strands snap one by one (fadein_sim.h FiSnapAt): TrailItem +0x1A loose = 1, as its update does when a
-// bone pulls too far; its update then fades the strand back into the wall
+// bone pulls too far; its update then fades the strand back into the wall. v3.58 FI358: over the last 1.3 s of the
+// strands' time (FiStickWindow; v3.57's 1.5 .. 2.5 s with FadeInStrandSeconds 0)
 static void FiStrandsSnap(FiPortal *p, float age)
 {
     BYTE *it;
+    float a, b;
     int size, i = 0;
     if (!FiStrandsOurs(p)) return;
     size = *(const int *)(p->pool + 4);  // (PoolList: head, item size = the link word's offset, count)
     if (size < 0x24 || size > 0x40) return;
+    FiStickWindow(p->sEnd, &a, &b);
     for (it = *(BYTE *const *)p->pool; (ULONG_PTR)it >= 0x10000 && i < FI_STR_MAX; it = *(BYTE *const *)(it + size), ++i)
-        if (!it[0x1A] && FiSnapAt(i, p->nStr, p->L.seed) <= age) it[0x1A] = 1;
+        if (!it[0x1A] && FiSnapAtW(i, p->nStr, p->L.seed, a, b) <= age) it[0x1A] = 1;
+}
+// v3.58 FI358: Refined's strands snap from `age` on, one by one (an early end: the hold let go early, the ghost is gone)
+static void FiStickCut(FiPortal *p, float age)
+{
+    int i;
+    if (p->sCut >= 0.0f && p->sCut <= age) return;
+    p->sCut = age;
+    for (i = 0; i < p->nOwn; ++i)
+        if (p->sat[i] > age + 0.03f * (float)i) p->sat[i] = age + 0.03f * (float)i;
 }
 // the end of a hold: why NULL = held to the end; mayCall = the ghost's own strands may be let go (0x482CF0: every strand
 // loose, its state 2, as its own wall states do); a release before the end closes the portal from now
@@ -719,8 +801,11 @@ static void FiRelease(FiPortal *p, const char *why, int mayCall)
     if (why) {
         const float now = (float)(g_fiClock - p->t0);
         if (now < p->rel) p->rel = now;
+        FiStickCut(p, age);  // v3.58 FI358: Refined's strands snap now, one by one
+        if (mayCall && FiStrandsOurs(p)) ((void(__cdecl *)(const BYTE *))0x482CF0)(p->task);
+        p->strEnded = 1;     // v3.58 FI358 (gone / a new room: its trail goes with it)
     }
-    if (mayCall && FiStrandsOurs(p)) ((void(__cdecl *)(const BYTE *))0x482CF0)(p->task);
+    // v3.58 FI358: held to the end: the strands hold on to sEnd (FiStrandTick lets the ghost's own go there)
     if (p->held && LogQuota(&g_fiQuotaHold, 400))
         LogV("fade in: %08X (type %02X) let go by its tar portal (%s) after %.2f s (%s): strands: %s %d; moved %.0f of %.0f u; no "
              "attack for %.2f s; portal draw %.3f ms a frame (max %.3f, %d frames)", p->id, p->type, kFiTdName[p->kind], age,
@@ -793,6 +878,24 @@ static void FiHoldTick(FiPortal *p)
         }
     }
 }
+// v3.58 FI358: after the hold, the ghost's own strands go on to sEnd (snapping one by one in the last 1.3 s), then 0x482CF0
+// lets them go, as the hold's end did in v3.57; a cut-scene or another Fade In value ends them at once. Refined's own
+// strands are the draw's (nothing in the game to let go).
+static void FiStrandTick(FiPortal *p, int ph)
+{
+    const float age = (float)(g_fiClock - p->tr);
+    if (p->strands != FI_TS_GAME || !FiStrandsOurs(p)) {  // (none, Refined's, the ghost gone or its trail the game's again)
+        p->strEnded = 1;
+        return;
+    }
+    if (ph == 1 || g_fiMode != FI_MODE_PORTAL || age >= p->sEnd) {
+        if (age < p->sEnd) FiStickCut(p, age);
+        ((void(__cdecl *)(const BYTE *))0x482CF0)(p->task);
+        p->strEnded = 1;
+        return;
+    }
+    FiStrandsSnap(p, age);
+}
 static void FiTick(void)  // quicksave.inc QsTick (0x4EF982: the start of every main-loop tick, before the enemies' pass)
 {
     int i, ph;
@@ -802,9 +905,12 @@ static void FiTick(void)  // quicksave.inc QsTick (0x4EF982: the start of every 
     __try {
         for (i = 0; i < FI_PORTAL_MAX; ++i) {
             FiPortal *p = &g_fiPortal[i];
-            if (!p->on || p->kind == FI_TD_VORTEX || p->tr < 0.0 || p->released) continue;
-            if (ph == 1) FiRelease(p, "a cut-scene began", 1);
-            else FiHoldTick(p);
+            if (!p->on || p->kind == FI_TD_VORTEX || p->tr < 0.0) continue;
+            if (!p->released) {
+                if (ph == 1) FiRelease(p, "a cut-scene began", 1);
+                else FiHoldTick(p);
+            }
+            if (p->released && p->held && !p->strEnded) FiStrandTick(p, ph);  // v3.58 FI358: the strands hold on after the hold
         }
     } __except (FiFaultNote(GetExceptionInformation())) {
         FiFailNow("the hold");
@@ -837,25 +943,26 @@ static void FiPortalsDropAll(void)  // a new room visit (FiFrameTick): its holds
 // the timeline; only the fields its two draws read (the update 0x487650 / 0x486A80, the attack, the task: never)
 #define FI_WF(b, o) (*(float *)((b) + (o)))
 #define FI_WS(b, o) (*(short *)((b) + (o)))
-static void FiGameBlocks(const FiPortal *p, float age, float amt)
+// v3.58 FI358: one piece's grid (the first at v3.57's size, the ones around it smaller: g->s) and one blot set (set 0 around
+// the first piece as v3.57, sets 1 / 2 over the whole portal, a blot outside every piece left out); the two draws read
+// their block at once (0x4868B0 / 0x486E80 begin and flush their own 2D batch), so one block each is filled per call
+static void FiGameGrid(const FiPortal *p, const FiPiece *g, float amt)
 {
-    BYTE *A = g_fiWg, *B = g_fiWb;
-    const float now = (float)g_fiClock, grow = 0.55f + 0.45f * amt, k = p->wall ? 1.0f : 0.55f;
-    const int shown = FiTarShown(age);
+    BYTE *A = g_fiWg;
+    const float now = (float)g_fiClock, grow = 0.55f + 0.45f * amt, hx = p->sx * g->s, hy = p->sy * g->s;
     int i, j;
     memset(A, 0, sizeof g_fiWg);
-    memset(B, 0, sizeof g_fiWb);
     for (j = 0; j < 3; ++j) {
-        FI_WF(A, 4 * j) = p->c[j], FI_WF(A, 0x10 + 4 * j) = p->n[j];        // pos, dir
-        FI_WF(B, 4 * j) = p->c[j], FI_WF(B, 0x1F0 + 4 * j) = p->n[j];
+        FI_WF(A, 4 * j) = p->c[j] + p->ax[j] * g->u + p->ay[j] * g->v;  // pos (on the plane), dir
+        FI_WF(A, 0x10 + 4 * j) = p->n[j];
     }
-    FI_WF(A, 0x0C) = 1.0f, FI_WF(B, 0x0C) = 1.0f;
-    FI_WF(A, 0x40) = p->sx, FI_WF(A, 0x44) = p->sy;                         // param.width / width2 (not read by the draw)
+    FI_WF(A, 0x0C) = 1.0f;
+    FI_WF(A, 0x40) = hx, FI_WF(A, 0x44) = hy;                               // param.width / width2 (not read by the draw)
     for (i = 0; i < 9; ++i) {  // strip / strip2: the grid's columns and rows, each at least its left neighbour, a slow wobble
-        float u = ((float)i - 4.0f) * p->sx * grow * 0.25f, v = ((float)i - 4.0f) * p->sy * grow * 0.25f;
+        float u = ((float)i - 4.0f) * hx * grow * 0.25f, v = ((float)i - 4.0f) * hy * grow * 0.25f;
         if (i != 0 && i != 8) {
-            u += p->sx * 0.03f * sinf(1.3f * now + 1.7f * (float)i);
-            v += p->sy * 0.03f * sinf(1.1f * now + 2.3f * (float)i);
+            u += hx * 0.03f * sinf(1.3f * now + 1.7f * (float)i + g->phase);
+            v += hy * 0.03f * sinf(1.1f * now + 2.3f * (float)i + g->phase);
         }
         if (i && u < FI_WF(A, 0x5C + 4 * (i - 1))) u = FI_WF(A, 0x5C + 4 * (i - 1));
         if (i && v < FI_WF(A, 0xA4 + 4 * (i - 1))) v = FI_WF(A, 0xA4 + 4 * (i - 1));
@@ -864,32 +971,50 @@ static void FiGameBlocks(const FiPortal *p, float age, float amt)
     }
     FI_WF(A, 0xEC) = amt;  // amount; spring[4]: the four texture layers' strength (128 = whole), as its springs follow it
     for (i = 0; i < 4; ++i)
-        FI_WF(A, 0xF0 + 4 * i) = (1.0f - (1.0f - amt) * (1.0f - amt)) * 128.0f * (0.88f + 0.12f * sinf(0.9f * now + 1.9f * (float)i));
+        FI_WF(A, 0xF0 + 4 * i) = (1.0f - (1.0f - amt) * (1.0f - amt)) * 128.0f *
+                                 (0.88f + 0.12f * sinf(0.9f * now + 1.9f * (float)i + g->phase));
     *(int *)(A + 0x118) = 1;  // state: open (unk_110 / unk_114 0: one face, flat)
     *(int *)(A + 0x124) = 1;  // mode (3 would draw nothing)
+    *(BYTE **)(g_fiTkA + 0x408) = A;  // task->work_ptr, all the grid draw reads of its task
+}
+static int FiGameSet(const FiPortal *p, int set, float age, float amt, float w)  // returns the blots placed
+{
+    BYTE *B = g_fiWb;
+    const FiTarLayout *L = set ? &p->L2[set - 1] : &p->L;
+    const float delay = 0.15f * (float)set, ag = age - delay, grow = 0.55f + 0.45f * amt, k = p->wall ? 1.0f : 0.55f;
+    const float hx = set ? p->big.tx : p->sx, hy = set ? p->big.ty : p->sy;
+    const float cu = set ? p->big.du : p->big.g[0].u, cv = set ? p->big.dv : p->big.g[0].v, offK = set ? 0.5f : 1.0f;
+    const int shown = FiTarShown(ag);
+    int i, j, placed = 0;
+    memset(B, 0, sizeof g_fiWb);
+    for (j = 0; j < 3; ++j) FI_WF(B, 4 * j) = p->c[j], FI_WF(B, 0x1F0 + 4 * j) = p->n[j];
+    FI_WF(B, 0x0C) = 1.0f;
     for (i = 0; i < FI_TAR_SPLATS; ++i) *(signed char *)(B + 0x3CC + i) = -1;  // no drip
     for (i = 0; i < 16; ++i) *(int *)(B + 0x314 + 4 * i) = -1;
     for (i = 0; i < shown; ++i) {
-        const FiSplat *s = &p->L.s[i];
+        const FiSplat *s = &L->s[i];
+        const float u = cu + s->u * hx * grow, v = cv + s->v * hy * grow;
         float *pt = (float *)(B + 0x10 + 16 * i);                           // the 25 points (w = the turn)
-        for (j = 0; j < 3; ++j) pt[j] = p->c[j] + p->ax[j] * s->u * p->sx * grow + p->ay[j] * s->v * p->sy * grow;
+        const int in = !set || FiBigCovers(&p->big, u, v, p->sx, p->sy);
+        for (j = 0; j < 3; ++j) pt[j] = p->c[j] + p->ax[j] * u + p->ay[j] * v;
         pt[3] = s->ang;
-        FI_WF(B, 0x230 + 4 * i) = s->sc * k;                                // size
-        FI_WS(B, 0x354 + 2 * i) = FiTarLifeShort(FiTarLife(age, p->rel, s->off));  // life x 1024
-        if (s->drip > 0 && s->drip <= FI_TAR_DRIPS) {
-            const FiDrip *d = &p->L.d[(int)s->drip];
+        FI_WF(B, 0x230 + 4 * i) = s->sc * k;                                // size (each blot keeps it: never stretched)
+        FI_WS(B, 0x354 + 2 * i) = FiTarLifeShort(in ? FiLifeAtWeight(FiTarLife(age, p->rel, s->off * offK), w) : -1000.0f);
+        placed += in;
+        if (in && s->drip > 0 && s->drip <= FI_TAR_DRIPS) {
+            const FiDrip *d = &L->d[(int)s->drip];
             *(signed char *)(B + 0x3CC + i) = s->drip;                       // its drip slot
             *(int *)(B + 0x314 + 4 * s->drip) = d->kind;                     // piece 2 / 3
-            FI_WF(B, 0x294 + 4 * s->drip) = FiDripLen(age - FiTarAppear(i), d->len * k);  // length run down
-            FI_WS(B, 0x386 + 2 * s->drip) = FiTarLifeShort(FiTarLife(age, p->rel, d->off));
+            FI_WF(B, 0x294 + 4 * s->drip) = FiDripLen(ag - FiTarAppear(i), d->len * k);  // length run down
+            FI_WS(B, 0x386 + 2 * s->drip) = FiTarLifeShort(FiLifeAtWeight(FiTarLife(age, p->rel, d->off * offK), w));
         }
     }
     FI_WF(B, 0x3B4) = FI_TAR_FADE_S;  // the fade time (unk_3B0 0: on the plane; unk_3C0 0: no floor blots; unk_3C2 0: flat)
     FI_WS(B, 0x3BC) = (short)shown;
-    FI_WS(B, 0x3BE) = (short)p->L.nd;
+    FI_WS(B, 0x3BE) = (short)L->nd;
     FI_WS(B, 0x3C6) = 1;
-    *(BYTE **)(g_fiTkA + 0x408) = A;  // task->work_ptr, all the two draws read of their task
-    *(BYTE **)(g_fiTkB + 0x408) = B;
+    *(BYTE **)(g_fiTkB + 0x408) = B;  // task->work_ptr, all the blot draw reads of its task
+    return placed;
 }
 static int FiGameFaultNote(EXCEPTION_POINTERS *e)
 {
@@ -897,19 +1022,49 @@ static int FiGameFaultNote(EXCEPTION_POINTERS *e)
     g_fiGameFaultAt = e->ExceptionRecord->ExceptionAddress;
     return EXCEPTION_EXECUTE_HANDLER;
 }
+// v3.58 FI358: the effect budget's share of the pieces around the first (fadein_sim.h FiPieceKeep: budget.inc's spark
+// levels 60 / 35 %, 35 % from the level that thins After Shock / Death Presence)
+// and the portals' own limit (FiSelfKeepStep: their draw's share of the frame)
+static float FiSparkNow(void)
+{
+    const float b = BgSparkNow();
+    return b < g_fiSelfK ? b : g_fiSelfK;
+}
+static float FiKeepNow(int n) { return FiPieceKeep(FiSparkNow(), BgLevel() >= BGL_AI3DP, n); }
 static int FiGameDraw(void *dev, FiPortal *p)
 {
     static const DWORD kRs[3] = { 14 /*ZWRITEENABLE*/, 22 /*CULLMODE*/, 28 /*FOGENABLE*/ };  // what its 2D flush sets raw
     DWORD rs[3];
     const float age = (float)(g_fiClock - p->t0), amt = FiTarAmount(age, p->rel);
-    int k, got = 0, ok = 0;
+    const float keep = FiKeepNow(p->big.nOn - 1), spark = FiSparkNow();
+    const int deep = BgLevel() >= BGL_AI3DP;
+    int k, got = 0, ok = 0, grids = 0, sets = 0;
     if (!(amt > 0.002f)) return 0;
-    FiGameBlocks(p, age, amt);
     for (k = 0; k < 3; ++k)
         if (SUCCEEDED(((SpGetRS_t)VT(dev, SPV_GETRS))(dev, kRs[k], &rs[k]))) got |= 1 << k;
     __try {
-        ((void(__cdecl *)(BYTE *))0x4868B0)(g_fiTkA);  // EffectWallGhostDraw: the 9 x 9 grid in its four texture layers
-        ((void(__cdecl *)(BYTE *))0x486E80)(g_fiTkB);  // the blots and the drips (EffectDrawDecal)
+        int g, j, m = 0;
+        for (g = 1; g < p->big.n; ++g) {  // v3.58 FI358: the pieces around it first (the first portal is drawn over them)
+            const FiPiece *pc = &p->big.g[g];
+            float a;
+            if (!pc->on) continue;
+            a = FiPieceAmount(age, p->rel, pc, 0) * FiPieceWeight(keep, ++m);
+            if (!(a > 0.002f)) continue;
+            FiGameGrid(p, pc, a);
+            ((void(__cdecl *)(BYTE *))0x4868B0)(g_fiTkA);  // EffectWallGhostDraw: the 9 x 9 grid in its four texture layers
+            ++grids;
+        }
+        FiGameGrid(p, &p->big.g[0], amt);
+        ((void(__cdecl *)(BYTE *))0x4868B0)(g_fiTkA);      // the first portal (v3.57's)
+        ++grids;
+        for (j = 0; j < p->big.sets && j < FI_SETS_MAX; ++j) {  // the blots and the drips (EffectDrawDecal)
+            const float w = FiSetWeight(spark, deep, j);
+            if (!(w > 0.0f)) continue;
+            if (FiGameSet(p, j, age, j ? FiPieceAmount(age, p->rel, &p->big.g[p->big.n > 1 ? 1 : 0], 0) : amt, w) > 0 || !j) {
+                ((void(__cdecl *)(BYTE *))0x486E80)(g_fiTkB);
+                ++sets;
+            }
+        }
         ok = 1;
     } __except (FiGameFaultNote(GetExceptionInformation())) {
         int i;
@@ -923,6 +1078,8 @@ static int FiGameDraw(void *dev, FiPortal *p)
     }
     for (k = 0; k < 3; ++k)
         if (got >> k & 1) ((SpSetRS_t)VT(dev, SPV_SETRS))(dev, kRs[k], rs[k]);
+    if (ok && grids > p->gridsMax) p->gridsMax = grids;  // v3.58 FI358 (the close line)
+    if (ok && sets > p->setsMax) p->setsMax = sets;
     return ok;
 }
 
@@ -959,30 +1116,30 @@ static void FiRibbon(void *dev, const Viewport8 *vp, const float (*P)[3], const 
         a0 = a1, b0 = b1;
     }
 }
-// the blot (a ragged near-black disc, a deep red core) and its drips (black, running down, a bead at the tip)
-static int FiOwnBlot(void *dev, const Viewport8 *vp, FiPortal *p)
+// the blot (a ragged near-black disc, a deep red core) and its drips (black, running down, a bead at the tip). v3.58
+// FI358: one disc a piece (the first at v3.57's size, the ones around it smaller, each with its own ragged edge), the drips
+// of every blot set (set 0 around the first, sets 1 / 2 over the whole portal, only where a piece is)
+static void FiOwnDisc(void *dev, const Viewport8 *vp, const float o[3], const FiPortal *p, float hx, float hy, float amt,
+                      unsigned seed)
 {
     enum { NR = 7, NS = 24 };
-    static const float kCore[3] = { 0.60f, 0.97f, 0.96f }, kEdge[3] = { 0.93f, 0.95f, 0.95f }, kDrip[3] = { 0.90f, 0.96f, 0.96f };
-    const float now = (float)g_fiClock, age = (float)(g_fiClock - p->t0), amt = FiTarAmount(age, p->rel);
-    const float grow = 0.35f + 0.65f * FiTarOpenAt(age), k = p->wall ? 1.0f : 0.6f;
+    static const float kCore[3] = { 0.60f, 0.97f, 0.96f }, kEdge[3] = { 0.93f, 0.95f, 0.95f };
+    const float now = (float)g_fiClock;
     GvHv g[2][NS + 1];
-    float edge[NS + 1], o[3];
-    int r, s, i, j, m, cur = 0;
-    if (!(amt > 0.002f)) return 0;
-    for (j = 0; j < 3; ++j) o[j] = p->c[j] + p->n[j] * 3.0f;  // a little off the wall
+    float edge[NS + 1];
+    int r, s, j, cur = 0;
     for (s = 0; s <= NS; ++s) {  // a ragged outline, crawling slowly
         const float th = 6.2831853f * (float)(s % NS) / NS;
-        edge[s] = 0.70f + 0.30f * FxValueNoise(2.2f * cosf(th) + 5.3f, 2.2f * sinf(th) + 0.12f * now, p->L.seed);
+        edge[s] = 0.70f + 0.30f * FxValueNoise(2.2f * cosf(th) + 5.3f, 2.2f * sinf(th) + 0.12f * now, seed);
     }
     for (r = 0; r <= NR; ++r) {
         const float rn = (float)r / NR, kk = amt * (rn < 0.8f ? 0.96f : 0.96f * (1.0f - (rn - 0.8f) / 0.2f));
         float rgb[3];
         SvMix(rgb, kCore, kEdge, powf(rn, 0.6f));
         for (s = 0; s <= NS; ++s) {
-            const float th = 6.2831853f * (float)s / NS, e = rn * edge[s] * grow;
+            const float th = 6.2831853f * (float)s / NS, e = rn * edge[s];
             float q[3];
-            for (j = 0; j < 3; ++j) q[j] = o[j] + p->ax[j] * cosf(th) * e * p->sx + p->ay[j] * sinf(th) * e * p->sy;
+            for (j = 0; j < 3; ++j) q[j] = o[j] + p->ax[j] * cosf(th) * e * hx + p->ay[j] * sinf(th) * e * hy;
             SvPoint(&g[cur][s], q, kk, rgb);
         }
         if (r)
@@ -992,17 +1149,27 @@ static int FiOwnBlot(void *dev, const Viewport8 *vp, FiPortal *p)
             }
         cur = !cur;
     }
-    for (i = 0; i < FiTarShown(age); ++i) {
-        const FiSplat *sp = &p->L.s[i];
+}
+static void FiOwnDrips(void *dev, const Viewport8 *vp, const FiPortal *p, int set, float age, float grow, float w)
+{
+    static const float kDrip[3] = { 0.90f, 0.96f, 0.96f };
+    const FiTarLayout *L = set ? &p->L2[set - 1] : &p->L;
+    const float k = p->wall ? 1.0f : 0.6f, ag = age - 0.15f * (float)set, offK = set ? 0.5f : 1.0f;
+    const float hx = (set ? p->big.tx : p->sx) * grow * 0.85f, hy = (set ? p->big.ty : p->sy) * grow * 0.85f;
+    const float cu = set ? p->big.du : p->big.g[0].u, cv = set ? p->big.dv : p->big.g[0].v;
+    int i, j, m;
+    for (i = 0; i < FiTarShown(ag); ++i) {
+        const FiSplat *sp = &L->s[i];
         const FiDrip *d;
+        const float u = cu + sp->u * hx, v = cv + sp->v * hy;
         float top[3], P[8][3], hw[8], len, a, w0;
         if (sp->drip <= 0 || sp->drip > FI_TAR_DRIPS) continue;
-        d = &p->L.d[(int)sp->drip];
-        len = FiDripLen(age - FiTarAppear(i), d->len * k * 0.8f);
-        a = FiTarLifeAlpha(FiTarLife(age, p->rel, d->off)) * FiTarOpenAt(age);
+        if (set && !FiBigCovers(&p->big, u, v, p->sx, p->sy)) continue;
+        d = &L->d[(int)sp->drip];
+        len = FiDripLen(ag - FiTarAppear(i), d->len * k * 0.8f);
+        a = FiTarLifeAlpha(FiTarLife(age, p->rel, d->off * offK)) * FiTarOpenAt(ag) * w;
         if (len < 2.0f || a < 0.01f) continue;
-        for (j = 0; j < 3; ++j)
-            top[j] = o[j] + p->n[j] + p->ax[j] * sp->u * p->sx * grow * 0.85f + p->ay[j] * sp->v * p->sy * grow * 0.85f;
+        for (j = 0; j < 3; ++j) top[j] = p->c[j] + p->n[j] * 4.0f + p->ax[j] * u + p->ay[j] * v;
         w0 = 6.0f * d->w * k;
         for (m = 0; m < 8; ++m) {
             const float t = (float)m / 7.0f, wig = 1.5f * sinf(3.0f * t + sp->ang);
@@ -1012,6 +1179,37 @@ static int FiOwnBlot(void *dev, const Viewport8 *vp, FiPortal *p)
         }
         FiRibbon(dev, vp, (const float(*)[3])P, hw, 8, 0.95f * a, kDrip);
     }
+}
+static int FiOwnBlot(void *dev, const Viewport8 *vp, FiPortal *p)
+{
+    const float age = (float)(g_fiClock - p->t0), amt = FiTarAmount(age, p->rel);
+    const float grow = 0.35f + 0.65f * FiTarOpenAt(age), keep = FiKeepNow(p->big.nOn - 1), spark = FiSparkNow();
+    const int deep = BgLevel() >= BGL_AI3DP;
+    float o[3];
+    int g, j, m = 0, grids = 0, sets = 0;
+    if (!(amt > 0.002f)) return 0;
+    for (g = 1; g < p->big.n; ++g) {  // v3.58 FI358: the pieces around the first, then the first over them
+        const FiPiece *pc = &p->big.g[g];
+        float a, gr;
+        if (!pc->on) continue;
+        a = FiPieceAmount(age, p->rel, pc, 0) * FiPieceWeight(keep, ++m);
+        if (!(a > 0.002f)) continue;
+        gr = 0.35f + 0.65f * FiTarOpenAt(age - pc->open);
+        for (j = 0; j < 3; ++j) o[j] = p->c[j] + p->n[j] * 2.0f + p->ax[j] * pc->u + p->ay[j] * pc->v;
+        FiOwnDisc(dev, vp, o, p, p->sx * pc->s * gr, p->sy * pc->s * gr, a, FiHash(p->L.seed + 31u * (unsigned)g));
+        ++grids;
+    }
+    for (j = 0; j < 3; ++j) o[j] = p->c[j] + p->n[j] * 3.0f + p->ax[j] * p->big.g[0].u + p->ay[j] * p->big.g[0].v;
+    FiOwnDisc(dev, vp, o, p, p->sx * grow, p->sy * grow, amt, p->L.seed);  // a little off the wall
+    ++grids;
+    for (j = 0; j < p->big.sets && j < FI_SETS_MAX; ++j) {
+        const float w = FiSetWeight(spark, deep, j);
+        if (!(w > 0.0f)) continue;
+        FiOwnDrips(dev, vp, p, j, age, grow, w);
+        ++sets;
+    }
+    if (grids > p->gridsMax) p->gridsMax = grids;
+    if (sets > p->setsMax) p->setsMax = sets;
     p->drawnNow = 1;
     return 1;
 }
@@ -1025,7 +1223,7 @@ static void FiOwnCore(void *dev, const Viewport8 *vp, const FiPortal *p)  // its
     float o[3];
     int r, s, j, cur = 0;
     if (!(amt > 0.002f)) return;
-    for (j = 0; j < 3; ++j) o[j] = p->c[j] + p->n[j] * 4.0f;
+    for (j = 0; j < 3; ++j) o[j] = p->c[j] + p->n[j] * 4.0f + p->ax[j] * p->big.g[0].u + p->ay[j] * p->big.g[0].v;  // v3.58 FI358
     for (r = 0; r <= NR; ++r) {
         const float rn = (float)r / NR, kk = amt * pulse * (1.0f - rn) * (1.0f - rn);
         for (s = 0; s <= NS; ++s) {
@@ -1042,47 +1240,240 @@ static void FiOwnCore(void *dev, const Viewport8 *vp, const FiPortal *p)  // its
         cur = !cur;
     }
 }
-// Refined's strands: thin, near black, sagging a little; each thins, snaps and whips back at its moment (FiSnapAt; a
-// release before the end snaps the rest one by one at once)
+// v3.58 FI358: the arriving body's box (this frame's bones after the game's pass 2, else its type's after 0.35 s) and the
+// pieces laid out for it (fadein_sim.h FiBigTarget / FiBigMake); on a wall a piece that is not on the wall is left out
+static int FiBoneCount(const BYTE *work)
+{
+    const BYTE *model = *(const BYTE *const *)(work + 0x30), *skel;
+    int nb = 25;
+    if ((ULONG_PTR)model < 0x10000) return 0;
+    skel = *(const BYTE *const *)(model + 0xE0);
+    if ((ULONG_PTR)skel >= 0x10000) nb = *(const int *)(skel + 0x14);
+    return nb < 0 ? 0 : nb > 32 ? 32 : nb;
+}
+static void FiMeasure(FiPortal *p)
+{
+    const float age = (float)(g_fiClock - p->t0);
+    const int alive = FiAlive(p);
+    float pts[32][3], w0[3], d[3], tx, ty;
+    int b, n = 0, nb, j, k, on;
+    if (p->measured) return;
+    for (j = 0; j < 3; ++j) w0[j] = p->c[j] + p->n[j] * p->back;  // (the body's centre the plane was found from)
+    if (alive) {
+        nb = FiBoneCount(p->work);
+        for (b = 0; b < nb; ++b)
+            if (FiBone(p->work, b, pts[n])) ++n;
+        memcpy(w0, p->work, sizeof w0);
+    }
+    if (!(n >= 3 && FiBodyBones((const float(*)[3])pts, n, w0, &p->body))) {
+        if (alive && age < FI_MEASURE_WAIT_S) return;  // (a ghost made this frame: its bones come with its first draws)
+        FiBodyType(p->type, w0, &p->body);
+    }
+    FiBigTarget(&p->body, p->sx, p->sy, &tx, &ty);
+    for (j = 0; j < 3; ++j) d[j] = p->body.c[j] - p->c[j];
+    FiBigMake(&p->big, p->L.seed, p->sx, p->sy, tx, ty, d[0] * p->ax[0] + d[1] * p->ax[1] + d[2] * p->ax[2],
+              d[0] * p->ay[0] + d[1] * p->ay[1] + d[2] * p->ay[2], g_fiPieces);
+    if (p->wall)
+        for (k = 1; k < p->big.n; ++k) {  // each piece around the first on the wall too (a door, a corner: left out)
+            FiPiece *g = &p->big.g[k];
+            float q[3], q0[3], q1[3], hit[3], nrm[3], off;
+            for (j = 0; j < 3; ++j) {
+                q[j] = p->c[j] + p->ax[j] * g->u + p->ay[j] * g->v;
+                q0[j] = q[j] + p->n[j] * 50.0f, q1[j] = q[j] - p->n[j] * 50.0f;
+            }
+            off = 999.0f;
+            if (SvvCastT(q0, q1, hit, nrm, 0.0f) && nrm[0] * p->n[0] + nrm[1] * p->n[1] + nrm[2] * p->n[2] > 0.8f)
+                off = (hit[0] - q[0]) * p->n[0] + (hit[1] - q[1]) * p->n[1] + (hit[2] - q[2]) * p->n[2];
+            if (!(fabsf(off) < 30.0f)) g->on = 0;
+        }
+    for (k = 1, on = 0; k < p->big.n; ++k) on += p->big.g[k].on;
+    p->big.nOn = 1 + on;
+    p->big.sets = on ? (on >= 5 ? 3 : 2) : 1;
+    p->measured = 1;
+}
+// Refined's sticky strands: up to ownWant of the body's bones in front of the plane (else points of its box), each tied
+// to a point of the portal behind it; each snaps at its own moment in the last 1.3 s of the strands' time (FiStickWindow)
+static void FiStickStart(FiPortal *p)
+{
+    const float ageR = (float)(g_fiClock - p->tr);
+    const unsigned s0 = FiHash(p->L.seed ^ 0x57A7u);
+    const int alive = FiAlive(p);
+    int want = p->ownWant, n = 0, nb, tries, i, j, k;
+    float a, b, w0[3];
+    if (p->ownStarted || !p->held || !p->measured) return;
+    if (want > FI_STRANDS_MAX) want = FI_STRANDS_MAX;
+    if (want <= 0 || p->sCut >= 0.0f || ageR >= p->sEnd) {  // none wanted, or too late (let go early, its time over)
+        p->ownStarted = 1;
+        return;
+    }
+    for (j = 0; j < 3; ++j) w0[j] = p->body.c[j];
+    if (alive) {
+        nb = FiBoneCount(p->work);
+        for (tries = 0; tries < 3 * nb && n < want; ++tries) {
+            const int bi = (int)((s0 + (unsigned)tries * 7u) % (unsigned)nb);
+            float q[3], dd;
+            int dup = 0;
+            for (k = 0; k < n; ++k) dup |= p->sbone[k] == bi;
+            if (dup || !FiBone(p->work, bi, q)) continue;
+            dd = (q[0] - p->c[0]) * p->n[0] + (q[1] - p->c[1]) * p->n[1] + (q[2] - p->c[2]) * p->n[2];
+            if (dd < 5.0f) continue;  // behind the plane (in the wall): no strand
+            memcpy(p->sb[n], q, sizeof q);
+            p->sbone[n++] = bi;
+        }
+        memcpy(w0, p->work, sizeof w0);
+    }
+    if (n < (want < 3 ? want : 3)) {  // too few bones: points of its box, following its work position
+        const float h = FiBodyH(&p->body);
+        if (alive && ageR < FI_MEASURE_WAIT_S) return;  // (next frame)
+        for (n = 0; n < want; ++n) {
+            const unsigned hh = FiHash(s0 + (unsigned)n * 131u);
+            const float u = (FiRnd01(hh) - 0.5f) * 1.6f * p->body.half;
+            const float y = p->body.top + (0.12f + 0.76f * FiRnd01(hh ^ 1u)) * h - w0[1];
+            for (j = 0; j < 3; ++j) p->sbo[n][j] = p->ax[j] * u - p->n[j] * 0.4f * p->body.half;
+            p->sbo[n][1] += y;
+            for (j = 0; j < 3; ++j) p->sb[n][j] = w0[j] + p->sbo[n][j];
+            p->sbone[n] = -1;
+        }
+        p->ownBox = 1;
+    }
+    FiStickWindow(p->sEnd, &a, &b);
+    for (i = 0; i < n; ++i) {  // its anchor: behind it on the plane, spread over the whole portal
+        const unsigned hh = FiHash(s0 + (unsigned)i * 977u);
+        const float dd = (p->sb[i][0] - p->c[0]) * p->n[0] + (p->sb[i][1] - p->c[1]) * p->n[1] + (p->sb[i][2] - p->c[2]) * p->n[2];
+        float pu, pv, ru, rv, e, l2 = 0.0f;
+        for (j = 0; j < 3; ++j) p->sa[i][j] = p->sb[i][j] - p->n[j] * dd;
+        pu = (p->sa[i][0] - p->c[0]) * p->ax[0] + (p->sa[i][1] - p->c[1]) * p->ax[1] + (p->sa[i][2] - p->c[2]) * p->ax[2];
+        pv = (p->sa[i][0] - p->c[0]) * p->ay[0] + (p->sa[i][1] - p->c[1]) * p->ay[1] + (p->sa[i][2] - p->c[2]) * p->ay[2];
+        pu += (FiRnd01(hh) - 0.5f) * 0.7f * p->big.tx;
+        pv += (FiRnd01(hh ^ 1u) - 0.5f) * 0.7f * p->big.ty;
+        ru = (pu - p->big.du) / (0.9f * p->big.tx), rv = (pv - p->big.dv) / (0.9f * p->big.ty);  // within the portal
+        e = ru * ru + rv * rv;
+        if (e > 1.0f) {
+            e = 1.0f / sqrtf(e);
+            pu = p->big.du + (pu - p->big.du) * e, pv = p->big.dv + (pv - p->big.dv) * e;
+        }
+        for (j = 0; j < 3; ++j) {
+            p->sa[i][j] = p->c[j] + p->n[j] * 2.0f + p->ax[j] * pu + p->ay[j] * pv;
+            l2 += (p->sb[i][j] - p->sa[i][j]) * (p->sb[i][j] - p->sa[i][j]);
+        }
+        p->len0[i] = sqrtf(l2);
+        p->sat[i] = FiSnapAtW(i, n, s0, a, b);
+        if (p->sat[i] < ageR) p->sat[i] = ageR + 0.03f * (float)i;
+        p->sdropSet[i] = 0;
+    }
+    p->nOwn = n;
+    p->ownStarted = 1;
+    if (p->strands == FI_TS_NONE && n) p->strands = FI_TS_OWN, p->nStr = n;
+}
+// a small camera-facing disc (strength k at the centre, softer at the rim)
+static void FiBlob(void *dev, const Viewport8 *vp, const float c[3], float r, float k, const float rgb[3])
+{
+    enum { NS = 8 };
+    float e[3], u[3], v[3], l;
+    GvHv m, g[NS + 1];
+    int s, j;
+    for (j = 0; j < 3; ++j) e[j] = g_svEye[j] - c[j];
+    l = sqrtf(e[0] * e[0] + e[1] * e[1] + e[2] * e[2]);
+    if (!(l > 1.0f) || !(r > 0.2f)) return;
+    for (j = 0; j < 3; ++j) e[j] /= l;
+    u[0] = -e[2], u[1] = 0.0f, u[2] = e[0];  // e x (0, 1, 0)
+    l = sqrtf(u[0] * u[0] + u[2] * u[2]);
+    if (!(l > 1e-4f)) u[0] = 1.0f, u[2] = 0.0f, l = 1.0f;
+    u[0] /= l, u[2] /= l;
+    v[0] = e[1] * u[2] - e[2] * u[1], v[1] = e[2] * u[0] - e[0] * u[2], v[2] = e[0] * u[1] - e[1] * u[0];
+    SvPoint(&m, c, k, rgb);
+    for (s = 0; s <= NS; ++s) {
+        const float th = 6.2831853f * (float)(s % NS) / NS, rr = r * (0.85f + 0.15f * sinf(3.0f * th));
+        float q[3];
+        for (j = 0; j < 3; ++j) q[j] = c[j] + (u[j] * cosf(th) + v[j] * sinf(th)) * rr;
+        SvPoint(&g[s], q, 0.35f * k, rgb);
+    }
+    for (s = 0; s < NS; ++s) GvTri(dev, &m, &g[s], &g[s + 1], vp, NULL);
+}
+// Refined's sticky strands: near black, sagging more as they age, thinning as they stretch; a blob of tar on the body where
+// each holds on, running down a little; at its moment it strains, snaps, its wall end whips back and its body end drops off
+// (v3.58 FI358; v3.57's 12 thin strands that snapped between 1.5 and 2.5 s: FadeInStrandSeconds 0)
 static int FiOwnStrands(void *dev, const Viewport8 *vp, FiPortal *p)
 {
-    static const float kStr[3] = { 0.90f, 0.96f, 0.96f };
+    static const float kStr[3] = { 0.90f, 0.96f, 0.96f }, kBlob[3] = { 0.84f, 0.97f, 0.97f };
     const float ageR = p->tr >= 0.0 ? (float)(g_fiClock - p->tr) : -1.0f;
-    const int alive = !p->released && FiAlive(p);
+    const int alive = FiAlive(p);
     int i, j, m, drawn = 0;
-    if (ageR < 0.0f || !p->held) return 0;
-    for (i = 0; i < p->nStr; ++i) {
-        float at = FiSnapAt(i, p->nStr, p->L.seed), k, b[3], P[9][3], hw[9], len, sag;
+    if (ageR < 0.0f || !p->held || p->nOwn <= 0) return 0;
+    if (!alive && p->sCut < 0.0f) FiStickCut(p, ageR);  // the ghost is gone: its strands snap now
+    for (i = 0; i < p->nOwn && i < FI_STRANDS_MAX; ++i) {
+        const unsigned hh = FiHash(p->L.seed + (unsigned)i * 613u);
+        float k, b[3], P[9][3], hw[9], len, sag, wk, t;
         int ph;
-        if (p->released && at > p->relAge + 0.03f * (float)i) at = p->relAge + 0.03f * (float)i;
-        ph = FiStrandPhase(ageR, at, &k);
-        if (ph == 3) continue;
-        if (alive && FiBone(p->work, p->sbone[i], b)) memcpy(p->sb[i], b, sizeof b);
+        if (alive) {
+            if (p->sbone[i] >= 0) {
+                if (FiBone(p->work, p->sbone[i], b)) memcpy(p->sb[i], b, sizeof b);
+            } else {
+                for (j = 0; j < 3; ++j) p->sb[i][j] = ((const float *)p->work)[j] + p->sbo[i][j];
+            }
+        }
         memcpy(b, p->sb[i], sizeof b);
         len = sqrtf((b[0] - p->sa[i][0]) * (b[0] - p->sa[i][0]) + (b[1] - p->sa[i][1]) * (b[1] - p->sa[i][1]) +
                     (b[2] - p->sa[i][2]) * (b[2] - p->sa[i][2]));
-        sag = (ph == 0 ? 0.07f : 0.02f) * len;
+        if (len > FI_STR_LOOSE && p->sat[i] > ageR) {  // stretched past what tar holds: it snaps now
+            p->sat[i] = ageR;
+            ++p->nLoose;
+        }
+        ph = FiStrandPhase(ageR, p->sat[i], &k);
+        if (ph >= 2 && !p->sdropSet[i]) {
+            memcpy(p->sdrop[i], b, sizeof b);
+            p->sdropSet[i] = 1;
+        }
+        wk = FiStickWidth(ageR, p->sEnd, len, p->len0[i]);
         if (ph <= 1) {  // whole (or straining: taut and thinning)
+            float e[3], el, bl[3];
+            sag = FiStickSag(ageR, p->sEnd, len) * (ph ? 0.4f : 1.0f);
             for (m = 0; m < 9; ++m) {
-                const float t = (float)m / 8.0f;
+                t = (float)m / 8.0f;
                 for (j = 0; j < 3; ++j) P[m][j] = p->sa[i][j] + (b[j] - p->sa[i][j]) * t;
                 P[m][1] += sag * 4.0f * t * (1.0f - t);
-                hw[m] = (1.5f - 0.8f * t) * k;
+                hw[m] = (2.2f - 1.0f * t + 0.6f * sinf(9.0f * t + (float)i)) * wk * k;  // (beaded: tar, not thread)
             }
             FiRibbon(dev, vp, (const float(*)[3])P, hw, 9, 0.92f, kStr);
-        } else {  // snapped: each end whips back toward the wall / the body, thinning out
-            float mid[3];
-            int e;
-            for (j = 0; j < 3; ++j) mid[j] = 0.5f * (p->sa[i][j] + b[j]);
-            mid[1] += sag;
-            for (e = 0; e < 2; ++e) {
-                const float *from = e ? b : p->sa[i];
-                for (m = 0; m < 5; ++m) {
-                    const float t = (float)m / 4.0f * (1.0f - k);
-                    for (j = 0; j < 3; ++j) P[m][j] = from[j] + (mid[j] - from[j]) * t;
-                    hw[m] = (1.2f - 0.6f * (float)m / 4.0f) * (1.0f - k);
+            for (j = 0; j < 3; ++j) e[j] = g_svEye[j] - b[j];  // the tar on the body: a little toward the camera
+            el = sqrtf(e[0] * e[0] + e[1] * e[1] + e[2] * e[2]);
+            for (j = 0; j < 3; ++j) bl[j] = b[j] + (el > 1.0f ? e[j] / el * 6.0f : 0.0f);
+            FiBlob(dev, vp, bl, (4.5f + 3.0f * FiRnd01(hh)) * (0.5f + 0.5f * wk) * k, 0.9f, kBlob);
+            {   // ... running down from it
+                const float run = (8.0f + 14.0f * FiRnd01(hh ^ 2u)) * (ageR < 1.5f ? ageR / 1.5f : 1.0f);
+                if (run > 1.5f) {
+                    for (m = 0; m < 5; ++m) {
+                        t = (float)m / 4.0f;
+                        for (j = 0; j < 3; ++j) P[m][j] = bl[j];
+                        P[m][1] += run * t;
+                        hw[m] = (1.6f - 0.9f * t + 0.8f * expf(-(1.0f - t) * (1.0f - t) / 0.02f)) * (0.5f + 0.5f * wk);
+                    }
+                    FiRibbon(dev, vp, (const float(*)[3])P, hw, 5, 0.85f * k, kStr);
                 }
-                if (1.0f - k > 0.02f) FiRibbon(dev, vp, (const float(*)[3])P, hw, 5, 0.92f * (1.0f - k), kStr);
+            }
+        } else if (ph == 2) {  // snapped: the wall end whips back toward the portal, thinning out
+            float mid[3];
+            for (j = 0; j < 3; ++j) mid[j] = 0.5f * (p->sa[i][j] + p->sdrop[i][j]);
+            mid[1] += FiStickSag(ageR, p->sEnd, len);
+            for (m = 0; m < 5; ++m) {
+                t = (float)m / 4.0f * (1.0f - k);
+                for (j = 0; j < 3; ++j) P[m][j] = p->sa[i][j] + (mid[j] - p->sa[i][j]) * t;
+                hw[m] = (1.6f - 0.8f * (float)m / 4.0f) * (1.0f - k) * wk;
+            }
+            if (1.0f - k > 0.02f) FiRibbon(dev, vp, (const float(*)[3])P, hw, 5, 0.92f * (1.0f - k), kStr);
+        }
+        if (p->sdropSet[i]) {  // its body end drops off: a falling run of tar, fading
+            const float td = ageR - p->sat[i], left = FiDropLeft(td), fall = FiDropFall(td);
+            if (left > 0.01f) {
+                for (m = 0; m < 5; ++m) {
+                    t = (float)m / 4.0f;
+                    for (j = 0; j < 3; ++j) P[m][j] = p->sdrop[i][j];
+                    P[m][1] += fall - (8.0f + 0.12f * fall) * (1.0f - t);
+                    hw[m] = (0.8f + 1.4f * t) * left;
+                }
+                FiRibbon(dev, vp, (const float(*)[3])P, hw, 5, 0.9f * left, kStr);
+            } else if (ph == 3) {
+                continue;  // (all gone)
             }
         }
         ++drawn;
@@ -1114,7 +1505,7 @@ static int FiOwnDraw(void *dev, Viewport8 *vpOut)  // Refined's blots, drips and
                 FiPortal *p = &g_fiPortal[i];
                 if (!p->on) continue;
                 if (p->kind == FI_TD_OWN) drawn += FiOwnBlot(dev, &sv.vp, p);
-                if (p->strands == FI_TS_OWN) drawn += FiOwnStrands(dev, &sv.vp, p) > 0;
+                if (p->nOwn > 0) drawn += FiOwnStrands(dev, &sv.vp, p) > 0;  // v3.58 FI358: beside the ghost's own too
             }
             GvFlush(dev);
             FiDarkStates(dev, 1);
@@ -1147,8 +1538,10 @@ static void FiPass2Draw(void)  // FiPhaseDraw: right after the game's pass 2 (wh
                 FiPortal *p = &g_fiPortal[i];
                 p->drawnNow = 0;
                 if (!p->on || p->kind == FI_TD_VORTEX) continue;
+                FiMeasure(p);                                // v3.58 FI358: this frame's bones (the game's pass 2 is drawn)
+                if (p->held && !p->ownStarted) FiStickStart(p);
                 if (p->kind == FI_TD_GAME && FiGameDraw(dev, p)) p->drawnNow = 1, game = 1;
-                if (p->kind == FI_TD_OWN || p->strands == FI_TS_OWN) need = 1;
+                if (p->kind == FI_TD_OWN || p->nOwn > 0) need = 1;
             }
             if (need) own = FiOwnDraw(dev, &vp);
             if (!vp.w) ((Viewport_t)VT(dev, FXV_GETVP))(dev, &vp);
@@ -1170,6 +1563,15 @@ static void FiPass2Draw(void)  // FiPhaseDraw: right after the game's pass 2 (wh
                 g_fiPortal[i].drawMs += ms;
                 if (ms > g_fiPortal[i].drawMax) g_fiPortal[i].drawMax = ms;
             }
+        {   // v3.58 FI358: the portals' own limit (a share of the frame; the budget's governor does not count them)
+            const float k0 = g_fiSelfK, dt = g_fiDtLast > 0.0f ? g_fiDtLast : 0.0f;
+            g_fiMsEma += (ms - g_fiMsEma) * (dt > 0.0f ? (dt < 0.25f ? dt / 0.25f : 1.0f) : 0.0f);
+            g_fiSelfK = FiSelfKeepStep(g_fiSelfK, g_fiMsEma, g_fiFrameEma, dt);
+            if (k0 >= 0.95f && g_fiSelfK < 0.95f && LogQuota(&g_fiQuotaSelf, 10))
+                LogV("fade in: the tar portals' draw takes %.2f ms a frame (more than %.0f %% of a %.1f ms frame): the pieces around "
+                     "them thin (to 35 %% at most) until it is under %.2f ms", g_fiMsEma, 100.0f * FI_SELF_SHARE, g_fiFrameEma,
+                     0.6f * FI_SELF_SHARE * g_fiFrameEma);
+        }
     }
     if (LogQuota(&g_fiQuotaTar, 3))
         Log("fade in: a tar portal drawn (%s, viewport 3D %lux%lu, after the game's pass 2 004EF900)",
@@ -1273,9 +1675,25 @@ static void FiInit(void)  // gameplay.inc GameplayInstall (Init, before the Opti
     g_fiTdm = FiTdmParse(sb, &known);
     if (!known) Log("fade in: [Gameplay] FadeInPortalDraw \"%s\" is not Auto / Refined / Vortex: Auto (the default)", sb);
     g_fiHoldOn = GetPrivateProfileIntA("Gameplay", "FadeInHold", 1, g_iniPath) != 0;
-    Encode(g_txtFi[FIM_L], 56, "Fade In");
+    // v3.58 FI358: the hidden keys FadeInStrandSeconds (0 .. 6, default 3), FadeInPortalPieces (0 .. 9, default 9) and
+    // FadeInStrands (0 .. 24, default 16); all three 0 / 0 / 12 = v3.57's portal. A bad value: the default, said once.
+    GetPrivateProfileStringA("Gameplay", "FadeInStrandSeconds", "", sb, sizeof sb, g_iniPath);
+    {
+        char *end = NULL;
+        double v = sb[0] ? strtod(sb, &end) : -1.0;
+        if (sb[0] && (end == sb || !(v >= 0.0))) {
+            v = -1.0;
+            Log("fade in: [Gameplay] FadeInStrandSeconds \"%s\" is not 0 .. 6: %.1f (the default)", sb, FI_STICK_DEFAULT);
+        }
+        g_fiStick = FiStickClamp((float)v);
+    }
+    g_fiPieces = FiCountClamp(GetPrivateProfileIntA("Gameplay", "FadeInPortalPieces", FI_PIECES_DEFAULT, g_iniPath),
+                              FI_PIECES_DEFAULT, FI_PIECES_MAX);
+    g_fiStrN = FiCountClamp(GetPrivateProfileIntA("Gameplay", "FadeInStrands", FI_STRANDS_DEFAULT, g_iniPath),
+                            FI_STRANDS_DEFAULT, FI_STRANDS_MAX);
+    Encode(g_txtFi[FIM_L], 56, OLW_ENEMIES_REVEAL_METHOD_L);  // v3.58 MN358: Reveal Method (was "Fade In")
     for (v = 0; v < FI_MODE_N; ++v) {
-        Encode(g_txtFi[FIM_V0 + v], 56, OlShow(OLM_ENEMIES_FADE_IN, kFiModeName[v]));  // v3.53 OL1: Fade + Portal shows Portal
+        Encode(g_txtFi[FIM_V0 + v], 56, OlShow(OLM_ENEMIES_REVEAL_METHOD, kFiModeName[v]));  // v3.53 OL1: Fade + Portal shows Portal  // v3.58 MN358: Fade shows Fade In
         Encode(g_txtFi[FIM_D0 + v], 56, v == FI_MODE_PORTAL && g_fiTdm != FI_TDM_VORTEX ? kFiDescTar : kFiDescTxt[v]);  // v3.51 PT351
         g_fiIds[v] = MSG_FI0 + FIM_V0 + v;
     }
@@ -1347,8 +1765,23 @@ static void FadeInInstall(void)
             _snprintf_s(tar, sizeof tar, _TRUNCATE, "NOT available (%s): v3.50's blood vortex", why);
         Log("fade in: in (no code patch: the model draw 0052AEB5 and shadow 0052AF95 hooks; the game's see-through enemy draw "
             "0045C880; the portal %s; the tar portal %s); [Gameplay] FadeIn %s, FadeInSeconds %.2f, FadeInPortalDraw %s, "
-            "FadeInHold %d; never bosses, Wall Men, Walter, event or cut-scene figures; a fading enemy acts as usual; a held "
-            "ghost cannot grab", g_fiPortalOk ? "from the scene pass 004EFBFD" : "NOT available (no scene pass)", tar,
-            kFiModeName[g_fiMode], g_fiSec, kFiTdmName[g_fiTdm], g_fiHoldOn);
+            "FadeInHold %d, FadeInStrandSeconds %.1f, FadeInPortalPieces %d, FadeInStrands %d; never bosses, Wall Men, Walter, "
+            "event or cut-scene figures; a fading enemy acts as usual; a held ghost cannot grab; v3.58: the tar portal 1.24 x "
+            "the arriving body's height (the first portal and up to %d more of the same around it, thinned by the effect "
+            "budget), its strands on the body %.1f s after it is in, the portal open as long", g_fiPortalOk ?
+            "from the scene pass 004EFBFD" : "NOT available (no scene pass)", tar, kFiModeName[g_fiMode], g_fiSec,
+            kFiTdmName[g_fiTdm], g_fiHoldOn, g_fiStick, g_fiPieces, g_fiStrN, g_fiPieces, g_fiStick);  // v3.58 FI358
     }
+}
+
+// v3.58 EN358: how much of an enemy's body Fade In shows now (hudbars.inc fades its health bar in with the body: "the bar
+// appears with the body"): 1 = all of it (not in the fade table, its fade done, Fade In off or out); else the opaque share
+// of this frame's fade (FiFrac: 0 at first sight .. 1 at FadeInSeconds). Read on the game thread after the scene pass.
+static float FiBodyShown(const BYTE *task, const BYTE *work, unsigned id)
+{
+    int k;
+    if (!g_fiReady || g_fiFail || g_fiMode == FI_MODE_OFF || !task) return 1.0f;
+    k = FiFind(&g_fiTab, task, work, id);
+    if (k < 0 || g_fiTab.e[k].state != FI_E_FADE) return 1.0f;
+    return FiFrac((float)(g_fiClock - g_fiTab.e[k].t0), g_fiSec);
 }

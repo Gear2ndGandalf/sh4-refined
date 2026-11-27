@@ -61,6 +61,18 @@ Runs the game in a real window and keeps it running when you switch away:
   every setting's value now has its own line under the rows (Supply Drops Off no longer says "Kills sometimes leave an
   item."); the pause Extra Menu says "Eileen Default" / "Eileen Nurse" and draws each row once (no dark second copy
   under the lower rows).
+- **The value arrows stay put** (v3.58.0). On every Options page the white left / right arrows of a value row stand at
+  the same place for every value of every row of that page: each page has one value box, as wide as its widest value
+  (measured in the game's font; the HD menu fonts share its metrics), and every value is drawn centred in it. Pages whose
+  values all fit the game's own box keep the game's arrows (x 344 / 464); a page with wider values grows its box to the
+  right (the right arrow at most at x 500), then to the left, never into the row names. The mouse rects move with the
+  arrows, so clicking an arrow again and again never misses; the volume bars keep their bars and their arrows line up
+  with the page's box. Resolution's right arrow no longer jumps 20 px for the wide sizes. The pause Extra Menu > Camera
+  page does the same: its values are centred in one room and its ">" stands at one place for every row and value.
+  Hidden `[Options] ValueBox=0` brings v3.57's arrows back (Options and the pause page). **Limits (v3.58.0):** a value
+  whose text changes with the value (a number row) and turns out wider than the page's measure grows the box once
+  (logged); the page keeps the wider box until it is shown again; without the themed layout (it failed to build) or with
+  one of the four old hooks not stock, the old arrows (logged).
 - **Aspect Ratio in the game's Options** (`[Window] AspectMenu`, v1.3): Options > Option 1 gets an "Aspect Ratio" row
   (4:3, 16:10, 16:9, and since v1.6 the ultrawide 21:9 and 32:9) under Resolution, and Resolution lists six sizes of
   that shape (4:3 640x480 .. 2880x2160, 16:10 768x480 .. 3840x2400, 16:9 854x480 .. 3840x2160, 21:9 1720x720, 1920x800,
@@ -114,6 +126,27 @@ Runs the game in a real window and keeps it running when you switch away:
     default sound device changed to ...; restart the game to use it", and Options > Sound > Sound Mode's line reads "New
     sound device: restart the game to use it." Following the new device without a restart is not built (it would re-make
     every buffer of the game's sound engine while it plays; planned only if wanted).
+  - **Background Mute is silent at once** (v3.58.0). **Mute** is silent while another window is in front, at once and for
+    every sound, also the ones already playing: SH4 Refined mutes the game's sound sessions in Windows (the game's
+    DirectSound sound, the films' sound and the keep-awake tone) on every output device, and unmutes them when the game is
+    in front again. Only what Refined muted is unmuted: if you mute the game yourself in Windows' volume mixer, it stays
+    muted. **Play** keeps the game audible behind other windows, also the sounds that started under Mute. While the game is
+    behind other windows under Mute, Windows' volume mixer shows it muted; that is Refined's. If the game is closed or ends
+    while it is behind other windows, Windows keeps it muted: SH4 Refined unmutes it at its next start. The file
+    `SH4Refined.muted` next to SH4Refined.ini names each sound session Refined muted (Windows' own name for it, the same at
+    every start); the next start unmutes only those whose mute was confirmed there (v3.58 SD358-003: "muted", not "pending"),
+    and only if they are still muted, then deletes the file (safe to delete
+    by hand). A muted session it does not name is yours: it stays muted and the log says "the game is muted in the Windows
+    Volume Mixer". If you unmute (or unmute and mute again) the game in the Volume Mixer while it is behind other windows,
+    Refined leaves it as you set it. If Windows' sound
+    sessions cannot be used (logged at the start), Mute is v3.56's: sounds that start after the switch are silent behind
+    other windows, and the keep-awake tone stops there. A wireless headset that sleeps on silence may take a moment to
+    wake when you come back under Mute (Mute is real silence, the keep-awake tone included); Play keeps it awake. Hidden
+    `[Sound] SessionMute=0` = v3.56's Mute.
+  - **Music Volume / Effects Volume 0 is silent** (v3.58.0). The game itself never set a sound below -60 dB (its own 0 was
+    -60 dB, and Night Mode lifted that to -40 dB): every 2D sound, the music, every stream and 3D sound set to 0 is now
+    silent (Room 302's stream that faded itself back up from 0 too: exe site 0x40B2E7). Every other level is the game's own.
+    A pause's silence is real silence too. Hidden `[Sound] ZeroSilent=0` = the game's -60 dB.
 - **Display Mode** (v1.5; in Options > Option 4 Presentation since v3.5.0): a "Display Mode" row: Windowed, or Borderless
   (the whole screen without a frame, black bars where the monitor has another shape). Alt+Enter switches too. The
   choice is kept in `[Window] Borderless`.
@@ -246,7 +279,7 @@ Runs the game in a real window and keeps it running when you switch away:
   v3.30.0: rolled anew after every load, New Game and game start; a rare Saint Medallion, Sword of Obedience or Ampoule
   when one of the four named ghosts or the stalker Walter is fully downed), **Enemies Return** (v3.30.0 as Revive
   Enemies Off / On; v3.56.0 Off / By Room / By World: below), **Fade In** (v3.50.0, Off / Fade / Fade + Portal, default
-  Fade + Portal: monsters and victims that appear in a room no longer pop in. Each one fades in over 0.8 s, from
+  Fade + Portal; the row is **Reveal Method** since v3.58.0, values Off / Fade In / Portal, the ini words unchanged: monsters and victims that appear in a room no longer pop in. Each one fades in over 0.8 s, from
   invisible to whole. That covers the room load, followers coming through the door, wanderers, Enemy Copies, revived
   monsters, and ghosts or monsters the game brings in later. The fade uses the game's own see-through enemy draw, the
   one its ghosts use when they pass through walls. A monster's shadow joins when it is half in. With Fade + Portal, a
@@ -286,6 +319,33 @@ Runs the game in a real window and keeps it running when you switch away:
   breath), **Life Steal** (Off / 5 / 10 % of the damage you deal to monsters heals you), **Curse Meter** (Off / On /
   Companion: Eileen's curse split into its stages, since v3.30.0 a ring of thorns; with Playable Eileen loaded, On shows
   her own curse).
+- **Reveal Method's portal is as big as the one who comes out of it, and its tar sticks** (v3.58.0; the user's QA of
+  v3.57: "it is smaller than the victims. Make it larger, not by stretching it, but by add to the effect with more similar
+  effects on and around it. Make stretchy tar-like substance stick to the victims for a few seconds and let the portal stay
+  open for that long too."). When a victim or a story ghost arrives through a tar portal, the arriving body is measured
+  (its skeleton as it is drawn; Andrew's bulk, a crouching victim and Playable Eileen's world alike) and the portal is laid
+  out to about 1.24 x its height: the first portal at its old size, with up to nine more of the same around it (below at
+  the feet, above the head, at the sides and corners, one over the middle), each a smaller copy of the first and opening
+  one after another, plus two more sets of tar blots and drips spread over the whole. Nothing is stretched: every piece
+  and every blot keeps its own size. On a wall a piece that would hang past the wall's edge (a door, a corner) is left out.
+  The game's own wall-portal art is used when it is loaded (as in v3.51); Refined's own near-black version otherwise.
+  - Thin black strands of tar run from the portal to the body (16 of Refined's own, or 8 beside a victim's and Cynthia's
+    own 32), with a blob of tar on the body where each holds on, running down a little. They follow the body as it moves,
+    sag more and get thinner as they stretch and age, and hold on for 3 seconds after the body is fully in. Over their last
+    second and a bit they snap one by one: the wall end whips back into the portal and the body end drops off. A strand
+    pulled too far (900 units) snaps at once. The portal stays open as long as the strands hold, then closes: the pieces
+    around it first, so it shrinks into its centre and fades (about 5.4 s after it opened).
+  - What does not change: the arriving ghost is still slowed (40 % for 1.5 s, full speed at 2.5 s) and cannot grab or
+    attack for 2.5 s, and Enemy Pursuit starts its timers when that hold ends; Off and Fade In are as before; monsters keep
+    their fade (the game itself has no portal for monsters: its wall portal belongs to the ghosts' wall exits and a few
+    scripted ghost scenes); a ghost that the game sends out of its own wall portal is left to the game.
+  - At high frame rates the extra pieces thin first: the effect budget's spark levels (60 / 35 %) and, on their own, the
+    portals whenever their drawing takes more than 8 % of a frame (0.44 ms at 180 fps): the first portal, its own blots and
+    every strand always stay. A portal is no power for the budget's start step (above).
+  - Also fixed: Jasper, Andrew and Richard (who have no strands of their own) got none of Refined's either in v3.57 (the
+    user's log: "strands: none 0"); their strands now start once their body is drawn.
+  - Hidden `[Gameplay] FadeInStrandSeconds` (3.0), `FadeInPortalPieces` (9), `FadeInStrands` (16); the first two 0 =
+    v3.57's size and timeline.
 - **Enemies Return** (v3.30.0 as Revive Enemies; v3.56.0: Off / By Room / By World): when killed monsters come back.
   **Off** is the game's own rule: a killed monster lies dead until you leave its world through the hole, and comes back
   at your next visit; some stay dead for good (Twin Victims, about 1 Tremer in 10, and old bodies the game's record pool
@@ -320,6 +380,17 @@ Runs the game in a real window and keeps it running when you switch away:
   Death Presence's fog and its drain area, Echo's shadows' bodies (by these new levels) and Ghost Teleport's fade (it
   draws nothing extra) stay. Below 120 fps the budget works exactly as in v3.55. When nothing is left to shed, the log
   says so, and the frame-rate guard (above) then lowers the rate without waiting.
+- **Powers starting together at 120 / 144 / 180 fps** (v3.58.0; the user's v3.56 QA item 13). When two or more powers
+  (Echo Doubles, After Shock, Death Presence, Ghost Teleport's fade) start within a second of each other at a high frame
+  rate (you turn them on in the Options, or come back to them after a long while), the effect budget thins them at once
+  instead of after late frames, then brings them back a level every half second while the frames hold. They build up
+  over a few seconds; the game no longer runs in slow motion while the budget catches up (the log's case: about 11 s of
+  slow motion in v3.57, under 1 s in the simulation). Frames that run far over step the budget every quarter second (was
+  one level a second). When the budget has nothing left to thin, the rate guard judges the last second of play (was two
+  windows of 3 s) and steps 180 -> 120 (-> 60) at once. As before: never across a load, a pause, a capture, a door or the
+  game out of front; back up after 10 minutes clean at a room change; `[Window] FrameRate` never changes. Reveal Method's
+  portals are no power: they have their own limit (below). Hidden `[Graphics] EffectBudgetQuick=0` = v3.56's budget and
+  guard.
 - **Enemy Health Bars: which enemies get a bar** (v3.52.0; Option 5 > Enemies > Enemy Health Bars). A bar is drawn only
   for an enemy the game itself draws in this room: not for one that is still on its way in, hidden or a placeholder (the
   states 0, 0x0D, 0x0E and 0x0F of the enemy's work; the game's own draw test 0x45CA40), and not for one whose position
@@ -335,6 +406,13 @@ Runs the game in a real window and keeps it running when you switch away:
   bar above the top of the screen) are fixed and the boss line shows which it was; a victim's ghost that Enemies Follow
   lets into a tiny room stays invisible on the player for the visit (the game's arrival code finds no wall spot; only
   its bar is gone); at most 32 enemies tracked, the nearest 8 bars drawn.
+- **Enemy Health Bars: no bar before the body, Walter downed** (v3.58.0). A bar shows only for an enemy the game really
+  draws: never at the spawn points of enemies that are not out yet (the Subway's first dogs before their cut-scene, any
+  enemy whose task draws nothing yet). With Reveal Method's fade the bar fades in with the body. **Walter downed keeps
+  his bars**: knocked down (even at 0 health), Walter keeps his bar at any distance, with the violet revive bar under it
+  counting down the game's own time until he gets up (the stalker in the second half: 0.5 - 60 s; the final Walter after
+  the eighth spear: 3 - 5 s). While he plays dead (he waits for you to come near) the countdown is not drawn. Only his
+  death or a script takes the bar away.
 - **Enemy Pursuit and followers across saves** (v3.50.0; Option 5 > Enemies, `[Gameplay] EnemyPursuit`; a new row under
   Enemies Follow): how long the enemies that follow you keep track of you. **Relentless**: as v3.38 - v3.49: once a
   monster spots you in a room it follows through your next door however far away it is, and every pursuer pursues you
@@ -390,6 +468,13 @@ Runs the game in a real window and keeps it running when you switch away:
   the sense test has no view cone (a monster gives up a little later than the game would, never earlier); if the game
   keeps noticing a monster right after it gave up (twice), Refined leaves that one to the game for the room visit
   (logged; never a ghost since v3.52).
+- **The randomizer's victims follow too** (v3.58.0). With the randomizer's Enemies on Same World or All Worlds a monster's
+  placement can become a victim's ghost. Such a victim now follows you through doors (Door Chase Victims or Both) and is
+  judged by Pursuit inside the room exactly as the game's own victims are (the male victim 0B; the 0C / 0D victims chase
+  by the game's own rules in the room, as the stock ones). v3.56 / v3.57 left them out ("of no following kind"). A copy
+  of Extra Enemies drawn as a victim's ghost follows by the ghosts' rule as well (and gets a bar only once it is drawn).
+  The log now says, at the next door, what became of the ghosts that followed you into a room (came in, still arriving
+  through the walls, never in the room).
 - **Ghost Teleport** (v3.43.0; Option 5 > Special, `[Gameplay] GhostTeleport`, default Off): press Run + Action together
   to warp like ghost Richard (his sound, his see-through fade: 0.5 s out, the warp, 0.5 s in) behind an enemy, or ahead
   the way you face. v3.49.0: **keep both held to keep warping**: the next warp starts as soon as you have faded back in;
@@ -441,6 +526,24 @@ Runs the game in a real window and keeps it running when you switch away:
   again or use No Clip; the move keeps her facing and picks a cell at least 70 u from every enemy. Ghost Teleport's body
   proof (the room's tree2 collision) and Enemy Pursuit's line test (the mover line 0x454000) are separate tests and both
   stay.
+  **A clean fade** (v3.58.0): the see-through fade showed dark lines (her lashes and the edges of her hair as dark
+  strips, lines along the seams of her neck, shoulders and waist). The fade used ghost Richard's own draw on her model,
+  which gives every texel the fade's transparency (the cut-out parts of her lash and hair textures drew as dark strips)
+  and writes no depth (every layer of her model blended: the overlaps where her body parts meet and the hair over the
+  scalp showed twice). Now her body and weapon are drawn after the room's other characters, on a depth pre-pass, with
+  one blend of her nearest surface and the texture's own transparency (the game's pixel shader 5): no strips, no seams,
+  and an enemy behind her stays visible through her. Her real-time shadow leaves half way through the fade-out and comes
+  back half way through the fade-in (the rule of Reveal Method's fade). **Under Thermal** her heat body fades with her
+  (a see-through heat body at her opacity, one layer; it was solid at full heat over a half-gone body); **under Spirit
+  Vision** her soul fire fades out with her and comes back at the landing (it stood in the air where she vanished);
+  Night Vision and the other filters work on the finished picture and need nothing more. One exe call is hooked for it
+  (0x4EF905, the call to the actor models' draw, byte-checked). Hidden `[Gameplay] GhostTeleportFadeDraw`: 2 Clean (the
+  default), 1 one pass (no strips, the layers stay), 0 v3.57's look. **Limits (v3.58.0):** while she fades, particles
+  and effects drawn behind her (fog sprites, sparks, blood mist) are hidden inside her outline instead of showing
+  through her, as behind her solid body (enemies and the room are not: they are drawn before her); her shadow cannot
+  fade by degrees (one stencil mask holds every shadow), so it goes at half; under Spirit Vision the embers her soul
+  fire had already thrown fly on for a moment after she vanishes; `GhostTeleportFadeDraw` 2 needs the start (with 0 or 1
+  at the start, a 2 set later draws one pass until the game is started again).
 - **Randomizer** (v3.48.0, first part; Options > Option 5 Gameplay > Randomizer, a folder under Special;
   `[Randomizer]`): randomizes the **item and weapon pickups** lying in the worlds, from one seed kept in SH4Refined.ini.
   Every change applies **at the next room load** (the next door). Nothing goes into your saves: a save made with the
@@ -523,6 +626,30 @@ Runs the game in a real window and keeps it running when you switch away:
   **Limits:** a ghost outside its own world may be silent (the game's sound tables are per world; logged once per type
   and world); a room whose monsters became ghosts cannot be cleared by killing; Enemy Copies makes no copies of a
   monster made a ghost, and Enemies Follow / Enemy Pursuit leave it to the game's own ghost rules.
+- **Randomizer: the dead stay dead; Extra Enemies' copies randomized** (v3.58.0; the user's v3.56 QA item 12).
+  - **The dead stay dead.** A reroll redraws *what* stands where, never *whether* the dead are back: Enemies Return alone
+    decides that (Off: the game's own rule; By Room: back at each room entry; By World: back when you enter the world
+    again; a load is never an entry). A monster lying dead in its room keeps the type it died as until Enemies Return
+    brings it back, then it is drawn anew. One killed for good by the game (its kill bit) stays as placed and is never
+    made. A body whose type cannot be made in the room any more (its files, Enemies Off) stays dead, its placement empty. A
+    save keeps a randomized body dead too: after a load it is not shown and does not stand (the save keeps it as the
+    game's own kill bit). Items work as before: a picked-up item stays picked up, whatever the reroll draws for its spot.
+  - **Extra Enemies' copies are randomized too.** With Enemies Same World or All Worlds every copy of a randomized room's
+    monster draws its own type by the same rules and seed (Same World: the world's types; All Worlds: any; never a Tremer,
+    which Enemy Copies does not copy; the victims' ghosts by the story rule; Gum Heads only with Playable Eileen's guard).
+    Their files are loaded with the room; a type whose files do not fit leaves that copy its original's type. With Spawn
+    Site On each copy stands at a site of its own. Copies of an enemy the Randomizer leaves alone (bosses, story and event
+    enemies) are copies of their own type. A killed copy stays dead by the same Enemies Return rule, whatever it was drawn
+    as. Copies still come at the next room load (the Options lines no longer say "Next room.").
+  - **Copies never crowd out real enemies' records.** The game keeps 64 enemy records for the monsters left in rooms you
+    left. A room's copies are made only while its exit can still write every real enemy's record without taking a record
+    of this world (the game's own first choice, an old world's left-over record, may go): else that room gets fewer copies
+    (the log says so). Hidden `[Gameplay] CopyRecordGuard` (1; 2 = free slots only, 0 = v3.57).
+  - **Stages with no pickup models** (v3.58.0, MN358): a stage that loads no pickup model files (item_model.bin /
+    wp_model.bin are not both in the world's file list: the story interludes, stages 10 and 11 in the v3.57 log) keeps its
+    pickups as they are by design: v3.58.0 logs a plain line once per stage a session (v3.48 - v3.57 wrote an ANOMALY
+    line); `tools\logcheck.py` reports it under the randomizer line as "left alone by design" and does not count either
+    form as an anomaly.
 - **Randomizer: Eileen Outfit** (v3.49.0; v3.50.0 every outfit, a draw per room, ghost spots you can see; Options >
   Option 5 Gameplay > Randomizer). **Eileen Outfit**: Off or **Random** (default). Random dresses **companion Eileen**
   in an outfit drawn at random among **every** outfit the game has for her: her Dress and the **Nurse** outfit (v3.50.0:
@@ -623,6 +750,37 @@ Runs the game in a real window and keeps it running when you switch away:
   `PreviewLayers=0` turns the pause layers off. The capture frame's extra draws never count as a late frame for the
   effect budget or the rate guard. Not in the previews: Death Presence, Echo and After Shock (the Powers' own looks); a
   pause taken under Thermal has no ghosts in its Spirit Vision preview (Thermal hid them from that frame).
+- **Preview Off / Stock / Live** (v3.58.0; Options > Effects > Preview). What the Effects pages (Effects, Film Grain >,
+  Depth of Field >, Shadows >) show behind them:
+  - **Off**: no preview at all; the game's own menu background, as on any stock page (also no split preview on the
+    Shadows page). The filters still apply in play.
+  - **Stock**: always the stock picture, on the title menu and in a pause (a pause shows the picture, not the paused
+    scene). The filter is drawn over the picture: Thermal shows its cold heat palette over the whole picture and Spirit
+    Vision its edge world (a picture holds no bodies to heat and no ghosts to glow).
+  - **Live** (default): the stock picture on the title menu; in a pause the paused scene with Thermal's hot bodies and
+    Spirit Vision's ghosts and soul fires (as v3.56.0). Room 302's pause is a pause too.
+  - The stock picture is the file `SH4Refined_preview_stock.dds` in the game folder (the installer places the user's F7
+    picture of 2026-11-26 there; it is never inside winmm.dll). F7 never overwrites it. Without the file: Live shows the
+    F7 picture `preview.dds` on the title menu, else SH4 Refined's own drawn scene (v3.56.0); Stock shows the drawn scene.
+    F7 in play still saves `preview.dds`; the Filter row's second line "Press F7 in play for a new preview." shows only
+    where F7 changes what the page shows (Live, outside a pause, no stock picture).
+  - The Shadows page keeps its rule with every Preview value: with Shadows Off its split preview shows no real-time
+    shadow (unless the paused room is one the game keeps them in), and with Preview Off there is no split preview.
+- **Filter Strength Low / Medium / High / Ultra** (v3.58.0; Options > Effects > Filter Strength, grey with Filter None;
+  v3.15.0's row back with Ultra). High is the filters' look since v3.16.0, unchanged. Low and Medium lay the plain
+  picture of the same frame back over the filter (35 % / 65 % of the filter's change); Thermal's hot bodies and Spirit
+  Vision's ghosts, auras, portals and soul fires are drawn after that at full strength, so both stay readable at Low.
+  Ultra takes each look's own amounts 1.35 times further (saturation, contrast, brightness, the tone, CRT's fringe,
+  scanlines and grille, vignettes, grain, Old Film's flicker, Vivid's sharpening, Night Vision's bloom); Thermal and
+  Spirit Vision are already the whole picture and draw as High. The Effects page's preview shows it live.
+- **Effects > Depth of Field >** (v3.58.0): Depth of Field and its strength moved into a folder (rows Depth of Field,
+  Strength), as Film Grain > and Shadows >, with the preview behind it. The Effects page now holds 11 rows: Film Grain >,
+  Filter, Filter Strength, Cut-scene Filter, Bloom, Colour Grade, Otherworld Lens, Depth of Field >, Shadows >, Preview,
+  Exit.
+- **Thermal in the preview** (v3.58.0): the heat layer the pause keeps for the Effects page draws the bodies' outside
+  again. v3.56.0 redrew them without writing depth, so a body the game's close-camera fade drew without depth of its own
+  (the player, e.g. Playable Eileen in the shoulder camera) showed its far, inner faces. Thermal in play was right (it
+  has written that depth since v3.24.0). Ghost Teleport's faded heat body keeps its own depth pre-pass there too.
 - **Depth of Field eases in** (v3.47.0; the Screen Effects page's Depth of Field / DoF Strength rows). The blur no
   longer starts with an edge: from the sharp area around the player it fades in over a short distance, a quarter of a
   blur step at a time, and fades the same way into each stronger blur farther away and into the near blur in front of
@@ -677,6 +835,15 @@ Runs the game in a real window and keeps it running when you switch away:
   with "not soft: H hard (reasons), Z with no darkness"; the first of each reason in a room is logged once), and
   `tools\logcheck.py` lists the rooms with a hard share. Room 4:1F and cut-scene 0x43 stay without real-time shadows, as
   in the game.
+- **Shadows Off is the game's Off** (v3.58.0; Effects > Shadows > Shadows). **Off** is the game's own Off, at once (the
+  game reads the switch every frame): no real-time shadows, except in the few rooms the game keeps them in: Room 302's
+  living room (outside cut-scenes), the Water Prison (24 of its rooms) and Hospital World rooms 1 and 1F. The Tremers'
+  wall shadows stay too (they are the enemy's own look; the game never hides them). Shadows baked into the room textures
+  are pictures and stay. Refined follows it: the soft edge and the Darkness only touch shadows the game draws; the
+  Shadows page's preview shows the game's Off (the paused scene without its shadow, no split line; from the title no
+  figure's shadow); Echo Doubles' ground discs go with Off as well. The log says Shadows On / Off at the start and at each
+  change. (This corrects the v3.49 note above: the game's "short room whitelist" is most of the Water Prison, Room 302's
+  living room and two Hospital rooms.)
 - **Vibration strength** (v3.14.0): Options > Option 2's Vibration row has Off / Low / Medium / High. Low is the
   game's own strength (GOG's controller wrapper drives the motors at about 13 % of their range), Medium about 50 %,
   High 100 %. Off and On are still the game's own byte, so saves are unchanged; the level is `[Input] Vibration`.
@@ -831,7 +998,7 @@ The page cycle (Q / E, the page arrows, or a click on a name in the strip under 
 Interface, Sound, Effects, Gameplay**. A `>` row is a folder (blue, with a triangle): Enter, or a mouse click anywhere
 on the row (its name, the triangle, the value column), opens its page (v3.56.0; Enter only before); Brightness, Gamma
 and Buttons open the game's own screens the same way. Back (Enter or a click on it, Cancel, or a page key) goes back to
-the row that opened it. Controls > Camera > Steering is the one third level. No page has more than 10 rows. Every value
+the row that opened it. Controls > Camera > Steering is the one third level. No page has more than 10 rows (Effects 11 since v3.58.0). Every value
 has its own line under the rows ("Value: what it does."; v3.56.0); a value that is a number (sizes, degrees, distances,
 percentages) shows the row's line, which names its scale.
 
@@ -970,21 +1137,30 @@ v3.51 - v3.53 (the plan's "Today" column, under its old name).
 |---|---|---|---|
 | Film Grain > | opens **Effects > Film Grain** | | Option 3 > Noise Effect (+ Enter: Screen Effects rows 0-2) |
 | Filter | **None**, CRT, Vivid, Sepia, Old Film, Night Vision, Night Mono (ini `Night Vision Mono`), Thermal, Spirit Vision, Vignette | [ScreenEffects] Filter | Screen Effects > Filter |
+| Filter Strength | Low, Medium, **High**, Ultra | [ScreenEffects] FilterStrength (+ FilterStrengthV) | (new in v3.58.0; v3.15's Screen Effects > Filter Strength) |
 | Cut-scene Filter | **On**, Off | [ScreenEffects] Cutscenes | Screen Effects > Cut-scenes |
 | Bloom | **Off**, Low, Medium, High, Ultra | [ScreenEffects] Bloom | Screen Effects > Bloom |
 | Colour Grade | **Off**, PS2, Otherworld, Apartment, Bleach | [ScreenEffects] Grading | Screen Effects > Colour Grading |
 | Otherworld Lens | **Off**, On | [ScreenEffects] Lens | Screen Effects > Otherworld Lens |
-| Depth of Field | **Off**, Cut-scenes, Always | [ScreenEffects] DepthOfField | Screen Effects > Depth of Field |
-| Blur Strength | Low, **Medium**, High | [ScreenEffects] DofStrength | Screen Effects > DoF Strength |
+| Depth of Field > | opens **Effects > Depth of Field** | | v3.58.0 (was the rows Depth of Field and Blur Strength) |
 | Shadows > | opens **Effects > Shadows** | | Option 3 > Realtime Shadow (+ Enter: Shadows page) |
+| Preview | Off, Stock, **Live** | [ScreenEffects] Preview | (new in v3.58.0; v3.56's hidden PreviewScene) |
 | Exit | | | the game's Exit |
+
+#### Effects > Depth of Field (v3.58.0)
+
+| Row | Values | ini / save | Was |
+|---|---|---|---|
+| Depth of Field | **Off**, Cut-scenes, Always | [ScreenEffects] DepthOfField | Effects > Depth of Field (Screen Effects > Depth of Field) |
+| Strength | Low, **Medium**, High | [ScreenEffects] DofStrength | Effects > Blur Strength (Screen Effects > DoF Strength) |
+| Back | | | "Back to Effects." |
 
 #### Effects > Film Grain
 
 | Row | Values | ini / save | Was |
 |---|---|---|---|
 | Film Grain | Off (ini `0`), **On** (ini `1`) | cfg+0x14 | Option 3 > Noise Effect (stock On / Off) |
-| Strength | Low, **Normal**, High, Very High | [ScreenEffects] NoiseStrength | Screen Effects > Noise Strength |
+| Strength | Low, **Normal**, High, Ultra (ini `Very High`; v3.57: Very High) | [ScreenEffects] NoiseStrength | Screen Effects > Noise Strength |
 | Grain Type | **Stock**, Fine, Coarse, Film, VHS, Scan Roll, Rain | [ScreenEffects] NoiseType | Screen Effects > Noise Type |
 | Grain Colour | **Stock**, Mono, Full Colour, Red, Green, Blue, Amber, Sepia | [ScreenEffects] NoiseColour | Screen Effects > Noise Colour |
 | Back | | | "Back to Effects." |
@@ -993,7 +1169,7 @@ v3.51 - v3.53 (the plan's "Today" column, under its old name).
 
 | Row | Values | ini / save | Was |
 |---|---|---|---|
-| Shadows | Off (ini `0`), **On** (ini `1`) | cfg+0x19 | Option 3 > Realtime Shadow (stock On / Off) |
+| Shadows | Off (ini `0`; the game keeps a few rooms' shadows), **On** (ini `1`) | cfg+0x19 | Option 3 > Realtime Shadow (stock On / Off) |
 | Edge | **Stock**, Soft | [Shadows] Edge | Shadows > Shadow Edge |
 | Darkness | 25 %, 40 %, 55 %, 70 %, **85 %**, 100 % | [Shadows] Darkness | Shadows > Shadow Darkness |
 | Back | | | "Back to Effects." |
@@ -1051,7 +1227,7 @@ v3.51 - v3.53 (the plan's "Today" column, under its old name).
 | Door Chase | **Off**, Monsters, Victims, Both (ini `Monsters + Victims`) | [Gameplay] EnemyFollow | Option 5 > Enemies > Enemies Follow |
 | Pursuit | Relentless, **Normal**, Forgetful | [Gameplay] EnemyPursuit | Option 5 > Enemies > Enemy Pursuit |
 | Enemies Return | **Off**, By Room, By World | [Gameplay] EnemyRevive | Option 5 > Enemies > Revive Enemies (v3.55: Off / On) |
-| Fade In | Off, Fade, **Portal** (ini `Fade + Portal`) | [Gameplay] FadeIn | Option 5 > Enemies > Fade In |
+| Reveal Method | Off, Fade In (ini `Fade`), **Portal** (ini `Fade + Portal`) | [Gameplay] FadeIn | Option 5 > Enemies > Fade In (v3.57: Fade In, values Off / Fade / Portal) |
 | Back | | | "Back to Gameplay." |
 
 #### Gameplay > Powers
@@ -1249,6 +1425,98 @@ one thing).
 | Display > Frame Rate > 120 / 180 | "shown only with HighFrameRates=1." | "120: experimental; needs a fast PC." / "180: ..." | - |
 | state lines | "Not available ... (see SH4Refined.log)." | "Not available ... . See SH4Refined.log." (16 such lines, the Filter's F-key sentence " Press F7 in play for a new preview.") | - |
 
+### Old name -> new name (v3.58.0)
+
+The user's v3.57 QA (`staging/v358_feedback/USER_FEEDBACK_v357.md`). No ini key changes its words; two rows are new, two
+rows move into a new folder.
+
+| Where | v3.57.0 | v3.58.0 | ini |
+|---|---|---|---|
+| Gameplay > Enemies | Fade In: Off / Fade / Portal | **Reveal Method**: Off / **Fade In** / Portal | `[Gameplay] FadeIn` Off / Fade / Fade + Portal (unchanged; a typed `Fade In` reads as Fade) |
+| Effects > Film Grain | Strength: ... / Very High | Strength: ... / **Ultra** | `[ScreenEffects] NoiseStrength` Very High (unchanged; a typed `Ultra` reads as Very High) |
+| Gameplay > Enemies | Extra Enemies: "... Next room." in every line | no "Next room." (the copies still come at the next room load) | - |
+| Gameplay > Items | Item Stacks On: "On: pickups, gifts and the chest stack." | "On: supplies, ammo and items stack up to 99." | - |
+| Effects > Shadows | Shadows Off: "Off: no real-time shadows." | "Off: none (the game keeps them in a few rooms)." | cfg+0x19 (unchanged) |
+| Effects | Depth of Field | Effects > **Depth of Field >** > Depth of Field (the row moved into the folder; same values, same line) | `[ScreenEffects] DepthOfField` (unchanged) |
+| Effects | Blur Strength | Effects > Depth of Field > **Strength** (line "How strong the blur is."; values and their lines unchanged) | `[ScreenEffects] DofStrength` (unchanged) |
+| Effects | (none) | **Depth of Field >** (a folder row: "Blur by distance, and how strong.") | - |
+| Effects | (none) | **Filter Strength** (Low / Medium / High / Ultra) | `[ScreenEffects] FilterStrength` (new, + the marker `FilterStrengthV`) |
+| Effects | (none) | **Preview** (Off / Stock / Live) | `[ScreenEffects] Preview` (new) |
+| hidden | `[ScreenEffects] PreviewScene` | `[ScreenEffects] Preview` (migrated once) | Scene / Picture -> Live |
+
+With the hidden `[Options] StockMoves=0` (v3.54's interim layout) Renderer now sits on the Sound page instead of Effects
+(Effects is full at 11). Every Options value arrow now stands in one value box per page (MN358, above). The Options
+layout plan's copy of these changes: `staging/v358_feedback/merge358_tools/LAYOUT_CHANGES.md`.
+
+### Known limits (v3.58.0)
+
+- Not yet installed or tested in game (every v3.58 part is built and tested offline only).
+- **Background Mute after an exit behind other windows (SD358, SD358-001):** Windows remembers only "muted", not who muted
+  it. SH4Refined.muted names the sessions Refined muted, and the next start unmutes those if they are still muted: a mute
+  made on the same session by something else after the game ended (Windows' Volume Mixer does not list a game that is not
+  running; another mixer program or an edit of Windows' settings could) is undone at that start too. A session whose
+  identity cannot be read is never muted by Refined (so it can never be left muted by it). Between the start of the game and
+  its first frame (about a second) a mute left by the last exit is still on. A sound session on a device that is not there at
+  the next start stays named (and muted) until a start finds it, 30 days at most; the log names it.
+- **SH4Refined.muted cannot be written (SD358-002):** it is written whole to a temporary file and then put in place; if that
+  fails (a full disk, a read-only game folder), the old one stays and Refined does not mute a session it could not name: that
+  session's sound goes on behind other windows (logged, at most 3 lines; sounds that start later follow DirectSound's own
+  focus rule). If the rewrite fails right after you changed a muted session in the Volume Mixer, the next start may still
+  unmute that one. (v3.58 SD358-003: a failed rewrite is tried again at each later pass, every 2 s behind other windows and
+  at the next focus change; the same holds when a rewrite after an unmute fails and you mute that session in the Volume Mixer
+  before a rewrite works, then the game is killed.)
+- **A mute that was not confirmed (SD358-003):** each entry of SH4Refined.muted is written as "pending" before Refined mutes
+  the session and rewritten as "muted" once the mute worked; only a "muted" entry unmutes at the next start, so a failed mute
+  can never undo a mute you make later. If the mute worked but no rewrite reached the file before the game was killed, the
+  next start leaves that session muted and the log says so ("pending ... if the game stays silent, unmute it in the Windows
+  Volume Mixer"): unmute the game there.
+- **Value box (MN358):** a value whose text changes with the value (a number row) and turns out wider than the page's measure
+  grows the box once (logged); the page keeps the wider box until it is shown again. Without the themed layout (it failed to
+  build) or with one of the four old hooks not stock, the old arrows (logged).
+- **Preview / Filter Strength (PV358):** Thermal and Spirit Vision over the stock picture (title menu, or Stock in a pause) show
+  only their palette / edge world: a picture has no bodies or ghosts to redraw (their hot bodies / ghosts show over a pause's
+  own scene with Live). Filter Strength Low / Medium copies the frame once a frame while a filter is on (one more full-screen
+  target of the screen's size: 14.1 MB at 2560x1440, released when the strength goes back to High / Ultra or the Filter to
+  None, and at every device reset); if the copy fails 3 times the filter shows at High for the session (logged). Ultra draws
+  Thermal and Spirit Vision as High. In the frame a pause picture is taken, the preview's heat layer writes the bodies'
+  depth (as live Thermal does): sprites behind a close-camera-faded player may be hidden by her in that one frozen picture.
+  With Preview Off the Shadows page shows no split preview; its Darkness row then says "How dark shadows are.".
+- **Randomizer (RZ358):** Enemies Return Off: a randomized body that went through a save and a load stays dead even after you
+  leave that world through its hole and come back (the game itself would bring it back there). After a load a randomized
+  body is not shown (it stays dead); its bodies of the stock type are shown as before. A Tremer still stands again at its
+  room's next visit 4 times in 10 when killed with Enemies Return Off (the game's own coin flip at its death; By World keeps
+  every Tremer's body). A victim ghost pinned by the Sword keeps its pin through rerolls; a pinned randomized ghost is left
+  out of a save as before. With Spawn Site On copies stand away from their originals (sites keep 800 from where you
+  arrive). A drawn copy type needs its files: at most 16 extra files a room (shared with the placements and Enemies
+  Follow); copies of types that do not fit keep their original's type. A randomized body without a kill index (none in the
+  stock game) whose type cannot be made in its room would stand again; logged.
+- **Enemies (EN358):** a ghost that is completely see-through (inside a wall) has no bar until it is drawn again. A followed
+  victim the randomizer drew is not in a save (as every retyped monster since v3.49): after a load in another room it is
+  gone from there. Walter's revive bar is read from the GOG v7 code (two byte checks); if they differ (another mod), only
+  his health bar shows while he is down (logged once). In-room Pursuit (Normal / Forgetful) acts on the male victim 0B only,
+  as before; 0C / 0D victims chase by the game's rules.
+- **Reveal Method's portal (FI358):** built and tested offline only (the layouts on `staging/v358_feedback/w5_portal/portal_sheet.svg`,
+  the rules in the native test): the look in the game, the stacking of the overlapping pieces' layers and the strands'
+  thickness are first judged by the user. The game skips a whole grid piece when any of its points is off the screen (its
+  own rule), so near the screen's edge a big portal loses some of its outer pieces. The cost on the graphics card is not
+  measured (the log's "portal draw" is the processor's time); the own limit guards that time only. Thermal hides ghosts,
+  so a ghost that arrives while Thermal is on has no portal (as before); a portal already open stays and reads as a cold
+  dark stain. Under Spirit Vision the tar shows as dark outlines. With 8 portals open at once a ninth arrival fades in
+  without a portal (as before; a portal whose strands still hold is never taken over).
+- **Ghost Teleport (GT358):** particles and effects drawn after the actor models and behind her (fog sprites, sparks, blood
+  mist) are hidden inside her outline while she fades; her real-time shadow goes and comes at half opacity; under Spirit
+  Vision the embers already thrown by her soul fire fly on for a moment. `GhostTeleportFadeDraw=1` gives the one pass look
+  (no pre-pass) for comparison.
+- **Shadows / effect budget (GX358):** stock Off keeps the real-time shadows of Room 302's living room, most of the Water
+  Prison and Hospital rooms 1 / 1F, and the Tremers' wall shadows everywhere (as the unmodded game does). Powers turned on
+  together build up over 0.5 - 6 s (thinned first, then back); on a PC that holds the rate with every power the build-up is
+  all that shows. A power whose own drawing costs under 0.03 ms a frame is not seen starting (then v3.56's rules apply).
+  The guard can now step after about a second of clear slow motion once the budget is out of options: a heavy stretch can
+  cost 180 for 10 minutes (the retry and the two-steps lock are v3.56's).
+- **Sound (SD358):** the session mute was not run in the game in this round; the log says which way Mute works. 3D sounds
+  started at 0 begin at the game's -96.5 dB (inaudible) until their next volume update (Play3D's own first SetVolume
+  0x40A021 is not hooked). Unmuting the game in the mixer while it is behind other windows under Mute: Refined mutes it again
+  within 2 s.
 ### Known limits (v3.56.0)
 
 - Not yet installed or tested in game (every v3.56 part is built and tested offline only).
@@ -1379,7 +1647,8 @@ one thing).
 | Door Chase: Both | `[Gameplay] EnemyFollow` Monsters + Victims |
 | Enemy Health: Target | `[Gameplay] EnemyHealthBars` Locked Target |
 | Echo Doubles: Copy / Cast | `[Gameplay] Echo` Shadow Copy / Shadow Cast |
-| Fade In: Portal | `[Gameplay] FadeIn` Fade + Portal |
+| Reveal Method: Fade In / Portal | `[Gameplay] FadeIn` Fade / Fade + Portal |
+| Film Grain > Strength: Ultra | `[ScreenEffects] NoiseStrength` Very High |
 | Room 302 Items: Stay / Change | `[Randomizer] Room302` Out / In |
 | Edge (Subtitles): Both | `[Subtitles] Edge` Outline+Shadow |
 | Filter: Night Mono | `[ScreenEffects] Filter` Night Vision Mono |
@@ -1446,6 +1715,7 @@ only `[Items]` is read again while the game runs, and only an edit you make to t
 | `[Gameplay] Echo` | Off | Options: Gameplay > Powers > Echo Doubles. v3.29.0 (was Option 5 > Special, Echo Doubles since v3.30.0): Off, Shadow Copy or Shadow Cast (v3.29's Shadow, Twin and Mirror read as Shadow Copy). Hidden: `EchoDamage` percent, `EchoSide`, `EchoColour`, `EchoDepth`, `EchoRim` (see the default ini's comment). |
 | `[Gameplay] EchoCount` | 1 | Options: Gameplay > Powers > Echo Count. v3.30.0 (was Option 5 > Special > Echo Count): 1, 2 or 3 shadows. |
 | `[Gameplay] EnemyCopies` | Off | Options: Gameplay > Enemies > Extra Enemies. v3.29.0 (was Option 5 > Enemies): Off, x2, x3 or x4 monsters and victims per room. The bone pool grows to 4096 records at the next New Game or load; crowded rooms get fewer copies. Hidden: `BonePool` Auto (or a record count). |
+| `[Gameplay] CopyRecordGuard` | (absent) 1 | v3.58.0, hidden: Extra Enemies' copies and the 64 enemy records. 1 = copies only while the room's exit keeps every real record of this world (an old world's left-over record may go, the game's own first choice); 2 = only while it needs no real record at all (free slots only); 0 = as v3.57 (no test). Any other value: 1. |
 | `[Gameplay] EnemyFollow` | Off | Options: Gameplay > Enemies > Door Chase. v3.29.0 (was Option 5 > Enemies): Off, Monsters, Victims (v3.49.0 as Victims Only; v3.50.0: renamed, `Victims Only` still reads, logged once) or Monsters + Victims follow you through doors. Victims: the victim ghosts (the story ghosts too while `FollowStoryGhosts` is 1, their copies while `FollowCopies` is 1) follow, no monster or monster copy does; the old values read as before. Hidden: `FollowMax` 1-8 (6; v3.34.0, was 1-3 (3)), `FollowCopies` 1 (v3.34.0: copies follow too; 0 = v3.33), `FollowDelay` seconds 0-30 (3), `FollowRange` units 200-3000 (800). |
 | `[Gameplay] EnemyPursuit` | Normal | Options: Gameplay > Enemies > Pursuit. v3.50.0 (was Option 5 > Enemies > Enemy Pursuit): Relentless (v3.49: once spotted, followed through every door), Normal (a monster follows through a door only if it sensed you in the last 10 s; a downed pursuer stays; 2 doors without catching up and it stays) or Forgetful (4 s, 1 door). Ghosts sense you through walls; a downed ghost stays behind. |
 | `[Gameplay] FollowSaveFile` | (absent) 1 | v3.50.0, hidden: 1 = the followers survive a save and its load (side file `save\SH4Refined_follow.dat`, the last 64 saves with followers; hooks 0x4FC1A4 / 0x4FC6ED); 0 = both hooks stay stock (followers are not kept across saves). |
@@ -1453,9 +1723,12 @@ only `[Items]` is read again while the game runs, and only an edit you make to t
 | `[Gameplay] EnemyHealthBars` | Off | Options: Interface > Enemy Health. v3.29.0 (was Option 5 > Enemies): Off, Locked Target (your target and monsters hurt in the last 4 s) or All Near (also every monster within 1500 units). |
 | `[Gameplay] SupplyDrops` | Off | Options: Gameplay > Items > Supply Drops. v3.29.0 (was Option 5 > Enemies): Off, Normal (about 1 kill in 8) or Generous (about 1 in 4): items left by killed monsters; rare items from the four named ghosts and the stalker Walter. The drop counter is kept in the save. Hidden `SupplyDropsSeed=Fixed` (v3.30.0): v3.29's fixed rolls per kill instead of a new seed each load. |
 | `[Gameplay] EnemyRevive` | Off | Options: Gameplay > Enemies > Enemies Return. `Off` / `By Room` / `By World` (v3.56.0; was Off / On: v3.30 - v3.55's `On` reads as `By Room` and is written back once, logged). By Room = a room's killed monsters and copies stand again each time you enter it; By World = they stay dead for the world visit and stand again when you enter the world again. A load is never a room change or a world entry. Hidden: `ReviveEventDogs` 1 (v3.34.0: a story room's released event dogs, e.g. Subway 2:2 after their event, revive awake; 0 = v3.33); `ReturnTremers` 1 (v3.56.0: By World keeps a killed Tremer's body, exe site 0x48ACE5; 0 = the site stays stock and Tremers keep the game's coin flip). |
-| `[Gameplay] FadeIn` | Fade + Portal | Options: Gameplay > Enemies > Fade In. v3.50.0 (was Option 5 > Enemies > Fade In): Off, Fade or Fade + Portal (also read: On / 1 = Fade + Portal, 0 = Off; an unknown text is read as Fade + Portal and logged). Fade: a monster or victim seen for the first time in a room visit fades in over `FadeInSeconds`, drawn by the game's see-through enemy draw 0x45C880 (no exe patch). Fade + Portal: a ghost arriving after the room's first 1.5 s also gets a portal behind it (v3.50.0 a blood-red vortex; v3.51.0 it tears free of a tar portal: the game's own wall portal look, drips and strands; held 2.5 s, no grab meanwhile). Read again while the game runs. Hidden: `FadeInSeconds` 0.8 (0.2 to 3). |
+| `[Gameplay] FadeIn` | Fade + Portal | Options: Gameplay > Enemies > Reveal Method (v3.58.0; was Fade In). v3.50.0 (was Option 5 > Enemies > Fade In): Off, Fade or Fade + Portal (the screen shows Off / Fade In / Portal; also read: Fade In, Portal, On / 1 = Fade + Portal, 0 = Off; an unknown text is read as Fade + Portal and logged). Fade: a monster or victim seen for the first time in a room visit fades in over `FadeInSeconds`, drawn by the game's see-through enemy draw 0x45C880 (no exe patch). Fade + Portal: a ghost arriving after the room's first 1.5 s also gets a portal behind it (v3.50.0 a blood-red vortex; v3.51.0 it tears free of a tar portal: the game's own wall portal look, drips and strands; held 2.5 s, no grab meanwhile). Read again while the game runs. Hidden: `FadeInSeconds` 0.8 (0.2 to 3). |
 | `[Gameplay] FadeInPortalDraw` | (absent) Auto | v3.51.0, hidden: Auto = the game's own wall-portal draw when its textures are loaded, else Refined's own tar portal; Refined = always Refined's own; Vortex = v3.50's blood-red vortex and no hold (also read: Game / 1, Own / 2, 0 / Blood). An unknown text reads as Auto (logged). |
 | `[Gameplay] FadeInHold` | (absent) 1 | v3.51.0, hidden: 1 = a ghost coming out of a tar portal is held (40 % speed for 1.5 s, full by 2.5 s, no grab / attack until then); 0 = it acts at once (the portal and strands stay). |
+| `[Gameplay] FadeInStrandSeconds` | (absent) 3.0 | v3.58.0, hidden: how long (0 - 6 s) Reveal Method's tar strands hold on to an arriving ghost after it is fully in; the portal stays open as long. 0 = v3.57's timeline (the strands snap between 1.5 and 2.5 s, the portal closes from 2.5 s). Not a number: 3.0, logged. |
+| `[Gameplay] FadeInPortalPieces` | (absent) 9 | v3.58.0, hidden: how many smaller portals (0 - 9) are laid around the first to make the whole about 1.24 x the arriving body's height. 0 = v3.57's single portal. |
+| `[Gameplay] FadeInStrands` | (absent) 16 | v3.58.0, hidden: Refined's sticky tar strands (0 - 24) on an arriving ghost; half as many beside a victim's or Cynthia's own 32. 0 = none of Refined's (Jasper, Andrew and Richard then have no strands). |
 | `[Gameplay] AmmoSaver` | Normal | Options: Gameplay > Combat > Ammo Saver. v3.29.0 (was Option 5 > Player): Normal, Saver (every other pistol / revolver shot free) or Endless. Not Playable Eileen's SMG. |
 | `[Gameplay] DarkPact` | Off | Options: Gameplay > Combat > Dark Pact. v3.29.0 (was Option 5 > Player): Off, Pact (your hits and the damage you take x1.5) or Blood (x2). Playable Eileen's SMG hits are not scaled. |
 | `[Gameplay] GrabBreaker` | Stock | Options: Gameplay > Player > Grab Escape. v3.29.0 (was Option 5 > Player): Stock, Quick (half the hold) or Instant (free after 0.1 s; the grab's first damage stays) against ghost and Sniffer Dog grabs. |
@@ -1466,6 +1739,7 @@ only `[Items]` is read again while the game runs, and only an edit you make to t
 | `[Gameplay] GhostTeleportThroughWalls` | (absent) 1 | v3.50.0, hidden: 0 = v3.49's warp ahead only (never past a wall). |
 | `[Gameplay] GhostTeleportBehindCollision` | (absent) 0 | v3.51.0, hidden: 0 = never warp behind an enemy with collision between you and it (a wall, a prop, a turnstile, a ghost in its wall: the next enemy in the cone in the open, else the warp ahead); 1 = v3.50's rule (also behind an enemy seen through a wall). Read again with the ini. |
 | `[Gameplay] GhostTeleportForward` | (absent) 800 | hidden; 0, 300 .. 2000 u: the warp ahead's reach when nothing is in the way (0 = off); v3.50.0: also the reach of the through-wall search. |
+| `[Gameplay] GhostTeleportFadeDraw` | (absent) 2 | v3.58.0, hidden: the see-through fade's draw. 2 = Clean: her body and weapon drawn after the actor models on a depth pre-pass with one blend through the game's pixel shader 5 (no dark strips, no seam lines; the call 0x4EF905 hooked at the start); 1 = one pass in place with pixel shader 5 (no strips; her layers still blend); 0 = v3.57 (pixel shader 4: the strips and seams; no filter part fades with her, her shadow always drawn). Anything else reads as 2 (logged once). Read again with the ini (2 takes effect only if it was 2 at the start). |
 | `[ScreenEffects] DepthOfField` | Off | Options: Effects > Depth of Field. v3.43.0: Off / Cut-scenes / Always (+ `DofStrength`); v3.44.0: its rows are on the Screen Effects page (was Option 3 > Noise Effect, Enter); Hide Icon is stock again. v3.45.0: `DofStrength` Low (new, gentler) / Medium (default; = v3.44's Low) / High (0 / 1 / 2); a v3.43 / v3.44 value is migrated once (Low / 0 -> Medium, High / 1 -> High; hidden marker `DofStrengthV=345`). v3.47.0: the blur eases in at every strength (quarter-level steps, no edge where it starts). |
 | `[ScreenEffects] Bloom` | Off | Options: Effects > Bloom. v3.43.0: Off / Low / High; v3.44.0: + Very High. v3.52.0: Off / Low / Medium / High / Ultra (also 0 - 4), recalibrated; a v3.43 - v3.51 value is migrated once (Low -> Low, High -> Medium, Very High -> High; hidden marker `BloomV=352`, written by Refined). |
 | `[ScreenEffects] LensBase` | (absent) 70 | v3.52.0, hidden: the Otherworld Lens' strength in percent while a haunting is registered in the room (10 - 100; v3.51 used 40). Full strength halfway into an aura either way. |
@@ -1498,6 +1772,7 @@ only `[Items]` is read again while the game runs, and only an edit you make to t
 | `[Options] Look` | (absent) 1 | v3.53.0, hidden, read only: 0 = v3.52's Options look (no page strip, folder triangles, "Parent > Page" titles or the new grey rows); the words of v3.53 stay. |
 | `[Options] StockMoves` | (absent) 1 | v3.55.0, hidden, read only: 0 = the game's own rows on their v3.54.0 places (the sound three on Display, the first-person three on Controls, the Subtitles / Film Grain / Shadows switches and Blood Colour on Interface, Renderer on Effects, Menu Font and Start-Up in Interface > Menus) and no patch at 0x525672. |
 | `[Options] FolderClick` | (absent) 1 | v3.56.0, hidden, read only: 1 = a mouse click anywhere on a folder row (name, triangle, value column; Brightness / Gamma / Buttons; Back; StockMoves=0's Subtitles combo on its name) opens it; 0 = v3.55.0 (folders open on Enter only). |
+| `[Options] ValueBox` | (absent) 1 | v3.58.0, hidden, read at start: 1 = each Options page's values centred in one box, both value arrows at its edges on every row and for every value, the mouse rects with them (the volume bars' arrows too: exe sites 0x5256B6 / 0x5256E2) and the pause Extra Menu > Camera page's ">" at one place; 0 = v3.57.0's arrows (each row its own place, a long value moves the column, Resolution's +20). |
 | `FitWrapper` | 1 | GOG's wrapper draws at the game's size in a window; mouse scaled to the window (v1.3). |
 | `[EileenOutfit] Enabled` / `Outfit` / `Instant` / `Cutscenes` | 1 / -1 / 1 / 1 | v3.9.0: the companion Eileen's outfit (-1 Default, 0 Dress, 1 Nurse; the pause Extra Menu row writes it), put on at once while she walks with you, and whether cutscene / peephole files follow it. |
 | `[SaveBanks] Enabled` / `Bank` | 1 / 1 | Options: Interface > Pause Menu > Save Banks. v3.8.0: Save Banks on / off and the bank the lists open on (1 = sh4.sav, 2-99 = sh4_bankN.sav); Q / E / L1 / R1 and (v3.47.0) the mouse on the Bank row's arrows write `Bank`; v3.48.0, on the Bank row: Left / Right and the D-pad 1 bank, Q / E and the pad's shoulders 10 banks (not the triggers), held keys, buttons and mouse arrows repeat (no new key). |
@@ -1512,6 +1787,7 @@ only `[Items]` is read again while the game runs, and only an edit you make to t
 | `[Graphics] VSync` / `AntiAliasing` / `Anisotropic` | (not used) | v3.12.0 - v3.38: the Option 4 rows. v3.39.0: gone; GOG Galaxy > Manage > DirectX Settings (`dxcfg.exe`) sets them in `dxcfg.ini`. A value that is not Default is named once in the log at start. |
 | `[Graphics] PerfOverlay` | (absent) 0 | v3.37.0 the Option 4 > Performance row; v3.39.0 a hidden key: 1 = the corner readout (fps, frame ms, 1 % low of the last 5 s, Refined's ms a frame, address space). The log gets a `perf:` summary every 5 minutes whether it shows or not. |
 | `[Graphics] EffectBudgetHighRate` | (absent) 1 | v3.56.0, hidden: the effect budget's high frame-rate rules at 120 fps and more (late from 1.06 x the frame, the spark levels first, tested steps when the powers' cost is not measurable). 0 = v3.55's rules at every rate. |
+| `[Graphics] EffectBudgetQuick` | (absent) 1 | v3.58.0, hidden: 1 = two or more powers starting within a second at a high frame rate take the effect budget's start step (the deepest level at once, one level back each 0.5 s while frames hold), far-late frames step 0.25 s apart, and the rate guard judges the last 1 s while the budget has nothing left to shed; 0 = v3.56's budget and rate guard (no start step, no quick step, the guard's 3 s windows only). |
 | `[Shadows] Edge` | Stock | Options: Effects > Shadows > Edge. v3.40.0 Stock / Soft / Softer; v3.41.0 Stock / Soft (Soft and Softer read as Soft). Option 3 > Realtime Shadow, Enter: the Shadows page with a split-view preview. Hidden `SoftPx` (default 12, the edge in px at 720 lines, scaled with the height). v3.49.0: the text says what it covers: every real-time shadow (the player, companions, enemies, ghosts, Room 302's hauntings, event and cut-scene figures); shadows painted into the room textures are not changed. |
 | `[Window] WindowView43` | (absent) 1 | v3.41.0, hidden: Room 302's window views keep the 4:3 view with black sides at wide aspects; 0 = full width (v3.40). |
 | `[Window] PixelAlign2D` | (absent) 1 | v3.42.0, hidden: the 2D canvas half a pixel up / left so the first column / row are covered (0 = v3.41). |
@@ -1521,10 +1797,12 @@ only `[Items]` is read again while the game runs, and only an edit you make to t
 | `[Sound] Width` | 100 | Options: Sound > Stereo Width. v3.52.0 (the Sound page's Stereo Width): 0 .. 100 %, any value here; the row steps by 10. |
 | `[Sound] Reverb` | On | Options: Sound > Room Reverb. v3.52.0 (the Sound page's Room Reverb): On / Off (also 1, 0): the game's own Waves Reverb and area presets. |
 | `[Sound] NightMode` | Off | Options: Sound > Night Mode. v3.52.0 (the Sound page's Night Mode): Off / Low / High (also 0, 1, 2): range compression of the volumes the game sets (Low 0.7, High 0.5 around -20 dB). |
-| `[Sound] Background` | Mute | Options: Sound > Background. v3.56.0: Mute / Play (also 0, 1). Mute = the game's own: its sounds are silent while another window is in front. Play = the game's sound buffers get DirectSound's global focus (the four one-byte sites 0x4095FE / 0x409B02 / 0x40A14C / 0x40A723): the game stays audible behind other windows; sounds that start after a change follow it. Anything else reads as Mute (logged). A missing key is added with Mute. |
+| `[Sound] Background` | Mute | Options: Sound > Background. v3.56.0: Mute / Play (also 0, 1). Mute = the game's own: its sounds are silent while another window is in front. Play = the game's sound buffers get DirectSound's global focus (the four one-byte sites 0x4095FE / 0x409B02 / 0x40A14C / 0x40A723): the game stays audible behind other windows; sounds that start after a change follow it. Anything else reads as Mute (logged). A missing key is added with Mute. v3.58.0: Mute mutes the game's sound sessions in Windows (every sound at once, the ones already playing too, the keep-awake tone included; hidden `SessionMute`), and the buffer sites carry the global focus in both modes while that works. |
 | `[Sound] KeepAwake` | (absent) 1 | v3.56.0, hidden: 1 = an inaudible keep-awake signal of Refined's own (a looping 45 Hz tone, global focus) plays under the game's sound for the whole session, so the sound device and a wireless headset never get a silent stream (no lost seconds after Alt+Tab). 0 = none. |
 | `[Sound] KeepAwakeLevel` | (absent) 8 | v3.56.0, hidden: the keep-awake tone's amplitude, 0 .. 64 of 32767 (8 = -72 dBFS, 64 = -54 dBFS; 0 = digital silence: keeps the stream open only). Raise it if a headset still falls asleep; anything else reads as 8 (logged). |
 | `[Sound] DeviceWatch` | (absent) 1 | v3.56.0, hidden: 1 = log the device the game plays on and every change of Windows' default sound device (and show "New sound device: restart the game to use it." on Sound Mode's line while the default is another device). 0 = off. |
+| `[Sound] ZeroSilent` | (absent) 1 | v3.58.0, hidden: 1 = Volume 0 is silent (the volume hooks give DirectSound -10000 for the game's own 0, plus the exe site 0x40B2E7 for Room 302's fading stream 0x2774); 0 = the game's own (-60 dB; -40 dB with Night Mode High). |
+| `[Sound] SessionMute` | (absent) 1 | v3.58.0, hidden: 1 = Background Mute by Windows' sound sessions of the game (every output device; only Refined's own mutes undone; the marker file `SH4Refined.muted` lets the next start unmute a mute left by an exit behind other windows); 0 = v3.56's Mute (the buffers' focus flag, sounds that start from then on). |
 | `[Sound] Enabled` | (absent) 1 | v3.52.0, hidden: 0 = the game's own sound and Sound row (no Refined sound site). |
 | `[Sound] PanLaw` | (absent) Smooth | v3.52.0, hidden: Stock = the game's own steep pan (Width and the Headphones floor do nothing). Read at the start. |
 | `[Sound] HeadphonesFloor` | (absent) 9 | v3.52.0, hidden: 6 .. 12 dB, how far down the other ear may go in Headphones. Read at the start. |
@@ -1540,12 +1818,14 @@ only `[Items]` is read again while the game runs, and only an edit you make to t
 | `[Subtitles] Effect` / `Exit` | None / None | Options: Interface > Subtitles > Appear / Vanish. Effect None, Typewriter (with a cursor), Fade In (the whole line; fades out too when Exit is None), Wave, Glitch (blocks with colour fringes), Blood Drip, Embers (v3.21.0: Tremble reads as None, Flicker as Blood Drip); Exit None, Fade Out, Burn Out, Paper Peel (was Option 3 > Subtitles). |
 | `[Subtitles] Edge` | Shadow | Options: Interface > Subtitles > Edge. v3.13.0: Shadow (the game's), None, Outline or Outline+Shadow. |
 | `[Subtitles] Box` | None | Options: Interface > Subtitles > Box. v3.13.0: None (the game's), Translucent or Solid dark box behind the subtitle. |
-| `[ScreenEffects] NoiseStrength` | Normal | Options: Effects > Film Grain > Strength. v3.15.0: the game's grain / dust: Low (x0.5), Normal (the game's), High (x1.5) or Very High (x2). was Option 3 > Noise Effect (Enter). |
+| `[ScreenEffects] NoiseStrength` | Normal | Options: Effects > Film Grain > Strength. v3.15.0: the game's grain / dust: Low (x0.5), Normal (the game's), High (x1.5) or Very High (x2; the screen shows Ultra, v3.58.0; Ultra typed by hand reads as Very High). was Option 3 > Noise Effect (Enter). |
 | `[ScreenEffects] NoiseType` | Stock | Options: Effects > Film Grain > Grain Type. v3.18.0: Stock (the game's), Fine, Coarse, Film (grain and dust), VHS (line noise), Scan Roll (a band rolling over the screen now and then) or Rain (drops on the lens). v3.16.0's Colour reads as Fine + Noise Colour Full Colour. |
 | `[ScreenEffects] NoiseColour` | Stock | Options: Effects > Film Grain > Grain Colour. v3.18.0: Stock (each type's own), Mono, Full Colour, Red, Green, Blue, Amber or Sepia. |
-| `[ScreenEffects] PreviewImage` | preview.dds | v3.18.0: your own picture behind the Screen Effects page (DDS DXT1/3/5 or 32-bit), relative to the game folder. |
+| `[ScreenEffects] PreviewImage` | preview.dds | v3.18.0: your own picture behind the Screen Effects page (DDS DXT1/3/5 or 32-bit), relative to the game folder. v3.58.0: a `PreviewImage` that names the stock picture `SH4Refined_preview_stock.dds` is never written by F7 or the first-pause capture (logged once). |
 | `[ScreenEffects] PreviewCapture` | 1 | v3.18.0: 1 = the first gameplay pause saves that clean picture as PreviewImage when the file does not exist; 0 = off. |
 | `[ScreenEffects] Filter` | None | Options: Effects > Filter. None, CRT, Vivid, Sepia, Old Film, Night Vision, Night Vision Mono, Thermal, Spirit Vision (v3.17.0; `Ghost Vision` still reads as it) or Vignette. v3.18.0: Noir removed (reads as Night Vision Mono); v3.15.0's High Contrast / Otherworld read as None. |
+| `[ScreenEffects] FilterStrength` | High | Options: Effects > Filter Strength. v3.58.0: Low, Medium, High, Ultra (also 0 .. 3): Low / Medium lay the plain picture back over the filter (35 / 65 % of its change; the hot bodies and ghosts stay full), High = the filters' look of v3.16 - v3.57, Ultra = each look's own amounts x 1.35 (Thermal and Spirit Vision as High). Grey with Filter None. Read only with the marker `FilterStrengthV=358` beside it: v3.15.0 wrote this key too (Low / Medium / High) and v3.16.0 stopped reading it, so an old value without the marker is read once as High and rewritten with the marker (logged: `FilterStrength=Medium is v3.15's ...: now High`). |
+| `[ScreenEffects] FilterStrengthV` | 358 | v3.58.0, hidden, written: the marker above (do not edit). |
 | `[ScreenEffects] ThermalGhost` | (empty) | v3.16.0: more enemy types (hex, e.g. `08` Twin Victim) that Thermal hides and Ghost Vision shows. Ghosts 0B-0F are included already. Read at start. |
 | `[ScreenEffects] ThermalNotGhost` | (empty) | v3.16.0: ghost types (0B-0F) treated as warm instead. Read at start. |
 | `[ScreenEffects] ThermalCoolSeconds` | 30 | v3.21.0: seconds a dead enemy takes to cool in Thermal (0 = at once, up to 600). Read at start. |
@@ -1555,8 +1835,9 @@ only `[Items]` is read again while the game runs, and only an edit you make to t
 | `[ScreenEffects] ThermalHeat` | 1 | v3.22.0: 1 = Thermal draws the world cold (navy - blue - cyan) and redraws living bodies in heat colours; 0 = the v3.21 brightness-based look (ambient boost). Read at start. |
 | `[ScreenEffects] SpiritGhost` | Blood | v3.26.0: Spirit Vision ghosts. Blood = a pale core bleeding into crimson with a crimson aura and blood at the vein roots; White = the v3.23.0 white glow (no aura or blood). Read at start. |
 | `[ScreenEffects] SoulNone` | 06 | v3.22.0: enemy types (hex) without a soul fire in Spirit Vision (06 = Wheelchair); the ghosts 0B-0F never have one. Read at start. |
-| `[ScreenEffects] PreviewKey` | F7 | v3.22.0: a key (F1-F12 or a virtual-key number) that saves the current clean gameplay frame as PreviewImage, the picture behind the Screen Effects page, replacing it (the stock save sound confirms it). None = off. v3.39.0: F7 is the default (was None) for an ini without the key; a `PreviewKey=None` already in the ini stays None (write F7 there to use the key). F7: no key of Refined, Playable Eileen or the cheat table; F8 sits next to Quick Load's F9. The Filter row's description names the key (v3.56.0: only with `PreviewScene=Picture`). |
-| `[ScreenEffects] PreviewScene` | Scene | v3.56.0: what the Effects page shows with no paused game (the title menu): Scene = SH4 Refined's own room with a figure and a ghost, made for every filter (Thermal's heat and footprints, Spirit Vision's ghost glow and soul fire); Picture = PreviewImage first (as before v3.56.0), then the scene. While it is Scene the Filter row's description no longer names the PreviewKey (F7 still saves PreviewImage: Picture and the Shadows page use it). |
+| `[ScreenEffects] PreviewKey` | F7 | v3.22.0: a key (F1-F12 or a virtual-key number) that saves the current clean gameplay frame as PreviewImage, the picture behind the Screen Effects page, replacing it (the stock save sound confirms it). None = off. v3.39.0: F7 is the default (was None) for an ini without the key; a `PreviewKey=None` already in the ini stays None (write F7 there to use the key). F7: no key of Refined, Playable Eileen or the cheat table; F8 sits next to Quick Load's F9. The Filter row's description names the key (v3.56.0: only with `PreviewScene=Picture`; v3.58.0: only where F7 changes what the page shows: Preview Live, outside a pause, no stock picture). Since v3.58.0 the page shows the F7 picture with Preview Live on the title menu when there is no stock picture `SH4Refined_preview_stock.dds`; F7 never writes the stock picture. |
+| `[ScreenEffects] Preview` | Live | Options: Effects > Preview. v3.58.0: Off, Stock, Live (also 0 / 1 / 2): what the Effects pages (Effects, Film Grain, Depth of Field, Shadows) show behind them. Off = nothing (the game's own menu background; no split preview on the Shadows page); Stock = the stock picture `SH4Refined_preview_stock.dds` (a file in the game folder, never in the dll, never written by F7), also in a pause; Live = the stock picture on the title menu, the paused scene with its heat and spirit layers in a pause. Without the stock file: Live shows PreviewImage on the title menu, else SH4 Refined's own scene; Stock the scene (one log line). |
+| `[ScreenEffects] PreviewScene` | - | Removed in v3.58.0: an ini with `PreviewScene` (Scene or Picture) and no `Preview` gets `Preview=Live` once and the old key is removed (logged: `PreviewScene=... is now Preview=Live`). v3.56.0 - v3.57.0: what the Effects page shows with no paused game (the title menu): Scene = SH4 Refined's own room with a figure and a ghost, made for every filter (Thermal's heat and footprints, Spirit Vision's ghost glow and soul fire); Picture = PreviewImage first (as before v3.56.0), then the scene. While it is Scene the Filter row's description no longer names the PreviewKey (F7 still saves PreviewImage: Picture and the Shadows page use it). |
 | `[ScreenEffects] PreviewLayers` | 1 | v3.56.0: 1 = every pause keeps Thermal's hot bodies and Spirit Vision's ghosts, soul fires and haunting auras for the Effects page opened from it (two render targets of the screen's size, 28 MB at 2560x1440, kept between pauses like the Shadows page's); 0 = off (the page shows their palette / edge world only, as before v3.56.0). |
 | `[ScreenEffects] ThermalDepthBias` | (absent) 0.3 | v3.24.0, hidden key: how much nearer (per mille, 0..1; 0 = off) Thermal's heat colours are drawn, so they never lose a near-tie with the body's own surface (cold / hot flicker). Higher values may let a body show through a surface right in front of it. v3.29.0: also applied to c12, the clip-z row of the skinned shader family (bodies; c9 is the rigid family's), and values up to 10 are accepted as a logged test value. |
 | `[ScreenEffects] ThermalRedrawDepth` | (absent) 1 | v3.29.0, hidden test key: 0 = Thermal's heat redraw ignores the depth buffer (bodies show through walls); settles whether anything but the stock draw wins the depth test over a body. |
@@ -1699,8 +1980,9 @@ import, coexistence with the plugin in both load orders); results in `test\resul
 - v3.53.0 (2026-11-26, main rig, SH4 Refined Session 22; the Options layout rounds R1 + R2: two sandbox workers (W2 OL1 the words, then W3 OL2 the look) merged in that order by the merge agent, `staging/v353_layout/merge353_tools/MERGE_NOTES.md`; md5 5BDAC7F771A1C802C10073801358B616 (out_v353; merge E9ECCF75; Codex APPROVED on inspection 1) (merge353 out_m); **not yet installed or tested in game**): the plan `staging/options_layout/PLAN.md` (approved by the user). **OL1 the words:** every Options page, row, value and line in the plan's words on the rows where they are (`src/ol_words.h` generated from the plan's `layout_data.py`; page names Display, Controls, Interface, Presentation, Gameplay, Pause Menu; stock rows renamed through Refined's copies of their records; BGM / SE Volume keep their labels until R5; the Camera value reads "Eileen"; the Randomizer lines keep "Next room."); Room 302's Back line fixed, the Renderer 16-bit and Bloom lines no longer cut off, the unused Save Bank texts gone; the ini unchanged (screen words mapped). **OL2 the look:** the page strip, blue triangles on folder rows, "Parent > Page" titles, the dependent rows grey and inert with the reason first (the pause Camera rows too), the glyph lines; hidden `[Options] Look`; no strip clicks yet, the value arrows stay white on a grey row. **Merge:** the grey line is one line of at most 52 characters and one drawn line (the reason, then the row's own line, else the reason alone), the reasons and crumbs read OL1's names, titles are taken whole, value-less rows are not measured for arrows; one MSG_V53 block (OL1 V53 + 0 .. 89, 400 .. 409, 420; OL2 + 512 .. 551); no new exe site; 199 exports as v3.52.0.
 - v3.54.0 (2026-11-26, main rig, SH4 Refined Session 22; the Options layout rounds R3 + R4, one sandbox worker (tag OL34), `staging/v354_layout/BUILD_NOTES.md`; md5 E364E634B47A8563A2D6E09CBA5F4E1A (out_v354; sandbox F0E2EB04; Codex APPROVED on inspection 1); **not yet installed or tested in game**): **R3** Option 5 becomes Gameplay with Player / Combat / Items / Enemies / Powers / Randomizer (Curse Meter and Enemy Health to Interface, Supply Drops to Items). **R4** the cycle Display, Controls, Interface, Sound, Effects, Gameplay: Option 4's rows to Display (Aspect Ratio, Display Mode, Monitor, Frame Rate) and Controls > Camera / Room 302 (the Fields of View, Room 302's rows); Option 6 becomes Interface > Menus with Menu Font and Start-Up; Controls > Camera holds the pause camera's settings (Camera, Distance, Side, Height, Tilt Down, Fixed Angles) and Steering the rest (the third level); Screen Effects becomes the top page Effects with Film Grain > and Shadows > (and Renderer, a PLAN section 4 fallback); v3.52's Sound page is top page 3 (Exit; Sound Mode lost its Enter); the hidden pages renumbered to PLAN section 6 (LP_MAX 22), every one on REQ_OPEN / REQ_BACK; the stock pages' special cases off on every rebuilt page (g_stockView 7), a stock row turns yellow by its own cfg byte wherever it sits; the stock pages' rows at their own pitch (10 / 11 rows). The stock rows stay until R5. Every ini key and written word as before; one MSG_V54 block; no new exe site; 199 exports.
 - v3.55.0 (2026-11-26, main rig, SH4 Refined Session 22; the Options layout rounds R5 + R6, one sandbox worker (tag OL56), `staging/v355_layout/BUILD_NOTES.md`; md5 8C47349317D20CF203439562A55FD73C (out_v355; sandbox 25652C38, then Codex fixes OL56-001 / OL56-002; inspection 2 APPROVED); **installed 2026-11-26 17:12** (over v3.52.0; rollback `Mod Backups/winmm.dll.v3.52.0.before_v3.55.0`); **user QA 2026-11-26: items 1-11 pass** (requests and issues for v3.56: `staging/v356_feedback/USER_FEEDBACK_v355.md`); contains v3.53.0 and v3.54.0, which were never installed on their own): **R5** the stock rows on their plan pages (all R0-approved): Sound Mode, Music Volume, Effects Volume on Sound (the bar by the record's input: one exe patch at 0x525672, byte-checked, rolled back on failure, in SH4WM_Patches); Invert Look, Head Bob, Left / Right in Controls > Room 302; the Subtitles / Film Grain / Shadows switches row 0 of their folders (the three are pure folders now); Blood Colour on Gameplay; Renderer back on Display, Menu Font and Start-Up on Interface, Interface > Pause Menu again; every page at the plan's count (10 rows at most); a moved row keeps its cfg byte, its yellow and its "No"; hidden `[Options] StockMoves=0` = v3.54.0's places. **R6** the pause Extra Menu's "Eileen Outfit", its Camera page in the Options names (Tilt Down, Turn Speed, Invert Turn, Wall Zoom, Fixed Angles, Shoulder ...); a click on a page strip name opens that page (a slide, or the fade for the page in the same slot or from a folder page; needs Menus43); this README's pages, old -> new table and Settings notes in the new places. Every ini key and written word as before; one MSG_V55 block; one new exe site (0x525672); 199 exports.
-- v3.56.0 (2026-11-26, main rig, SH4 Refined Session 22; eight sandbox workers (W8 SD356, W7 FR356, W5 PW356, W6 PV356, W1 MN356, W2 RI356, W4 ER356, W3 RE356) merged in that order by the merge agent, `staging/v356_feedback/merge356_tools/MERGE_NOTES.md`; md5 F31C4152FCB574373186BC0BDBFB0EE2 (out_v356; the merge out_m was C6A46D09 before the Codex fixes); Codex: inspection 1 REVISE (SD356-001: Background all four buffer sites or none), inspection 2 REVISE (SD356-002: the page protection and the rollback checked, a mix it cannot undo turns Background off for the session), both fixed, `staging/v356_feedback/PLAN-REVIEW-LOG.md`; **installed 2026-11-26 21:32** (over v3.55.0; rollback `Mod Backups/winmm.dll.v3.55.0.before_v3.56.0`), not yet tested in game; QA `staging/v356_feedback/QA_v356.md`): the user's v3.55 QA and requests (`staging/v356_feedback/USER_FEEDBACK_v355.md`). **SD356 Sound**: an inaudible keep-awake signal (a 45 Hz tone at -72 dBFS) for the whole session, so a wireless headset is awake after Alt+Tab (hidden `[Sound] KeepAwake` / `KeepAwakeLevel`); Sound > Background Mute / Play (four one-byte exe sites 0x4095FE / 0x409B02 / 0x40A14C / 0x40A723: the buffers' global focus); a device watch says when a new sound device needs a restart (hidden `DeviceWatch`; following it live is not built). **FR356 Frame rate**: the final fight's contraption and the spear spot follow the rate (three sites 0x4E4CCE / 0x542529 / 0x54253F, byte-checked, all or none); the rate guard steps gameplay 180 -> 120 -> 60 when the play frames cannot hold the rate (hidden `[Window] RateGuard`; back up after 10 minutes clean at a room change, a rate left twice stays off for the session). **PW356 Powers**: After Shock dims the copies that cover the player in the Shoulder camera (30 %, hidden `AfterImageOtsFade`); at 120 fps and more the effect budget acts from 1.06 x the frame with two spark levels first (v3.55's levels 1 - 9 are 3 - 11) and tested blind steps (hidden `[Graphics] EffectBudgetHighRate`). **PV356 Effects preview**: from a pause, Thermal's heat and Spirit Vision's ghosts and soul fires (two GPU layers, the clean pause picture drawn back); with no paused game Refined's own preview scene, no game art (`[ScreenEffects] PreviewScene`, `PreviewLayers`). **MN356 Menus**: a mouse click opens a folder row (hidden `[Options] FolderClick`); every value its own line (`src/vlines.inc`, MSG_V56 + 0 .. 15); the pause row is "Eileen" again and each pause row is drawn once (hidden `[ExtraMenu] StockShadow`). **RI356 Randomizer items**: Specials (turned round), Room 302 Items Off / Shuffle / Random, Reroll Visits By Room / By World, no Seed / New Seed rows (the seed in small type), no "Next room."; v3.55's KeepSpecials / Room302 / PerVisit migrated once. **ER356 Enemies Return** Off / By Room / By World (By Room = v3.55's On; the Tremer site 0x48ACE5, hidden `ReturnTremers`). **RE356 Randomizer enemies**: Enemies Off / Same World / All Worlds with the victims' ghosts (Monsters migrated), Spawn Site Off / On for every enemy (Ghosts migrated). **The merge**: ONE world-visit rule for Reroll Visits, Enemies Return, Enemies and Spawn Site (`src/worldvisit_sim.h` / `worldvisit.inc`: a load is the game's own signal, gEnemyManager.stage -2 after every save's apply, proven to cover Quick Load, Load Game, the title's Load and Continue; one WvOnRoomLoad call per room load; tests `worldvisit_test` 369 305 + `worldvisit_visits_test` 33); the rate guard waits for the effect budget only while it can still shed; a pause capture is never a late frame for either; the page strip and the folder click share one mid-slide refusal; Randomizer > Eileen Outfit Off got its own line. One MSG_V56 block (MN356 V56 + 0 .. 15, SD356 + 112 .. 115); eight new exe sites (above), all in SH4WM_Patches; 199 exports; no save format change.
-- v3.57.0 (2026-11-26, main rig, SH4 Refined Session 22; Options pass 1, one sandbox worker (tag OLP1), `staging/v357_olp1/BUILD_NOTES.md`; md5 C65DE6A69484847330EC52F747B726F7 (out_v357); Codex inspection 1 REVISE (OLP1-REV-001: a README settings row still said Reroll Visits; fixed, README only, not re-inspected), `staging/v357_olp1/PLAN-REVIEW-LOG.md`; **installed 2026-11-26 22:16** (over v3.56.0, which was not played first; rollback `Mod Backups/winmm.dll.v3.56.0.before_v3.57.0`), not yet tested in game; QA `staging/v357_olp1/QA_v357.md`): the Options Layout session's pass 1 (`staging/options_layout/ASSESSMENT.md`, Codex-reviewed there): 48 rows' descriptions in the conventions N1 - N3 / D1 - D9, three renames (Room 302 Left / Right -> **Turn or Strafe**, Quick Charge 1.5x / 2x / 3x -> **x1.5 / x2 / x3** with the ini still 1.5x / 2x / 3x, Randomizer Reroll Visits -> **Reroll**), the Frame Rate 120 / 180 lines ("experimental; needs a fast PC."), the 16 state lines outside the plan ("... See SH4Refined.log.", the Filter's " Press F7 in play for a new preview." as a second line), the old Option 5 Player folder record's line "Speed, healing and escapes." (Codex OLP1-002); Regeneration x1's line and Ghost Teleport's cooldown line say "seconds"; no row moves, no ini key or written value changes, no exe site.
+- v3.56.0 (2026-11-26, main rig, SH4 Refined Session 22; eight sandbox workers (W8 SD356, W7 FR356, W5 PW356, W6 PV356, W1 MN356, W2 RI356, W4 ER356, W3 RE356) merged in that order by the merge agent, `staging/v356_feedback/merge356_tools/MERGE_NOTES.md`; md5 F31C4152FCB574373186BC0BDBFB0EE2 (out_v356; the merge out_m was C6A46D09 before the Codex fixes); Codex: inspection 1 REVISE (SD356-001: Background all four buffer sites or none), inspection 2 REVISE (SD356-002: the page protection and the rollback checked, a mix it cannot undo turns Background off for the session), both fixed, `staging/v356_feedback/PLAN-REVIEW-LOG.md`; **installed 2026-11-26 21:32** (over v3.55.0; rollback `Mod Backups/winmm.dll.v3.55.0.before_v3.56.0`), **play-tested 2026-11-27 with v3.57.0 (QA `staging/v356_feedback/QA_v356.md`: items 1-3, 6-11 pass; 4 / 5 the preview to change, 12 Reroll against Enemies Return, 13 a few slow seconds with powers together: the v3.58 round `staging/v358_feedback/`)**; QA `staging/v356_feedback/QA_v356.md`): the user's v3.55 QA and requests (`staging/v356_feedback/USER_FEEDBACK_v355.md`). **SD356 Sound**: an inaudible keep-awake signal (a 45 Hz tone at -72 dBFS) for the whole session, so a wireless headset is awake after Alt+Tab (hidden `[Sound] KeepAwake` / `KeepAwakeLevel`); Sound > Background Mute / Play (four one-byte exe sites 0x4095FE / 0x409B02 / 0x40A14C / 0x40A723: the buffers' global focus); a device watch says when a new sound device needs a restart (hidden `DeviceWatch`; following it live is not built). **FR356 Frame rate**: the final fight's contraption and the spear spot follow the rate (three sites 0x4E4CCE / 0x542529 / 0x54253F, byte-checked, all or none); the rate guard steps gameplay 180 -> 120 -> 60 when the play frames cannot hold the rate (hidden `[Window] RateGuard`; back up after 10 minutes clean at a room change, a rate left twice stays off for the session). **PW356 Powers**: After Shock dims the copies that cover the player in the Shoulder camera (30 %, hidden `AfterImageOtsFade`); at 120 fps and more the effect budget acts from 1.06 x the frame with two spark levels first (v3.55's levels 1 - 9 are 3 - 11) and tested blind steps (hidden `[Graphics] EffectBudgetHighRate`). **PV356 Effects preview**: from a pause, Thermal's heat and Spirit Vision's ghosts and soul fires (two GPU layers, the clean pause picture drawn back); with no paused game Refined's own preview scene, no game art (`[ScreenEffects] PreviewScene`, `PreviewLayers`). **MN356 Menus**: a mouse click opens a folder row (hidden `[Options] FolderClick`); every value its own line (`src/vlines.inc`, MSG_V56 + 0 .. 15); the pause row is "Eileen" again and each pause row is drawn once (hidden `[ExtraMenu] StockShadow`). **RI356 Randomizer items**: Specials (turned round), Room 302 Items Off / Shuffle / Random, Reroll Visits By Room / By World, no Seed / New Seed rows (the seed in small type), no "Next room."; v3.55's KeepSpecials / Room302 / PerVisit migrated once. **ER356 Enemies Return** Off / By Room / By World (By Room = v3.55's On; the Tremer site 0x48ACE5, hidden `ReturnTremers`). **RE356 Randomizer enemies**: Enemies Off / Same World / All Worlds with the victims' ghosts (Monsters migrated), Spawn Site Off / On for every enemy (Ghosts migrated). **The merge**: ONE world-visit rule for Reroll Visits, Enemies Return, Enemies and Spawn Site (`src/worldvisit_sim.h` / `worldvisit.inc`: a load is the game's own signal, gEnemyManager.stage -2 after every save's apply, proven to cover Quick Load, Load Game, the title's Load and Continue; one WvOnRoomLoad call per room load; tests `worldvisit_test` 369 305 + `worldvisit_visits_test` 33); the rate guard waits for the effect budget only while it can still shed; a pause capture is never a late frame for either; the page strip and the folder click share one mid-slide refusal; Randomizer > Eileen Outfit Off got its own line. One MSG_V56 block (MN356 V56 + 0 .. 15, SD356 + 112 .. 115); eight new exe sites (above), all in SH4WM_Patches; 199 exports; no save format change.
+- v3.57.0 (2026-11-26, main rig, SH4 Refined Session 22; Options pass 1, one sandbox worker (tag OLP1), `staging/v357_olp1/BUILD_NOTES.md`; md5 C65DE6A69484847330EC52F747B726F7 (out_v357); Codex inspection 1 REVISE (OLP1-REV-001: a README settings row still said Reroll Visits; fixed, README only, not re-inspected), `staging/v357_olp1/PLAN-REVIEW-LOG.md`; **installed 2026-11-26 22:16** (over v3.56.0, which was not played first; rollback `Mod Backups/winmm.dll.v3.56.0.before_v3.57.0`), **play-tested 2026-11-27: items 1-7 pass (QA `staging/v357_olp1/QA_v357.md`)**; QA `staging/v357_olp1/QA_v357.md`): the Options Layout session's pass 1 (`staging/options_layout/ASSESSMENT.md`, Codex-reviewed there): 48 rows' descriptions in the conventions N1 - N3 / D1 - D9, three renames (Room 302 Left / Right -> **Turn or Strafe**, Quick Charge 1.5x / 2x / 3x -> **x1.5 / x2 / x3** with the ini still 1.5x / 2x / 3x, Randomizer Reroll Visits -> **Reroll**), the Frame Rate 120 / 180 lines ("experimental; needs a fast PC."), the 16 state lines outside the plan ("... See SH4Refined.log.", the Filter's " Press F7 in play for a new preview." as a second line), the old Option 5 Player folder record's line "Speed, healing and escapes." (Codex OLP1-002); Regeneration x1's line and Ghost Teleport's cooldown line say "seconds"; no row moves, no ini key or written value changes, no exe site.
+- v3.58.0 (2026-11-27, main rig, SH4 Refined Session 22; eight sandbox workers (W8 SD358, W7 GX358, W6 GT358, W5 FI358, W4 EN358, W3 RZ358, W2 PV358, W1 MN358) merged in that order by the merge agent, `staging/v358_feedback/merge358_tools/MERGE_NOTES.md`; md5 FBF82500CB507CFA742792E8FB5AA38A (out_v358; the merge out_m was 00FA14DD before the Codex fixes); Codex: inspection 1 REVISE (SD358-001: a stale mute marker could clear a mute the user set in Windows; fixed: the marker lists the sessions Refined muted), inspection 2 REVISE (SD358-002: the marker write was not checked; fixed: written to a temp file, verified, then moved over, and no mute unless recorded), inspection 3 granted by the user REVISE (SD358-003: a failed mute whose marker cleanup also failed left a name that could undo a later user mute at the next start; fixed: entries are pending until the mute is confirmed, only confirmed ones are unmuted at a start, failed writes retried; not re-inspected), `staging/v358_feedback/PLAN-REVIEW-LOG.md`; **installed 2026-11-27 09:14 over v3.57.0 (rollback `Mod Backups/*before_v3.58.0`; lock 09:13, released 09:14), not yet tested in game**): the user's v3.56 / v3.57 QA (`staging/v358_feedback/USER_FEEDBACK_v357.md`). **SD358 Sound**: Background Mute mutes every sound at once behind other windows (Windows' sound session of the game, on every output device, the keep-awake tone included; only Refined's own mutes are undone; a next start unmutes a mute left by an exit behind other windows, the file `SH4Refined.muted`; WM_CLOSE unmutes first; hidden `[Sound] SessionMute`); Music / Effects Volume 0 is silent (the game's attenuation floor of -60 dB, -40 dB with Night Mode High, is gone for its 0; Room 302's stream 0x2774 no longer fades itself back up from 0: new site 0x40B2E7; hidden `ZeroSilent`). **GX358 Graphics**: Shadows Off is the game's Off at once (the game keeps a few rooms' shadows, as stock); the Shadows page's preview and Echo Doubles' ground discs follow it; powers starting together at 120 / 180 take the effect budget's start step (then fill back in), far-late frames step 0.25 s apart, the rate guard judges the last second when the budget has nothing left (hidden `[Graphics] EffectBudgetQuick`). **GT358 Ghost Teleport**: the fade's dark lines gone (her stock draw builds the pose only; after the actor models, call 0x4EF905, her body and weapon get a depth pre-pass and one blend through the game's pixel shader 5); Thermal's heat body and Spirit Vision's soul fire fade with her, her shadow from half opacity (hidden `[Gameplay] GhostTeleportFadeDraw`). **FI358 Reveal Method's portal**: sized to the arriving body (1.24 x its height from the first portal and up to 9 smaller ones plus two blot sets, nothing stretched), Refined's sticky strands (16; 8 beside a ghost's own) hold 3 s after it is in, the portal open until then; Jasper / Andrew / Richard get strands again (hidden `FadeInStrandSeconds` / `FadeInPortalPieces` / `FadeInStrands`). **EN358 Enemies**: victims the randomizer drew follow through doors and are judged by Pursuit; a per-door line of the followed ghosts; no health bar for an enemy the game does not draw yet (the Subway's event dogs before story flag 0x130), the bar fades in with the body; Walter downed keeps his bar and gets a revive bar from the game's own down timer. **RZ358 Randomizer**: the reroll no longer brings killed enemies back at a room change (bodies keep the type they died as, kill bits and saves keep them dead, Enemies Return alone decides); Extra Enemies' copies draw their own types (their files loaded, their own sites with Spawn Site; hidden `[Gameplay] CopyRecordGuard`). **PV358 Effects**: Effects > Preview Off / Stock / Live (`[ScreenEffects] Preview`, default Live; the stock picture `SH4Refined_preview_stock.dds` is a file in the game folder, never in the dll, never written by F7; v3.56's hidden PreviewScene migrated once); Effects > Filter Strength Low / Medium / High / Ultra (default High = v3.16 - v3.57's look; v3.15's unread value read once as High through the marker `FilterStrengthV`); Depth of Field and Blur Strength in the folder Effects > Depth of Field > (Effects 11 rows); the preview's Thermal heat layer writes the bodies' depth again. **MN358 Options**: one value box per page (values centred, both arrows at its edges on every row and value, the mouse rects with them, the volume bars' arrows through sites 0x5256B6 / 0x5256E2, the right-arrow rect's width set on the long-value path that v3.19 - v3.57 left stale, the pause Camera page's ">" at one place; hidden `[Options] ValueBox`); Fade In -> Reveal Method (Fade -> Fade In), Film Grain Strength Very High -> Ultra (the ini words unchanged), no "Next room." in Extra Enemies' lines, Item Stacks On's line; the randomizer's no-pickup-model stage line is a plain line. **MERGE**: the heat redraw keeps PV358's depth write and GT358's pre-pass; FiInit keeps FI358's keys and MN358's label; one MSG_V58 block (PV358 V58 + 16 .. 28); 199 exports; four new exe sites, none overlapping another, Playable Eileen's hooks or the cheat table; run_tests.py's 17 known FAIL lines unchanged.
 - v3.52.0 (2026-11-26, main rig, SH4 Refined Session 22; seven sandbox workers (W4 SH352, W7 EP352, W2 HB352, W5 TP352, W6 QL352, W3 FX352, W1 SND352) merged in that order by the merge agent, `staging/v352_feedback/merge352_tools/MERGE_NOTES.md`; md5 9AC9B22AB768C125565D24FB5D985018 (out_v352; merge D270E181, then Codex fix SND352-001; Codex APPROVED on inspection 2); **installed 2026-11-26 12:20**; **user QA 2026-11-26: items 1-5, 8-10 pass** (6 the Otherworld Lens not noticed though the log shows it drawn at 70 %; 7 the turnstile floor shadows are baked into the textures, not a real-time shadow); rollback `G:/SH4 Mod Archive/2026-11-14/Mod Backups/*before_v3.52.0`): the user's v3.51 QA (`staging/v352_feedback/USER_FEEDBACK_v351.md`). **SH352 Shadows** (D5, D8): the Darkness row runs 25 -> 100 % (Left lighter), the ini unchanged; 4:1F and cut-scene 0x43 have no real-time shadow in the game (0x55F660 sets the darkness to 0); a reason logged for every composite that is not soft. **EP352 Enemy Pursuit** (QA 2): Forgetful's victims' ghosts give up at 1200 u for 3 s, after 8 s, or 3 s out of sight; after the rest a ghost stays calm until it senses you again (Normal 2000 u, Forgetful 1200 u); dives into a wall set back, ghosts never handed to the game by the quick guard. **HB352 Enemy Health Bars** (D1, D2): only for enemies the game draws in this room; a boss's bar at any distance, at the top edge for a tall body. **TP352 Ghost Teleport** (D4): every landing proven by her body and the floor map; freed from a wall after a warp. **QL352 Quick Load from the pause** (Q2): a fade to black inside the pause, the music paused until the loaded room runs (hidden `[ExtraMenu] QuickLoadInPause`). **FX352 Screen Effects** (D3, D6, D7): Depth of Field with a close third-person camera (only Room 302's first-person view and the views of another place skip it); Bloom Off / Low / Medium / High / Ultra, migrated once; the Otherworld Lens at 70 % (hidden `LensBase`). **SND352 Sound** (Q1): Option 1 > Sound Mono / Stereo / Headphones / Surround (`[Sound] Mode`), the Sound page (Stereo Width, Room Reverb, Night Mode), a smooth pan law, the Mono fold, the Options "No" discard fixed; eleven exe sites in four groups. **Merge rule:** the Sound mode keeper waits while Quick Load from the pause holds the sound, and the music comes back through the game's own path (Night Mode and Mono still apply). Text ids: the MSG_V52 block (V52 29907, MSG_END 29971; SND352 V52 + 0 .. 18, the rest unused); exports unchanged (199).
 - v3.51.0 (2026-11-25, main rig, SH4 Refined Session 22; five sandbox workers (W5 MU351, W4 SN351, W1 TP351, W2 EP351, W3 PT351) merged in that order by the merge agent, `staging/v351_feedback/merge351_tools/MERGE_NOTES.md`; md5 F4D0E4860A15A08170F34AE5F6233BB2 (out_v351; merge 850861C1, then Codex fixes TP351-001 / PT351-001 / PT351-002); **installed 2026-11-26 00:31**; **user QA 2026-11-26: items 1-5 pass** (Forgetful victims still hard to shake: v3.52); rollback `G:/SH4 Mod Archive/2026-11-14/Mod Backups/*before_v3.51.0`): the user's v3.50 QA (`staging/v351_feedback/USER_FEEDBACK_v350.md`). **W5 MU351, the level music in the load list** (QA item 11): the Extra Menu's Storage Chest / Save Game / Load Game no longer bring the level music back (v3.32 - v3.50 called the game's "resume sound" and then its "overlay" pause: full volume for a moment, then 20 %); the pause's own silence goes on (hidden `[ExtraMenu] PauseSound`; `test/pausesound_test.c` 132 checks). **W4 SN351, the first Sniffers** (QA item 4): Subway room 2:2's three event dogs (and their copies) were no source placement; they roll once story flag 130 is set (238 sources, was 235), else stay as placed; a roll of the placement's own type rolls once more (hidden `[Randomizer] MonsterRollAgain`); the native test replays the user's 23 logged rolls exactly (`test/rzmon_sim_test.c` 1 130). **W1 TP351, Ghost Teleport and collision** (QA item 2): never behind an enemy on the other side of collision (a wall, a prop, a turnstile, a ghost in its wall): the next enemy in the cone in the open, else the warp ahead (hidden `GhostTeleportBehindCollision`; `test/gt_sim_test.c` 226). **W2 EP351, Enemy Pursuit inside the room** (QA item 9 failed: v3.50 acted only at doors): chasing monsters give up after 10 / 4 s out of their senses and go back to their own routine by the game's own AI states; victims' ghosts give up when far (2500 / 1500 for 12 / 6 s) or after a 25 / 12 s chase without touching you, then rest 8 / 15 s; one that gave up does not follow through the next door (hidden `PursuitInRoom`; `test/pursuit_room_test.c`). **W3 PT351, the tar portal** (QA item 7): Fade + Portal's portal is the game's own wall portal look (its draws 0x4868B0 / 0x486E80 from Refined's blocks after the game's pass 2, phase 0's step list entry 0x62BC98) with the ghost's own strands; the arriving ghost is held 2.5 s (40 % speed, no grab; hidden `FadeInPortalDraw` / `FadeInHold`; `test/fadein_sim_test.c` 314). **Merge:** a ghost in the tar portal's hold is not judged by Enemy Pursuit (its timers start when the hold ends; it never sets the state of, withdraws the requests of or moves a held ghost; `test/pursuit_room_test.c` TestPortalHold). Text ids: MSG_V51 = MSG_V50 + 64, MSG_END = MSG_V51 + 32 (none used). New exe site: none in code; one data site 0x62BC98 (4 bytes, byte-checked, put back on a failed write; data, so not in SH4WM_Patches, as EntityGate's 0x62BC94 / 0x62BCB0). Exports unchanged (199). No save format change. Tests: 45 native tests, logcheck_test, fontlib_test, check_exports pass; run_tests.py: the known 17 FAIL lines only.
 - v3.50.0 (2026-11-25, main rig, SH4 Refined Session 22; six sandbox workers (W2 RM350, W3 RL350, W6 R302, W1 TP350, W5 EF350, W4 FI350) merged in that order by the merge agent, `staging/v350_feedback/merge350_tools/MERGE_NOTES.md`; md5 B3185A0C0E6BB5AB22C56FD2BC535400 (out_v350; merge E9AA41AB, then Codex fixes TP350-001 / FI350-001); **installed 2026-11-25 18:28; user QA 2026-11-25: items 1-8 and 10 pass, 9 Enemy Pursuit fails (acts only at doors; fixed in v3.51)**): the user's v3.49 QA (`staging/v350_feedback/USER_FEEDBACK_v349.md`). **W2 RM350, Randomizer Monsters** (QA items 4 / 5, "Monster randomizer does not work"; queue "monsters from all worlds"): a game played from saves holds the game's own enemy record of every room the save visited, and v3.49's RZ349-SAVE-001 rule kept every placement with a record SH4 Refined had not written as placed, also a record of the stock monster (the user's log: 7 room loads, 1 of 15 placements changed); now the game's own record of the stock monster in its room is adopted (rolled like a fresh placement, deleted when the roll gives another type, Refined's from then on), records of another type Refined did not write keep RZ349-SAVE-001's protection; new value **All Worlds**; the room line counts the adopted records and why each placement kept its stock type (`test/rzmon_sim_test.c` 1 100 checks). **W3 RL350, Randomizer looks** (QA item 6 "change per room, remove the unlock limiter", item 7): **Eileen Outfit** draws among every companion outfit (no Nurse unlock) and, with Change Each Visit On, again at every room load of her world (at most two rooms in a row alike; the final fight keeps its outfit), through the outfit engine's room-load path; **Ghosts Spots** now shows: v3.49 could swap two victims, moved most 400-600 units, and the game restored a victim from its own record half the time (EnemyGhostReconcile 0x482590); now 800 + away when the room allows, never at another ghost's place, and a standing record of the victim in the room moves with it (pinned / down ones stay) (`test/rzlooks_sim_test.c` 11 101). **W6 R302, Room 302 for Henry and Eileen** (QA item 9): Options > Option 4 > Room 302 (Look Down, Look Up, Look Feel, Walk Speed), taken over from Playable Eileen's Room 302 (its look limits, exact pitch clamp and look easing: sites 0x52DF74 / 0x52DCC6 / 0x52DD14; its walk speed through Movement Speed's own Room 302 operands); inert (rows grey) while Playable Eileen has no SH4PE_Room302Yield export (v1.24.4; PE v1.25.0 accepted `staging/v350_feedback/w6_room302/R302_CONTRACT.md`); new export SH4R_Room302 (@200); seeded from SH4PlayableEileen.ini [Room302] (`test/r302_sim_test.c` 137). **W1 TP350, Ghost Teleport through walls** (QA item 2, A1-A3): the warp ahead looks along her facing and +-10 / +-20 degrees, every 40 u, past the first thing she could not walk straight to, for the nearest standable spot whose floor a route of the room reaches (a flood of the room's floor by the player's own walking rules from its doors and her standing places, built once a room visit: Subway room 2:9's whole map is 2648 cells, 3.8 ms natively); behind the enemy she faces only (inside +-35 degrees), from twice as far (5000 u); the fade-out owns the Action button (v3.49's log: 7 warps called off by an examine); a quota per refusal kind, one line per room visit (`test/gt_sim_test.c` 202). **W5 EF350, Enemies** (C1, C4, C5): Enemies Follow "Victims Only" renamed Victims; Enemy Pursuit Relentless / Normal (default) / Forgetful (enemies lose track of you: out of their senses 10 / 4 s when you leave, downed when you leave, 2 / 1 doors without catching up); followers survive saves and loads (side file save\SH4Refined_follow.dat keyed by the save's enemy block; hooks 0x4FC1A4 / 0x4FC6ED, `[Gameplay] FollowSaveFile`); a load no longer reports a follower that came in after the save as "lost between the rooms" (`test/pursuit_sim_test.c` 88). **W4 FI350, Fade In** (C2, C3): a new Enemies row, `[Gameplay] FadeIn` Off / Fade / Fade + Portal (default): every enemy actor is remembered at its first visible draw of a room visit and one that may fade is drawn by the game's own see-through enemy draw 0x45C880 instead of ModelDraw over 0.8 s (the existing 0x52AEB5 / 0x52AF95 hooks, through a wrapper `ThermDrawFi`; the shadow joins at half in; the arriving victim's placeholder -> ghost take-over keeps the fade); Fade + Portal draws a procedural crimson vortex for each ghost that arrives after the room's first 1.5 s, in the scene pass with the exact depth; never bosses, Wall Men, mm, Wheelchairs, the Patient, Walter, event spawns, dead bodies, cut-scenes or a ghost from the game's own portal (`test/fadein_sim_test.c` 243). The Enemies page: Enemy Copies, Enemies Follow, Enemy Pursuit, Enemy Health Bars, Supply Drops, Revive Enemies, Fade In, Back (8 rows); Option 4 gets the Room 302 folder row (10 rows). Text ids: MSG_V50 = MSG_RZ1 + 32, MSG_END = MSG_V50 + 64 (FI350 V50 + 8 .. 15, EF350 V50 + 16 .. 23, R302 V50 + 32 .. 61; RM350 RZ1 + 5 / + 6). New exe sites: 0x4FC1A4, 0x4FC6ED (5 bytes each, byte-checked, in SH4WM_Patches, on no Playable Eileen hook or cheat table span); R302's three only when Playable Eileen yields. New export SH4R_Room302 (ordinal 200, DATA; 199 exports). No save format change. Tests: 43 native tests, logcheck_test, fontlib_test, check_exports pass; run_tests.py: the known 17 FAIL lines only.

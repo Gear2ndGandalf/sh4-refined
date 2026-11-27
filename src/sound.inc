@@ -49,6 +49,26 @@
 //   ([Sound] FollowDevice) is NOT built: DirectSound binds to its device when it is made, and re-making it means re-making
 //   every buffer, 3D listener, reverb object and stream of the game's sound engine while it plays (PLAN.md: what it would
 //   take, the risks; the user decides).
+// v3.58 SD358 (staging/v358_feedback/w8_sound/PLAN.md; the user's v3.57 QA: "Music volume at zero does not fully silence the
+// music" and "when setting to Mute again the app never mutes in the background on my headset"):
+// - Volume 0 = silent (hidden [Sound] ZeroSilent=1): the game's 2D / stream attenuation (0x409040 / 0x40B550) never goes below
+//   -60 dB, so its own "0" played at -60 dB (-40 dB with Night Mode High). The three volume hooks now see the level the game set
+//   and give DirectSound silence (-10000) when it is the game's 0: Music Volume 0, Effects Volume 0, a pause's master 0.
+//   Stream 0x2774 (Room 302) fades itself up to 0 dB whatever it was set to: its set level comes from SndVoice::SetVolume
+//   (0x40B2E7, a new 6-byte site: call + nop, byte-checked, rolled back, listed in SH4WM_Patches).
+// v3.58 SD358-001 (Codex): SH4Refined.muted names each session Refined holds muted (its session identifier, the time); the
+//   next start unmutes only a named session that is still muted; a held session the user changes in the Volume Mixer
+//   (another event context than Refined's) is left as they set it.
+// v3.58 SD358-003 (Codex): each entry of SH4Refined.muted is "pending" (written before the SetMute) or "muted" (rewritten after
+//   it worked); only "muted" unmutes at the next start, a pending one is left as it is (logged) and dropped. A failed marker
+//   write is written again at the watch thread's next pass.
+// - Background Mute by the sound session (hidden [Sound] SessionMute=1): while another window is in front, the device-watch
+//   thread mutes every audio session of the game's process (DirectSound, the films' sound, the keep-awake tone) on every
+//   active output device, and unmutes only those it muted when the game is in front again. The four buffer sites then carry
+//   the global focus in both modes (DirectSound's own focus rule is not needed), so Mute and Play apply at once to sounds
+//   already playing. A session muted by the user in Windows' mixer is left alone. The file SH4Refined.muted marks sessions
+//   held muted by Refined; when the game ended behind other windows, the next start unmutes them. Without a session to
+//   mute, Mute is v3.56's (the game's own focus rule for new sounds) and the keep-awake tone stops behind other windows.
 #include "sound_sim.h"
 static int QlSoundHeld(void);  // v3.52 MERGE: extramenu.inc (QL352): 1 while Quick Load from the pause holds the sound
 
@@ -85,7 +105,7 @@ static DWORD g_rowsSnd1[8 * 7];        // Option 1's own copy when the Menu Font
 static DWORD g_sndModeIds[SND_MODE_N], g_sndWidthIds[11], g_sndRevIds[2], g_sndNightIds[SND_NIGHT_N];
 // counters (the hooks may run on any thread the game's sound code runs on: interlocked)
 enum { SNC_V2D, SNC_V3D, SNC_VSTR, SNC_NIGHT, SNC_P2D, SNC_P2D_ONE, SNC_P2D_STOCKONE, SNC_PSTR, SNC_PSTR_ONE,
-       SNC_PSTR_STOCKONE, SNC_MUSICFOLD, SNC_N };
+       SNC_PSTR_STOCKONE, SNC_MUSICFOLD, SNC_Z2D, SNC_Z3D, SNC_ZSTR, SNC_N };  // v3.58 SD358: + the volumes made silent
 static volatile LONG g_sndC[SNC_N];
 static volatile LONG g_sndMonoBlocks;  // stereo stream blocks folded (the 0x40AB4A stub)
 // the unfolded copy of the seq*.pac music (made at the first fold of a load)
@@ -106,6 +126,21 @@ static volatile LONG g_sndDevNote;          // 1 = the default device is not the
 static LONG g_sndDevNoteShown;
 static int g_sndFront = -1;                 // the game's window was in front at the last look (-1 = not looked yet)
 static DWORD g_sndFrontAt, g_sndFocusAt;
+// v3.58 SD358: Volume 0 = silent; Background Mute by the sound session
+static int g_sndZeroOn = 1;                 // hidden [Sound] ZeroSilent
+static int g_sndZero2DOk, g_sndZeroStrOk;   // the code around the 2D / stream hooks is the GOG v7 code (the set level readable)
+static int g_sndStrSetOn;                   // the 0x40B2E7 site is in
+static volatile LONG g_sndStrSet[4] = { SND_STR_UNSET, SND_STR_UNSET, SND_STR_UNSET, SND_STR_UNSET };  // each channel's set level
+static int g_sndSessOn = 1;                 // hidden [Sound] SessionMute
+static volatile LONG g_sndSessOk;           // the watch thread can mute the game's sessions (it found one, SetMute worked)
+static volatile LONG g_sndMuteReq = -1;     // to the watch thread: 1 mute, 0 unmute, -1 nothing
+static volatile LONG g_sdAlive;             // the watch thread runs its loop
+static HANDLE g_sdDone;                     // set by the watch thread after each mute / unmute request
+static int g_sndMuteWant;                   // the last request sent (the game thread)
+static int g_sndKeepHeld;                   // the keep-awake tone is stopped (Mute without a session, behind other windows)
+static int g_sndStaleShown;                 // the fallback's "made with the global focus" count was logged for this time behind
+static int g_sndBgSyncOff;                  // the buffer sites could not follow the session's state: they keep the mode's byte
+static DWORD g_sndExitAt;                   // WM_CLOSE: no new mute for 3 s (the game is closing)
 
 // ---------------------------------------------------------------- texts (MSG_V52 + 0 .. 23: SND352's ids)
 enum { SNDM_T, SNDM_L_WIDTH, SNDM_L_REV, SNDM_L_NIGHT, SNDM_L_BACK, SNDM_D_MODE, SNDM_D_WIDTH, SNDM_D_REV, SNDM_D_NIGHT,
@@ -226,9 +261,40 @@ static int SndVolAdj(int db)
     if (o != db) InterlockedIncrement(&g_sndC[SNC_NIGHT]);
     return o;
 }
-static int __cdecl SndVol2DC(int db) { InterlockedIncrement(&g_sndC[SNC_V2D]); return SndVolAdj(db); }
-static int __cdecl SndVol3DC(int db) { InterlockedIncrement(&g_sndC[SNC_V3D]); return SndVolAdj(db); }
-static int __cdecl SndVolStrC(int db) { InterlockedIncrement(&g_sndC[SNC_VSTR]); return SndVolAdj(db); }
+// v3.58 SD358: raw = the level SetVolumePan was given ([esp+10h] at 0x4090A6), db = after the game's attenuation
+static int __cdecl SndVol2DC(int db, int raw)
+{
+    InterlockedIncrement(&g_sndC[SNC_V2D]);
+    if (g_sndZeroOn && g_sndZero2DOk && SndZero2D(raw, db) != db) {  // the game's 0: silence (not its -60 dB floor)
+        InterlockedIncrement(&g_sndC[SNC_Z2D]);
+        return SND_VOL_MIN;
+    }
+    return SndVolAdj(db);
+}
+static int __cdecl SndVol3DC(int db)
+{
+    InterlockedIncrement(&g_sndC[SNC_V3D]);
+    if (g_sndZeroOn && SndZero3D(db) != db) {  // v3.58 SD358
+        InterlockedIncrement(&g_sndC[SNC_Z3D]);
+        return SND_VOL_MIN;
+    }
+    return SndVolAdj(db);
+}
+// v3.58 SD358: ch = the channel (SndVoice + r * 0x1AC0C8: +0x12C010 its level, after the 0x2774 fade), self = the SndVoice
+static int __cdecl SndVolStrC(int db, const BYTE *ch, const BYTE *self)
+{
+    InterlockedIncrement(&g_sndC[SNC_VSTR]);
+    if (g_sndZeroOn && g_sndZeroStrOk) {
+        const ULONG_PTR d = (ULONG_PTR)(ch - self);
+        const unsigned r = d % 0x1AC0C8 == 0 && d / 0x1AC0C8 < 4 ? (unsigned)(d / 0x1AC0C8) : 4;
+        const int set = g_sndStrSetOn && r < 4 ? (int)g_sndStrSet[r] : SND_STR_UNSET;
+        if (SndZeroStream(set, *(const int *)(ch + 0x12C010), db) != db) {
+            InterlockedIncrement(&g_sndC[SNC_ZSTR]);
+            return SND_VOL_MIN;
+        }
+    }
+    return SndVolAdj(db);
+}
 
 static __declspec(naked) void hkSndPan2D(void)  // 4090BD (call): ecx = the pan 0..127 in, DirectSound's pan out; eax kept
 {
@@ -258,13 +324,14 @@ static __declspec(naked) void hkSndPanStr(void)  // 40B617 (call): eax = panL in
     }
 }
 static __declspec(naked) void hkSndVol2D(void)  // 4090A6 (call): was push eax; push ecx; call [edx+3Ch] (SetVolume)
-{
+{   // v3.58 SD358: + the level SetVolumePan was given: [esp+10h] at the site, [esp+1Ch] here (the return address, ecx, edx)
     __asm {
         push ecx
         push edx
+        push dword ptr [esp + 1Ch]
         push eax
         call SndVol2DC
-        add esp, 4
+        add esp, 8
         pop edx
         pop ecx
         push eax
@@ -290,18 +357,36 @@ static __declspec(naked) void hkSndVol3D(void)  // 409285 (call): was push eax; 
     }
 }
 static __declspec(naked) void hkSndVolStr(void)  // 40B5E7 (call): was push eax; push ecx; call [edx+3Ch]
-{
+{   // v3.58 SD358: + esi (the channel) and edi (the SndVoice), as ApplyVolume holds them
     __asm {
         push ecx
         push edx
+        push edi
+        push esi
         push eax
         call SndVolStrC
-        add esp, 4
+        add esp, 0Ch
         pop edx
         pop ecx
         push eax
         push ecx
         call dword ptr [edx + 3Ch]
+        ret
+    }
+}
+// v3.58 SD358: 40B2E7 (call + nop): was mov [eax+12C010h], ecx (SndVoice::SetVolume(r, vol): eax = the channel, ecx = vol);
+// the store, then the level kept for channel r ([esp+4] at the site = r; [esp+0Ch] here after the return address and edx)
+static __declspec(naked) void hkSndStrSet(void)
+{
+    __asm {
+        mov dword ptr [eax + 12C010h], ecx
+        push edx
+        mov edx, dword ptr [esp + 0Ch]
+        cmp edx, 4
+        jae done
+        mov dword ptr g_sndStrSet[edx * 4], ecx
+    done:
+        pop edx
         ret
     }
 }
@@ -549,10 +634,11 @@ static int SndBgWrite(int play, int prev)
 }
 static void SndSetBg(int v, const char *why)
 {
-    const int was = (int)g_sndBg;
+    const int was = (int)g_sndBg, sess = g_sndSessOk != 0;  // v3.58 SD358: the sites follow (mode, session), SndBgSitesPlay
+    const int nowPlay = g_sndBgOn && SndBgAll(SndBgByte(1)), toPlay = SndBgSitesPlay(v, sess && !g_sndBgSyncOff);
     int r;
     if (v < 0 || v >= SND_BG_N) return;
-    r = g_sndBgOn && v != was ? SndBgWrite(v, was) : 1;
+    r = g_sndBgOn && toPlay != nowPlay ? SndBgWrite(toPlay, nowPlay) : 1;
     if (r < 0) {  // v3.56 MERGE (Codex SD356-002): a mix: Background is off for the session, the sites as they are logged
         g_sndBgOn = 0;
         SndTextsDynamic();
@@ -571,11 +657,44 @@ static void SndSetBg(int v, const char *why)
     if (was == v) return;
     SndIniWrite("Background", kSndBgName[v], "Background");
     Log("sound: Background %s -> %s (%s): %s", kSndBgName[was], kSndBgName[v], why,
-        !g_sndBgOn ? "no buffer sites this session: the game's own (muted while another window is in front)"
+        sess && !g_sndBgSyncOff && g_sndBgOn  // v3.58 SD358: by the sound session: every sound at once, either way
+            ? (v ? "every sound goes on while another window is in front, also the ones playing (the sound session is not muted)"
+                 : "every sound is silent while another window is in front, also the ones playing (Refined mutes the game's sound "
+                   "session, the keep-awake tone included)")
+        : !g_sndBgOn ? "no buffer sites this session: the game's own (muted while another window is in front)"
         : v ? "sounds that start from now on go on while another window is in front (DirectSound's global focus); the ones playing "
               "keep theirs until they end"
             : "sounds that start from now on are muted while another window is in front (the game's own); the ones playing keep "
               "theirs until they end");
+}
+// v3.58 SD358: the buffer sites follow (Background, the session): Play while Refined mutes by the session (or Background
+// Play), the game's own byte for Mute without a session. The frame end (the game thread), each focus look.
+static void SndBgSync(void)
+{
+    int play, r;
+    static LONG s_q;
+    if (!g_sndBgOn || g_sndBgSyncOff) return;
+    play = SndBgSitesPlay((int)g_sndBg, g_sndSessOk != 0);
+    if (SndBgAll(SndBgByte(play))) return;
+    r = SndBgWrite(play, !play);
+    if (r < 0) {
+        g_sndBgOn = 0;
+        SndTextsDynamic();
+        LogAnomaly("sound", "Background: the buffer sites could not follow the sound session (now %02X %02X %02X %02X): Background is off "
+                   "for this session", *SndBgAt(0), *SndBgAt(1), *SndBgAt(2), *SndBgAt(3));
+        return;
+    }
+    if (r == 0) {
+        g_sndBgSyncOff = 1;
+        Log("sound: background: the buffer sites could not be set to %s: they keep the Background mode's own byte this session",
+            play ? "Play" : "Mute");
+        return;
+    }
+    if (LogQuota(&s_q, 10))
+        Log("sound: background: the buffer sites now %s (%s)", play ? "Play" : "Mute",
+            play && !g_sndBg ? "Background Mute by the sound session: DirectSound's own focus rule is not needed"
+            : play ? "Background Play" : "Background Mute without a sound session: DirectSound's own focus rule mutes sounds that start "
+                                         "from now on");
 }
 static void SndReadIni(void)
 {
@@ -622,6 +741,8 @@ static void SndReadIni(void)
     }
     g_sndKeepLevel = v;
     g_sndDevWatch = GetPrivateProfileIntA("Sound", "DeviceWatch", 1, g_iniPath) != 0;  // hidden
+    g_sndZeroOn = GetPrivateProfileIntA("Sound", "ZeroSilent", 1, g_iniPath) != 0;     // v3.58 SD358: hidden
+    g_sndSessOn = GetPrivateProfileIntA("Sound", "SessionMute", 1, g_iniPath) != 0;    // v3.58 SD358: hidden
 }
 
 // ---------------------------------------------------------------- install (DllMain; all or nothing per group, rollback)
@@ -712,6 +833,34 @@ static void SndInstall(void)
     SndCall(&p[1], 0x409285, 0xE8, hkSndVol3D, 5, kVolEsi);
     SndCall(&p[2], 0x40B5E7, 0xE8, hkSndVolStr, 5, kVolEcx);
     g_sndVolOn = SndApplySet(p, 3, "volume (004090A6 / 00409285 / 0040B5E7)");
+    if (g_sndVolOn && g_sndZeroOn) {  // v3.58 SD358: Volume 0 = silent (the hooks above; what they read is checked here)
+        static const Site kZero2D = { 0x40908E, { 0xEB, 0x04, 0x8B, 0x44, 0x24, 0x10, 0x8B, 0x4C, 0x24, 0x0C, 0xC1, 0xE1, 0x06, 0x8D, 0xB4,
+                                                  0x39, 0xFC, 0x10, 0x00, 0x00, 0x8B, 0x0E, 0x8B, 0x11 }, 24 };  // to 0x4090A6: raw = [esp+10h]
+        static const Site kZeroStr[3] = {
+            { 0x40B550, { 0x8B, 0x44, 0x24, 0x04, 0x69, 0xC0, 0xC8, 0xC0, 0x1A, 0x00, 0x56, 0x57, 0x8B, 0xF9, 0x8D, 0x34, 0x38, 0x81, 0xBE,
+                          0x28, 0xC0, 0x12, 0x00, 0x74, 0x27, 0x00, 0x00 }, 27 },  // esi = this + r * 0x1AC0C8, edi = this; the 0x2774 test
+            { 0x40B58F, { 0x83, 0x3F, 0x02, 0x8B, 0x86, 0x10, 0xC0, 0x12, 0x00 }, 9 },                      // the level at +0x12C010
+            { 0x40B5DF, { 0x8B, 0x8E, 0xD0, 0x80, 0x2D, 0x00, 0x8B, 0x11 }, 8 },                             // the buffer at +0x2D80D0
+        };
+        static const Site kStrSet = { 0x40B2D0, { 0x8B, 0x44, 0x24, 0x04, 0x69, 0xC0, 0xC8, 0xC0, 0x1A, 0x00, 0x03, 0xC1, 0x8B, 0x4C, 0x24,
+                                                  0x08, 0xC6, 0x80, 0x0E, 0xC0, 0x12, 0x00, 0x01, 0x89, 0x88, 0x10, 0xC0, 0x12, 0x00,
+                                                  0xC2, 0x08, 0x00 }, 32 };  // SndVoice::SetVolume(r, vol), whole
+        g_sndZero2DOk = SiteOk(&kZero2D);
+        g_sndZeroStrOk = SiteOk(&kZeroStr[0]) && SiteOk(&kZeroStr[1]) && SiteOk(&kZeroStr[2]);
+        if (g_sndZeroStrOk && SiteOk(&kStrSet)) {
+            SndCall(&p[0], 0x40B2E7, 0xE8, hkSndStrSet, 6, kStrSet.stock + 0x17);
+            g_sndStrSetOn = SndApplySet(p, 1, "Volume 0 = silent: the streams' set level (0040B2E7)");
+        }
+        Log("sound: volume 0: silent: the game's own 0 (Music / Effects Volume 0, a pause's master 0) reached DirectSound as -60 dB "
+            "(its attenuation's floor; -40 dB with Night Mode High); now DirectSound's silence: 2D sounds and the music %s, streams %s "
+            "(the fading stream 0x2774 %s), 3D sounds in",
+            g_sndZero2DOk ? "in (004090A6)" : "NOT IN (00409090 is not the GOG v7 code)",
+            g_sndZeroStrOk ? "in (0040B5E7)" : "NOT IN (0040B550 is not the GOG v7 code)",
+            g_sndStrSetOn ? "by its set level, 0040B2E7" : "NOT IN: it keeps fading up to 0 dB");
+    } else {
+        Log("sound: volume 0: %s", !g_sndZeroOn ? "off ([Sound] ZeroSilent=0): the game's own (its 0 plays at -60 dB)"
+                                                : "NOT IN (no volume hooks): the game's own (its 0 plays at -60 dB)");
+    }
     SndOperand(&p[0], 0x409AD0, kRev1, 6, 2);
     SndOperand(&p[1], 0x409C63, kRev2, 6, 2);
     SndOperand(&p[2], 0x41076F, kRev3, 5, 1);
@@ -875,7 +1024,7 @@ static void SndKeepCheck(void)  // every 2 s (the frame end): played again when 
     DWORD st = 0;
     HRESULT h, hr = S_OK, hf = S_OK, hp = S_OK;
     static LONG s_q;
-    if (!b || GetTickCount() - g_sndKeepAt < 2000) return;
+    if (!b || g_sndKeepHeld || GetTickCount() - g_sndKeepAt < 2000) return;  // v3.58 SD358: not while Mute holds it stopped
     g_sndKeepAt = GetTickCount();
     h = ((SndStatus_t)SND_VTC(b, 9))(b, &st);
     if (FAILED(h)) {
@@ -911,16 +1060,57 @@ static void SndFocusTick(void)  // the frame end: each change of the game's wind
             if (s_q == 41) Log("sound: focus: 40 changes logged this session: the rest are not");
             return;
         }
-        if (!f)
+        if (!f) {  // v3.58 SD358: Mute by the sound session, or (without one) v3.56's DirectSound focus rule
+            const int sess = g_sndSessOn && g_sndSessOk && g_sdAlive;
             Log("sound: focus: another window is in front (the game was in front %lu.%lu s): Background %s: %s; keep-awake %s",
                 ms / 1000, ms % 1000 / 100, kSndBgName[g_sndBg],
-                !g_sndBgOn || !g_sndBg ? "DirectSound mutes the game's sounds"
-                                       : "the game's sounds go on (those started since Background Play)",
-                g_sndKeepBuf ? "plays on (the device stays awake)" : "none");
-        else
+                !g_sndBg ? (sess ? "Refined mutes the game's sound session (every sound at once)" : "DirectSound mutes the game's sounds")
+                : !g_sndBgOn ? "DirectSound mutes the game's sounds (no buffer sites this session)"
+                : sess ? "the game's sounds go on" : "the game's sounds go on (those started since Background Play)",
+                !g_sndKeepBuf ? "none" : !g_sndBg ? (sess ? "muted with it" : "stopped (Mute)") : "plays on (the device stays awake)");
+        } else
             Log("sound: focus: the game is in front again after %lu.%lu s behind other windows: its sounds play%s", ms / 1000,
-                ms % 1000 / 100, g_sndKeepBuf ? " (the keep-awake signal kept the device awake)" : "");
+                ms % 1000 / 100, g_sndKeepBuf && !g_sndKeepHeld && g_sndBg ? " (the keep-awake signal kept the device awake)" : "");
     }
+}
+// v3.58 SD358: the keep-awake tone stopped / played again (Mute without a sound session, behind other windows)
+static void SndKeepHoldSet(int hold)
+{
+    void *const b = g_sndKeepBuf;
+    HRESULT h = E_FAIL;
+    static LONG s_q;
+    if (!b || hold == g_sndKeepHeld) return;
+    g_sndKeepHeld = hold;
+    __try {
+        h = hold ? ((SndRestore_t)SND_VTC(b, 18))(b) : ((SndPlay_t)SND_VTC(b, 12))(b, 0, 0, 1);  // Stop (same shape as Restore) / Play(LOOPING)
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        h = E_UNEXPECTED;
+    }
+    g_sndKeepAt = GetTickCount();
+    if (LogQuota(&s_q, 20))
+        Log("sound: keep-awake: %s (hr %08lX)", hold ? "stopped while another window is in front (Background Mute without a sound session)"
+                                                     : "playing again", (unsigned long)h);
+}
+// v3.58 SD358: Mute without a sound session: how many of the game's buffers carry the global focus and play (they go on
+// behind other windows until they end: made while the sites said Play). IDirectSoundBuffer 3 GetCaps, 9 GetStatus.
+typedef HRESULT(__stdcall *SndCaps_t)(void *, DWORD *);
+static int SndBgStale(void)
+{
+    int i, n = 0;
+    for (i = 0; i < 64; ++i) {
+        void *b;
+        DWORD caps[5] = { sizeof caps, 0, 0, 0, 0 }, st = 0;  // DSBCAPS
+        __try {
+            b = i < 60 ? *(void *volatile *)(SND_PACK + 0x10F8 + 0x40 * i + 4)  // SndPack slot i's buffer
+                       : *(void *volatile *)(ULONG_PTR)(0x6E8FE4 + 0x2D80D0 + 0x1AC0C8 * (i - 60));  // SndVoice channel's buffer
+            if (b && SUCCEEDED(((SndCaps_t)SND_VTC(b, 3))(b, caps)) && (caps[1] & SND_DSBCAPS_GLOBALFOCUS) &&
+                SUCCEEDED(((SndStatus_t)SND_VTC(b, 9))(b, &st)) && (st & 1))
+                ++n;
+        } __except (EXCEPTION_EXECUTE_HANDLER) {
+            return -1;
+        }
+    }
+    return n;
 }
 
 // The device watch: Windows' default render device (MMDevAPI), on a thread of its own (COM in the multithreaded apartment;
@@ -1012,6 +1202,511 @@ static void SdName(void *en, const WCHAR *id, char *out, int n)  // a device's f
         ((SndRel_t)SND_VTC(dev, 2))(dev);
     }
 }
+// v3.58 SD358: the game's audio sessions (WASAPI, under DirectSound and DirectShow), on the watch thread (COM, MTA).
+// IMMDeviceEnumerator 3 EnumAudioEndpoints, 5 GetDevice; IMMDeviceCollection 3 GetCount, 4 Item; IMMDevice 3 Activate;
+// IAudioSessionManager 4 GetSimpleAudioVolume; IAudioSessionManager2 5 GetSessionEnumerator; IAudioSessionEnumerator
+// 3 GetCount, 4 GetSession; IAudioSessionControl 3 GetState (2 = expired); IAudioSessionControl2 14 GetProcessId;
+// ISimpleAudioVolume 5 SetMute, 6 GetMute (Windows SDK 10.0.26100: audiopolicy.h, audioclient.h, mmdeviceapi.h).
+static const GUID kSdIidSessMgr2 = { 0x77AA99A0, 0x1BD6, 0x484F, { 0x8B, 0xC7, 0x2C, 0x65, 0x4C, 0x9A, 0x9B, 0x6F } };
+static const GUID kSdIidSessCtl2 = { 0xBFB7FF88, 0x7239, 0x4FC9, { 0x8F, 0xA2, 0x07, 0xC9, 0x50, 0xBE, 0x9C, 0x6D } };
+static const GUID kSdIidSimpleVol = { 0x87CE5498, 0x68D6, 0x44E5, { 0x92, 0x15, 0x6D, 0xA4, 0x7E, 0xF8, 0x83, 0xD8 } };
+typedef HRESULT(__stdcall *SdEnumEp_t)(void *, int, DWORD, void **);
+typedef HRESULT(__stdcall *SdCount_t)(void *, UINT *);
+typedef HRESULT(__stdcall *SdItem_t)(void *, UINT, void **);
+typedef HRESULT(__stdcall *SdActivate_t)(void *, const GUID *, DWORD, void *, void **);
+typedef HRESULT(__stdcall *SdGetSimple_t)(void *, const GUID *, DWORD, void **);
+typedef HRESULT(__stdcall *SdGetEnum_t)(void *, void **);
+typedef HRESULT(__stdcall *SdGetState_t)(void *, int *);
+typedef HRESULT(__stdcall *SdGetPid_t)(void *, DWORD *);
+typedef HRESULT(__stdcall *SdSetMute_t)(void *, BOOL, const GUID *);
+typedef HRESULT(__stdcall *SdGetMute_t)(void *, BOOL *);
+#define SD_MUTED_MAX 16
+#define SD_ID_MAX 640  // a session identifier: "{endpoint id}|\Device\...\SILENT HILL 4.exe%b{GUID}" (UTF-16)
+// v3.58 SD358-001 (Codex): Refined's mutes are told apart by the session's identity (sound_sim.h). IAudioSessionControl
+// 10 RegisterAudioSessionNotification, 11 UnregisterAudioSessionNotification; IAudioSessionControl2 12 GetSessionIdentifier;
+// IAudioSessionManager 3 GetAudioSessionControl; IAudioSessionEvents {24918ACC-64B3-37C1-8CA9-74A66E9957A8} 3 .. 9.
+static const GUID kSdIidSessEvents = { 0x24918ACC, 0x64B3, 0x37C1, { 0x8C, 0xA9, 0x74, 0xA6, 0x6E, 0x99, 0x57, 0xA8 } };
+static const GUID kSdCtx = { 0x5D3E8A41, 0x7C2B, 0x4F9E, { 0x9A, 0x61, 0x53, 0x48, 0x34, 0x52, 0xA3, 0x58 } };  // Refined's SetMute
+typedef HRESULT(__stdcall *SdGetCtl_t)(void *, const GUID *, DWORD, void **);
+typedef HRESULT(__stdcall *SdGetIdent_t)(void *, WCHAR **);
+typedef HRESULT(__stdcall *SdRegEv_t)(void *, void *);
+typedef struct { const void *const *vtbl; int idx; } SdEvt;  // IAudioSessionEvents, one static object per held slot
+typedef struct {
+    void *sav, *ctl;          // ISimpleAudioVolume, IAudioSessionControl (held; the watch thread only)
+    int reg;                  // the events callback is registered
+    unsigned long t;          // when Refined muted it (seconds since 1970)
+    volatile LONG touched, lastMute;  // SND_TOUCH_*: someone else changed it (the callback, MMDevAPI's thread)
+    int conf;                 // v3.58 SD358-003: its SetMute worked (the marker's entry "muted"; 0 = "pending")
+    WCHAR id[SD_ID_MAX];
+} SdHeld;
+static SdHeld g_sdHeld[SD_MUTED_MAX];
+static SdEvt g_sdEvtObj[SD_MUTED_MAX];
+static int g_sdMutedN;
+static volatile LONG g_sdTouchSeq;  // bumped by the callback; the watch thread rewrites the marker and logs
+typedef struct { WCHAR id[SD_ID_MAX]; unsigned long t; int used, st; } SdMark;  // v3.58 SD358-003: + st (SND_MARK_*)
+static SdMark g_sdKeep[SD_MUTED_MAX];  // marker entries kept for a later start (not found now / could not be unmuted)
+static int g_sdKeepN;
+static int g_sdMarkDirty;  // v3.58 SD358-003: the last marker write failed: written again at the watch thread's next pass
+typedef struct { int act, left, failed, full, noid, noreg, nomark, pend; HRESULT hr; SdMark *marks; int nmarks; } SdSweep;  // v3.58 SD358-002: + nomark  // v3.58 SD358-003: + pend
+enum { SD_SW_COUNT, SD_SW_MUTE, SD_SW_START };
+static HRESULT __stdcall SdeQi(SdEvt *s, const GUID *iid, void **out)
+{
+    if (!out) return E_POINTER;
+    if (iid && (!memcmp(iid, &kSdIidUnknown, sizeof(GUID)) || !memcmp(iid, &kSdIidSessEvents, sizeof(GUID)))) {
+        *out = s;
+        return S_OK;
+    }
+    *out = NULL;
+    return E_NOINTERFACE;
+}
+static ULONG __stdcall SdeAddRef(SdEvt *s) { (void)s; return 2; }
+static ULONG __stdcall SdeRelease(SdEvt *s) { (void)s; return 1; }
+static HRESULT __stdcall SdeStr(SdEvt *s, const WCHAR *a, const GUID *c) { (void)s, (void)a, (void)c; return S_OK; }
+static HRESULT __stdcall SdeVol(SdEvt *s, float vol, BOOL mute, const GUID *ctx)  // OnSimpleVolumeChanged
+{
+    SdHeld *const h = &g_sdHeld[(unsigned)s->idx < SD_MUTED_MAX ? s->idx : 0];
+    int lm = (int)h->lastMute, t;
+    (void)vol;
+    if (ctx && !memcmp(ctx, &kSdCtx, sizeof(GUID))) return S_OK;  // Refined's own SetMute
+    t = SndSessTouchStep((int)h->touched, &lm, mute != 0);
+    InterlockedExchange(&h->lastMute, lm);
+    if (t != (int)h->touched) {
+        InterlockedExchange(&h->touched, t);
+        InterlockedIncrement(&g_sdTouchSeq);
+        if (g_sdEvt) SetEvent(g_sdEvt);
+    }
+    return S_OK;
+}
+static HRESULT __stdcall SdeChan(SdEvt *s, DWORD n, float *v, DWORD ch, const GUID *c) { (void)s, (void)n, (void)v, (void)ch, (void)c; return S_OK; }
+static HRESULT __stdcall SdeGroup(SdEvt *s, const GUID *g, const GUID *c) { (void)s, (void)g, (void)c; return S_OK; }
+static HRESULT __stdcall SdeState(SdEvt *s, int st) { (void)s, (void)st; return S_OK; }
+static HRESULT __stdcall SdeDisc(SdEvt *s, int r) { (void)s, (void)r; return S_OK; }
+static const void *const kSdeVtbl[10] = { (const void *)SdeQi, (const void *)SdeAddRef, (const void *)SdeRelease, (const void *)SdeStr,
+                                          (const void *)SdeStr, (const void *)SdeVol, (const void *)SdeChan, (const void *)SdeGroup,
+                                          (const void *)SdeState, (const void *)SdeDisc };
+static unsigned long SdNow(void)  // seconds since 1970
+{
+    FILETIME ft;
+    ULARGE_INTEGER u;
+    GetSystemTimeAsFileTime(&ft);
+    u.LowPart = ft.dwLowDateTime, u.HighPart = ft.dwHighDateTime;
+    return (unsigned long)((u.QuadPart - 116444736000000000ull) / 10000000ull);
+}
+// a session's identifier (NULL / empty: none readable)
+static void SdSessIdent(void *ctl2, WCHAR *out)
+{
+    WCHAR *id = NULL;
+    out[0] = 0;
+    if (ctl2 && g_sdCoFree && SUCCEEDED(((SdGetIdent_t)SND_VTC(ctl2, 12))(ctl2, &id)) && id) {
+        if (wcslen(id) < SD_ID_MAX) wcscpy_s(out, SD_ID_MAX, id);  // a longer one counts as none (never cut: it must match whole)
+        g_sdCoFree(id);
+    }
+}
+static int SdHeldFind(const WCHAR *id)
+{
+    int k;
+    for (k = 0; id[0] && k < g_sdMutedN; ++k)
+        if (!_wcsicmp(g_sdHeld[k].id, id)) return k;
+    return -1;
+}
+static int SdMarkFind(SdMark *m, int n, const WCHAR *id)
+{
+    int k;
+    for (k = 0; id[0] && k < n; ++k)
+        if (!_wcsicmp(m[k].id, id)) return k;
+    return -1;
+}
+// The file SH4Refined.muted (next to SH4Refined.ini) names every session Refined holds muted (and the entries kept for a later
+// start); it is written before each mute and removed when nothing is named. Windows keeps a session's mute across starts: the
+// next start unmutes exactly the sessions named there that are still muted. A file of its own, not an ini key (the ini is not
+// rewritten at every Alt+Tab, never from this thread).
+static void SdMarkerPath(char *out, size_t n) { sprintf_s(out, n, "%sSH4Refined.muted", g_dir); }
+// v3.58 SD358-002 (Codex): every write is checked whole (sound_sim.h SndMarkWriteOk); 1 = all of it went out
+static int SdWriteAll(HANDLE f, const void *p, DWORD n)
+{
+    DWORD w = 0;
+    const BOOL ok = WriteFile(f, p, n, &w, NULL);
+    return SndMarkWriteOk(n, w, ok != 0);
+}
+static int SdMarkLine(HANDLE f, unsigned long t, int st, const WCHAR *id)  // 0 = the entry could not be written (or not made)
+{   // v3.58 SD358-003: "<time>\t<muted | pending>\t<identifier>" (sound_sim.h SndMarkParse)
+    char line[SD_ID_MAX * 3 + 32];
+    int n = sprintf_s(line, sizeof line, "%lu\t%s\t", t, SndMarkWord(st)), u;
+    u = WideCharToMultiByte(CP_UTF8, 0, id, -1, line + n, (int)sizeof line - n - 3, NULL, NULL);
+    if (u <= 1) return 0;
+    n += u - 1;
+    line[n++] = '\r', line[n++] = '\n';
+    return SdWriteAll(f, line, (DWORD)n);
+}
+// v3.58 SD358-002 (Codex): transactional. The marker is written to SH4Refined.muted.tmp, every write whole, flushed, closed,
+// then moved over SH4Refined.muted (MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH); nothing named = the marker removed.
+// 1 = SH4Refined.muted now names exactly the held, untouched sessions and the kept entries. 0 = it could not: the temporary
+// file is removed, the old marker stays as it was (sound_sim.h SndMarkCommit), and the caller does not mute a session the new
+// marker would have named (a mute that could not be recognised after a forced exit is never made).
+// v3.58 SD358-003 (Codex): each entry carries its state (sound_sim.h SndMarkParse): a held session is "pending" until its SetMute
+// worked, then "muted"; only "muted" unmutes at the next start. A failed write sets g_sdMarkDirty (SndMarkDirty): the watch
+// thread writes the marker again at its next pass (the only thread that writes it); a whole write clears it.
+static int SdMarkerWriteNow(void)
+{
+    static const char kText[] = "# SH4 Refined muted these sound sessions of the game while another window was in front. If this file is "
+                                "still here, the game ended before it could unmute them: the next start unmutes the ones named here as "
+                                "\"muted\" that are still muted (a \"pending\" one, a mute not confirmed, is left as it is). Safe to "
+                                "delete.\r\n";  // v3.58 SD358-003: + the states
+    char path[MAX_PATH + 32], tmp[MAX_PATH + 40];
+    int k, n = 0, opened, ok, flushed = 0, closed = 0, replaced = 0;
+    DWORD err = 0;
+    HANDLE f;
+    static LONG s_q;
+    for (k = 0; k < g_sdMutedN; ++k) n += SndMarkKeep((int)g_sdHeld[k].touched);
+    SdMarkerPath(path, sizeof path);
+    if (!n && !g_sdKeepN) {
+        if (DeleteFileA(path) || GetLastError() == ERROR_FILE_NOT_FOUND) return 1;
+        if (LogQuota(&s_q, 3)) Log("sound: background: %s could not be deleted (error %lu)", path, GetLastError());
+        return 0;
+    }
+    sprintf_s(tmp, sizeof tmp, "%s.tmp", path);
+    f = CreateFileA(tmp, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    opened = f != INVALID_HANDLE_VALUE;
+    ok = opened && SdWriteAll(f, kText, sizeof kText - 1);
+    for (k = 0; ok && k < g_sdMutedN; ++k)
+        if (SndMarkKeep((int)g_sdHeld[k].touched)) ok = SdMarkLine(f, g_sdHeld[k].t, SndMarkHeldState(g_sdHeld[k].conf), g_sdHeld[k].id);
+    for (k = 0; ok && k < g_sdKeepN; ++k) ok = SdMarkLine(f, g_sdKeep[k].t, g_sdKeep[k].st, g_sdKeep[k].id);
+    if (ok) flushed = FlushFileBuffers(f) != 0;
+    if (!flushed) err = GetLastError();
+    if (opened) {
+        closed = CloseHandle(f) != 0;
+        if (flushed && closed) {
+            replaced = MoveFileExA(tmp, path, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != 0;
+            if (!replaced) err = GetLastError();
+        }
+    } else {
+        err = GetLastError();
+    }
+    if (SndMarkCommit(opened, ok, flushed, closed, replaced)) return 1;
+    if (opened) DeleteFileA(tmp);  // the old SH4Refined.muted is untouched
+    if (LogQuota(&s_q, 3))
+        Log("sound: background: SH4Refined.muted could not be written (%s failed, error %lu): the old one is kept; a sound session it "
+            "would newly name is not muted (Background Mute by DirectSound's own focus rule for it)", !opened ? "create" : !ok ? "a write"
+            : !flushed ? "the flush" : !closed ? "the close" : "the replace", (unsigned long)err);
+    return 0;
+}
+static int SdMarkerWrite(void)  // v3.58 SD358-003: every write through here; a failure is written again at the next pass
+{
+    const int r = SdMarkerWriteNow();
+    g_sdMarkDirty = SndMarkDirty(r);
+    return r;
+}
+// the marker's entries at the start (expired ones dropped: *dropped)
+static int SdMarkerRead(SdMark *m, int max, int *dropped)
+{
+    char path[MAX_PATH + 32], *buf, *p;
+    HANDLE f;
+    DWORD size, got = 0;
+    int n = 0;
+    const unsigned long now = SdNow();
+    *dropped = 0;
+    SdMarkerPath(path, sizeof path);
+    f = CreateFileA(path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (f == INVALID_HANDLE_VALUE) return -1;
+    size = GetFileSize(f, NULL);
+    buf = size != INVALID_FILE_SIZE && size < 256 * 1024 ? (char *)HeapAlloc(GetProcessHeap(), 0, size + 1) : NULL;
+    if (buf && ReadFile(f, buf, size, &got, NULL)) {
+        buf[got] = 0;
+        for (p = buf; *p && n < max;) {
+            unsigned long t;
+            const char *id;
+            size_t len;
+            int st;
+            char *e = strchr(p, '\n');
+            if (SndMarkParse(p, &t, &st, &id, &len)) {  // v3.58 SD358-003: + the state
+                if (SndMarkExpired(now, t)) ++*dropped;
+                else {
+                    const int wn = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, id, (int)len, m[n].id, SD_ID_MAX - 1);
+                    if (wn > 0) {  // (too long or not UTF-8: 0, the line is skipped)
+                        m[n].id[wn] = 0;
+                        m[n].t = t, m[n].used = 0, m[n].st = st;
+                        ++n;
+                    }
+                }
+            }
+            if (!e) break;
+            p = e + 1;
+        }
+    }
+    if (buf) HeapFree(GetProcessHeap(), 0, buf);
+    CloseHandle(f);
+    return n;
+}
+static void SdHeldDrop(int k)  // unregister the callback, release the references
+{
+    SdHeld *const h = &g_sdHeld[k];
+    if (h->reg && h->ctl) ((SdRegEv_t)SND_VTC(h->ctl, 11))(h->ctl, &g_sdEvtObj[k]);
+    if (h->ctl) ((SndRel_t)SND_VTC(h->ctl, 2))(h->ctl);
+    if (h->sav) ((SndRel_t)SND_VTC(h->sav, 2))(h->sav);
+    h->ctl = h->sav = NULL, h->reg = 0;
+}
+// one session of the game's process: what the sweep does with it (sound_sim.h's rules); 1 = its references are kept
+static int SdSessOne(void *sav, void *ctl, const WCHAR *id, SdSweep *w, int kind)
+{
+    BOOL m = FALSE;
+    HRESULT h = ((SdGetMute_t)SND_VTC(sav, 6))(sav, &m);
+    int k;
+    if (FAILED(h)) {
+        ++w->failed, w->hr = h;
+        return 0;
+    }
+    if (kind == SD_SW_COUNT) return 0;
+    if (kind == SD_SW_START) {
+        static WCHAR seen[SD_MUTED_MAX * 2][SD_ID_MAX];  // the default session is also found by the enumeration: once
+        static int nseen;
+        if (id[0]) {
+            for (k = 0; k < nseen; ++k)
+                if (!_wcsicmp(seen[k], id)) return 0;
+            if (nseen < SD_MUTED_MAX * 2) wcscpy_s(seen[nseen++], SD_ID_MAX, id);
+        }
+        k = SdMarkFind(w->marks, w->nmarks, id);
+        if (k >= 0) w->marks[k].used = 1;
+        if (!SndSessStartAct(m != 0, k >= 0 && SndMarkMayUnmute(w->marks[k].st))) {  // v3.58 SD358-003: a confirmed entry only
+            if (m && k >= 0) ++w->pend;  // v3.58 SD358-003: named "pending" (a mute not confirmed): left as it is, logged once
+            else if (m) ++w->left;  // muted, not named: the user's (or no identity): the game is muted in the Volume Mixer
+            return 0;
+        }
+        h = ((SdSetMute_t)SND_VTC(sav, 5))(sav, FALSE, &kSdCtx);
+        if (FAILED(h)) {
+            ++w->failed, w->hr = h;
+            w->marks[k].used = 0;  // kept: a later start tries again
+        } else {
+            ++w->act;
+        }
+        return 0;
+    }
+    if (!SndSessMuteAct(m != 0, SdHeldFind(id) >= 0)) {  // held already (this time behind), or muted by someone else: left
+        ++w->left;
+        return 0;
+    }
+    if (!id[0]) {  // no identity: a mute Refined could not recognise after an exit would stay: not muted
+        ++w->noid;
+        return 0;
+    }
+    if (g_sdMutedN >= SD_MUTED_MAX) {
+        ++w->full;
+        return 0;
+    }
+    k = g_sdMutedN++;
+    memset(&g_sdHeld[k], 0, sizeof g_sdHeld[k]);
+    wcscpy_s(g_sdHeld[k].id, SD_ID_MAX, id);
+    g_sdHeld[k].t = SdNow();
+    g_sdHeld[k].lastMute = 1;
+    g_sdHeld[k].conf = 0;  // v3.58 SD358-003: named "pending" first (it never unmutes at a start)
+    if (!SndSessMayMute(SdMarkerWrite())) {  // v3.58 SD358-002: named durably before the mute, or not muted at all
+        --g_sdMutedN;
+        ++w->nomark;
+        return 0;
+    }
+    g_sdEvtObj[k].vtbl = kSdeVtbl, g_sdEvtObj[k].idx = k;
+    ((SndRel_t)SND_VTC(ctl, 1))(ctl);  // AddRef: held
+    g_sdHeld[k].ctl = ctl;
+    g_sdHeld[k].reg = SUCCEEDED(((SdRegEv_t)SND_VTC(ctl, 10))(ctl, &g_sdEvtObj[k]));
+    if (!g_sdHeld[k].reg) ++w->noreg;
+    h = ((SdSetMute_t)SND_VTC(sav, 5))(sav, TRUE, &kSdCtx);
+    if (FAILED(h)) {
+        ++w->failed, w->hr = h;
+        SdHeldDrop(k);
+        --g_sdMutedN;
+        SdMarkerWrite();  // v3.58 SD358-003: a failure keeps its "pending" entry (written again at the next pass): harmless, a
+        return 0;         // pending entry never unmutes (a mute the user makes on it later stays theirs)
+    }
+    g_sdHeld[k].sav = sav;
+    g_sdHeld[k].conf = 1;  // v3.58 SD358-003: confirmed: rewritten as "muted". If this write fails, g_sdMarkDirty: the watch
+    SdMarkerWrite();       // thread writes it again at each pass (the 2 s re-sweep while behind). If every write fails until a
+    ++w->act;              // forced exit, the entry stays "pending": the next start leaves the session muted and its log line
+    return 1;              // says to unmute the game in the Windows Volume Mixer (README, known limits)
+}
+// every session of this process on every active output device (the game's DirectSound plays on one of them; a film's
+// DirectShow sound may play on another): how many were found (-1 = no device list); *devs = the devices looked at
+static int SdSweepAll(void *en, SdSweep *w, int kind, int *devs)
+{
+    void *coll = NULL;
+    UINT nd = 0, d;
+    int found = 0;
+    const DWORD pid = GetCurrentProcessId();
+    static WCHAR id[SD_ID_MAX];  // the watch thread only
+    *devs = 0;
+    if (FAILED(((SdEnumEp_t)SND_VTC(en, 3))(en, 0 /*eRender*/, 1 /*DEVICE_STATE_ACTIVE*/, &coll)) || !coll) return -1;
+    if (FAILED(((SdCount_t)SND_VTC(coll, 3))(coll, &nd))) nd = 0;
+    for (d = 0; d < nd && d < 32; ++d) {
+        void *dev = NULL, *mgr = NULL, *se = NULL;
+        UINT ns = 0, i;
+        if (FAILED(((SdItem_t)SND_VTC(coll, 4))(coll, d, &dev)) || !dev) continue;
+        if (SUCCEEDED(((SdActivate_t)SND_VTC(dev, 3))(dev, &kSdIidSessMgr2, 0x17 /*CLSCTX_ALL*/, NULL, &mgr)) && mgr) {
+            ++*devs;
+            if (SUCCEEDED(((SdGetEnum_t)SND_VTC(mgr, 5))(mgr, &se)) && se) {
+                if (FAILED(((SdCount_t)SND_VTC(se, 3))(se, &ns))) ns = 0;
+                for (i = 0; i < ns && i < 256; ++i) {
+                    void *ctl = NULL, *ctl2 = NULL, *sav = NULL;
+                    DWORD p = 0;
+                    int st = 2;
+                    if (FAILED(((SdItem_t)SND_VTC(se, 4))(se, i, &ctl)) || !ctl) continue;
+                    if (SUCCEEDED(((SndQi_t)SND_VTC(ctl, 0))(ctl, &kSdIidSessCtl2, &ctl2)) && ctl2 &&
+                        ((SdGetPid_t)SND_VTC(ctl2, 14))(ctl2, &p) == S_OK && p == pid &&  // S_OK: one process (not a shared session)
+                        SUCCEEDED(((SdGetState_t)SND_VTC(ctl, 3))(ctl, &st)) && st != 2 &&
+                        SUCCEEDED(((SndQi_t)SND_VTC(ctl, 0))(ctl, &kSdIidSimpleVol, &sav)) && sav) {
+                        ++found;
+                        SdSessIdent(ctl2, id);
+                        if (SdSessOne(sav, ctl, id, w, kind)) sav = NULL;  // kept in g_sdHeld (ctl AddRef'd there)
+                    }
+                    if (sav) ((SndRel_t)SND_VTC(sav, 2))(sav);
+                    if (ctl2) ((SndRel_t)SND_VTC(ctl2, 2))(ctl2);
+                    ((SndRel_t)SND_VTC(ctl, 2))(ctl);
+                }
+                ((SndRel_t)SND_VTC(se, 2))(se);
+            }
+            ((SndRel_t)SND_VTC(mgr, 2))(mgr);
+        }
+        ((SndRel_t)SND_VTC(dev, 2))(dev);
+    }
+    ((SndRel_t)SND_VTC(coll, 2))(coll);
+    return found;
+}
+// the thread's start: the sessions SH4Refined.muted names and that are still muted are unmuted (Refined's own mutes, left by a
+// game that ended behind other windows); a muted session it does not name is left (the user's) and logged; the game's
+// sessions are counted
+static void SdSessStart(void *en, int haveDs, const char *game)
+{
+    static SdMark marks[SD_MUTED_MAX * 2];
+    SdSweep w;
+    int devs = 0, n, k, dropped = 0, kept = 0, had, pend = 0;  // v3.58 SD358-003: + pend
+    memset(&w, 0, sizeof w);
+    w.nmarks = SdMarkerRead(marks, SD_MUTED_MAX * 2, &dropped);
+    w.marks = marks;
+    had = w.nmarks >= 0;  // the file is there (even with no entry: v3.58 SD358's first one-line form): rewritten or removed
+    if (w.nmarks < 0) w.nmarks = 0;
+    if (g_sdGameId[0]) {  // the default session on the game's device too (it may have no stream yet)
+        void *dev = NULL, *mgr = NULL, *ctl = NULL, *ctl2 = NULL, *sav = NULL;
+        static WCHAR id[SD_ID_MAX];
+        if (SUCCEEDED(((SdGetDev_t)SND_VTC(en, 5))(en, g_sdGameId, &dev)) && dev) {
+            if (SUCCEEDED(((SdActivate_t)SND_VTC(dev, 3))(dev, &kSdIidSessMgr2, 0x17, NULL, &mgr)) && mgr) {
+                if (SUCCEEDED(((SdGetCtl_t)SND_VTC(mgr, 3))(mgr, NULL, 0, &ctl)) && ctl) {
+                    if (SUCCEEDED(((SndQi_t)SND_VTC(ctl, 0))(ctl, &kSdIidSessCtl2, &ctl2)) && ctl2) SdSessIdent(ctl2, id);
+                    else id[0] = 0;
+                    if (SUCCEEDED(((SndQi_t)SND_VTC(ctl, 0))(ctl, &kSdIidSimpleVol, &sav)) && sav) {
+                        SdSessOne(sav, ctl, id, &w, SD_SW_START);
+                        ((SndRel_t)SND_VTC(sav, 2))(sav);
+                    }
+                    if (ctl2) ((SndRel_t)SND_VTC(ctl2, 2))(ctl2);
+                    ((SndRel_t)SND_VTC(ctl, 2))(ctl);
+                }
+                ((SndRel_t)SND_VTC(mgr, 2))(mgr);
+            }
+            ((SndRel_t)SND_VTC(dev, 2))(dev);
+        }
+    }
+    n = haveDs ? SdSweepAll(en, &w, SD_SW_START, &devs) : 0;  // (the default session again: SdSessOne counts each identity once)
+    g_sdKeepN = 0;
+    for (k = 0; k < w.nmarks; ++k)
+        if (SndMarkKeepAtStart(marks[k].used, marks[k].st) && g_sdKeepN < SD_MUTED_MAX) g_sdKeep[g_sdKeepN++] = marks[k], ++kept;
+        else if (!SndMarkMayUnmute(marks[k].st)) ++pend;  // v3.58 SD358-003: a pending entry is dropped (found or not)
+    if (had) SdMarkerWrite();  // only what is still to do stays named
+    if (pend)  // v3.58 SD358-003: the remaining window (README, known limits): a SetMute that worked whose confirm never reached the file
+        Log("sound: background: SH4Refined.muted named %d sound session(s) of the game as pending (a mute not confirmed when the game "
+            "ended): left as they are, %d of them muted now (if the game stays silent, unmute it in the Windows Volume Mixer); the "
+            "entries dropped", pend, w.pend);
+    if (w.act)
+        Log("sound: background: %d sound session(s) of the game were still muted by SH4 Refined (named in SH4Refined.muted: the game "
+            "ended behind other windows): unmuted", w.act);
+    if (w.left)
+        Log("sound: background: %d sound session(s) of the game are muted in Windows (not by SH4 Refined): the game is muted in the "
+            "Windows Volume Mixer; left as it is (unmute it there)", w.left);
+    if (kept)
+        Log("sound: background: SH4Refined.muted names %d session(s) not found at this start (another output device?): kept for a later "
+            "start (30 days at most)", kept);
+    if (dropped) Log("sound: background: %d entr%s of SH4Refined.muted older than 30 days dropped", dropped, dropped == 1 ? "y" : "ies");
+    InterlockedExchange(&g_sndSessOk, n > 0 && w.failed < n);
+    if (g_sndSessOk)
+        Log("sound: background: Mute by the sound session: %d session(s) of the game on %d output device(s) (\"%s\" among them); while "
+            "another window is in front Refined mutes them (every sound at once, the keep-awake tone included) and unmutes only "
+            "those it muted", n, devs, game);
+    else
+        Log("sound: background: no sound session of the game to mute (%s): Background Mute by DirectSound's own focus rule (sounds "
+            "that start from now on)", !haveDs ? "no sound device" : n < 0 ? "no list of output devices" : n == 0 ? "none found"
+                                                                                    : "GetMute failed");
+}
+// a mute request (quiet = the re-sweep every 2 s behind other windows: a session the game opened meanwhile)
+static void SdMuteReq(void *en, int quiet)
+{
+    SdSweep w;
+    int devs = 0, n, ok;
+    const DWORD t0 = GetTickCount();
+    static LONG s_q, s_f;
+    memset(&w, 0, sizeof w);
+    n = SdSweepAll(en, &w, SD_SW_MUTE, &devs);
+    ok = g_sdMutedN > 0 || (n > 0 && w.left == n);  // something is muted (all of them already were: muted anyway)
+    if ((!quiet && g_sndSessOk) || w.act || w.failed || w.noid || w.nomark) {  // (without a session found so far: only when one turns up)
+        if (LogQuota(&s_q, 40))
+            Log("sound: background: muted %d%s sound session(s) of the game (%d output device(s); %lu ms; %d already muted, left alone)",
+                w.act, quiet ? " more" : "", devs, (unsigned long)(GetTickCount() - t0), w.left);
+        if (w.failed || w.full || w.noid || w.nomark) {  // v3.58 SD358-002: + nomark
+            if (LogQuota(&s_f, 5))
+                LogAnomaly("sound", "background: %d sound session(s) of the game could not be muted (hr %08lX%s%s%s): they go on behind other "
+                           "windows", w.failed + w.full + w.noid + w.nomark, (unsigned long)w.hr, w.full ? "; Refined holds 16 at most" : "",
+                           w.noid ? "; no session identity: a mute that could not be recognised after an exit is not made" : "",
+                           w.nomark ? "; SH4Refined.muted could not be written: a mute it does not name is not made" : "");
+        }
+    }
+    if (!ok && g_sndSessOk) {
+        LogAnomaly("sound", "background: no sound session of the game could be muted (%d found%s): Background Mute by DirectSound's own "
+                   "focus rule from now on (sounds that start from now on)", n < 0 ? 0 : n, n < 0 ? ", no list of output devices" : "");
+        InterlockedExchange(&g_sndSessOk, 0);
+    } else if (ok && !g_sndSessOk) {
+        Log("sound: background: the game's sound session can be muted again: Background Mute by the sound session");
+        InterlockedExchange(&g_sndSessOk, 1);
+    }
+}
+// a held session changed by someone else (the callback's touch): the marker drops it; logged
+static void SdTouchSeen(void)
+{
+    static LONG s_seen, s_q;
+    const LONG seq = g_sdTouchSeq;
+    int k;
+    if (seq == s_seen) return;
+    s_seen = seq;
+    for (k = 0; k < g_sdMutedN; ++k)
+        if (g_sdHeld[k].touched != SND_TOUCH_NONE && LogQuota(&s_q, 10))
+            Log("sound: background: a sound session SH4 Refined had muted was %s in the Windows Volume Mixer while the game was behind "
+                "other windows: left as you set it", g_sdHeld[k].touched == SND_TOUCH_UNMUTED ? "unmuted" : "unmuted and muted again");
+    SdMarkerWrite();
+}
+static void SdUnmuteReq(void)
+{
+    int k, un = 0, already = 0, failed = 0, touched = 0;
+    HRESULT hr = S_OK;
+    static LONG s_q;
+    if (!g_sdMutedN) return;
+    for (k = 0; k < g_sdMutedN; ++k) {
+        SdHeld *const s = &g_sdHeld[k];
+        BOOL m = FALSE;
+        HRESULT h = ((SdGetMute_t)SND_VTC(s->sav, 6))(s->sav, &m);
+        if (s->touched != SND_TOUCH_NONE) ++touched;  // the user's now: left as they set it
+        else if (SUCCEEDED(h) && !SndSessUnmuteAct(m != 0, SND_TOUCH_NONE)) ++already;
+        else if (SUCCEEDED(h) && SUCCEEDED(h = ((SdSetMute_t)SND_VTC(s->sav, 5))(s->sav, FALSE, &kSdCtx))) ++un;
+        else {
+            ++failed, hr = h;
+            if (g_sdKeepN < SD_MUTED_MAX) {  // still named: the next start unmutes it
+                wcscpy_s(g_sdKeep[g_sdKeepN].id, SD_ID_MAX, s->id);
+                g_sdKeep[g_sdKeepN].t = s->t, g_sdKeep[g_sdKeepN].used = 0;
+                g_sdKeep[g_sdKeepN++].st = SndMarkHeldState(s->conf);  // v3.58 SD358-003: (held = its SetMute worked: "muted")
+            }
+        }
+        SdHeldDrop(k);
+    }
+    g_sdMutedN = 0;
+    SdMarkerWrite();
+    if (LogQuota(&s_q, 40))
+        Log("sound: background: unmuted %d sound session(s) of the game%s%s%s", un, already ? " (some were unmuted already)" : "",
+            touched ? " (some were changed in the Windows Volume Mixer: left as set there)" : "",
+            failed ? " (some could not be: the next start unmutes them)" : "");
+    if (failed) LogAnomaly("sound", "background: %d sound session(s) of the game could not be unmuted (hr %08lX)", failed, (unsigned long)hr);
+}
 static DWORD WINAPI SdThread(LPVOID haveDs)
 {
     HMODULE ole = LoadLibraryA("ole32.dll");
@@ -1020,50 +1715,54 @@ static DWORD WINAPI SdThread(LPVOID haveDs)
     void *en = NULL, *dev = NULL;
     char game[96], now[96];
     HRESULT h;
-    int pending = 0, gone = 0;
+    int pending = 0, gone = 0, ok = 0, wantMute = 0;
+    const char *const noMute = g_sndSessOn ? "; Background Mute by DirectSound's own focus rule" : "";  // v3.58 SD358
     g_sdCoFree = ole ? (SdCoFree_t)GetProcAddress(ole, "CoTaskMemFree") : NULL;
     g_sdPvClear = ole ? (SdPvClear_t)GetProcAddress(ole, "PropVariantClear") : NULL;
     if (!coInit || !coCreate || !g_sdCoFree) {
-        Log("sound: device watch: ole32.dll's COM functions are not there: no device watch");
+        Log("sound: device watch: ole32.dll's COM functions are not there: no device watch%s", noMute);
         return 0;
     }
     __try {
         h = coInit(NULL, 0 /*COINIT_MULTITHREADED*/);
         if (FAILED(h)) {
-            Log("sound: device watch: CoInitializeEx hr %08lX: no device watch", (unsigned long)h);
-            return 0;
-        }
-        h = coCreate(&kSdClsidEnum, NULL, 0x17 /*CLSCTX_ALL*/, &kSdIidEnum, &en);
-        if (FAILED(h) || !en) {
-            Log("sound: device watch: no MMDevice enumerator (hr %08lX): no device watch", (unsigned long)h);
-            return 0;
-        }
-        g_sdGameId[0] = 0;
-        if (haveDs && SUCCEEDED(((SdDefault_t)SND_VTC(en, 4))(en, 0, 0, &dev)) && dev) {
-            WCHAR *id = NULL;
-            if (SUCCEEDED(((SdGetId_t)SND_VTC(dev, 5))(dev, &id)) && id) {
-                wcsncpy_s(g_sdGameId, sizeof g_sdGameId / sizeof g_sdGameId[0], id, _TRUNCATE);
-                g_sdCoFree(id);
+            Log("sound: device watch: CoInitializeEx hr %08lX: no device watch%s", (unsigned long)h, noMute);
+        } else if (FAILED(h = coCreate(&kSdClsidEnum, NULL, 0x17 /*CLSCTX_ALL*/, &kSdIidEnum, &en)) || !en) {
+            Log("sound: device watch: no MMDevice enumerator (hr %08lX): no device watch%s", (unsigned long)h, noMute);
+        } else {
+            ok = 1;
+            g_sdGameId[0] = 0;
+            if (haveDs && SUCCEEDED(((SdDefault_t)SND_VTC(en, 4))(en, 0, 0, &dev)) && dev) {
+                WCHAR *id = NULL;
+                if (SUCCEEDED(((SdGetId_t)SND_VTC(dev, 5))(dev, &id)) && id) {
+                    wcsncpy_s(g_sdGameId, sizeof g_sdGameId / sizeof g_sdGameId[0], id, _TRUNCATE);
+                    g_sdCoFree(id);
+                }
+                ((SndRel_t)SND_VTC(dev, 2))(dev);
             }
-            ((SndRel_t)SND_VTC(dev, 2))(dev);
+            SdName(en, g_sdGameId, game, sizeof game);
+            if (g_sndDevWatch) {  // v3.58 SD358: the watch and the session mute share this thread; each has its own switch
+                h = ((SdRegister_t)SND_VTC(en, 6))(en, &g_sdNotify);
+                if (FAILED(h))
+                    Log("sound: device: the game plays on \"%s\"; the device watch could not register (hr %08lX): changes are not logged",
+                        game, (unsigned long)h);
+                else
+                    Log("sound: device: the game plays on \"%s\" (%s); a change of Windows' default device is logged (DirectSound stays on "
+                        "the device it started with: restart the game to use another one)", game,
+                        haveDs ? "Windows' default when its sound started" : "no sound device when the game started");
+            }
+            if (g_sndSessOn) SdSessStart(en, haveDs != NULL, game);  // v3.58 SD358
         }
-        SdName(en, g_sdGameId, game, sizeof game);
-        h = ((SdRegister_t)SND_VTC(en, 6))(en, &g_sdNotify);
-        if (FAILED(h)) {
-            Log("sound: device: the game plays on \"%s\"; the device watch could not register (hr %08lX): changes are not logged", game,
-                (unsigned long)h);
-            return 0;
-        }
-        Log("sound: device: the game plays on \"%s\" (%s); a change of Windows' default device is logged (DirectSound stays on the "
-            "device it started with: restart the game to use another one)", game,
-            haveDs ? "Windows' default when its sound started" : "no sound device when the game started");
     } __except (EXCEPTION_EXECUTE_HANDLER) {
-        LogAnomaly("sound", "device watch: the start faulted: no device watch");
+        LogAnomaly("sound", "device watch: the start faulted: no device watch%s", noMute);
+        InterlockedExchange(&g_sndSessOk, 0);
         return 0;
     }
+    if (!ok) return 0;
+    InterlockedExchange(&g_sdAlive, 1);
     for (;;) {
         LONG st;
-        WaitForSingleObject(g_sdEvt, INFINITE);
+        const DWORD wr = WaitForSingleObject(g_sdEvt, wantMute ? 2000 : INFINITE);
         __try {
             if (InterlockedExchange(&g_sdNewDefault, 0)) {
                 WCHAR id[256];
@@ -1096,24 +1795,84 @@ static DWORD WINAPI SdThread(LPVOID haveDs)
                 gone = nowGone;
             }
             InterlockedExchange(&g_sndDevNote, pending || gone);
+            if (g_sndSessOn) {  // v3.58 SD358: the game thread's mute / unmute requests (SndBgTick, SndBgExit)
+                const LONG q = InterlockedExchange(&g_sndMuteReq, -1);
+                SdTouchSeen();  // v3.58 SD358-001: a held session changed in the Volume Mixer
+                if (g_sdMarkDirty) SdMarkerWrite();  // v3.58 SD358-003: the last marker write failed: again (a confirm, a clean-up)
+                if (q == 1) {
+                    wantMute = 1;
+                    SdMuteReq(en, 0);
+                } else if (q == 0) {
+                    wantMute = 0;
+                    SdUnmuteReq();
+                } else if (wr == WAIT_TIMEOUT && wantMute) {
+                    SdMuteReq(en, 1);
+                }
+                if (q != -1 && g_sdDone) SetEvent(g_sdDone);
+            }
         } __except (EXCEPTION_EXECUTE_HANDLER) {
             static LONG s_f;
             if (LogQuota(&s_f, 3)) LogAnomaly("sound", "device watch: a change faulted while it was looked at");
+            if (g_sdDone) SetEvent(g_sdDone);
         }
     }
 }
 static void SdStart(void *ds)  // the first frame (the game's DirectSound exists by then)
 {
     HANDLE t;
-    if (!g_sndDevWatch) return;
+    if (!g_sndDevWatch && !g_sndSessOn) return;  // v3.58 SD358: the thread also mutes the game's sessions (SessionMute)
     InitializeCriticalSection(&g_sdCs);
     g_sdEvt = CreateEventA(NULL, FALSE, FALSE, NULL);
-    t = g_sdEvt ? CreateThread(NULL, 0, SdThread, ds, 0, NULL) : NULL;
+    g_sdDone = CreateEventA(NULL, FALSE, FALSE, NULL);  // v3.58 SD358
+    t = g_sdEvt && g_sdDone ? CreateThread(NULL, 0, SdThread, ds, 0, NULL) : NULL;
     if (!t) {
-        Log("sound: device watch: no thread (error %lu): none", GetLastError());
+        Log("sound: device watch: no thread (error %lu): none%s", GetLastError(),
+            g_sndSessOn ? "; Background Mute by DirectSound's own focus rule" : "");
         return;
     }
     CloseHandle(t);
+}
+// v3.58 SD358: the frame end, after the focus look (the game thread): the mute request, the buffer sites, the keep-awake tone
+static void SndBgTick(void)
+{
+    const int behind = g_sndFront == 0 && !(g_sndExitAt && GetTickCount() - g_sndExitAt < 3000);
+    const int want = SndBgWantMute((int)g_sndBg, behind);
+    const int sess = g_sndSessOn && g_sdAlive && g_sndSessOk;
+    static LONG s_q;
+    if (g_sndSessOn && g_sdAlive && want != g_sndMuteWant) {
+        g_sndMuteWant = want;
+        InterlockedExchange(&g_sndMuteReq, want);
+        SetEvent(g_sdEvt);
+    }
+    SndBgSync();
+    SndKeepHoldSet(SndKeepHold(want, sess));
+    if (want && !sess) {  // Mute without a session: the sounds that carry the global focus go on until they end
+        if (!g_sndStaleShown) {
+            const int n = SndBgStale();
+            g_sndStaleShown = 1;
+            if (n && LogQuota(&s_q, 20))
+                Log("sound: background: %d of the game's sounds carry the global focus and go on behind other windows until they end (no "
+                    "sound session to mute: DirectSound's focus rule mutes the sounds that start from now on)", n);
+        }
+    } else {
+        g_sndStaleShown = 0;
+    }
+}
+// v3.58 SD358: WM_CLOSE (the game thread, HookProc): the sessions Refined muted are unmuted before the game goes (Windows
+// would keep them muted for the next start: that start unmutes them too, by the marker)
+static void SndBgExit(void)
+{
+    DWORD r;
+    if (!g_sndOn) return;
+    g_sndExitAt = GetTickCount() | 1;
+    if (!g_sndMuteWant || !g_sdAlive || !g_sdDone) return;
+    g_sndMuteWant = 0;
+    ResetEvent(g_sdDone);
+    InterlockedExchange(&g_sndMuteReq, 0);
+    SetEvent(g_sdEvt);
+    r = WaitForSingleObject(g_sdDone, 500);
+    Log("sound: background: the window closes behind other windows: the game's sound sessions unmuted first (%s)",
+        r == WAIT_OBJECT_0 ? "done" : "no answer in 0.5 s: the next start unmutes them");
 }
 static void SndFirstFrame(void)
 {
@@ -1189,6 +1948,9 @@ static void SndMinute(void)
          "Mode %s, engine %d",
          c[SNC_V2D], c[SNC_V3D], c[SNC_VSTR], kSndNightName[g_sndNight], c[SNC_NIGHT], c[SNC_P2D], c[SNC_P2D_ONE], c[SNC_P2D_STOCKONE],
          c[SNC_PSTR], c[SNC_PSTR_ONE], c[SNC_PSTR_STOCKONE], mono, c[SNC_MUSICFOLD], kSndModeName[SndModeNow()], SND_STATE);
+    if (c[SNC_Z2D] || c[SNC_Z3D] || c[SNC_ZSTR])  // v3.58 SD358
+        LogV("sound: minute: volume 0: %ld 2D, %ld 3D, %ld stream volume(s) set to silence (the game's own 0; it gives DirectSound -60 dB)",
+             c[SNC_Z2D], c[SNC_Z3D], c[SNC_ZSTR]);
 }
 static void SndFrameTick(void)
 {
@@ -1232,6 +1994,7 @@ static void SndFrameTick(void)
             SndMinute();
         }
         SndFocusTick();  // v3.56 SD356
+        SndBgTick();     // v3.58 SD358: Mute by the sound session, the buffer sites, the keep-awake tone behind other windows
         SndKeepCheck();
         if (g_sndDevNote != g_sndDevNoteShown) {  // the device watch's thread set it: the Sound Mode line follows here
             g_sndDevNoteShown = g_sndDevNote;

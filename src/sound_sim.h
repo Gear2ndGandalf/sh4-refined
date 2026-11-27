@@ -300,4 +300,138 @@ static void SndDevNameAscii(const unsigned short *w, char *out, int n)
     out[i] = 0;
 }
 
+// ---------------------------------------------------------------- v3.58 SD358: Volume 0 = silent; Mute by the sound session
+// (staging/v358_feedback/w8_sound/PLAN.md; the user's v3.57 QA: "Music volume at zero does not fully silence the music" and
+// "when setting to Mute again the app never mutes in the background on my headset"). Checked against SH4Decomp/orig/sh4.exe:
+// - SndPack::SetVolumePan 0x409040 (every 2D sound and every layer of the seq*.pac music) and SndVoice::ApplyVolume 0x40B550
+//   (every stream: bgm.sh4, se.sh4, the world's bank, the scene streams) hand DirectSound
+//   2000 log10(max(0.2 x 10^(v / 2000), 0.001)) (the mode-2 attenuation is unconditional: the post-link nops at 0x40904B /
+//   0x40B59C): 14 dB down and never below -60 dB. The game's own "0" (SndDb(0) = -10000 for a sound; the stream table
+//   0x69CA18's level 0 = -960, x 10 = -9600) so reaches DirectSound as -6000: at Music Volume 0 the music still plays at
+//   -60 dB, and Night Mode (which lifts quiet sounds) made that -40 dB (High) / -48 dB (Low). SetVolume3D 0x409230 hands
+//   2000 log10(min(1.5 x 10^(v / 2000), 1)): -10000 -> -9648, -9600 -> -9247 (silent enough, made exact here too).
+// - ApplyVolume adds 500 to stream 0x2774's volume at every update (its dirty flag is never cleared) up to 0 dB, whatever the
+//   game set (se.sh4 #100, which the bank table gives Room 302's rl.sh4 #20): the level the game set is the one
+//   SndVoice::SetVolume 0x40B2D0 stores (0x40B2E7 `mov [eax+12C010h], ecx`).
+#define SND_ZERO_RAW (-9600)      // a level the game sets at or below this is its own "0": DirectSound's silence
+#define SND_ZERO_3D_OUT (-9247)   // SetVolume3D's output for -9600 and below (x 1.5, truncated)
+#define SND_STR_UNSET 1           // no SetVolume seen for a stream channel yet (every level is <= 0)
+// the game's own two attenuations (as the exe: float maths, truncated by _ftol); the test compares Refined's with them
+static int SndGameAtt2D(int v)
+{
+    double f = 0.2 * pow(10.0, v * 0.0005);
+    if (f < 0.001) f = 0.001;
+    return (int)(log10(f) * 2000.0);
+}
+static int SndGameAtt3D(int v)
+{
+    double f = 1.5 * pow(10.0, v * 0.0005);
+    if (f > 1.0) f = 1.0;
+    return (int)(log10(f) * 2000.0);
+}
+// what DirectSound gets: the game's own value, or silence when the game set its "0" (raw = the level before the attenuation)
+static int SndZero2D(int raw, int out) { return raw <= SND_ZERO_RAW ? SND_VOL_MIN : out; }
+static int SndZero3D(int out) { return out <= SND_ZERO_3D_OUT ? SND_VOL_MIN : out; }
+// a stream: set = the level the game last set on its channel (SND_STR_UNSET: none seen: the level ApplyVolume works with)
+static int SndZeroStream(int set, int raw, int out) { return (set <= 0 ? set : raw) <= SND_ZERO_RAW ? SND_VOL_MIN : out; }
+
+// Background Mute by the sound session: Windows' audio sessions of the game's process (DirectSound's stream, the films'
+// DirectShow sound and the keep-awake tone are all in them) are muted while another window is in front, and only those
+// Refined muted are unmuted. Then DirectSound's own focus rule is not needed: the four buffer sites carry the global focus in
+// both modes, so a switch either way applies at once to every sound. Without a session to mute (no COM, no session of the
+// process found, SetMute refused) Mute falls back to v3.56: the game's own focus rule for sounds made from then on, and the
+// keep-awake tone stopped behind other windows.
+static int SndBgWantMute(int bg, int behind) { return bg == SND_BG_MUTE && behind; }
+static int SndBgSitesPlay(int bg, int sessOk) { return bg == SND_BG_PLAY || sessOk; }  // 1: the sites' byte is 0x80
+static int SndKeepHold(int wantMute, int sessOk) { return wantMute && !sessOk; }       // 1: the keep-awake tone stops
+// v3.58 SD358-001 (Codex): Refined's mutes are told apart by the session's identity, never by "a marker exists".
+// - A session's identifier (IAudioSessionControl2::GetSessionIdentifier: the endpoint, the exe's path and the session GUID)
+//   is the same at every start of the game. SH4Refined.muted names each session Refined holds muted (written BEFORE the
+//   SetMute), with the time; only a session named there and still muted is unmuted at the next start. A muted session it does
+//   not name (the user's own mute, or one whose identity cannot be read) is left muted and logged.
+// - Refined's SetMute carries its own event context (kSdCtx). A held session gets an IAudioSessionEvents callback: a change
+//   with another context (Windows' Volume Mixer, another program) is the user's: unmuted by them -> Refined does not mute it
+//   again this time behind other windows; muted again by them -> theirs: Refined does not unmute it (the marker drops it).
+//   A volume change that leaves the mute as it was changes nothing.
+// One session at a mute sweep: 1 = Refined mutes it (held = its identity is in Refined's held list, touched or not; one
+// already muted is the user's or Refined's own: left)
+static int SndSessMuteAct(int mutedNow, int held) { return !mutedNow && !held; }
+enum { SND_TOUCH_NONE, SND_TOUCH_UNMUTED, SND_TOUCH_USER };
+// a held session changed by someone else (the event context is not Refined's): the new touch state; *lastMute follows it
+static int SndSessTouchStep(int touched, int *lastMute, int mute)
+{
+    if (!mute) {
+        *lastMute = 0;
+        return SND_TOUCH_UNMUTED;  // the user unmuted it: they want to hear it
+    }
+    if (!*lastMute) {
+        *lastMute = 1;
+        return SND_TOUCH_USER;     // muted again after that: the user's mute now
+    }
+    return touched;                // a volume change only: the mute is as it was
+}
+// a held session when the game is in front again: 1 = unmute (still muted and nobody else touched it)
+static int SndSessUnmuteAct(int mutedNow, int touched) { return mutedNow && touched == SND_TOUCH_NONE; }
+// the marker names a held session while nobody else touched it (an unmuted or user-muted one is not Refined's to undo)
+static int SndMarkKeep(int touched) { return touched == SND_TOUCH_NONE; }
+// one session of the game at the start: 1 = unmute (muted and named in SH4Refined.muted: Refined's own mute, left by a game
+// that ended behind other windows); 0 = leave (not muted, or muted and not named: the user's; the game is muted in Windows'
+// Volume Mixer, which the log says)
+static int SndSessStartAct(int mutedNow, int named) { return mutedNow && named; }
+// SH4Refined.muted: a line "<seconds since 1970>\t<state>\t<session identifier, UTF-8>"; '#' lines are text. 1 = an entry
+// (*t, *st, *id at the identifier, *n its length without the line end)
+// v3.58 SD358-003 (Codex): each entry carries a state. "pending" is written BEFORE the SetMute (a mute that may or may not have
+// happened: a failed SetMute whose clean-up write failed too leaves one); "muted" is written after the SetMute worked (a
+// confirmed mute of Refined's). Only a confirmed entry may unmute a session at the next start (SndMarkMayUnmute): a pending one
+// never does (the session is left as it is, the log says how to unmute it in the Volume Mixer, the entry is dropped). A line
+// without a state ("<time>\t<identifier>": the v3.58 test builds before SD358-003, never installed) counts as confirmed, as
+// those builds read it; an unknown state counts as pending (never an unmute).
+#define SND_MARK_MAX_AGE (30ul * 24ul * 3600ul)  // an entry older than 30 days is dropped (its device never came back)
+enum { SND_MARK_NONE, SND_MARK_PENDING, SND_MARK_MUTED };  // v3.58 SD358-003: none = not named
+static int SndMarkParse(const char *line, unsigned long *t, int *st, const char **id, size_t *n)
+{
+    unsigned long v = 0;
+    int d = 0, s = SND_MARK_MUTED;
+    size_t k, tab = 0;
+    if (!line || line[0] == '#') return 0;
+    for (; *line >= '0' && *line <= '9' && d < 11; ++line, ++d) v = v * 10 + (unsigned long)(*line - '0');
+    if (!d || *line != '\t') return 0;
+    ++line;
+    for (k = 0; line[k] && line[k] != '\r' && line[k] != '\n'; ++k)
+        if (line[k] == '\t' && !tab) tab = k + 1;  // v3.58 SD358-003: a state field (a session identifier has no tab)
+    if (tab) {
+        s = tab == 6 && !memcmp(line, "muted", 5) ? SND_MARK_MUTED : SND_MARK_PENDING;  // "pending", or a state not known
+        line += tab, k -= tab;
+    }
+    if (!k) return 0;
+    *t = v, *st = s, *id = line, *n = k;
+    return 1;
+}
+// v3.58 SD358-003: the state's word in the file
+static const char *SndMarkWord(int st) { return st == SND_MARK_MUTED ? "muted" : "pending"; }
+// v3.58 SD358-003: 1 = the entry may unmute its session at the start (a confirmed mute of Refined's only)
+static int SndMarkMayUnmute(int st) { return st == SND_MARK_MUTED; }
+// v3.58 SD358-003: an entry the start did not use (its session not found, or found and its unmute failed) is kept for a later
+// start only when confirmed; a pending one is dropped (it can never authorize an unmute)
+static int SndMarkKeepAtStart(int used, int st) { return !used && st == SND_MARK_MUTED; }
+// v3.58 SD358-003: a held session's entry: pending until its SetMute worked, then confirmed
+static int SndMarkHeldState(int confirmed) { return confirmed ? SND_MARK_MUTED : SND_MARK_PENDING; }
+static int SndMarkExpired(unsigned long now, unsigned long t) { return t > now + 86400ul || now - t > SND_MARK_MAX_AGE; }
+
+// v3.58 SD358-002 (Codex): SH4Refined.muted is written transactionally (a temporary file, every write whole, flushed, closed,
+// then moved over the old one with MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH). One write is whole when the call
+// worked and wrote every byte (a short write is a failure)
+static int SndMarkWriteOk(unsigned long want, unsigned long got, int callOk) { return callOk && got == want; }
+// the new marker is in place only when every step worked; otherwise the temporary file is removed and the old marker stays
+static int SndMarkCommit(int opened, int writesOk, int flushed, int closed, int replaced)
+{
+    return opened && writesOk && flushed && closed && replaced;
+}
+// a session is muted only after the marker that names it is in place (else: not muted, DirectSound's focus rule for it)
+static int SndSessMayMute(int recorded) { return recorded != 0; }
+// v3.58 SD358-003 (Codex): a marker write that failed leaves the file one step behind (a confirm not written, a failed
+// attempt's pending entry not removed, a dropped session still named): 1 = write it again at the watch thread's next pass
+// (the next focus change, the 2 s re-sweep behind other windows, a Volume Mixer change); a whole write clears it
+static int SndMarkDirty(int wrote) { return !wrote; }
+
 #endif

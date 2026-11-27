@@ -25,7 +25,8 @@
 // Hidden off switch: [Options] Look=0 (v3.52's look: no strip, triangle, crumb or new greys).
 #include "look_sim.h"
 
-enum { LK_T0 = 512, LK_R0 = LK_T0 + 24, LK_D0 = LK_R0 + 8, LK_END = LK_D0 + 8 };  // MSG_V53 + 512 .. 575 (BRIEF_COMMON: w3's)
+#define LK_DN 9  // v3.58 PV358: the grey lines (one per dependent row; was 8: + Filter Strength, V53 + 552 was free)
+enum { LK_T0 = 512, LK_R0 = LK_T0 + 24, LK_D0 = LK_R0 + 8, LK_END = LK_D0 + LK_DN };  // MSG_V53 + 512 .. 575 (BRIEF_COMMON: w3's)
 typedef char LkIdsFit[LK_END <= 576 && LP_MAX <= 24 && LKR_N <= 8 ? 1 : -1];
 typedef char LkBlockFit[MSG_V53 + 576 == MSG_V54 ? 1 : -1];  // the block before v3.54's  // v3.54 OL34
 
@@ -43,7 +44,7 @@ static int g_lkOn;
 static BYTE g_lkTitle[24][LK_TXT + 8];   // "Parent > Page" of each hidden page (LK_T0 + lp)
 static DWORD g_lkTitleShown[24];         // the title id each page shows (LoadSlot)
 static BYTE g_lkReason[LKR_N][LK_TXT];   // LK_R0 + r
-static BYTE g_lkDesc[8][768];            // LK_D0 + k: reason + the row's own description
+static BYTE g_lkDesc[LK_DN][768];        // LK_D0 + k: reason + the row's own description  // v3.58 PV358: LK_DN (was 8)
 static BYTE g_lkEmpty[4] = { 0x00, 0x80, 0xFF, 0xFF };
 static DWORD g_lkNoVal[2] = { 0, 0 };    // a folder row's value table (id 0: nothing drawn)
 static BYTE g_lkStrip[LP_N][LK_TXT];     // the strip's names (rebuilt as each Options opening first draws)
@@ -59,7 +60,7 @@ static const BYTE *LkText(int id)
     const int i = id - MSG_V53;
     if (i >= LK_T0 && i < LK_T0 + 24) return g_lkTitle[i - LK_T0][0] == 0x00 && g_lkTitle[i - LK_T0][1] == 0x80 ? g_lkTitle[i - LK_T0] : g_lkEmpty;
     if (i >= LK_R0 && i < LK_R0 + LKR_N) return g_lkReason[i - LK_R0];
-    if (i >= LK_D0 && i < LK_D0 + 8) return g_lkDesc[i - LK_D0][0] == 0x00 && g_lkDesc[i - LK_D0][1] == 0x80 ? g_lkDesc[i - LK_D0] : g_lkEmpty;
+    if (i >= LK_D0 && i < LK_D0 + LK_DN) return g_lkDesc[i - LK_D0][0] == 0x00 && g_lkDesc[i - LK_D0][1] == 0x80 ? g_lkDesc[i - LK_D0] : g_lkEmpty;  // v3.58 PV358: LK_DN
     return g_lkEmpty;
 }
 
@@ -169,15 +170,15 @@ static DWORD LkTitleFor(int lp)
 // ---------------------------------------------------------------- the dependent rows (layout_data.py DEPS, today's rows)
 // Each row is known by its own input function; LkDecorate puts the thunk of its slot in the record (+0) and the matching
 // description thunk (+0x18), keeping the row's own description getter.
-enum { LKD_NSTR, LKD_NTYPE, LKD_NCOL, LKD_DOFSTR, LKD_ECHON, LKD_WIDTH, LKD_SHEDGE, LKD_SHDARK, LKD_N };
-typedef char LkDepsFit[LKD_N <= 8 ? 1 : -1];  // one LK_D0 text each
+enum { LKD_NSTR, LKD_NTYPE, LKD_NCOL, LKD_DOFSTR, LKD_ECHON, LKD_WIDTH, LKD_SHEDGE, LKD_SHDARK, LKD_FSTR, LKD_N };  // v3.58 PV358: + LKD_FSTR
+typedef char LkDepsFit[LKD_N <= LK_DN ? 1 : -1];  // one LK_D0 text each  // v3.58 PV358: LK_DN
 typedef int(__cdecl *LkInFn)(BYTE *, int);
 typedef int(__cdecl *LkDescFn)(void);
-static const LkInFn kLkOwnIn[LKD_N] = { FxIn0, FxIn1, FxIn2, DofStrIn, GpInEchoN, SndWidthIn, ShEdgeIn, ShDarkIn };
-static const int kLkRule[LKD_N] = { LKR_GRAIN, LKR_GRAIN, LKR_GRAIN, LKR_DOF, LKR_ECHO, LKR_WIDTH, LKR_SHADOW, LKR_SHADOW };
+static const LkInFn kLkOwnIn[LKD_N] = { FxIn0, FxIn1, FxIn2, DofStrIn, GpInEchoN, SndWidthIn, ShEdgeIn, ShDarkIn, PvFsIn };  // v3.58 PV358: + PvFsIn
+static const int kLkRule[LKD_N] = { LKR_GRAIN, LKR_GRAIN, LKR_GRAIN, LKR_DOF, LKR_ECHO, LKR_WIDTH, LKR_SHADOW, LKR_SHADOW, LKR_FILTER };
 static const char *const kLkRowName[LKD_N] = { OLW_L_GRAIN_STRENGTH, OLW_GRAIN_GRAIN_TYPE_L, OLW_GRAIN_GRAIN_COLOUR_L,
-                                               OLW_EFFECTS_BLUR_STRENGTH_L, OLW_POWERS_ECHO_COUNT_L, OLW_SOUND_STEREO_WIDTH_L,
-                                               OLW_SHADOWS_EDGE_L, OLW_SHADOWS_DARKNESS_L };  // v3.53 MERGE: w2 OL1's labels (the log)
+                                               OLW_L_BLUR_STRENGTH /* v3.58 PV358 */, OLW_POWERS_ECHO_COUNT_L, OLW_SOUND_STEREO_WIDTH_L,
+                                               OLW_SHADOWS_EDGE_L, OLW_SHADOWS_DARKNESS_L, OLW_EFFECTS_FILTER_STRENGTH_L };  // v3.53 MERGE: w2 OL1's labels (the log)  // v3.58 PV358: + Filter Strength
 static DWORD g_lkOwnDesc[LKD_N];  // each row's own description getter (from its record)
 static LONG g_lkInertQ[LKD_N];
 
@@ -191,6 +192,7 @@ static int LkRuleOn(int rule)  // 1 = the switch the rule names is on (the row i
     case LKR_SHADOW: return *(volatile BYTE *)0x1091AE9 != 0;  // cfg+0x19 Realtime Shadow (0 Off; stock input 0x524F20 toggles it)
     case LKR_CAM: return atof(g_camTxt[CAMK_ENABLE]) != 0.0;
     case LKR_MARGIN: return atof(g_camTxt[CAMK_WALLZOOM]) != 0.0;
+    case LKR_FILTER: return g_fx[FX_FILTER] != FXF_NONE;  // v3.58 PV358: Filter Strength needs a filter
     }
     return 1;
 }
@@ -235,9 +237,9 @@ static int LkDepDesc(int k)
 #define LK_THUNK(k) \
     static int __cdecl LkIn##k(BYTE *c, int n) { return LkDepIn(k, c, n); } \
     static int __cdecl LkDs##k(void) { return LkDepDesc(k); }
-LK_THUNK(0) LK_THUNK(1) LK_THUNK(2) LK_THUNK(3) LK_THUNK(4) LK_THUNK(5) LK_THUNK(6) LK_THUNK(7)
-static const LkInFn kLkThunkIn[LKD_N] = { LkIn0, LkIn1, LkIn2, LkIn3, LkIn4, LkIn5, LkIn6, LkIn7 };
-static const LkDescFn kLkThunkDesc[LKD_N] = { LkDs0, LkDs1, LkDs2, LkDs3, LkDs4, LkDs5, LkDs6, LkDs7 };
+LK_THUNK(0) LK_THUNK(1) LK_THUNK(2) LK_THUNK(3) LK_THUNK(4) LK_THUNK(5) LK_THUNK(6) LK_THUNK(7) LK_THUNK(8)  // v3.58 PV358: + 8
+static const LkInFn kLkThunkIn[LKD_N] = { LkIn0, LkIn1, LkIn2, LkIn3, LkIn4, LkIn5, LkIn6, LkIn7, LkIn8 };
+static const LkDescFn kLkThunkDesc[LKD_N] = { LkDs0, LkDs1, LkDs2, LkDs3, LkDs4, LkDs5, LkDs6, LkDs7, LkDs8 };
 
 static int LkDepOfRow(int page, int row)  // -1 = not a dependent row (or not decorated)
 {
@@ -379,7 +381,7 @@ static void LkRowDraw(int row, int slot, const BYTE *obj, int xoff)
         if (g_lpTable[page][7 * row + 3] == (DWORD)(ULONG_PTR)g_lkNoVal && SubmenuRowPage(page, row)) {
             RowRect r;
             const int cur = *(const int *)(obj + 0x38 * slot + 0x30);
-            const float x = LK_FOLDER_X + (float)xoff;
+            const float x = LK_FOLDER_X - (float)VbxColMove(page) + (float)xoff;  // v3.58 MN358: where the page's values start
             memset(&r, 0, sizeof r);
             ((void *(__cdecl *)(RowRect *, const void *, int))0x552270)(&r, obj + 0x38 * slot, row);
             if (r.w > 0 && x > -16.0f && x < 528.0f)

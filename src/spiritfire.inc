@@ -98,6 +98,7 @@ static void SfBuild(const Viewport8 *vp, float now)
     const DWORD rk = *(volatile DWORD *)0xFD5A90 << 16 | (*(volatile DWORD *)0xFD5A94 & 0xFFFF);
     const float unit = (float)vp->h / 720.0f;
     int i, n = 0;
+    SfU32 herKey = 0;  // v3.58 GT358: her soul fire's key (Ghost Teleport's fade)
     if (rk != g_sfRoom) {  // a new stage / room: no fire or particle carries over
         g_sfRoom = rk;
         memset(&g_sf, 0, sizeof g_sf);
@@ -108,6 +109,7 @@ static void SfBuild(const Viewport8 *vp, float now)
         memset(in, 0, sizeof *in);
         if (!SvChest(s->model, s->type, in->o)) continue;
         in->key = SfKeyOf(s);
+        if (s->type == SV_SOUL_PLAYER) herKey = in->key;  // v3.58 GT358
         SfKind(s->type, &in->kind, &in->size);
         in->dieS = g_soulFadeS;
         in->hp = -1.0f;
@@ -118,6 +120,12 @@ static void SfBuild(const Viewport8 *vp, float now)
         ++n;
     }
     g_sfSprN = SfFrame(&g_sf, ins, n, now, g_sfSpr, SF_SPR_MAX);
+    if (herKey) {  // v3.58 GT358: in Ghost Teleport's fade her soul fire fades with her body (teleport.inc GtSoulOp; embers fly on)
+        const float gk = GtSoulOp();
+        if (gk < 1.0f)
+            for (i = 0; i < g_sfSprN; ++i)
+                if (g_sfSpr[i].fire >= 0 && g_sfSpr[i].fire < SF_FIRES && g_sf.fire[g_sfSpr[i].fire].key == herKey) g_sfSpr[i].a *= gk;
+    }
     for (i = g_sfFires = 0; i < SF_FIRES; ++i) g_sfFires += g_sf.fire[i].live;
     if (!SvSprScale(vp)) {  // pixels per world unit (as the auras); no camera matrix: nothing this frame
         if (!s_scaleBad++) Log("screen effects: Spirit Vision: spirit fires: no sprite scale from the camera matrix (skipped)");

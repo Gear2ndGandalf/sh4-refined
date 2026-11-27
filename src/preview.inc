@@ -24,10 +24,41 @@
 //    Picture keeps PreviewImage first (as v3.55).
 // Not in the previews: Death Presence, Echo and After Shock's own looks (Powers), the heat of bodies that were hidden in
 // the pause frame by another effect; the title scene shows no hauntings / portals (the pause's layer does).
+//
+// v3.58 PV358 (staging/v358_feedback/w2_preview/PLAN.md; USER_FEEDBACK_v357, Effects Preview, Improvements, Issues):
+// 1. [ScreenEffects] Preview Off / Stock / Live (default Live), a row on Effects: Off no backdrop on the Effects pages (the
+//    game's own menu background; the Shadows page's split preview off too); Stock the stock picture (the file
+//    SH4Refined_preview_stock.dds in the game folder: the user's F7 picture, placed by the installer, never inside the dll,
+//    never written by F7) on the title menu and in a pause; Live the stock picture on the title menu, a pause's own scene
+//    with its layers (v3.56). Without the file: preview.dds (Live), then SH4 Refined's own scene (one log line). v3.56's
+//    hidden PreviewScene is read once and migrated to Preview=Live (the old key removed, logged). The pause's layers are
+//    still kept under every value (a filter changed in Options during a pause lays them over the pause menu's picture).
+// 2. [ScreenEffects] FilterStrength Low / Medium / High / Ultra (default High = v3.16 - v3.57's look, byte for byte), a row
+//    on Effects (grey with Filter None): Low / Medium lay the plain frame (copied before the filter) back at 65 / 35 %;
+//    Ultra scales each look's amounts x 1.35 (preview_sim.h PvFsLook); Thermal's bodies and Spirit Vision's ghosts / fires
+//    stay full. v3.15's unread FilterStrength value (no marker FilterStrengthV) reads as High once.
+// 3. The heat layer's bodies write their depth again (v3.56 drew them with no depth write: a body the close-camera fade
+//    left without depth of its own showed its inside faces; the live Thermal has written it since v3.24).
 #include "preview_sim.h"
 
 static int g_pvOn = 1;              // [ScreenEffects] PreviewLayers
-static int g_pvSceneOn = 1;         // [ScreenEffects] PreviewScene: 1 Scene, 0 Picture
+// (v3.58 PV358: g_pvSceneOn is gone: [ScreenEffects] PreviewScene is migrated to Preview, PvInstallModes)
+static int g_pvMode = PVM_DEFAULT;  // v3.58 PV358: [ScreenEffects] Preview (PVM_*)
+static volatile LONG g_pvFs = PVS_DEFAULT;  // v3.58 PV358: [ScreenEffects] FilterStrength (PVS_*)
+static int g_pvFsMarked;            // v3.58 PV358: the marker FilterStrengthV=358 is on disk (read at the start or written since)
+static LONG g_snapPvMode = PVM_DEFAULT, g_snapPvFs = PVS_DEFAULT;  // v3.58 PV358: as Options opened
+static int g_pvRows, g_pvRow0 = -1;  // v3.58 PV358: the two rows are on the Screen Effects origin page (from row g_pvRow0)
+static char g_pvStockPath[MAX_PATH];  // v3.58 PV358: <game folder>\SH4Refined_preview_stock.dds
+static void *g_pvStockTex, *g_pvStockDev;
+static UINT g_pvStockW, g_pvStockH;
+static int g_pvStockFailed;         // v3.58 PV358: no texture on this device (checked again at the next page opening)
+static int g_pvStockHave = -1;      // v3.58 PV358: the file is there (-1 not checked yet)
+static int g_pvStockLogged;         // v3.58 PV358: its missing / unreadable line written (once a state)
+static ShRt g_pvFsRt;               // v3.58 PV358: Filter Strength's plain copy (Low / Medium; the back buffer's size and format)
+static LONG g_pvFsArmed = -1;       // v3.58 PV358: the frame whose plain copy PvFsMix may lay back (once)
+static int g_pvFsFails;             // v3.58 PV358: faults / failed copies (3: Low / Medium draw as High for the session)
+static volatile LONG g_pvFsQ;
+static int g_pvOffNoted = -1;       // v3.58 PV358: the page whose Preview Off line was written this opening
 static int g_pvFails;               // capture faults / failed restores (PV_FAILS_OFF: the layers off for the session)
 static volatile LONG g_pvCapDraws;  // v3.56 MERGE: captures that drew this session (PvCapNew: the budget / rate guard skip them)
 // v3.56 MERGE (PV356 x PW356 / FR356): 1 when a capture drew since the caller's last look (its own counter, updated)
@@ -39,7 +70,7 @@ static int PvCapNew(LONG *seen)
     return moved;
 }
 static int g_pvSceneFails;          // title-scene faults (1: the scene off for the session)
-// g_pvNoZw (the preview's heat redraw writes no depth) and g_pvColl (its own GvCollect logs nothing): screenfx.inc
+// g_pvColl (its own GvCollect logs nothing): screenfx.inc  // v3.58 PV358: g_pvNoZw gone (the heat layer writes depth)
 static void *g_pvDev;
 static ShRt g_pvHeat, g_pvSpirit;   // the layers (render targets: the back buffer's size and format)
 static LONG g_pvSeq = -1;           // the pause picture (g_fxPausePicSeq) the layers belong to
@@ -62,20 +93,104 @@ static LONG g_pvFireFrame = -10;
 #define PV_WARM_STEPS 20            // Spirit Vision's auras stepped 2 s (0.1 s steps) at a capture when it is not live
 
 // ---------------------------------------------------------------- settings (ScreenFxInstall)
+// v3.58 PV358: a key as it is in the file (1 = there; "" and 0 when missing or the ini cannot be written: g_iniFallback)
+static int PvIniRaw(const char *key, char *out, DWORD n)
+{
+    out[0] = 0;
+    if (g_iniFallback) return 0;
+    GetPrivateProfileStringA("ScreenEffects", key, "\x01", out, n, g_iniPath);
+    if (!strcmp(out, "\x01")) {
+        out[0] = 0;
+        return 0;
+    }
+    return 1;
+}
+static int PvIniWrite(const char *key, const char *value)  // 1 = written (NULL removes the key)
+{
+    return !g_iniFallback && WritePrivateProfileStringA("ScreenEffects", key, value, g_iniPath) != 0;
+}
+static int PvStockCheck(void)  // v3.58 PV358: is the stock picture file there (cached until the next page opening)
+{
+    g_pvStockHave = g_pvStockPath[0] && GetFileAttributesA(g_pvStockPath) != INVALID_FILE_ATTRIBUTES;
+    return g_pvStockHave;
+}
+// v3.58 PV358: [ScreenEffects] Preview (v3.56's PreviewScene migrated once) and FilterStrength (v3.15's value: High once)
+static void PvInstallModes(void)
+{
+    char p[32], s[32], v[32], m[16];
+    const int hp = PvIniRaw("Preview", p, sizeof p), hs = PvIniRaw("PreviewScene", s, sizeof s);
+    int mode, fs, how, w;
+    if (g_iniFallback) {  // (the ini cannot be written: its values as read at the start, nothing migrated)
+        int known;
+        IniStr("ScreenEffects", "Preview", p, sizeof p);
+        g_pvMode = PvParseMode(p, &known);
+        InterlockedExchange(&g_pvFs, PVS_DEFAULT);
+        Log("screen effects: SH4Refined.ini cannot be written: Preview %s, Filter Strength High for this start", kPvModeName[g_pvMode]);
+        return;
+    }
+    how = PvModeIni(hp ? p : NULL, hs ? s : NULL, &mode);
+    g_pvMode = mode;
+    switch (how) {
+    case PVI_MISSING:
+        if (PvIniWrite("Preview", kPvModeName[mode])) Log("settings: [ScreenEffects] Preview was missing, added as \"%s\"", kPvModeName[mode]);
+        break;
+    case PVI_BAD:
+        w = PvIniWrite("Preview", kPvModeName[mode]);
+        Log("screen effects: [ScreenEffects] Preview=%s is not a value (Off, Stock, Live): %s (%s)", p, kPvModeName[mode],
+            w ? "written" : "NOT written");
+        break;
+    case PVI_MIGRATE:  // v3.56's hidden key alone: Scene and Picture both mean Live now (a pause: its scene; else the picture)
+        w = PvIniWrite("Preview", kPvModeName[mode]);
+        if (w) PvIniWrite("PreviewScene", NULL);
+        Log("screen effects: [ScreenEffects] PreviewScene=%s (v3.56, hidden) is now Preview=%s (v3.58: the Effects row Preview; %s)", s,
+            kPvModeName[mode], w ? "written, the old key removed" : "NOT written: the old key is read again at the next start");
+        break;
+    case PVI_STALE:
+        PvIniWrite("PreviewScene", NULL);
+        Log("screen effects: [ScreenEffects] PreviewScene=%s (v3.56) is not read any more: Preview=%s decides (the old key removed)", s,
+            kPvModeName[mode]);
+        break;
+    }
+    PvIniRaw("FilterStrength", v, sizeof v);
+    g_pvFsMarked = PvIniRaw("FilterStrengthV", m, sizeof m) && !strcmp(m, PV_FS_MARK);
+    how = PvFsIni(v[0] ? v : NULL, g_pvFsMarked ? m : NULL, &fs);
+    InterlockedExchange(&g_pvFs, fs);
+    if (how == PVF_MISSING || how == PVF_LEGACY || how == PVF_BAD) {  // High, then the marker (never the marker over a v3.15 value)
+        const int wv = PvIniWrite("FilterStrength", kPvFsName[fs]);
+        const int wm = wv && (g_pvFsMarked || PvIniWrite("FilterStrengthV", PV_FS_MARK));
+        if (wm) g_pvFsMarked = 1;
+        if (how == PVF_MISSING)
+            Log("settings: [ScreenEffects] FilterStrength was missing, added as \"%s\"%s", kPvFsName[fs], wm ? "" : " (NOT written)");
+        else if (how == PVF_BAD)
+            Log("screen effects: [ScreenEffects] FilterStrength=%s is not a value (Low, Medium, High, Ultra): %s (%s)", v, kPvFsName[fs],
+                wm ? "written" : "NOT written");
+        else if (!_stricmp(v, kPvFsName[PVS_HIGH]))  // (High without the marker: a fresh ini's default, or a v3.15 High: the same look)
+            LogV("screen effects: [ScreenEffects] FilterStrength=High: the marker FilterStrengthV=%s %s", PV_FS_MARK, wm ? "added" : "NOT written");
+        else
+            Log("screen effects: [ScreenEffects] FilterStrength=%s is v3.15's (unread since v3.16): now %s, the strength of v3.16 - v3.57 "
+                "(%s)", v, kPvFsName[fs], wm ? "written with the marker FilterStrengthV=" PV_FS_MARK : "NOT written: read as High again at the next start");
+    }
+}
 static void PvInstall(void)
 {
-    char buf[32];
-    int known;
+    char d[MAX_PATH];
     g_pvOn = IniInt("ScreenEffects", "PreviewLayers") != 0;
-    IniStr("ScreenEffects", "PreviewScene", buf, sizeof buf);
-    g_pvSceneOn = PvParseScene(buf, &known);
-    if (!known) Log("screen effects: [ScreenEffects] PreviewScene=%s is not a value (Scene, Picture): Scene", buf);
-    Log("screen effects: the Effects page's preview: with no paused game %s; a pause keeps Thermal's heat and Spirit Vision's "
-        "ghosts and soul fires for it: %s", g_pvSceneOn ? "SH4 Refined's own scene (PreviewScene=Scene)" :
-        "PreviewImage, else SH4 Refined's own scene (PreviewScene=Picture)", g_pvOn ? "on (PreviewLayers=1)" : "off (PreviewLayers=0)");
+    if (_snprintf_s(d, sizeof d, _TRUNCATE, "%s%s%s", g_dir, g_dir[0] && g_dir[strlen(g_dir) - 1] == '\\' ? "" : "\\", PV_STOCK_FILE) < 0) d[0] = 0;
+    strcpy_s(g_pvStockPath, sizeof g_pvStockPath, d);  // v3.58 PV358
+    PvInstallModes();  // v3.58 PV358
+    PvStockCheck();
+    Log("screen effects: the Effects page's preview: Preview=%s (%s); the stock picture %s: %s; a pause keeps Thermal's heat and "
+        "Spirit Vision's ghosts and soul fires for it: %s; Filter Strength %s", kPvModeName[g_pvMode],
+        g_pvMode == PVM_OFF ? "no backdrop: the game's own menu background" : g_pvMode == PVM_STOCK ?
+        "the stock picture on the title menu and in a pause" : "the title menu: the stock picture, else PreviewImage; a pause: its scene",
+        g_pvStockPath[0] ? g_pvStockPath : "(path too long)", g_pvStockHave ? "present" : "missing",
+        g_pvOn ? "on (PreviewLayers=1)" : "off (PreviewLayers=0)", kPvFsName[(unsigned)g_pvFs < PVS_N ? (int)g_pvFs : PVS_DEFAULT]);
 }
 // the Filter row's PreviewKey sentence: the F7 picture is not shown on the Effects page while the scene is
-static int PvF7Hidden(void) { return g_pvSceneOn; }
+// v3.58 PV358: never baked into the texts any more; PvFilterDesc adds it where F7 changes what the page shows
+static int PvF7Hidden(void) { return 1; }
+static int PvPreviewOff(void) { return g_pvMode == PVM_OFF; }  // v3.58 PV358
+static int PvIsStockPath(const char *path) { return PvSamePath(path, g_pvStockPath); }  // v3.58 PV358
 
 // ---------------------------------------------------------------- render targets (DEFAULT pool, released before a reset)
 static void PvRtFree(ShRt *r)
@@ -115,9 +230,11 @@ static int PvRtMake(void *dev, ShRt *r, int w, int h, DWORD fmt, const char *wha
 static void PvFreeAll(const char *why)
 {
     const unsigned had = g_pvVram;
-    const int n = (g_pvHeat.tex != NULL) + (g_pvSpirit.tex != NULL);
+    const int n = (g_pvHeat.tex != NULL) + (g_pvSpirit.tex != NULL) + (g_pvFsRt.tex != NULL);  // v3.58 PV358: + the plain copy
     PvRtFree(&g_pvHeat);
     PvRtFree(&g_pvSpirit);
+    PvRtFree(&g_pvFsRt);  // v3.58 PV358
+    g_pvFsArmed = -1;
     g_pvSeq = -1, g_pvHave = 0, g_pvKeptLogged = 0;
     if (n) LogV("screen effects: the preview's layers released (%s): %d target(s), %.1f MB", why, n, ShMb(had));
 }
@@ -130,6 +247,7 @@ static void PvBeforeReset(void)
         static int s_logged;
         if (!s_logged++) LogAnomaly("screen effects", "releasing the preview's layers before a device reset faulted: forgotten (logged once)");
         memset(&g_pvHeat, 0, sizeof g_pvHeat), memset(&g_pvSpirit, 0, sizeof g_pvSpirit), g_pvVram = 0, g_pvSeq = -1, g_pvHave = 0;
+        memset(&g_pvFsRt, 0, sizeof g_pvFsRt), g_pvFsArmed = -1;  // v3.58 PV358
     }
 }
 static void PvDevCheck(void *dev)
@@ -138,6 +256,7 @@ static void PvDevCheck(void *dev)
     if (g_pvDev) PvBeforeReset();  // (an older device's targets: released, guarded)
     g_pvDev = dev;
     memset(&g_pvHeat, 0, sizeof g_pvHeat), memset(&g_pvSpirit, 0, sizeof g_pvSpirit), g_pvVram = 0;
+    memset(&g_pvFsRt, 0, sizeof g_pvFsRt), g_pvFsArmed = -1;  // v3.58 PV358
     g_pvPsKey = 0, g_pvPsKeyFailed = 0;
 }
 static int PvKeyShader(void *dev)
@@ -390,9 +509,11 @@ static void PvCapture(void)
             PvBlack(dev, w, h);
             g_pvPrints = PvPrintsDraw(dev, &sv);
             FxBase(dev);
-            InterlockedExchange(&g_pvNoZw, 1);
+            // v3.58 PV358 (USER_FEEDBACK_v357: "only displaying the inside faces of her model"): the living bodies write their
+            // depth here as in the live heat pass (v3.24 user item 1), so the near faces win where the close-camera fade left no
+            // depth of the player's own (KB 128); v3.56 drew them without (g_pvNoZw) and showed her far, inner faces. The
+            // depth written is the body's own (0.03 % nearer: the heat bias), only in this capture frame
             ThRedraw(dev, &sv, &g_pvBodies);
-            InterlockedExchange(&g_pvNoZw, 0);
             if (g_pvBodies + g_pvPrints > 0) {
                 if (SUCCEEDED(((FxCopyRects_t)VT(dev, SHV_COPYRECTS))(dev, rt, NULL, 0, g_pvHeat.surf, NULL))) have |= PVL_HEAT;
                 else copyBad = 1;
@@ -409,7 +530,6 @@ static void PvCapture(void)
         }
     } __except (GvFaultNote(GetExceptionInformation()), EXCEPTION_EXECUTE_HANDLER) {
         fault = 1;
-        InterlockedExchange(&g_pvNoZw, 0);
         InterlockedExchange(&g_thMode, 0);
         InterlockedExchange(&g_gvGlow, 0);
     }
@@ -563,16 +683,56 @@ static int PvFireDraw(void *dev)
 }
 
 // ---------------------------------------------------------------- the page (and a pause frame whose filter changed)
-// FxBackdropC: what the page shows with no pause picture (PVB_SCENE / PVB_PICTURE / PVB_STOCK); the picture file is
-// loaded only when it decides
-static int PvBackPick(void *dev)
+// v3.58 PV358: the stock picture's texture (MANAGED, one per device; a missing / unreadable file is tried again at the next
+// page opening, logged once a state)
+static void *PvStockLoad(void *dev)
+{
+    int missing = 0;
+    void *tex;
+    UINT w = 0, h = 0;
+    if (g_pvStockDev != dev) g_pvStockDev = dev, g_pvStockTex = NULL, g_pvStockFailed = 0;  // (the old one went with its device)
+    if (g_pvStockTex || g_pvStockFailed || !g_pvStockPath[0]) return g_pvStockTex;
+    g_pvStockFailed = 1;
+    tex = FxDdsLoad(dev, g_pvStockPath, &w, &h, &missing);
+    if (!tex) {
+        if (missing) g_pvStockHave = 0;
+        if (g_pvStockLogged != (missing ? 1 : 2)) {
+            g_pvStockLogged = missing ? 1 : 2;
+            Log("screen effects: the stock picture %s is %s: Preview %s shows %s instead", g_pvStockPath, missing ? "missing" : "not usable (see above)",
+                kPvModeName[g_pvMode], g_pvMode == PVM_LIVE ? "PreviewImage, else SH4 Refined's own scene" : "SH4 Refined's own scene");
+        }
+        return NULL;
+    }
+    g_pvStockTex = tex, g_pvStockW = w, g_pvStockH = h, g_pvStockFailed = 0, g_pvStockHave = 1, g_pvStockLogged = 0;
+    return tex;
+}
+// FxBackdropC: what the page shows (PVB_*) and its picture (the pause's, the stock one or PreviewImage); each file is
+// loaded only when it decides (preview_sim.h PvBackNeeds*). v3.58 PV358: by Preview (v3.56: PreviewScene, no pause)
+static int PvBackPick(void *dev, void **tex, UINT *pw, UINT *ph, int *pause)
 {
     PvBackIn in;
-    in.pausePic = 0;
-    in.sceneOn = g_pvSceneOn;
+    void *pt = NULL, *st = NULL, *it = NULL;
+    int back;
+    memset(&in, 0, sizeof in);
+    *tex = NULL, *pw = *ph = 0, *pause = 0;
+    in.mode = g_pvMode;
     in.sceneOk = !g_pvSceneFails;
-    in.picture = PvBackNeedsPicture(0, in.sceneOn, in.sceneOk) ? FxPrevLoad(dev) != NULL : 0;
-    return PvBackdrop(&in);
+    if (PvBackNeedsPause(in.mode) && (pt = FxPauseTex(dev)) != NULL) in.pausePic = 1;  // v3.22.0: the paused scene (Live)
+    if (PvBackNeedsStock(in.mode, in.pausePic) && (st = PvStockLoad(dev)) != NULL) in.stockOk = 1;
+    if (PvBackNeedsPicture(in.mode, in.pausePic, in.stockOk) && (it = FxPrevLoad(dev)) != NULL) in.picture = 1;
+    back = PvBackdrop(&in);
+    if (back == PVB_PAUSE) *tex = pt, *pw = g_fxPauseTexW, *ph = g_fxPauseTexH, *pause = 1;
+    else if (back == PVB_STOCKPIC) *tex = st, *pw = g_pvStockW, *ph = g_pvStockH;
+    else if (back == PVB_PICTURE) *tex = it, *pw = g_fxPrevW, *ph = g_fxPrevH;
+    return back;
+}
+// v3.58 PV358: an Effects page (or Shadows) opened with Preview Off: one line an opening of that page
+static void PvOffNote(int lp)
+{
+    static volatile LONG s_q;
+    if (lp == g_pvOffNoted || !LogQuota(&s_q, 40)) return;
+    g_pvOffNoted = lp;
+    Log("screen effects: the Effects page's preview: off (Preview Off) over the game's own menu background (page %d)", lp);
 }
 static void PvBackNote(int back)
 {
@@ -629,10 +789,11 @@ static int PvSceneLayer(void *dev, int heat)  // the title scene's own heat / sp
 }
 static void PvPageNote(int lay, int f, int how)
 {
-    const int key = lay << 16 | f << 8 | (g_pvBackFrame == g_fxFrame ? g_pvBack + 1 : 0) << 4 | how;
+    const int key = (int)g_pvFs << 20 | lay << 16 | f << 8 | (g_pvBackFrame == g_fxFrame ? g_pvBack + 1 : 0) << 4 | how;  // v3.58 PV358: + the strength
     char what[160];
     if (key == g_pvNoteKey || !LogQuota(&g_pvQPage, 60)) return;
     g_pvNoteKey = key;
+    if (g_pvBackFrame == g_fxFrame && g_pvBack == PVB_OFF) return;  // v3.58 PV358: PvOffNote says it
     if (lay == PVP_PAUSE_HEAT)
         sprintf_s(what, sizeof what, " with the pause's heat layer (%d bod%s, %d footprint(s)%s)", g_pvBodies, g_pvBodies == 1 ? "y" : "ies",
                   g_pvPrints, how == 2 ? "; added: no key shader" : "");
@@ -642,9 +803,11 @@ static void PvPageNote(int lay, int f, int how)
         sprintf_s(what, sizeof what, " with %s", kPvPage[lay]);
     else
         what[0] = 0;
-    Log("screen effects: the Effects page's preview: %s over %s%s%s", kFxName[FX_FILTER][f >= 0 && f < FX_FILTERS ? f : 0],
-        g_pvBackFrame == g_fxFrame && g_pvBack >= 0 ? kPvBack[g_pvBack] : "the paused scene (the pause menu)", what,
-        how == 0 && lay != PVP_NONE ? " (the layer could not be drawn)" : "");
+    Log("screen effects: the Effects page's preview: %s over %s%s%s%s", kFxName[FX_FILTER][f >= 0 && f < FX_FILTERS ? f : 0],
+        g_pvBackFrame == g_fxFrame && g_pvBack >= 0 && g_pvBack < PVB_N ? kPvBack[g_pvBack] : "the paused scene (the pause menu)", what,
+        how == 0 && lay != PVP_NONE ? " (the layer could not be drawn)" : "",
+        f > 0 && g_pvFs != PVS_HIGH ? (g_pvFs == PVS_LOW ? " (Filter Strength Low)" : g_pvFs == PVS_MEDIUM ? " (Filter Strength Medium)" :
+                                       " (Filter Strength Ultra)") : "");  // v3.58 PV358
 }
 // where 0: the Effects page (FxBackdropFilter, after FxPass(0)); 1: a pause frame over the frozen copy whose filter was
 // changed in Options (FxBackdropFrame, after FxPass(3); the clean pause picture is its backdrop)
@@ -683,6 +846,20 @@ static void PvFrameEnd(void)
     if (shown != g_pvPageWas) {
         g_pvPageWas = shown;
         if (!shown) g_pvNoteKey = -1, g_pvFireFrame = -10;  // the next opening logs its preview again, a fresh fire
+        if (shown && !g_pvStockTex && g_pvStockHave <= 0) {  // v3.58 PV358: a file placed since: tried again (an unreadable one is not)
+            g_pvStockFailed = 0;
+            PvStockCheck();
+        }
+    }
+    if (g_pvOffNoted >= 0 && g_lpage != g_pvOffNoted && g_pending != g_pvOffNoted) g_pvOffNoted = -1;  // v3.58 PV358: a page left: its Off line again next time
+    if (g_pvFsRt.tex && !PvFsNeedsCopy((int)g_pvFs, g_fx[FX_FILTER] > 0)) {  // v3.58 PV358: Filter Strength back to High / Ultra (or Filter None): the copy goes
+        __try {
+            PvRtFree(&g_pvFsRt);
+            g_pvFsArmed = -1;
+            LogV("screen effects: Filter Strength %s: its plain copy released (the preview's now %.1f MB)", kPvFsName[(int)g_pvFs % PVS_N], ShMb(g_pvVram));
+        } __except (EXCEPTION_EXECUTE_HANDLER) {
+            memset(&g_pvFsRt, 0, sizeof g_pvFsRt);
+        }
     }
     if (g_pvWasPaused && !paused && !shown && (g_pvHeat.tex || g_pvSpirit.tex)) {
         const int margin = ShVaMarginMb();
@@ -699,4 +876,216 @@ static void PvFrameEnd(void)
         }
     }
     g_pvWasPaused = paused;
+}
+
+// ================================================================ v3.58 PV358: Filter Strength (the strength's draws)
+// FxPass: the look of the filter at Ultra (a copy; High / Low / Medium: the table's own, so High is v3.57's byte for byte)
+static int PvFsFam(int f)
+{
+    if (f == FXF_GHOST) return PVT_GHOST;
+    switch (kFxLook[f].tech) {
+    case FXT_TONE: return PVT_TONE;
+    case FXT_CRT: return PVT_CRT;
+    case FXT_VIVID: return PVT_VIVID;
+    case FXT_NV: return PVT_NV;
+    case FXT_THERMAL: return PVT_THERMAL;
+    }
+    return PVT_OTHER;
+}
+static int PvFsLookApply(FxLook *L, int f)
+{
+    PvFsLookV v;
+    if (f <= 0 || f >= FX_FILTERS || g_pvFs != PVS_ULTRA) return 0;
+    v.fam = PvFsFam(f);
+    v.mix = L->mix, v.con = L->con, v.bri = L->bri, v.px = L->px, v.vig = L->vig, v.scan = L->scan, v.mask = L->mask;
+    v.grain = L->grain, v.flicker = L->flicker;
+    if (!PvFsLook(&v, PVS_ULTRA)) return 0;
+    L->mix = v.mix, L->con = v.con, L->bri = v.bri, L->px = v.px, L->vig = v.vig, L->scan = v.scan, L->mask = v.mask;
+    L->grain = v.grain, L->flicker = v.flicker;
+    return 1;
+}
+static void PvFsConstsApply(int f, float c[][4])
+{
+    const int fam = f > 0 && f < FX_FILTERS ? PvFsFam(f) : PVT_OTHER, v = (int)g_pvFs;
+    int r, k;
+    if (v != PVS_ULTRA) return;
+    for (r = 0; r < FX_NPSC; ++r)
+        if (PvFsConstK(fam, v, r))
+            for (k = 0; k < 3; ++k) c[r][k] *= kPvFsK[PVS_ULTRA];
+}
+// FxPass, before the filter's first pass (Low / Medium only): the frame so far into our target (on the GPU, no read back)
+static void PvFsGrab(void *dev, int f)
+{
+    void *rt = NULL;
+    FxSurfDesc8 d;
+    int made = 0, ok = 0;
+    if (!PvFsNeedsCopy((int)g_pvFs, f > 0) || g_pvFsFails >= 3 || !dev) return;
+    if (!g_shOn) return;  // (no device-reset hook: a DEFAULT-pool target of ours would fail the game's Reset; the filter shows at High)
+    __try {
+        PvDevCheck(dev);
+        if (SUCCEEDED(((GetSurf_t)VT(dev, VT_GETRT))(dev, &rt)) && rt) {
+            if (SUCCEEDED(((FxGetDesc_t)VT(rt, 8))(rt, &d)) && (d.fmt == 21 || d.fmt == 22) && d.w >= 64 && d.h >= 64 &&
+                PvRtMake(dev, &g_pvFsRt, (int)d.w, (int)d.h, d.fmt, "Filter Strength's plain copy", &made) &&
+                SUCCEEDED(((FxCopyRects_t)VT(dev, SHV_COPYRECTS))(dev, rt, NULL, 0, g_pvFsRt.surf, NULL)))
+                ok = 1;
+            ((Release_t)VT(rt, VT_RELEASE))(rt);
+        }
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        ok = 0;
+    }
+    g_pvFsArmed = ok ? g_fxFrame : -1;
+    if (!ok && ++g_pvFsFails && LogQuota(&g_pvFsQ, 4))
+        Log("screen effects: Filter Strength %s: the plain picture could not be copied (%d of 3%s): this frame shows the filter at High",
+            kPvFsName[(int)g_pvFs % PVS_N], g_pvFsFails, g_pvFsFails >= 3 ? "; High for the rest of the session" : "");
+}
+// FxPass after its overlays / GvPass after its edge world (before the hot bodies, the ghosts and the fires): the plain
+// picture of this frame back over the filter at 1 - k
+static void PvFsMix(void *dev)
+{
+    FxSaved sv;
+    const float a = PvFsMixAlpha((int)g_pvFs);
+    if (g_pvFsArmed != g_fxFrame || !dev) return;
+    g_pvFsArmed = -1;  // (once: a second pass in this frame takes its own copy)
+    if (!(a > 0.0f) || !g_pvFsRt.tex || !FxSave(dev, &sv, 0)) return;
+    __try {
+        FxBase(dev);
+        ((SpSetDW_t)VT(dev, SPV_SETPS))(dev, 0);
+        ((SpSetDW_t)VT(dev, SPV_SETVS))(dev, 0x144);
+        ((SpSetTSS_t)VT(dev, SPV_SETTSS))(dev, 0, 1 /*COLOROP*/, 2 /*SELECTARG1*/);
+        ((SpSetTSS_t)VT(dev, SPV_SETTSS))(dev, 0, 2 /*COLORARG1*/, 2 /*TEXTURE*/);
+        ((SpSetTSS_t)VT(dev, SPV_SETTSS))(dev, 0, 4 /*ALPHAOP*/, 2 /*SELECTARG1*/);
+        ((SpSetTSS_t)VT(dev, SPV_SETTSS))(dev, 0, 5 /*ALPHAARG1*/, 0 /*DIFFUSE*/);
+        FxSampler(dev, g_pvFsRt.tex, 0, 1);  // (point: the copy is the frame's own size)
+        PvBlend(dev, 5 /*SRCALPHA*/, 6 /*INVSRCALPHA*/);
+        FxRect(dev, (DWORD)(a * 255.0f + 0.5f) << 24 | 0x00FFFFFFu, 0, 0, FxW(), FxH(), 0, 0, 1, 1);
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        if (++g_pvFsFails >= 3 && LogQuota(&g_pvFsQ, 4))
+            LogAnomaly("screen effects", "Filter Strength's mix faulted: High for the rest of the session");
+    }
+    FxRestore(dev, &sv);
+}
+
+// ================================================================ v3.58 PV358: the two rows (Effects > Filter Strength, Preview)
+// Origin rows of the Screen Effects page (sh4windowmod.c, after the DoF rows); layout.inc places them on Effects (OLS_FSTR /
+// OLS_PREVIEW, by their inputs). Texts MSG_V58 + 16 .. 31 (PV358's ids); the value lines come from the plan (vlines.inc
+// answers them while the getter answers the row's line); Filter Strength is grey with Filter None (look.inc LKR_FILTER).
+enum { PVX_FS_L, PVX_FS_D, PVX_FS_V0, PVX_PV_L = PVX_FS_V0 + PVS_N, PVX_PV_D, PVX_PV_V0, PVX_PV_NOFILE = PVX_PV_V0 + PVM_N,
+       PVX_FILTER, PVX_N };
+typedef char PvTextsFit[PVX_N <= 16 ? 1 : -1];  // PV358's V58 + 16 .. 31
+static BYTE g_pvTxt[PVX_N][128];
+static DWORD g_pvFsIds[PVS_N], g_pvModeIds[PVM_N];
+static int g_pvFilterF = -1;  // the filter whose line + F7 sentence PVX_FILTER holds
+static const BYTE *PvText(int id)
+{
+    const int i = id - (MSG_V58 + 16);
+    static const BYTE kEmpty[4] = { 0x00, 0x80, 0xFF, 0xFF };
+    return i >= 0 && i < PVX_N && g_pvTxt[i][1] == 0x80 ? g_pvTxt[i] : kEmpty;
+}
+static void PvTexts(void)
+{
+    static const char *const kFs[PVS_N] = { OLW_EFFECTS_FILTER_STRENGTH_V_LOW, OLW_EFFECTS_FILTER_STRENGTH_V_MEDIUM,
+                                            OLW_EFFECTS_FILTER_STRENGTH_V_HIGH, OLW_EFFECTS_FILTER_STRENGTH_V_ULTRA };
+    static const char *const kMode[PVM_N] = { OLW_EFFECTS_PREVIEW_V_OFF, OLW_EFFECTS_PREVIEW_V_STOCK, OLW_EFFECTS_PREVIEW_V_LIVE };
+    typedef char PvWordsAreIni[PVS_N == 4 && PVM_N == 3 ? 1 : -1];  // (the screen words are the ini words: preview_sim_test checks)
+    int v;
+    Encode(g_pvTxt[PVX_FS_L], 128, OLW_EFFECTS_FILTER_STRENGTH_L);
+    Encode(g_pvTxt[PVX_FS_D], 128, OLW_EFFECTS_FILTER_STRENGTH_D);
+    Encode(g_pvTxt[PVX_PV_L], 128, OLW_EFFECTS_PREVIEW_L);
+    Encode(g_pvTxt[PVX_PV_D], 128, OLW_EFFECTS_PREVIEW_D);
+    Encode(g_pvTxt[PVX_PV_NOFILE], 128, OLW_PV_STOCK_NOFILE);
+    for (v = 0; v < PVS_N; ++v) Encode(g_pvTxt[PVX_FS_V0 + v], 128, kFs[v]), g_pvFsIds[v] = MSG_V58 + 16 + PVX_FS_V0 + v;
+    for (v = 0; v < PVM_N; ++v) Encode(g_pvTxt[PVX_PV_V0 + v], 128, kMode[v]), g_pvModeIds[v] = MSG_V58 + 16 + PVX_PV_V0 + v;
+    g_pvFilterF = -1;
+}
+static void PvFsSet(int v, int save)
+{
+    if (v < 0 || v >= PVS_N) return;
+    InterlockedExchange(&g_pvFs, v);
+    if (save && !g_iniFallback) {  // the value, then the marker (a lost marker reads High at the next start: never a v3.15 value)
+        static volatile LONG s_q;
+        const char *fail = NULL;
+        if (!PvIniWrite("FilterStrength", kPvFsName[v])) fail = "the value";
+        else if (!g_pvFsMarked && !PvIniWrite("FilterStrengthV", PV_FS_MARK)) fail = "the marker FilterStrengthV (the next start reads High)";
+        else g_pvFsMarked = 1;
+        if (fail && LogQuota(&s_q, 5))
+            Log("screen effects: [ScreenEffects] FilterStrength=%s: %s could not be written to SH4Refined.ini (error %lu): this session only",
+                kPvFsName[v], fail, GetLastError());
+    }
+    LogV("screen effects: Filter Strength %s (Filter %s)", kPvFsName[v], kFxName[FX_FILTER][(unsigned)g_fx[FX_FILTER] < FX_FILTERS ? (int)g_fx[FX_FILTER] : 0]);
+}
+static void PvModeSet(int v, int save)
+{
+    if (v < 0 || v >= PVM_N) return;
+    g_pvMode = v;
+    if (save && !g_iniFallback && !PvIniWrite("Preview", kPvModeName[v])) {
+        static volatile LONG s_q;
+        if (LogQuota(&s_q, 5))
+            Log("screen effects: [ScreenEffects] Preview=%s could not be written to SH4Refined.ini (error %lu): this session only", kPvModeName[v],
+                GetLastError());
+    }
+    g_pvNoteKey = -1, g_pvOffNoted = -1;  // the page logs what it shows now
+    LogV("screen effects: Preview %s (the stock picture %s)", kPvModeName[v], g_pvStockHave > 0 ? "present" : "missing");
+}
+static int __cdecl PvFsGet(void) { return (unsigned)g_pvFs < PVS_N ? (int)g_pvFs : PVS_DEFAULT; }
+static int __cdecl PvModeGet(void) { return (unsigned)g_pvMode < PVM_N ? g_pvMode : PVM_DEFAULT; }
+static int __cdecl PvFsIn(BYTE *cfg, int count)
+{
+    const int v = StepValue(PvFsGet(), count);
+    (void)cfg;
+    if (v >= 0) PvFsSet(v, 1);
+    return 0;
+}
+static int __cdecl PvModeIn(BYTE *cfg, int count)
+{
+    const int v = StepValue(PvModeGet(), count);
+    (void)cfg;
+    if (v >= 0) PvModeSet(v, 1);
+    return 0;
+}
+static int __cdecl PvFsDesc(void) { return MSG_V58 + 16 + PVX_FS_D; }  // the row's line (vlines.inc: each value's own)
+static int __cdecl PvModeDesc(void)  // Stock without the file says so; else the row's line (vlines.inc: each value's own)
+{
+    return MSG_V58 + 16 + (g_pvMode == PVM_STOCK && g_pvStockHave == 0 ? PVX_PV_NOFILE : PVX_PV_D);
+}
+static int PvBuildRows(DWORD *rows, int row0)
+{
+    PvTexts();
+    FillRow(rows, PvFsIn, PvFsGet, g_pvFsIds, PVS_N, MSG_V58 + 16 + PVX_FS_L, PvFsDesc);
+    FillRow(rows + 7, PvModeIn, PvModeGet, g_pvModeIds, PVM_N, MSG_V58 + 16 + PVX_PV_L, PvModeDesc);
+    g_pvRows = 1, g_pvRow0 = row0;
+    LogV("screen effects: Filter Strength and Preview are rows %d and %d of the Screen Effects page", row0, row0 + 1);
+    return 2;
+}
+static void PvSnapshot(void) { g_snapPvMode = g_pvMode, g_snapPvFs = g_pvFs; }
+static int PvChanged(void) { return g_snapOn && g_pvRows && (g_pvMode != g_snapPvMode || g_pvFs != g_snapPvFs); }
+static int PvFxRowChanged(int row)  // -1 = not one of ours
+{
+    if (!g_pvRows || g_pvRow0 < 0 || row < g_pvRow0 || row > g_pvRow0 + 1) return -1;
+    if (!g_snapOn) return 0;
+    return row == g_pvRow0 ? g_pvFs != g_snapPvFs : g_pvMode != g_snapPvMode;
+}
+static void PvDiscard(void)  // "No" at the exit prompt: both back as Options opened (written back)
+{
+    if (!g_snapOn) return;
+    if (g_pvFs != g_snapPvFs) PvFsSet((int)g_snapPvFs, 1);
+    if (g_pvMode != g_snapPvMode) PvModeSet((int)g_snapPvMode, 1);
+}
+// FxDesc3 (the Filter row): its value line + " Press F7 in play for a new preview." only where F7 changes what the page
+// shows (Live, outside a pause, no stock picture: PvF7Shows); 0 = the usual line (sh4windowmod.c's, no sentence)
+static int PvFilterDesc(int f)
+{
+    static const char *const kLine[OL_FILTERS] = {  // (sh4windowmod.c's kFilterLine: the plan's value lines)
+        OLW_EFFECTS_FILTER_VD_NONE, OLW_EFFECTS_FILTER_VD_CRT, OLW_EFFECTS_FILTER_VD_VIVID, OLW_EFFECTS_FILTER_VD_SEPIA,
+        OLW_EFFECTS_FILTER_VD_OLD_FILM, OLW_EFFECTS_FILTER_VD_NIGHT_VISION, OLW_EFFECTS_FILTER_VD_NIGHT_MONO,
+        OLW_EFFECTS_FILTER_VD_THERMAL, OLW_EFFECTS_FILTER_VD_SPIRIT_VISION, OLW_EFFECTS_FILTER_VD_VIGNETTE };
+    const int back = g_fxFrame - g_pvBackFrame <= 2 && g_fxFrame >= g_pvBackFrame ? g_pvBack : -1;
+    char s[128], k[48];
+    if ((unsigned)f >= OL_FILTERS || g_fxKeyVk < VK_F1 || g_fxKeyVk > VK_F12 || !PvF7Shows(g_pvMode, back)) return 0;
+    if (f != g_pvFilterF) {
+        sprintf_s(k, sizeof k, OLW_FILTER_F7, g_fxKeyVk - VK_F1 + 1);
+        sprintf_s(s, sizeof s, "%s%s", kLine[f], k);
+        Encode(g_pvTxt[PVX_FILTER], 128, s);
+        g_pvFilterF = f;
+    }
+    return MSG_V58 + 16 + PVX_FILTER;
 }

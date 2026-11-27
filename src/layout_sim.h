@@ -15,7 +15,8 @@
 // ---------------------------------------------------------------- the page ids (PLAN section 6)
 // Logical page L lives in physical slot L mod 3. Pages 0-2 are the game's stock pages (its special cases read these ids);
 // 3-5 are Refined's top pages; the cycle is 0 .. LP_N - 1 (6: a cycle of 4 or 7 would put the wrap pair in one slot). A
-// hidden page's slot differs from its parent's. Ids 14, 17 and 20 stay free.
+// hidden page's slot differs from its parent's. Ids 14, 17 and 20 stay free.  // v3.58 PV358: 14 is Effects > Depth of Field
+// (slot 2; Effects is slot 1); 17 and 20 stay free.
 enum {
     LP_DISPLAY, LP_CONTROLS, LP_INTERFACE, LP_SOUND, LP_EFFECTS, LP_GAMEPLAY,
     LP_SUBT,     // Interface > Subtitles (was LP_SUB 6)
@@ -26,7 +27,7 @@ enum {
     LP_CAMERA,   // Controls > Camera
     LP_R302,     // Controls > Room 302
     LP_COMBAT,   // Gameplay > Combat
-    LP_FREE14,
+    LP_DOF,      // Effects > Depth of Field  // v3.58 PV358 (was LP_FREE14)
     LP_ENEMIES,  // Gameplay > Enemies
     LP_ITEMS,    // Gameplay > Items
     LP_FREE17,
@@ -84,6 +85,7 @@ enum {
     OLS_SNDBG,  // v3.56 SD356: Sound > Background
     // Effects (the Screen Effects page, the Shadows page)
     OLS_FILTER, OLS_CUT, OLS_BLOOM, OLS_GRADE, OLS_LENS, OLS_DOF, OLS_BLUR, OLS_NSTR, OLS_NTYPE, OLS_NCOL, OLS_SHEDGE, OLS_SHDARK,
+    OLS_FSTR, OLS_PREVIEW,  // v3.58 PV358: Effects > Filter Strength, Preview (preview.inc PvFsIn / PvModeIn)
     // Gameplay (Option 5 and its folders)
     OLS_MOVE, OLS_REGEN, OLS_MED, OLS_GRAB, OLS_NOCLIP, OLS_OHK, OLS_PACT, OLS_QC, OLS_STEAL, OLS_AMMO,
     OLS_SHINE, OLS_TOOLBELT, OLS_STACKS, OLS_DROPS, OLS_COPIES, OLS_FOLLOW, OLS_PURSUIT, OLS_REVIVE, OLS_FADEIN,
@@ -207,15 +209,20 @@ static const OlRowDef kOlSound[] = {
     OLR_M(OLK_VALUE, OLS_SE, 0, OLW_SOUND_EFFECTS_VOLUME_L, 0, "sound", "Effects Volume"),  // by its input (0x525672, volbar_sim.h)
     OLV(OLS_WIDTH, "sound", "Stereo Width"), OLV(OLS_REVERB, "sound", "Room Reverb"), OLV(OLS_NIGHT, "sound", "Night Mode"),
     OLV(OLS_SNDBG, "sound", "Background"),  // v3.56 SD356: Mute / Play (sound.inc SndBgIn)
+    OLV_S(OLS_RENDERER, "display", "Renderer"),  // v3.58 PV358: interim (StockMoves=0): PLAN section 4's Display fallback (the sound
+                                                 // rows stay: 12 -> 11); Effects holds 11 of its own now, so Renderer comes here (was Effects)
     OL_EXIT, OL_END };
-static const OlRowDef kOlEffects[] = {
+static const OlRowDef kOlEffects[] = {  // v3.58 PV358: + Filter Strength, Preview; Depth of Field / Blur Strength are the folder Depth of Field >
     OLF(LP_GRAIN, OLW_EFFECTS_FILM_GRAIN_L, OLW_EFFECTS_FILM_GRAIN_D, "effects", "Film Grain"),
-    OLV(OLS_FILTER, "effects", "Filter"), OLV(OLS_CUT, "effects", "Cut-scene Filter"), OLV(OLS_BLOOM, "effects", "Bloom"),
-    OLV(OLS_GRADE, "effects", "Colour Grade"), OLV(OLS_LENS, "effects", "Otherworld Lens"), OLV(OLS_DOF, "effects", "Depth of Field"),
-    OLV(OLS_BLUR, "effects", "Blur Strength"),
+    OLV(OLS_FILTER, "effects", "Filter"), OLV(OLS_FSTR, "effects", "Filter Strength"), OLV(OLS_CUT, "effects", "Cut-scene Filter"),
+    OLV(OLS_BLOOM, "effects", "Bloom"), OLV(OLS_GRADE, "effects", "Colour Grade"), OLV(OLS_LENS, "effects", "Otherworld Lens"),
+    OLF(LP_DOF, OLW_EFFECTS_DEPTH_OF_FIELD_L, OLW_EFFECTS_DEPTH_OF_FIELD_D, "effects", "Depth of Field"),  // v3.58 PV358
     OLF(LP_SHADOWS, OLW_EFFECTS_SHADOWS_L, OLW_EFFECTS_SHADOWS_D, "effects", "Shadows"),
-    OLV_S(OLS_RENDERER, "display", "Renderer"),  // interim (StockMoves=0): PLAN section 4's Display fallback (the sound rows stay: 12 -> 11)
+    OLV(OLS_PREVIEW, "effects", "Preview"),  // v3.58 PV358
     OL_EXIT, OL_END };
+static const OlRowDef kOlDof[] = {  // v3.58 PV358: Effects > Depth of Field (the records keep their ini keys and lines)
+    OLV(OLS_DOF, "dof", "Depth of Field"), OLR(OLK_VALUE, OLS_BLUR, 0, OLW_DOF_STRENGTH_L, 0, "dof", "Strength"),
+    OL_BACK(OLW_BACK_EFFECTS), OL_END };
 static const OlRowDef kOlGrain[] = {
     OLR_M(OLK_VALUE, OLS_GRAIN_SW, 0, 0, OLW_GRAIN_FILM_GRAIN_D, "grain", "Film Grain"),  // v3.55 OL56 (R5): the stock Noise Effect switch
     OLR(OLK_VALUE, OLS_NSTR, 0, OLW_GRAIN_STRENGTH_L, 0, "grain", "Strength"), OLV(OLS_NTYPE, "grain", "Grain Type"),
@@ -243,7 +250,7 @@ static const OlRowDef kOlItems[] = {
     OLV(OLS_DROPS, "items", "Supply Drops"), OL_BACK(OLW_BACK_GAMEPLAY), OL_END };
 static const OlRowDef kOlEnemies[] = {
     OLV(OLS_COPIES, "enemies", "Extra Enemies"), OLV(OLS_FOLLOW, "enemies", "Door Chase"), OLV(OLS_PURSUIT, "enemies", "Pursuit"),
-    OLV(OLS_REVIVE, "enemies", "Enemies Return"), OLV(OLS_FADEIN, "enemies", "Fade In"), OL_BACK(OLW_BACK_GAMEPLAY), OL_END };
+    OLV(OLS_REVIVE, "enemies", "Enemies Return"), OLV(OLS_FADEIN, "enemies", "Reveal Method"), OL_BACK(OLW_BACK_GAMEPLAY), OL_END };  // v3.58 MN358: Reveal Method (was Fade In)
 static const OlRowDef kOlPowers[] = {
     OLV(OLS_DP, "powers", "Death Presence"), OLV(OLS_AI, "powers", "After Shock"), OLV(OLS_ECHO, "powers", "Echo Doubles"),
     OLV(OLS_ECHON, "powers", "Echo Count"), OLV(OLS_GT, "powers", "Ghost Teleport"), OL_BACK(OLW_BACK_GAMEPLAY), OL_END };
@@ -272,7 +279,7 @@ static const OlPageDef kOlPage[LP_MAX] = {
     { LP_CONTROLS, OLW_T_CAMERA, "camera", kOlCamera },
     { LP_CONTROLS, OLW_T_ROOM302, "room302", kOlR302 },
     { LP_GAMEPLAY, OLW_T_COMBAT, "combat", kOlCombat },
-    { -2, 0, 0, 0 },
+    { LP_EFFECTS, OLW_T_DOF, "dof", kOlDof },  // v3.58 PV358 (was a free id)
     { LP_GAMEPLAY, OLW_T_ENEMIES, "enemies", kOlEnemies },
     { LP_GAMEPLAY, OLW_T_ITEMS, "items", kOlItems },
     { -2, 0, 0, 0 },
@@ -282,7 +289,8 @@ static const OlPageDef kOlPage[LP_MAX] = {
     { LP_CAMERA, OLW_T_STEERING, "steering", kOlSteer },
 };
 // the order layout.inc builds the pages in: children before their parents (a folder row needs its page built)
-static const int kOlBuildOrder[LP_MAX - 3] = { LP_STEER, LP_CAMERA, LP_R302, LP_SUBT, LP_MENUS, LP_GRAIN, LP_SHADOWS, LP_PLAYER,
+#define OL_PAGES (LP_MAX - 2)  // v3.58 PV358: 20 pages (was LP_MAX - 3: 19); ids 17 and 20 stay free
+static const int kOlBuildOrder[OL_PAGES] = { LP_STEER, LP_CAMERA, LP_R302, LP_SUBT, LP_MENUS, LP_GRAIN, LP_DOF /* v3.58 PV358 */, LP_SHADOWS, LP_PLAYER,
                                                LP_COMBAT, LP_ITEMS, LP_ENEMIES, LP_POWERS, LP_RANDO, LP_DISPLAY, LP_CONTROLS,
                                                LP_INTERFACE, LP_SOUND, LP_EFFECTS, LP_GAMEPLAY };
 
@@ -294,7 +302,7 @@ static const OlInterim kOlInterim[] = {
     { "sound", "Sound Mode", "display", "R5 moves the stock Sound row; until then value-only on Display (no Enter)" },
     { "sound", "Music Volume", "display", "R5 (still BGM Volume: the bar is drawn by its stock label id)" },
     { "sound", "Effects Volume", "display", "R5 (still SE Volume)" },
-    { "display", "Renderer", "effects", "PLAN 4 fallback: the sound rows stay on Display, so Renderer goes to Effects" },
+    { "display", "Renderer", "sound", "PLAN 4 fallback: the sound rows stay on Display and Effects is full, so Renderer goes to Sound" },  // v3.58 PV358: was Effects
     { "room302", "Head Bob", "controls", "R5 moves the first-person three; until then above Camera" },
     { "room302", "Turn or Strafe", "controls", "R5" },  // v3.57 OLP1
     { "room302", "Invert Look", "controls", "R5" },

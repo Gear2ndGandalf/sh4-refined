@@ -1258,4 +1258,47 @@ static int EnmCwDropMonsters(EnmCwLedger *l)
         if (l->e[i].used && !EnmGhostType(l->e[i].type)) l->e[i].used = 0, ++n;
     return n;
 }
+
+// ---------------------------------------------------------------- v3.58 EN358: the randomizer's victims follow too
+// The user's v3.57 QA: "Victims can no longer pursuit me even on Relentless while Door Chase is set to Both." The long log
+// (2026-11-27): Relentless only from 00:52:01, in Subway rooms 2:2 / 2:4 / 2:5, where every victim's ghost was one the
+// randomizer had drawn ("n2 Sniffer Dog v0 -> victim ghost v1"); each door said "nobody follows (... N of no following
+// kind)". Since v3.56 RE356 a monster placement may be made a victim's ghost (rzmon.inc); it keeps its script id
+// (half << 31 | stage << 24 | room << 16 | n), no FFFF00nn ghost id, so EnmPursuerWhy4 / EnmGhostKind / pursuit_room.inc
+// took it for a monster of no following kind (and Enemy Pursuit's in-room rules skipped it). It IS the game's own victim
+// (EnemyVictimGhostCreate 0x4AFA90 makes it; pinned, never killed): its record (+0x20 id, +0x24 type, +0x36 stage, +0x37
+// room) and the arrival check 0x486150 / Refined's 0x486199 answer are id-agnostic, so it takes the ghosts' path (the tag)
+// exactly as the stock victims do. The stock victims (FFFF00nn) and the story ghosts are unchanged.
+static int EnmDrawnGhost(int type, int variant, int copy, unsigned id)
+{
+    return !copy && EnmIsVictim(type, variant) && !EnmIsGhostId(id) && !EnmIsCopyId(id) && EnmIsScriptId(id);
+}
+// the ghosts' path of one enemy: a ghost type with its ghost id or a ghost's copy (EnmGhostKind), or a drawn victim
+static int EnmGhostPath(int type, int variant, int copy, unsigned id)
+{
+    return EnmGhostKind(type, copy, id) || EnmDrawnGhost(type, variant, copy, id);
+}
+// The ghosts that followed you through a door (the tags) and what became of them in that room visit (one line at the next
+// door: the user's QA asked for a per-door proof; v3.57 said only "2 ghost(s)" at the door and "acted 0 (followers
+// queued)" in the room line, which counts the monsters' queue). seen: bit 1 = it came in as the real ghost (classes
+// 1..0x0C: the game draws it, EnemyIsActive 0x45CA40), bit 2 = it was in the room's list still arriving (0 / 0x0D..0x0F:
+// sliding through the walls, the placeholder 0x486030).
+#define ENM_TAG_IN      1
+#define ENM_TAG_ARRIVING 2
+static int EnmTagSeenBits(int cls) { return cls > 0 && (cls <= 0x0C || cls == 0x12) ? ENM_TAG_IN : ENM_TAG_ARRIVING; }
+typedef struct { int tagged, in, arriving, outside; } EnmTagSum;
+static EnmTagSum EnmTagSummary(const unsigned *tag, const unsigned char *seen, int n)
+{
+    EnmTagSum s;
+    int i;
+    s.tagged = s.in = s.arriving = s.outside = 0;
+    for (i = 0; i < n; ++i) {
+        if (!tag[i]) continue;  // (a story refusal took it off: its own line said so)
+        ++s.tagged;
+        if (seen[i] & ENM_TAG_IN) ++s.in;
+        else if (seen[i] & ENM_TAG_ARRIVING) ++s.arriving;
+        else ++s.outside;
+    }
+    return s;
+}
 #endif

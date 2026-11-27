@@ -7,8 +7,9 @@ GOG Galaxy installs it to `C:\Program Files (x86)\GOG Galaxy\Games\Silent Hill 4
 
 | File | What it is | Needed? |
 |---|---|---|
-| `winmm.dll` | SH4 Refined v3.49.0 (md5 `5D6E6A53780FB0C595A4EAF0EB476883`; not yet play-tested) | yes |
+| `winmm.dll` | SH4 Refined v3.58.0 (md5 `FBF82500CB507CFA742792E8FB5AA38A`; not yet play-tested) | yes |
 | `fonts\` | the HD menu font sheets (EB Garamond, Cormorant Garamond, Crimson Text) and their OFL licences | for the Menu Font row |
+| `SH4Refined_preview_stock.dds` | the picture behind the Effects pages (Effects > Preview Stock, and on the title menu): the author's own in-game screenshot of Eileen | for the Effects preview |
 | `d3d9.dll` | dgVoodoo2 2.87.6 by Dege, its `MS\x86\D3D9.dll`, unchanged (md5 `CAA75C55D9B3121D17433BD3B38C7BB2`) | optional renderer |
 | `dgVoodoo.conf` | dgVoodoo2 settings for SH4 ("Direct3D 11", the default) | with `d3d9.dll` |
 | `dgVoodoo_variants\` | the settings the Renderer row switches between (Direct3D 11, Direct3D 11 16-bit, Direct3D 12, Stock) and `manifest.csv` with their md5s | with `d3d9.dll` |
@@ -23,7 +24,7 @@ Refined and dgVoodoo2 work on top of them.
 2. Copy everything inside `Install\` into the Silent Hill 4 folder (the folder with `SILENT HILL 4.exe`). Say yes to
    replace.
    - Without the dgVoodoo2 renderer (Steam Deck / Linux, an older graphics card, or your own dgVoodoo2 setup): copy only
-     `winmm.dll` and the `fonts` folder.
+     `winmm.dll`, the `fonts` folder and `SH4Refined_preview_stock.dds`.
 3. Start the game. On the first start SH4 Refined writes `SH4Refined.ini` (all settings) and `SH4Refined.log`.
    The rows are on six Options pages: Display, Controls, Interface, Sound, Effects and Gameplay (the strip under the
    title names them; click one to go there). Blue rows with an arrow open a folder (for example Effects > Shadows).
@@ -49,9 +50,9 @@ Notes:
 ## Uninstall
 
 1. Close the game.
-2. Delete `winmm.dll` and the `fonts` folder. If you installed the renderer, also delete `d3d9.dll`, `dgVoodoo.conf`
+2. Delete `winmm.dll`, the `fonts` folder and `SH4Refined_preview_stock.dds`. If you installed the renderer, also delete `d3d9.dll`, `dgVoodoo.conf`
    and the `dgVoodoo_variants` folder.
-3. If you like, delete `SH4Refined.ini`, `SH4Refined.log`, `SH4Refined.prev.log` and `preview.dds`.
+3. If you like, delete `SH4Refined.ini`, `SH4Refined.log`, `SH4Refined.prev.log`, `preview.dds` and (if present) `SH4Refined.muted`.
 
 Your saves stay and load in the stock game. Two things to know: a Blood Colour other than Red / Green / Purple shows
 a wrong colour in the stock game until you set Blood Colour there again; saves in Save Banks 2 and up and the quick

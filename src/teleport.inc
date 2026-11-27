@@ -112,6 +112,18 @@
 //     the door lines, the walk-in zones); a "freed from a wall" line (bounded) and the room visit's count.
 // (d) a warp that starts inside a wall and finds no other landing moves her to that cell too (kind 3, "freed").
 // No exe patch, no new game function (every query is v3.50's byte-checked kWorld / kFn).
+//
+// v3.58 GT358 (the user's v3.57 QA, staging/v358_feedback/USER_FEEDBACK_v357.md; staging/v358_feedback/w6_teleport/PLAN.md):
+// "Ghost Teleport shows all these weird black line artifacts during fade" and "on Thermal and Spirit Vision give our Ghost
+// Teleport power the proper seamless effects too". The causes (teleport_sim.h GT358): pixel shader 4 gives every texel the
+// fade's alpha (the cut-out texels of her lashes and hair cards drawn as dark strips) and blend mode 5 writes no depth (the
+// seams of her body parts and the hair over the scalp blend twice). Now (hidden [Gameplay] GhostTeleportFadeDraw, default
+// 2 Clean): her stock draw in the actor loop builds the pose only, and right after the loop (the one exe call 0x4EF905,
+// byte-checked, listed) her body and weapon are drawn on a depth pre-pass with one blend through the game's pixel shader 5
+// (GtLateDraw); 1 = one pass in place with shader 5, 0 = v3.57. Under Thermal her heat body fades with her (screenfx.inc
+// ThRedraw: GtHeatFade), under Spirit Vision her soul fire (spiritfire.inc SfBuild: GtSoulOp); her real-time shadow is
+// drawn from half opacity on (ThermShadowC: GtShadowC). Night Vision and the other filters work on the finished picture:
+// the clean body is all they need.
 
 #include "teleport_sim.h"
 
@@ -386,20 +398,280 @@ static BYTE *GtRecOf(int k)  // her body's (0) or weapon's (1) actor record, val
     if ((DWORD)(size_t)r < GT_REC_LO || (DWORD)(size_t)r >= GT_REC_HI || ((DWORD)(size_t)r - GT_REC_LO) % 0xB0u) return NULL;
     return *(const BYTE *const *)(r + 0x10) == t ? r : NULL;
 }
+// ---------------------------------------------------------------- v3.58 GT358: the clean fade (teleport_sim.h GtFadePlan)
+// The user's v3.57 QA: "Ghost Teleport shows all these weird black line artifacts during fade"; "on Thermal and Spirit
+// Vision give our Ghost Teleport power the proper seamless effects too" (staging/v358_feedback/w6_teleport/PLAN.md).
+// Clean (hidden [Gameplay] GhostTeleportFadeDraw 2, the default): her pre-draw lets the stock call build her pose and
+// draws nothing there (the draw-call override GtOvrNull: no colour, no depth, no stencil); the call 0x4EF905 (0x4EF900's
+// ActorDrawModels, phase 0's step 8) is ours: after every actor model is drawn, her body and weapon are drawn again on
+// this frame's pose (no rebuild, the face morph kept: depthfix.inc's way): a depth pre-pass of both (GtOvrDepth: the
+// texel's alpha > GT_PRE_REF writes her nearest surface), then one colour pass of both (GtOvrColour: the game's pixel
+// shader 5 = texel x vertex colour, alpha = the texel's x the fade; GREATEREQUAL on her own depth, no depth write, the
+// alpha test on). The enemies drawn after her in the loop are in the picture before her (none cut out behind her
+// see-through body); the pass-2 effects and particles after the loop are depth-tested against her nearest surface (as
+// behind her opaque body). One pass (1) and Stock (0, v3.57: pixel shader 4) draw in place. Thermal (screenfx.inc
+// ThRedraw): her heat body is a blended one at the heat's alpha x her opacity on a depth pre-pass of its own; Spirit
+// Vision (spiritfire.inc SfBuild): her soul fire's sprites x her opacity; her real-time shadow (ThermShadowC) is drawn
+// from half opacity (Fade In's rule). Every counter is per fade (GtFadeEnded's line) and per filter once a session.
+static volatile LONG g_gtFadeDraw = GT_FD_DEF;   // the hidden key (GtReadKeys; read again live)
+typedef char GtPreRefFit[GT_PRE_REF == 127 ? 1 : -1];  // (screenfx.inc's heat pre-pass writes 127: the same ref)
+static int g_gtLateIn;                            // the 0x4EF905 call is ours (GtInstall: Clean at the start, the override in)
+static int g_gtLateFaults;                        // faults in the late draw (3: the late path off for this session)
+static const DWORD g_gtModelsFn = 0x52AE50;       // ActorDrawModels: 0x4EF905's own call
+typedef struct { BYTE *model; LONG frame; int fix; } GtLate;
+static GtLate g_gtLate[2];                        // this frame's body / weapon (their stock call built the pose, drew nothing)
+static DWORD g_gtNullRs[2][3];                    // the states the pose-only call changes (ZWRITE, COLORWRITE, STENCIL), put back
+static int g_gtNullGot[2];                        //   by its post-draw (bit per state read)
+static float g_gtDepthC[6][4];                    // the pre-pass's heat-shader constants: all 0 but c5.w = 1 (alpha = the texel's)
+static float g_gtColC[4];                         // the colour pass's c0 (the fade's alpha)
+static DWORD g_gtPs5;                             // the game's pixel shader 5 (read at each late draw through 0x404B80)
+static volatile LONG g_gtOvrCalls;                // (diagnostic) draw calls our overrides saw this fade
+static DWORD g_gtLateFaultCode;
+static void *g_gtLateFaultAt;
+// this fade's counts (GtFadeEnded): frames drawn late / of them with the pre-pass / in place (by shader 4 or 5), late frames
+// that never came (pose built, no late draw), the heat body / the soul fire faded, her shadow hidden; the frame each was last
+// counted in (one count a frame)
+static int g_gtFrLate, g_gtFrPre, g_gtFrIn[2], g_gtFrMiss, g_gtFrHeat, g_gtFrSoul, g_gtFrShadow;
+static LONG g_gtStIn = -1, g_gtStHeat = -1, g_gtStSoul = -1, g_gtStShadow = -1;
+static DWORD g_gtFilterSaid;                      // the filters whose first fade was logged (a bit each)
+static volatile LONG g_gtQLate;
+static void __cdecl GtOvrNull(void *dev)  // the stock call: her pose is built, nothing of her is drawn here
+{
+    SetRS(dev, 168 /*COLORWRITEENABLE*/, 0);
+    SetRS(dev, 14 /*ZWRITEENABLE*/, 0);
+    SetRS(dev, 52 /*STENCILENABLE*/, 0);
+    InterlockedIncrement(&g_gtOvrCalls);
+}
+static void __cdecl GtOvrDepth(void *dev)  // the pre-pass: her nearest surface's depth (the cut-out texels left out)
+{
+    SetRS(dev, 7 /*ZENABLE*/, 1);
+    SetRS(dev, 23 /*ZFUNC*/, 7 /*GREATEREQUAL: the port's reversed depth*/);
+    SetRS(dev, 14 /*ZWRITEENABLE*/, 1);
+    SetRS(dev, 168 /*COLORWRITEENABLE*/, 0);
+    SetRS(dev, 27 /*ALPHABLENDENABLE*/, 0);
+    SetRS(dev, 52 /*STENCILENABLE*/, 0);
+    SetRS(dev, 15 /*ALPHATESTENABLE*/, 1);
+    SetRS(dev, 25 /*ALPHAFUNC*/, 5 /*GREATER*/);
+    SetRS(dev, 24 /*ALPHAREF*/, GT_PRE_REF);
+    ((SpSetDW_t)VT(dev, SPV_SETPS))(dev, g_fxPs[FXT_HEAT]);  // (kPsHeat with these constants: alpha = t0.a; depthfix.inc's way)
+    ((FxPsc_t)VT(dev, FXV_SETPSC))(dev, 0, g_gtDepthC, 6);
+    InterlockedIncrement(&g_gtOvrCalls);
+}
+static void __cdecl GtOvrColour(void *dev)  // the one blend: her nearest surface at the fade's alpha x the texel's
+{
+    SetRS(dev, 7 /*ZENABLE*/, 1);
+    SetRS(dev, 23 /*ZFUNC*/, 7 /*GREATEREQUAL*/);
+    SetRS(dev, 14 /*ZWRITEENABLE*/, 0);
+    SetRS(dev, 168 /*COLORWRITEENABLE*/, 7 /*RGB: as the ghost's blend mode 5*/);
+    SetRS(dev, 27 /*ALPHABLENDENABLE*/, 1);
+    SetRS(dev, 19 /*SRCBLEND*/, 5 /*SRCALPHA*/);
+    SetRS(dev, 20 /*DESTBLEND*/, 6 /*INVSRCALPHA*/);
+    SetRS(dev, 171 /*BLENDOP*/, 1 /*ADD*/);
+    SetRS(dev, 52 /*STENCILENABLE*/, 0);
+    SetRS(dev, 15 /*ALPHATESTENABLE*/, 1);
+    SetRS(dev, 25 /*ALPHAFUNC*/, 5 /*GREATER*/);
+    SetRS(dev, 24 /*ALPHAREF*/, 0);
+    ((SpSetDW_t)VT(dev, SPV_SETPS))(dev, g_gtPs5);
+    ((FxPsc_t)VT(dev, FXV_SETPSC))(dev, 0, g_gtColC, 1);
+    InterlockedIncrement(&g_gtOvrCalls);
+}
+static int GtLateReady(void) { return g_gtLateIn && g_gvDipHooks && g_gtLateFaults < 3; }
+static int GtLateFaultNote(EXCEPTION_POINTERS *e)
+{
+    g_gtLateFaultCode = e->ExceptionRecord->ExceptionCode;
+    g_gtLateFaultAt = e->ExceptionRecord->ExceptionAddress;
+    return EXCEPTION_EXECUTE_HANDLER;
+}
+// her model again on this frame's pose (no skeleton rebuild: Playable Eileen's springs step once; the face morph kept)
+// with the override ovr at each of its draw calls. 0 = it faulted (the override is off again either way)
+static int GtModelAgain(BYTE *m, void(__cdecl *ovr)(void *))
+{
+    void *const sk0 = *(void **)(m + 0xE0);
+    DfxMorphSv sv[DFX_MORPH_N + 1];
+    int ok = 1, nsv = 0;
+    *(void **)(m + 0xE0) = NULL;
+    if (ovr) InterlockedExchangePointer((void *volatile *)&g_fxDipOvr, (void *)ovr);
+    __try {
+        nsv = DfxMorphHold(m, sv, DFX_MORPH_N);
+        ((void(__cdecl *)(void *))(ULONG_PTR)g_fnModel)(m);
+    } __except (GtLateFaultNote(GetExceptionInformation())) {
+        ok = 0;
+    }
+    if (ovr) InterlockedExchangePointer((void *volatile *)&g_fxDipOvr, NULL);
+    while (nsv > 0) --nsv, *sv[nsv].at = sv[nsv].v;
+    *(void **)(m + 0xE0) = sk0;
+    return ok;
+}
+// After ActorDrawModels (0x4EF905): this frame's body / weapon, the pre-pass of both, then the colour pass of both. Every
+// device state it changes goes back (render states, pixel shader and its selector 0x5D5640, c0..c5, the index buffer).
+static void GtLateDrawC(void)
+{
+    static const DWORD kRs[] = { 7, 14, 15, 19, 20, 23, 24, 25, 27, 52, 168, 171 };
+    enum { NRS = sizeof kRs / sizeof kRs[0] };
+    void *dev = DEV, *ib = NULL;
+    BYTE *m[2];
+    DWORD rs[NRS], ps = 0;
+    float psc[6][4];
+    UINT base = 0;
+    int k, n = 0, fix = 0, got = 0, psOk, pscOk, ibOk, sel, pre, hot, ok = 1, drawn = 0;
+    for (k = 0; k < 2; ++k) {
+        m[k] = g_gtLate[k].model && g_gtLate[k].frame == g_fxFrame && !((ULONG_PTR)g_gtLate[k].model & 15u) ? g_gtLate[k].model : NULL;
+        if (m[k]) ++n, fix = g_gtLate[k].fix;
+        g_gtLate[k].model = NULL;
+    }
+    if (!n) return;
+    if (!dev) {
+        ++g_gtFrMiss;
+        return;
+    }
+    ++g_gtFrLate;
+    if (fix <= 0) return;  // gone this frame: nothing of her is drawn (as the stock fade at its end)
+    pre = FxShader(dev, FXT_HEAT);  // (FxShader logs a failure once: then the colour pass alone, her layers blended)
+    for (k = 0; k < NRS; ++k)
+        if (SUCCEEDED(((SpGetRS_t)VT(dev, SPV_GETRS))(dev, kRs[k], &rs[k]))) got |= 1 << k;
+    psOk = SUCCEEDED(((SpGetDW_t)VT(dev, SPV_GETPS))(dev, &ps));
+    pscOk = SUCCEEDED(((FxPsc_t)VT(dev, FXV_GETPSC))(dev, 0, psc, 6));
+    ibOk = SUCCEEDED(((GvGetIdx_t)VT(dev, FXV_GETIDX))(dev, &ib, &base));  // AddRef'd on success
+    sel = *(volatile int *)0x5D5640;  // RenderSetPixelShader's selector (0x404B80 is byte-checked: kFade)
+    g_gtPs5 = 0;
+    ((void(__cdecl *)(int))0x404B80)(5);  // the game's own pixel shader 5, its handle read back
+    if (FAILED(((SpGetDW_t)VT(dev, SPV_GETPS))(dev, &g_gtPs5))) g_gtPs5 = 0;
+    g_gtColC[0] = g_gtColC[1] = g_gtColC[2] = g_gtColC[3] = (float)fix * 0.0078125f;
+    hot = ThermalLive() && !ThHeatOk();  // Thermal's fallback look: her body drawn hot (the stock call's ambient boost)
+    __try {
+        if (g_gtPs5) {
+            if (pre)
+                for (k = 0; k < 2 && ok; ++k)
+                    if (m[k]) ok = GtModelAgain(m[k], GtOvrDepth);
+            for (k = 0; k < 2 && ok; ++k) {
+                if (!m[k]) continue;
+                if (hot && k == 0) g_thermHeat = 1.0f, InterlockedExchange(&g_thermHot, 1);
+                ok = GtModelAgain(m[k], GtOvrColour);
+                InterlockedExchange(&g_thermHot, 0);
+                if (ok) ++g_gtDrawn[k], ++drawn;
+            }
+        }
+    } __finally {
+        InterlockedExchangePointer((void *volatile *)&g_fxDipOvr, NULL);
+        InterlockedExchange(&g_thermHot, 0);
+        if (ibOk) {
+            ((GvSetIdx_t)VT(dev, FXV_SETIDX))(dev, ib, base);
+            if (ib) ((Release_t)VT(ib, VT_RELEASE))(ib);
+        }
+        if (psOk) ((SpSetDW_t)VT(dev, SPV_SETPS))(dev, ps);
+        *(volatile int *)0x5D5640 = sel;
+        if (pscOk) ((FxPsc_t)VT(dev, FXV_SETPSC))(dev, 0, psc, 6);
+        for (k = 0; k < NRS; ++k)
+            if (got >> k & 1) SetRS(dev, kRs[k], rs[k]);
+    }
+    if (pre && ok && drawn) ++g_gtFrPre;
+    if (!g_gtPs5 && LogQuota(&g_gtQAn, 10))
+        LogAnomaly("ghost teleport", "the game's pixel shader 5 has no handle: her see-through body is not drawn this frame");
+    if (!ok) {
+        ++g_gtLateFaults;
+        LogAnomaly("ghost teleport", "the clean fade's draw faulted (code %08lX at %p)%s", g_gtLateFaultCode, g_gtLateFaultAt,
+                   g_gtLateFaults >= 3 ? ": one pass in place from now on (this session)" : "");
+    }
+}
+static void __cdecl GtLateDraw(void)  // 0x4EF905's stub, after ActorDrawModels (game thread)
+{
+    __try {
+        GtLateDrawC();
+    } __except (GtLateFaultNote(GetExceptionInformation())) {
+        InterlockedExchangePointer((void *volatile *)&g_fxDipOvr, NULL);
+        g_gtLate[0].model = g_gtLate[1].model = NULL;
+        ++g_gtLateFaults;
+        LogAnomaly("ghost teleport", "the clean fade faulted after the actor models (code %08lX at %p)%s", g_gtLateFaultCode,
+                   g_gtLateFaultAt, g_gtLateFaults >= 3 ? ": one pass in place from now on (this session)" : "");
+    }
+}
+static __declspec(naked) void hkGtModels(void)  // 4EF905: was `call 52AE50` (ActorDrawModels; no arguments, no result)
+{
+    __asm {
+        call dword ptr [g_gtModelsFn]
+        pushad
+        pushfd
+        call GtLateDraw
+        popfd
+        popad
+        ret
+    }
+}
+static int GtHerFaded(void) { return g_gtSee > 0.0f && g_gtRec[0] != NULL && (int)g_gtFadeDraw != GT_FD_STOCK; }
+// screenfx.inc ThRedraw (Thermal's heat redraw): her body's opacity in the fade (1 = not hers, not fading, or Stock)
+static float GtHeatOp(const BYTE *model)
+{
+    if (!model || model != *(BYTE *const volatile *)(0x10A0F20 + 0x1B0) || !GtHerFaded()) return 1.0f;
+    return GtFadeOp(g_gtSee);
+}
+// ThRedraw, inside its __try with the heat mode on and ThConsts(heat) in g_thC: her faded heat body. Clean: a depth pre-pass
+// (the call ThRedraw makes for every body: its rebuild as before), then the heat x her opacity, blended, on this frame's pose
+// again; One pass: the heat x her opacity in that one call
+static void GtHeatFade(BYTE *m, float op)
+{
+    const float a = g_thC[5][3];
+    if (g_gtStHeat != g_fxFrame) g_gtStHeat = g_fxFrame, ++g_gtFrHeat;
+    if ((int)g_gtFadeDraw == GT_FD_CLEAN) {
+        g_thC[5][3] = 1.0f;  // (alpha = the texel's: the alpha test leaves the cut-out texels out of the depth)
+        InterlockedExchange(&g_thGtPass, 1);
+        ((void(__cdecl *)(void *))(ULONG_PTR)g_fnModel)(m);
+        InterlockedExchange(&g_thGtPass, 0);
+        g_thC[5][3] = a * op;
+        GtModelAgain(m, NULL);  // (the heat mode's override stays on: ThRedraw's)
+    } else {
+        g_thC[5][3] = a * op;
+        ((void(__cdecl *)(void *))(ULONG_PTR)g_fnModel)(m);
+    }
+    g_thC[5][3] = a;
+}
+// spiritfire.inc SfBuild: her soul fire's alpha factor (1 = not fading)
+static float GtSoulOp(void)
+{
+    if (!GtHerFaded()) return 1.0f;
+    if (g_gtStSoul != g_fxFrame) g_gtStSoul = g_fxFrame, ++g_gtFrSoul;
+    return GtSoulK((int)g_gtFadeDraw, g_gtSee);
+}
+// screenfx.inc ThermShadowC (0x52AF95, her shadow volume's draw): 0 = not drawn (her opacity is below GT_SHADOW_OP)
+static int GtShadowC(const BYTE *task)
+{
+    const int k = GtDrawWhich(task);
+    if (k < 0 || !(g_gtSee > 0.0f) || !g_gtRec[k] || GtShadowKeep((int)g_gtFadeDraw, g_gtSee)) return 1;
+    if (g_gtStShadow != g_fxFrame) g_gtStShadow = g_fxFrame, ++g_gtFrShadow;
+    return 0;
+}
 static void __cdecl GtPreDraw(BYTE *task)  // ActorDrawModels: before her model (the ghost's 0x45C7A0 with her FIX)
 {
     const int k = GtDrawWhich(task);
     float see = g_gtSee, c[4];
     int fix;
     void *dev;
+    GtFadeDraw pl;  // v3.58 GT358
     if (k < 0 || !g_gtFadeOk || g_gtFault || !(see > 0.0f)) return;
     dev = DEV;
     if (!dev) return;
+    // v3.58 GT358: Clean: the pose only here (GtOvrNull), her draw after the actor loop (GtLateDraw); else in place
+    if (g_gtLate[k].model && g_gtLate[k].frame != g_fxFrame) ++g_gtFrMiss, g_gtLate[k].model = NULL;  // (a late draw never came)
+    GtFadePlan(&pl, (int)g_gtFadeDraw, see, GtLateReady(), *(volatile int *)0xFD5C20 == 0, g_fxDipOvr == NULL);
+    if (pl.path == GTD_LATE) {
+        BYTE *const r = g_gtRec[k], *const mdl = r ? *(BYTE *const *)(r + 0x14) : NULL;
+        if (mdl && InterlockedCompareExchangePointer((void *volatile *)&g_fxDipOvr, (void *)GtOvrNull, NULL) == NULL) {
+            int i;
+            static const DWORD kNs[3] = { 14, 168, 52 };
+            g_gtNullGot[k] = 0;
+            for (i = 0; i < 3; ++i)
+                if (SUCCEEDED(((SpGetRS_t)VT(dev, SPV_GETRS))(dev, kNs[i], &g_gtNullRs[k][i]))) g_gtNullGot[k] |= 1 << i;
+            g_gtLate[k].model = mdl, g_gtLate[k].frame = g_fxFrame, g_gtLate[k].fix = pl.fix;
+            g_gtPreOn[k] = 2;
+            return;
+        }
+        pl.ps = 5;  // (the override is someone else's after all: in place, the game's shader 5)
+    }
+    if (g_gtStIn != g_fxFrame) g_gtStIn = g_fxFrame, ++g_gtFrIn[pl.ps == 4 ? 0 : 1];
     fix = GtFadeFix(see);
     c[0] = c[1] = c[2] = c[3] = (float)fix * 0.0078125f;
     g_gtPreOn[k] = 1;
     __try {
-        ((void(__cdecl *)(int))0x404B80)(4);
+        ((void(__cdecl *)(int))0x404B80)(pl.ps);  // v3.58 GT358: 4 (Stock, v3.57) or 5 (the texel's alpha too)
         ((FxPsc_t)VT(dev, FXV_SETPSC))(dev, 0, c, 1);
         ((void(__cdecl *)(unsigned __int64))0x429ED0)(((unsigned __int64)(unsigned)fix << 32) | 0x64u);
         ((void(__cdecl *)(unsigned __int64))0x429F00)((unsigned __int64)0x53001u);
@@ -414,6 +686,17 @@ static void __cdecl GtPostDraw(BYTE *task)  // after her model: the ghost's own 
 {
     const int k = GtDrawWhich(task);
     if (k < 0 || !g_gtPreOn[k]) return;
+    if (g_gtPreOn[k] == 2) {  // v3.58 GT358: the pose-only call: our override off, its three states back
+        static const DWORD kNs[3] = { 14, 168, 52 };
+        void *dev = DEV;
+        int i;
+        g_gtPreOn[k] = 0;
+        InterlockedCompareExchangePointer((void *volatile *)&g_fxDipOvr, NULL, (void *)GtOvrNull);
+        if (dev)
+            for (i = 0; i < 3; ++i)
+                if (g_gtNullGot[k] >> i & 1) SetRS(dev, kNs[i], g_gtNullRs[k][i]);
+        return;
+    }
     g_gtPreOn[k] = 0;
     __try {
         ((void(__cdecl *)(BYTE *))0x507240)(task);
@@ -434,6 +717,7 @@ static void GtDrawSync(float see)
             if (*(void *volatile *)(r + 0x24) == (void *)GtPreDraw) *(void *volatile *)(r + 0x24) = NULL;
             if (*(void *volatile *)(r + 0x28) == (void *)GtPostDraw) *(void *volatile *)(r + 0x28) = NULL;
             g_gtRec[k] = NULL, g_gtPreOn[k] = 0;
+            g_gtLate[k].model = NULL;  // v3.58 GT358: no late draw of a record that is not ours any more
         }
         if (want && !g_gtRec[k]) {
             void *pre = *(void *volatile *)(want + 0x24), *post = *(void *volatile *)(want + 0x28);
@@ -458,15 +742,43 @@ static void GtDrawOff(void)  // (also from the fault handler)
         g_gtSee = 0.0f;
     }
 }
-static void GtFadeBegin(void) { g_gtDrawn[0] = g_gtDrawn[1] = 0, g_gtBusySaid[0] = g_gtBusySaid[1] = 0; }
+static void GtFadeBegin(void)
+{
+    g_gtDrawn[0] = g_gtDrawn[1] = 0, g_gtBusySaid[0] = g_gtBusySaid[1] = 0;
+    // v3.58 GT358: this fade's draw-path counts
+    g_gtFrLate = g_gtFrPre = g_gtFrIn[0] = g_gtFrIn[1] = g_gtFrMiss = g_gtFrHeat = g_gtFrSoul = g_gtFrShadow = 0;
+    InterlockedExchange(&g_gtOvrCalls, 0);
+}
+static const char *GtFilterName(void)  // v3.58 GT358: the scene filter now (sh4windowmod.c's names)
+{
+    const int f = (int)g_fx[FX_FILTER];
+    return f >= 0 && f < FX_FILTERS ? kFxName[FX_FILTER][f] : "?";
+}
 static void GtFadeEnded(void)  // the fade is over: how often it was drawn (an anomaly if never)
 {
+    // v3.58 GT358: + the draw path (logcheck GT_FADE / GT_FADE_PATH): late frames (with the pre-pass), in place by shader 4 / 5,
+    // the filter, its parts faded with her, her shadow hidden
+    char path[320];
+    const int f = (int)g_fx[FX_FILTER];
+    _snprintf_s(path, sizeof path, _TRUNCATE, "the draw: late %d frame(s) (%d with the depth pre-pass), in place %d (shader 4) / %d "
+                "(shader 5), %d missed; filter %s: heat body faded %d, soul fire faded %d; her shadow hidden %d", g_gtFrLate, g_gtFrPre,
+                g_gtFrIn[0], g_gtFrIn[1], g_gtFrMiss, GtFilterName(), g_gtFrHeat, g_gtFrSoul, g_gtFrShadow);
     if (g_gtHold.on && g_gtHold.warps > GT_HOLD_LOGN)  // v3.49 GT349: a long hold: per tick only
-        LogT("ghost teleport: Richard's fade ended (drawn see-through on %d body and %d weapon draw(s))", g_gtDrawn[0], g_gtDrawn[1]);
+        LogT("ghost teleport: Richard's fade ended (drawn see-through on %d body and %d weapon draw(s)); %s", g_gtDrawn[0], g_gtDrawn[1], path);
     else
-        LogV("ghost teleport: Richard's fade ended (drawn see-through on %d body and %d weapon draw(s))", g_gtDrawn[0], g_gtDrawn[1]);
+        LogV("ghost teleport: Richard's fade ended (drawn see-through on %d body and %d weapon draw(s)); %s", g_gtDrawn[0], g_gtDrawn[1], path);
     if (g_gtFadeOk && !g_gtDrawn[0] && LogQuota(&g_gtQAn, 10))
         LogAnomaly("ghost teleport", "the fade ran but her body was never drawn see-through (record %p)", (void *)GtRecOf(0));
+    if (g_gtFrMiss && LogQuota(&g_gtQAn, 10))  // v3.58 GT358
+        LogAnomaly("ghost teleport", "her pose was built for the clean fade but she was not drawn after the actor models in %d frame(s)",
+                   g_gtFrMiss);
+    if (f >= 0 && f < 32 && !(g_gtFilterSaid >> f & 1) && (g_gtFrLate || g_gtFrIn[0] || g_gtFrIn[1]) && LogQuota(&g_gtQLate, 16)) {
+        g_gtFilterSaid |= 1u << f;  // v3.58 GT358: the first fade under each filter (a session holds at most 10 such lines)
+        Log("ghost teleport: the first fade under the filter %s: %s; %s", GtFilterName(),
+            g_gtFrLate ? "clean (after the actor models: her nearest surface on a depth pre-pass, one blend, the game's pixel shader 5)" :
+            g_gtFrIn[1] ? "one pass in place (the game's pixel shader 5: no cut-out texels)" : "Stock (v3.57: one pass, pixel shader 4)",
+            path);
+    }
 }
 
 // v3.43 GT343 Echo Doubles' teleport smoke: gone in v3.44 GT344 (Richard's warp has no smoke); echo.inc still asks
@@ -1417,6 +1729,26 @@ static int GtReadKeys(void)
     cone = GtConeKey(buf[0] != 0, buf[0] ? (float)atof(buf) : 0.0f);
     thru = GetPrivateProfileIntA("Gameplay", "GhostTeleportThroughWalls", 1, g_iniPath) != 0;
     behind = GetPrivateProfileIntA("Gameplay", "GhostTeleportBehindCollision", 0, g_iniPath) != 0;  // v3.51 TP351 (hidden; 1 = v3.50)
+    {   // v3.58 GT358: hidden GhostTeleportFadeDraw 0 Stock (v3.57) / 1 One pass / 2 Clean (default); a word or anything else:
+        // Clean (said once a value)
+        static char s_bad[32];
+        char *end = NULL;
+        long v;
+        LONG fd;
+        GetPrivateProfileStringA("Gameplay", "GhostTeleportFadeDraw", "", buf, sizeof buf, g_iniPath);
+        v = buf[0] ? strtol(buf, &end, 10) : -1;
+        fd = GtFadeDrawKey(buf[0] && end && !*end, (int)v);
+        if (buf[0] && (!end || *end || v != fd) && strcmp(s_bad, buf)) {
+            strcpy_s(s_bad, sizeof s_bad, buf);
+            Log("gameplay: [Gameplay] GhostTeleportFadeDraw=%s is not 0, 1 or 2: %d (%s)", buf, (int)fd, GtFadeDrawName((int)fd));
+        }
+        if (fd != g_gtFadeDraw) {
+            InterlockedExchange(&g_gtFadeDraw, fd);
+            if (g_gtReady)  // (a change after the start: the clean draw needs the call 0x4EF905, hooked only for Clean at the start)
+                Log("gameplay: [Gameplay] GhostTeleportFadeDraw %d: %s%s", (int)fd, GtFadeDrawName((int)fd),
+                    fd == GT_FD_CLEAN && !g_gtLateIn ? " (not hooked at the start: one pass in place until the game is started again)" : "");
+        }
+    }
     ch = range != g_gtRange || cool != g_gtCoolS || snd != g_gtSound || fwd != g_gtFwd || cone != g_gtCone || thru != g_gtThruOn ||
          behind != g_gtBehindColl;
     g_gtRange = range, g_gtCoolS = cool, g_gtSound = snd, g_gtFwd = fwd, g_gtCone = cone, g_gtThruOn = thru, g_gtBehindColl = behind;
@@ -1519,13 +1851,37 @@ static void GtInstall(void)  // GameplayInstall (after the ini read): no exe pat
     g_gtFadeOk = fade;
     g_gtWorldOk = world;  // v3.50 TP350
     g_gtReady = ok;
-    Log("ghost teleport: %s (no exe patch; %d game functions checked), [Gameplay] GhostTeleport %s; Run + Action together "
+    g_gtDepthC[5][3] = 1.0f;  // v3.58 GT358: the pre-pass's constants (alpha = the texel's)
+    {   // v3.58 GT358: the clean fade's one exe call: 0x4EF900 = call ActorDrawPass01; call ActorDrawModels; jmp ActorDrawPass2
+        // (phase 0's step 8, byte-checked whole): its `call 52AE50` at 0x4EF905 -> hkGtModels (that call, then GtLateDraw).
+        // Only with Clean at the start, the option's functions and the fade's draw stock, and the draw-call override in place.
+        static const Site kModels = { 0x4EF900, { 0xE8, 0x7B, 0xBA, 0x03, 0x00, 0xE8, 0x46, 0xB5, 0x03, 0x00, 0xE9, 0x61, 0xB4, 0x03,
+                                                  0x00 }, 15 };
+        const char *no = NULL;
+        if ((int)g_gtFadeDraw != GT_FD_CLEAN) no = "GhostTeleportFadeDraw is not 2 (Clean)";
+        else if (!ok || !fade) no = "the option's or the fade's game code is not stock";
+        else if (!g_gvDipHooks) no = "the draw-call override (004292EF / 00429338) is not in";
+        else if (!SiteOk(&kModels)) no = "004EF900 is not the game's code (another mod?)";
+        else if (!PokeBranch(0x4EF905, 0xE8, (const void *)hkGtModels, 5)) no = "004EF905 could not be written";
+        g_gtLateIn = !no;
+        if ((int)g_gtFadeDraw == GT_FD_STOCK)
+            Log("ghost teleport: the fade's draw: %s ([Gameplay] GhostTeleportFadeDraw=0: v3.57's look; no filter part fades with her)",
+                GtFadeDrawName(GT_FD_STOCK));
+        else
+            Log("ghost teleport: the fade's draw: %s%s; Thermal: her heat body fades with her (%s); Spirit Vision: her soul fire "
+                "fades with her; her real-time shadow drawn from half opacity", GtFadeDrawName(g_gtLateIn ? GT_FD_CLEAN : GT_FD_ONE),
+                g_gtLateIn ? " (the call 004EF905 to ActorDrawModels hooked)" : "",
+                g_gtLateIn ? "a depth pre-pass, then the heat x her opacity" : "the heat x her opacity, one pass");
+        if (no && (int)g_gtFadeDraw == GT_FD_CLEAN) Log("ghost teleport: the clean fade's draw is not in (%s): one pass in place", no);
+    }
+    Log("ghost teleport: %s (%s; %d game functions checked), [Gameplay] GhostTeleport %s; Run + Action together "
         "(within %.0f ms): behind the standing enemy she faces (+-%.0f degrees) within %.0f u%s, else up to %.0f u ahead the way she "
         "faces, through walls %s (onto floor a route of the room reaches), cooldown %.1f s; "  // v3.50 TP350
         "every landing proven (her body free, on the room's floor map); inside a wall after a warp: moved to the nearest proven floor; "  // v3.52 TP352
         "held: the next warp once she has faded in; never across or into a walk-in event zone; "  // v3.49 GT349
         "Richard's transition: his warp sound 0xEC86 %s, his see-through fade (%.1f s out, %.1f s in) on her model %s",
-        ok ? "in" : "OFF", (int)(sizeof kFn / sizeof kFn[0] + sizeof kFade / sizeof kFade[0] + sizeof kWorld / sizeof kWorld[0]),
+        ok ? "in" : "OFF", g_gtLateIn ? "no exe patch but the clean fade's call 004EF905" : "no exe patch",  // v3.58 GT358
+        (int)(sizeof kFn / sizeof kFn[0] + sizeof kFade / sizeof kFade[0] + sizeof kWorld / sizeof kWorld[0]) + g_gtLateIn,
         kGtName[g_gtSet ? 1 : 0], GT_CHORD_S * 1000.0f, g_gtCone, g_gtRange,
         g_gtBehindColl ? " (also past collision: GhostTeleportBehindCollision 1)" : world ? " in the open (none past collision)" :
         " in the open (none past collision; the mover line: the tree2 queries are not stock)",  // v3.51 TP351

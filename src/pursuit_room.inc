@@ -208,7 +208,7 @@ static void EpOne(BYTE *t, const float *pp, const float *aim, int pmode)
         return;
     }
     copy = EnmIsCopyId(id);
-    if (fam == EP_FAM_GHOST && !copy && !EnmIsGhostId(id)) return;  // (every victim placement has a ghost id: not one of those)
+    if (fam == EP_FAM_GHOST && !copy && !EnmIsGhostId(id) && !EnmDrawnGhost(type, variant, copy, id)) return;  // (every victim placement has a ghost id: not one of those)  // v3.58 EN358: + a victim the randomizer drew (its script id) is one
     if (fam == EP_FAM_DOG && (kind == 6 || kind == 7) && !ENM_DOGS_AWAKE) return;  // (an event dog not released: no update runs)
     blk = EpBlock(w);
     st = *(const WORD *)(t + 0x410), step = *(const WORD *)(t + 0x412);

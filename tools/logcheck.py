@@ -50,6 +50,12 @@ BUDGET_BACK = re.compile(r'^budget: level (\d+) -> (\d+) \(a blind try taken bac
 BUDGET_KEPT = re.compile(r'^budget: the blind step to level (\d+) is kept: the frames (-?[\d.]+) % shorter')
 BUDGET_YIELD = re.compile(r'^budget: nothing left to shed at (\d+) fps \(level (\d+)')
 BUDGET_ROOM_HR = re.compile(r'; high rate: (\d+) frame\(s\), (\d+) blind step\(s\), (\d+) kept, (\d+) taken back; the sparks at (\d+) %')
+# v3.58 GX358: the quick rules (a start step when powers start together, the refill, quick steps) and the room line's part
+BUDGET_QUICK_IN = re.compile(r'^budget: quick rules (on|off)')
+BUDGET_PRE = re.compile(r'^budget: level (\d+) -> (\d+) \(powers start together at (\d+) fps: (.*?): a start step')
+BUDGET_REFILL = re.compile(r'^budget: level (\d+) -> (\d+) \((the powers fill back in|late again as they filled in)')
+BUDGET_QUICK = re.compile(r'^budget: level (\d+) -> (\d+) \(frames run far over: a quick step;')
+BUDGET_ROOM_GX = re.compile(r'; (\d+) start step\(s\), (\d+) quick step\(s\)')
 AI_OTS_CAM = re.compile(r'^after shock: over-the-shoulder camera (on|off): ')
 AI_OTS_FADE = re.compile(r'^after shock: over-the-shoulder fade: a copy right over her keeps (\d+) % of its light; her box (\d+) x (\d+) u')
 AI_OTS_INI = re.compile(r'^after shock: \[Gameplay\] AfterImageOtsFade=(-?\d+)')
@@ -135,6 +141,13 @@ HB_HIDE_RING = re.compile(r'^hud bars: Hide Gauge: (the curse meter|companion Ei
 HB_REF = re.compile(r'^hud bars: no bar for ([0-9A-F]{8}) \(type ([0-9A-F]{2})\) in room (\d+:[0-9A-F]+): (not in the room yet|not at a place in the room)')
 HB_REF_ROOM = re.compile(r'^hud bars: room (\d+:[0-9A-F]+): no bar for (\d+) enemy\(ies\) not in the room yet .*?, (\d+) not at a place in the '
                          r'room; this session (\d+) / (\d+)')
+# v3.58 EN358: a refusal for a body nothing draws yet (the event dogs before flag 130), Walter's downs
+HB_UNDRAWN = re.compile(r'^hud bars: no bar for [0-9A-F]{8} .*?\((nothing draws it: no model in its actor record|an event dog '
+                        r'before story flag 130: its task returns before its draw)\)')
+HB_WALTER = re.compile(r'^hud bars: (the final|the stalker) Walter [0-9A-F]{8} (standing|rising|stumble|down|pinned|gone) '
+                       r'\(class [0-9A-F]+, AI [0-9A-F]+ step \d+, hp (-?\d+) / (\d+), down timer ([\d.]+) s\)')
+HB_WALTER_SITE = re.compile(r'^hud bars: Walter downed keeps his bar .*?: the stalker\'s \(004A4A12\) (read|differs[^,]*), the '
+                            r'final Walter\'s \(004A8760\) (read|differs.*)$')
 HB_BOSS = re.compile(r'^hud bars: boss (Walter|the Wall boss) ([0-9A-F]{8}) \(type ([0-9A-F]{2})\) in room (\d+:[0-9A-F]+): '
                      r'(?:its bar is up ([\d.]+) s after it became active|active 5 s and no bar yet: (.*?) \(state)')
 HB_PE_RING = re.compile(r"^hud bars: (?:Playable Eileen draws the player's curse ring \(SH4PE_DrawsPlayerCurse\)|"
@@ -167,8 +180,17 @@ PV_KEPT = re.compile(r"^screen effects: the pause's look layers kept for the Eff
 PV_NOT = re.compile(r"^screen effects: the pause's look layers not kept: (.+?) \(Thermal / Spirit Vision show ")
 PV_FAIL = re.compile(r"^screen effects: the pause's look layers (faulted|could not be copied)")
 PV_PAGE = re.compile(r"^screen effects: the Effects page's preview: (.+?) over (the paused scene \(the pause menu\)|the paused scene|"
-                     r"SH4 Refined's preview scene|the preview picture \(PreviewImage\)|the stock hallway)(?: with (.+?))?"
-                     r"( \(the layer could not be drawn\))?$")
+                     r"SH4 Refined's preview scene|the preview picture \(PreviewImage\)|the stock hallway|"
+                     r"the stock picture \(SH4Refined_preview_stock\.dds\))(?: with (.+?))?"  # v3.58 PV358: + the stock picture
+                     r"( \(the layer could not be drawn\))?(?: \(Filter Strength (Low|Medium|Ultra)\))?$")  # v3.58 PV358: + the strength
+# v3.58 PV358: Preview Off / Stock / Live, Filter Strength (the install line, the migrations, the stock file, the copy)
+PV_SET358 = re.compile(r"^screen effects: the Effects page's preview: Preview=(Off|Stock|Live) \(.*?\); the stock picture (.*?): "
+                       r"(present|missing)[^;]*; a pause keeps .*?: (on|off) \(PreviewLayers=(\d)\); Filter Strength (Low|Medium|High|Ultra)$")
+PV_OFF = re.compile(r"^screen effects: the Effects page's preview: off \(Preview Off\) over the game's own menu background \(page (\d+)\)$")
+PV_MIG = re.compile(r"^screen effects: \[ScreenEffects\] PreviewScene=(.*?) \(v3\.56(?:, hidden)?\) (?:is now Preview=(\w+)|is not read any more)")
+PV_FSLEG = re.compile(r"^screen effects: \[ScreenEffects\] FilterStrength=(.*?) is v3\.15's")
+PV_STOCKBAD = re.compile(r"^screen effects: the stock picture (.*?) is (missing|not usable)")
+PV_FSFAIL = re.compile(r"^screen effects: Filter Strength (\w+): the plain picture could not be copied")
 PV_LAID = re.compile(r"^screen effects: the preview scene laid out for (\d+)x(\d+): ")
 MU_EVENTS = (('opened from the pause', 'from the pause'), ('opened from play', 'from play'),
              ('closed, back in the pause', 'back in the pause'), ('closed, back to play', 'back to play'),
@@ -208,6 +230,34 @@ SD_DEV_BACK = re.compile(r'^sound: device: the default sound device is the game\
 SD_DEV_STATE = re.compile(r'^sound: device: the game\'s sound device "([^"]*)" is (.+?)(: no game sound| again \()')
 SD_DEV_OFF = re.compile(r'^sound: device watch: (.+)$')
 SD_CFG = re.compile(r'^sound: \[Sound\] (Background|KeepAwakeLevel)=')
+# v3.58 SD358: Volume 0 = silent; Background Mute by the sound session (sound.inc)
+SD_ZERO_IN = re.compile(r'^sound: volume 0: (silent|off|NOT IN)(?:: .*?2D sounds and the music (in|NOT IN)[^,]*, streams (in|NOT IN)'
+                        r'.*?\(the fading stream 0x2774 (by its set level|NOT IN))?')
+SD_ZERO_MIN = re.compile(r'^sound: minute: volume 0: (\d+) 2D, (\d+) 3D, (\d+) stream volume\(s\) set to silence')
+SD_SESS = re.compile(r'^sound: background: Mute by the sound session: (\d+) session\(s\) of the game on (\d+) output device')
+SD_SESS_NONE = re.compile(r'^sound: background: no sound session of the game to mute \(([^)]*)\)')
+SD_SESS_MUTED = re.compile(r'^sound: background: muted (\d+)( more)? sound session\(s\) of the game \((\d+) output device\(s\); (\d+) ms; '
+                           r'(\d+) already muted')
+SD_SESS_UNMUTED = re.compile(r'^sound: background: unmuted (\d+) sound session\(s\)')
+SD_SESS_FIXED = re.compile(r'^sound: background: (\d+) sound session\(s\) of the game were still muted by SH4 Refined')
+SD_SESS_USER = re.compile(r'^sound: background: (\d+) sound session\(s\) of the game are muted in Windows')
+SD_SESS_BACK = re.compile(r'^sound: background: the game\'s sound session can be muted again')
+# v3.58 SD358-001: SH4Refined.muted by session identity; the user's change of a held session in the Volume Mixer
+SD_SESS_KEPT = re.compile(r'^sound: background: SH4Refined\.muted names (\d+) session\(s\) not found at this start')
+SD_SESS_DROP = re.compile(r'^sound: background: (\d+) entr(?:y|ies) of SH4Refined\.muted older than 30 days dropped')
+SD_MARK_FAIL = re.compile(r'^sound: background: SH4Refined\.muted could not be written \((.+?) failed, error (\d+)\)')  # v3.58 SD358-002
+# v3.58 SD358-003: pending entries at the start (a mute not confirmed when the game ended): left as they are, dropped (not an
+# anomaly: the user's mute is kept; when Refined's own, the line tells the user to unmute it in the Volume Mixer)
+SD_SESS_PEND = re.compile(r'^sound: background: SH4Refined\.muted named (\d+) sound session\(s\) of the game as pending .*?: left as they '
+                          r'are, (\d+) of them muted now')
+SD_SESS_TOUCH = re.compile(r'^sound: background: a sound session SH4 Refined had muted was (unmuted|unmuted and muted again) in the '
+                           r'Windows Volume Mixer')
+SD_SITES = re.compile(r'^sound: background: the buffer sites (now (Play|Mute)|could not be set)')
+SD_STALE = re.compile(r'^sound: background: (\d+) of the game\'s sounds carry the global focus')
+SD_EXIT = re.compile(r'^sound: background: the window closes behind other windows: the game\'s sound sessions unmuted first \((done|no answer)')
+SD_KEEP_HOLD = re.compile(r'^sound: keep-awake: (stopped while another window is in front|playing again)')
+SD_SESS_LOST = re.compile(r'^sound: background: (no sound session of the game could be muted|\d+ sound session\(s\) of the game could not be '
+                          r'(?:un)?muted)')  # ANOMALY bodies
 # v3.53 OL2: the Options look (look.inc): the install line, the glyph line of each page (level 2), its ANOMALY, a key on a
 # grey row (level 2)
 LKL_IN = re.compile(r'^options look: (in|off) ')
@@ -239,7 +289,7 @@ INV_INSTALL = re.compile(r'^inventory: Extended Toolbelt (on|off|UNAVAILABLE) .*
                          r'stack guards (in|OFF)')
 INV_SWITCH = re.compile(r'^(extended toolbelt|stackable items): (on|off|stays on)\b')
 # v3.43 GT343: Ghost Teleport (teleport.inc): the install line, the warps, the refusals, the cooldown waits
-GT_INSTALL = re.compile(r'^ghost teleport: (in|OFF) \(no exe patch; .*?\[Gameplay\] GhostTeleport (On|Off);')
+GT_INSTALL = re.compile(r'^ghost teleport: (in|OFF) \(no exe patch[^;]*; .*?\[Gameplay\] GhostTeleport (On|Off);')  # v3.58 GT358: [^;]*
 GT_WARP = re.compile(r'^ghost teleport: behind type ([0-9A-F]{2}) (\d+) u away')
 GT_NO = re.compile(r'^ghost teleport: not now: (.+?)(?: \(.*)?$')
 GT_COOL = re.compile(r'^ghost teleport: (?:Run held, waiting for the cooldown|Run \+ Action during the cooldown)')  # v3.44 GT344: +
@@ -253,6 +303,13 @@ GT_ZONES = re.compile(r'^ghost teleport: room (\d+):(\d+): (\d+) walk-in event z
 GT_ZONE_NO = "an event's trigger zone on the way"  # v3.49 GT349: in a refusal's spot list
 GT_ZONE_IN = "inside an event's trigger zone"  # v3.49 GT349-001: a refusal while she stands in a zone not fired yet
 GT_FADE = re.compile(r"^ghost teleport: Richard's fade ended \(drawn see-through on (\d+) body and (\d+) weapon draw")
+# v3.58 GT358: the fade line's draw path (late frames, of them with the pre-pass, in place by shader 4 / 5, missed, the filter,
+# the heat body / soul fire faded, her shadow hidden) and the start's draw mode
+GT_FADE_PATH = re.compile(r'; the draw: late (\d+) frame\(s\) \((\d+) with the depth pre-pass\), in place (\d+) \(shader 4\) / '
+                          r'(\d+) \(shader 5\), (\d+) missed; filter (.+?): heat body faded (\d+), soul fire faded (\d+); '
+                          r'her shadow hidden (\d+)$')
+GT_FADE_DRAW = re.compile(r"^ghost teleport: the fade's draw: (Clean|One pass|Stock)")
+GT_FADE_NOTIN = re.compile(r"^ghost teleport: the clean fade's draw is not in \((.+)\): one pass in place$")
 GT_OFF = re.compile(r'^ghost teleport: called off during the fade: (.+?)(?: \(.*)?$')
 # v3.50 TP350: the warp through a wall, the faced enemy, a room visit's counts, the room's floor map
 GT_THRU = re.compile(r'^ghost teleport: through (\d+) u the way she faces')
@@ -342,8 +399,9 @@ R3_REBUILT = re.compile(r'^room 302: look: the view was rolled or past a limit')
 # v3.56 FR356: the rate guard (rateguard.inc) and the final room's per-tick sites (true60_final.inc)
 FRG_ON = re.compile(r'^rate guard: (on|off|not used) \(')
 FRG_TOP = re.compile(r'\(top now (\d+)\)$')
-FRG_DOWN = re.compile(r'^rate guard: (\d+) -> (\d+): the play frames took ([\d.]+) ms on average against ([\d.]+) \(([\d.]+) x\) in (\d+) '
-                      r'windows of (\d+) s in a row \(stage ([0-9A-F]+) room ([0-9A-F]+); effect budget level (\d+)\)(; stepped down from it '
+FRG_DOWN = re.compile(r'^rate guard: (\d+) -> (\d+): the play frames took ([\d.]+) ms on average against ([\d.]+) \(([\d.]+) x\) '
+                      r'(?:in (\d+) windows of (\d+) s in a row|in the last (\d+) s, the effect budget with nothing left to shed) '  # v3.58 GX358
+                      r'\(stage ([0-9A-F]+) room ([0-9A-F]+); effect budget level (\d+)\)(; stepped down from it '
                       r'twice: not tried again this run)?; \[Window\] FrameRate stays (\d+)')
 FRG_UP = re.compile(r'^rate guard: (\d+) -> (\d+) at the room change to ([0-9A-F]+):([0-9A-F]+) ')
 FRG_RETRY = re.compile(r'^rate guard: (\d+) minutes clean at (\d+) .*: (\d+) is tried again at the next room change')
@@ -366,6 +424,18 @@ RZ_ROLL = re.compile(r'^randomizer: \[Randomizer\] Seed was "([^"]*)"(?: \([^)]*
 RZ_BADKEY = re.compile(r'^randomizer: \[Randomizer\] (Items|KeepSpecials|Specials|Room302|PerVisit|Reroll) "([^"]*)" '
                        r'(?:\(v3\.55\) )?is not .+?: (?:Specials |Reroll )?(By Room|By World|\w+) \(the default\)$')  # v3.56 RI356: + the new keys
 RZ_FIRST = re.compile(r'^randomizer: the first room load through 004F0AF8 \(stage (\d+) room (\d+)\): Items (\S+)$')
+# v3.58 MN358: a stage without both pickup model files (a story interlude: stage 10 / 11): its pickups are left alone by
+# design. v3.48 .. v3.57 wrote it as an ANOMALY (once per stage and half), v3.58 as a plain line (once per stage)
+RZ_NOMODELS = re.compile(r"^randomizer: stage (\d+): item_model\.bin / wp_model\.bin are not both in the world's file list")
+# v3.58 MN358: the Options value box (valbox.inc): the install line, a page's box (level 2), a value wider than its page's
+# measure, and the switch off / not on
+VBX_ON = re.compile(r'^options: value box on: .*?\(0052570E, 00525802, 0052587C, 00525CE3(; the volume bars\' arrows '
+                    r'0x5256B6 / 0x5256E2)?\)(.*)$')
+VBX_OFF = re.compile(r'^options: value box (off \(\[Options\] ValueBox=0\)|NOT on: (.+?) not stock)')
+VBX_PAGE = re.compile(r'^options: value box: page (\d+) \(([^)]*)\): (\d+) value row\(s\), (\d+) value\(s\), the widest (\d+) px, '
+                      r'the widest label (\d+) px: the arrows at x (-?\d+) and (-?\d+) on every row \(([^)]*)\)(.*)$')
+VBX_GROW = re.compile(r'^options: value box: page (\d+) row (\d+): a (\d+) px value is wider than the page\'s measure: the arrows at x '
+                      r'(-?\d+) and (-?\d+) from now on')
 RZ_PLAN = re.compile(r'^randomizer: stage (\d+) visit (\d): (Shuffle|Random), (\d+) of (\d+) pickup\(s\) in the pool \((\d+) weapon '
                      r'spot\(s\)\), (\d+) changed \(seed (\d+), (?:Keep Specials|Specials) (On|Off), Room 302(?: Items)? '
                      r'(In|Out|Off|Shuffle|Random), (?:Change Each Visit|Reroll) (On|Off|By Room|By World), '  # v3.56 RI356: + the new words
@@ -432,7 +502,30 @@ RZM_ROOM = re.compile(r"^randomizer: monsters: room (\d+):(\d+) \(visit (\d), #(
                       r"by a stock record, (\d+) recorded elsewhere, (\d+) for another writer's record, (\d+) with no target)?"
                       # v3.51 SN351: + the second roll and the event dogs (only when there are any)
                       r"(?:; rolled again for their own type: (\d+))?(?:; event dogs: (\d+), story flag 130 (set|clear) \((?:rolled as "
-                      r"the others|kept as placed for their event)\))?$")
+                      r"the others|kept as placed for their event)\))?"
+                      # v3.58 RZ358: + the dead kept dead (only when there are any)
+                      r"(?:; the dead stay dead: (\d+) bod(?:y|ies) as (?:it|they) died \((\d+) empty here\), (\d+) by a kill bit"
+                      r"(, SOME BACK: no kill index)?)?$")
+# v3.58 RZ358: the dead stay dead (rzmon.inc), Extra Enemies' copies drawn (rzmon.inc RmCopiesSay), the copies' record guard
+RZM_DEADV = re.compile(r'^randomizer: monsters: room (\d+):(\d+): n(\d+) lies dead here as another type \((.*)\): its body record stays '
+                       r"and its placement stays empty for this room's build \(kill index (\d+)\)$")
+RZM_DEADLOST = re.compile(r'^randomizer: monsters: room (\d+):(\d+): n(\d+) lies dead here as another type \((.*)\) and has no kill '
+                          r'index: its body record is deleted \(it stands again\)$')
+RZM_SAVEDEAD = re.compile(r'^randomizer: monsters: a save: (\d+) randomized monster\(s\) lying dead are kept dead in it as kill bits '
+                          r'\(.*\)(, SOME without a kill index come back after a load)?$')
+RZM_COPIES = re.compile(r"^randomizer: monsters: copies x(\d): room (\d+):(\d+): (\d+) made, types (.+?); (\d+) drawn by the seed \((\d+) "
+                        r"at a site of their own\), (\d+) kept their original's type \(files\), (\d+) not made \(the copies' line says why\)$")
+RZM_CPFILES = re.compile(r"^randomizer: monsters: copies: room (\d+):(\d+): (.+?)'s files could not be loaded \((.*)\): those copies "
+                         r"keep their original's type$")
+RZM_SESS5 = re.compile(r'^randomizer: monsters session: the dead stay dead: (\d+) bod(?:y|ies) kept as they died, (\d+) kept by a kill '
+                       r"bit, (\d+) kept with their placement empty for a room's build \(type not makeable / Enemies Off\), (\d+) lost "
+                       r'\(no kill index\); saves: (\d+) randomized bod(?:y|ies) kept dead as kill bits, (\d+) lost$')
+RZM_SESS6 = re.compile(r'^randomizer: monsters session: copies: (\d+) room load\(s\) with copies drawn: (\d+) drawn by the seed \((\d+) '
+                       r"at a site of their own\), (\d+) made, (\d+) kept their original's type \(files\); (\d+) descriptor\(s\) made "
+                       r'as a drawn type \(in their room or away\)$')
+ENM_CPRECS = re.compile(r'^enemies: room (\d+):(\d+) copies: (\d+) not made: the enemy records would be full at this room\'s exit')
+ENM_CPRECV = re.compile(r"^enemies: copies: the enemy records are full for this room's exit \((\d+) free, (\d+) of other worlds, (\d+) "
+                        r'real enemies to write\): no copy is made')
 # v3.51 SN351: the event dogs and the second roll at the start, and the session's counts
 RZM_EVIN = re.compile(r"^randomizer: monsters: (\d+) of the source placements are event Sniffer Dogs \(spawn mode 6 / 7, stock: Subway "
                       r"room 2:2's (\d+)\): rolled once story flag 130 is set \(their cut-scene is over\), else as placed; a roll of the "
@@ -497,6 +590,13 @@ INV_COUNTS = re.compile(r'^inventory: toolbelt flips (\d+), overflows to page 2 
 # v3.38 EN338: Enemies Follow (enemies.inc): the door lines, arrivals, the spotted marks, waits, stops, story refusals
 FOL_DOOR = re.compile(r'^enemies: through door \d+ from room \d+ to \d+: (\d+) follow \(.*?; (\d+) wait for a later door .*?, '
                       r'(\d+) stopped,')
+# v3.58 EN358: the ghosts of each door (the door line's ghost count), what became of them in that room, the first sight
+FOL_DOOR_G = re.compile(r'^enemies: through door \d+ from room \d+ to \d+: \d+ follow \(\d+ monster\(s\), \d+ of them copies, '
+                        r'(\d+) ghost\(s\);')
+FOL_GSUM = re.compile(r'^enemies: ghosts that followed you into room \d+: (\d+) of (\d+) came in \(the real ghost in the room; '
+                      r'nearest (-?\d+) units from you\), (\d+) still arriving through the walls, (\d+) never in the room')
+FOL_GIN = re.compile(r'^enemies: ghost [0-9A-F]{8} \(type [0-9A-F]{2}\) that followed you is in room \d+ now \(class [0-9A-F]+, '
+                     r'(-?[\d.]+) s after the door.*?\)( \(a victim the randomizer drew\))?$')
 FOL_CAME = re.compile(r'^enemies: (?:copy|follower) [0-9A-F]{8} \(type [0-9A-F]{2}\) came through the door into room')
 FOL_SPOT = re.compile(r'^enemies: (?:monster|copy) [0-9A-F]{8} \(type [0-9A-F]{2}\) spotted you in room')
 FOL_STOP = re.compile(r'^enemies: .*? stops? pursuing you(?! at the door)')
@@ -596,6 +696,11 @@ SH_PLAN = re.compile(r'^shadows: (Soft|Softer) at (\d+)x(\d+): (\d) pass\(es\) d
 SH_ROOM = re.compile(r'^shadows: room ([0-9A-F]+):([0-9A-F]+): (\d+) composites over (\d+) frames \(at most (\d+) in a frame\), (\d+) soft; '
                      r'ours ([\d.]+) ms a composite on average, ([\d.]+) at most')
 SH_OFF = re.compile(r'^shadows: off for this session: (.*?) \(hr ([0-9A-F]+), (.*?)\)')
+# v3.58 GX358: the stock Realtime Shadow switch (Shadows), the composites the game drew with it Off, the preview's Off
+SH_SW = re.compile(r'^shadows: Shadows (On|Off) \(the game\'s Realtime Shadow, cfg\+0x19')
+SH_SW_HERE = re.compile(r'; here \(stage ([0-9A-F]+) room ([0-9A-F]+)\): (kept|none);')
+SH_ROOM_OFF = re.compile(r'; (\d+) with Shadows Off \(the game keeps this room\'s\)')
+SH_PV_OFF = re.compile(r'^shadows: the Shadows page\'s preview: (Shadows Off: no real-time shadow here|the split shadows again)')
 # v3.52 SH352: the room line's tail (why composites were not soft: hard with their reasons, none with no darkness) and the
 # once-a-room reason line
 SH_ROOM_NS = re.compile(r'; not soft: (\d+) hard(?: \((.*?)\))?, (\d+) with no darkness')
@@ -717,7 +822,8 @@ FI_MODE = r'(Off|Fade \+ Portal|Fade)'  # (the longer name first)
 # v3.51 PT351: "no code patch" (the step list's entry 8 is data) and the tar portal's part (optional: v3.50 logs read too)
 FI_IN = re.compile(r'^fade in: in \(no (?:exe|code) patch: .*?; the portal (from the scene pass 004EFBFD|NOT available[^)]*\))'
                    r'(?:; the tar portal (.*?))?\); '
-                   r'\[Gameplay\] FadeIn ' + FI_MODE + r', FadeInSeconds ([\d.]+)(?:, FadeInPortalDraw (\w+), FadeInHold (\d))?')
+                   r'\[Gameplay\] FadeIn ' + FI_MODE + r', FadeInSeconds ([\d.]+)(?:, FadeInPortalDraw (\w+), FadeInHold (\d))?'
+                   r'(?:, FadeInStrandSeconds ([\d.]+), FadeInPortalPieces (\d+), FadeInStrands (\d+))?')  # v3.58 FI358
 FI_OFF = re.compile(r'^fade in: OFF \((.+?)\); enemies appear as the game makes them')
 FI_ROOM = re.compile(r'^fade in: room (\d+):(\d+): (\d+) fade\(s\) \(room load (\d+), follower (\d+), wanderer (\d+), copy (\d+), '
                      r'revive (\d+), ghost (\d+), monster (\d+)\), (\d+) portal\(s\); (\d+) not faded \(stage (\d+), cut-scene (\d+), '
@@ -746,6 +852,13 @@ FI_GFAULT = re.compile(r"^fade in: a fault in the game's own portal draw \(code 
 FI_NOTSTOCK = re.compile(r'^fade in: ([0-9A-F]{8}) \((.+?)\) is not the stock code \(another mod\?\): the tar portal does without it')
 FI_TDM_BAD = re.compile(r'^fade in: \[Gameplay\] FadeInPortalDraw "([^"]*)" is not Auto / Refined / Vortex')
 FI_OWN = re.compile(r'^fade in: type ([0-9A-F]{2}) is drawn with a draw state of its own \(pre-draw ([0-9A-F]{8})\)')
+# v3.58 FI358: a tar portal's close line (fadein_sim.h FiCloseText) and a bad FadeInStrandSeconds
+FI_CLOSE = re.compile(r"^fade in: ([0-9A-F]{8}) \(type ([0-9A-F]{2})\): its tar portal closed at ([\d.]+) s: (\d+) piece\(s\) \(grids (\d+) "
+                      r"of (\d+), blot sets (\d+), drips (\d+)\), (\d+) x (\d+) u for a body (\d+) u tall \(([\d.]+) x, (its bones|its "
+                      r"type's box|not seen)\); strands: the ghost's own (\d+), Refined's (\d+) \((its bones|its box)\), held ([\d.]+) s "
+                      r"after it was in \(to ([\d.]+) s; (\d+) snapped, (\d+) stretched loose\); portal draw ([\d.]+) ms a frame "
+                      r"\(max ([\d.]+), (\d+) frames\)")
+FI_STICK_BAD = re.compile(r'^fade in: \[Gameplay\] FadeInStrandSeconds "([^"]*)" is not 0 \.\. 6')
 
 
 class Session:
@@ -783,6 +896,11 @@ class Session:
         self.bhr_kept = []        # (ts, level, gain %)
         self.bhr_yield = []       # (ts, fps, level)
         self.bhr_rooms = []       # (stage:room, frames, blind, kept, back, sparks %)
+        self.bq = None            # v3.58 GX358: the quick rules 'on' / 'off'
+        self.bq_pre = []          # (ts, from, to, fps, powers)
+        self.bq_refill = [0, 0]   # refill steps up, take-backs
+        self.bq_quick = 0         # quick steps
+        self.bq_rooms = []        # (stage:room, start steps, quick steps)
         self.ots_cam = Counter()  # v3.56 PW356: After Shock's over-the-shoulder camera on / off lines
         self.ots_fade = None      # (keep %, box w, box h) the last fade line
         self.ots_ini = None
@@ -822,6 +940,9 @@ class Session:
         self.gt_cool = 0          # v3.43 GT343: presses that waited for the cooldown
         self.gt_chord = Counter()  # v3.44 GT344: chords by which press came last ('taken back', 'NOT taken back', 'Action first')
         self.gt_fades = [0, 0]    # v3.44 GT344: fades ended, of them never drawn see-through on her body
+        self.gt_fdraw = None      # v3.58 GT358: the start's fade draw (Clean / One pass / Stock), why Clean is not in
+        self.gt_fnotin = None
+        self.gt_fpath = {}        # v3.58 GT358: filter -> [fades, late, pre-pass, shader 4, shader 5, missed, heat, soul, shadow]
         self.gt_off = Counter()   # v3.44 GT344: fades called off, by reason
         self.gt_holds = []        # v3.49 GT349: (warps, refused) of every hold that tried more than once
         self.gt_zones = {}        # v3.49 GT349: 'stage:room' -> walk-in event zones the warp kept out of
@@ -854,6 +975,10 @@ class Session:
         self.fi_letgo = []        # v3.51 PT351: (id, draw, s, why, strands, n, moved, unheld, no attack s, avg ms, max ms, frames)
         self.fi_real = 0          # v3.51 PT351: placeholders that turned real (their hold goes on in the real ghost)
         self.fi_never = 0         # v3.51 PT351: tar portals closed with nobody coming out
+        self.fi_close = []        # v3.58 FI358: (id, closed at, grids, of, sets, w, h, body, ratio, body from, game, own, own from,
+                                  #   stick s, to s, snapped, loose, avg ms, max ms)
+        self.fi_big = None        # v3.58 FI358: (FadeInStrandSeconds, FadeInPortalPieces, FadeInStrands) of the start line
+        self.fi_stick_bad = None  # v3.58 FI358: a FadeInStrandSeconds that is not a number of seconds
         self.fi_tar_starts = Counter()  # v3.51 PT351: verbose starts by (draw, wall / air)
         self.fi_gfault = None     # v3.51 PT351: (ts, code) a fault in the game's own portal draw
         self.fi_notstock = []     # v3.51 PT351: game code the tar portal found changed
@@ -894,6 +1019,11 @@ class Session:
         self.rz_sets = []         # v3.48 RZ348: (ts, key, new, old / from)
         self.rz_sess = None       # v3.48 RZ348: the session line's groups
         self.rz_anom = 0          # v3.48 RZ348: its ANOMALY lines
+        self.rz_nomodels = []     # v3.58 MN358: the stages left alone by design (no pickup model files), in order
+        self.rz_nomodels_anom = 0  # v3.58 MN358: ... of them written as ANOMALY lines (v3.57 and before: not counted)
+        self.vbx = None           # v3.58 MN358: the value box: ('on', bars) / ('off', why)
+        self.vbx_pages = OrderedDict()  # v3.58 MN358: page -> (title, rows, values, widest, label, left, right, how, rest)
+        self.vbx_grow = []        # v3.58 MN358: (ts, page, row, w, left, right)
         self.rz_v356 = False      # v3.56 RI356: the start line has v3.56's keys (Specials, Reroll)
         self.rz_migs = []         # v3.56 RI356: (ts, old key, old text, new key, new text, how) v3.55's keys migrated
         self.rz_seedline = None   # v3.56 RI356: (seed, x, y, glyphs, size) the seed line under the page's description
@@ -924,6 +1054,12 @@ class Session:
         self.ss_anom = 0          # v3.56 RE356: its ANOMALY lines
         self.rzm_ev = None        # v3.51 SN351: (event dogs, stock event dogs, roll again On / Off) at the start
         self.rzm_sess4 = None     # v3.51 SN351: (rolled again, roll again On / Off, event dogs planned, kept asleep) the session
+        self.rzm_dead = Counter()  # v3.58 RZ358: 'rooms', 'dead', 'hid', 'killed', 'lost' (room lines), 'v_hid', 'v_lost', 'saves', 'save_dead', 'save_lost'
+        self.rzm_cp = Counter()   # v3.58 RZ358: the copies' lines: 'rooms', 'made', 'drawn', 'sited', 'files', 'not', 'files_lines'
+        self.rzm_cp_by = Counter()  # v3.58 RZ358: copies made by type
+        self.rzm_sess5 = None     # v3.58 RZ358: the dead-stay-dead session line (ints)
+        self.rzm_sess6 = None     # v3.58 RZ358: the copies' session line (ints)
+        self.cp_recs = Counter()  # v3.58 RZ358: 'rooms', 'not' (copies not made for the enemy records), 'v' (verbose lines)
         self.rzl = None           # v3.49 RZ349L: (EileenOutfit, Ghosts) at the start
         self.rzl_bad = []         # v3.49 RZ349L: (key, text, default) unknown ini values
         self.rzl_first = None     # v3.49 RZ349L: (ts, stage, room, outfit, its state, ghosts, their state)
@@ -947,7 +1083,7 @@ class Session:
         self.r3_rebuilt = 0       # v3.50 R302: view rebuild lines
         self.r3_anom = 0          # v3.50 R302: its ANOMALY lines
         self.frg = None           # v3.56 FR356: (on / off / not used, the top rate or None, ts) from the start line
-        self.frg_downs = []       # v3.56 FR356: (ts, from, to, mean, target, ratio, stage, room, budget level, locked)
+        self.frg_downs = []       # v3.56 FR356: (ts, from, to, mean, target, ratio, stage, room, budget level, locked, quick (v3.58 GX358))
         self.frg_ups = []         # v3.56 FR356: (ts, from, to, stage, room)
         self.frg_retry = []       # v3.56 FR356: (ts, minutes, at, higher)
         self.frg_miss = [0, 0]    # v3.56 FR356: missed windows counted, held (the budget shedding)
@@ -1004,6 +1140,11 @@ class Session:
         self.pv_why = Counter()   # v3.56 PV356: why a pause kept no layers
         self.pv_page = Counter()  # v3.56 PV356: (filter, what) the page showed
         self.pv_anom = 0          # v3.56 PV356: its ANOMALY lines
+        self.pv358 = None         # v3.58 PV358: (ts, Preview, the stock file present / missing, PreviewLayers, Filter Strength) from the install line
+        self.pv_mig = []          # v3.58 PV358: the migrations: 'PreviewScene=X -> Preview=Y', 'FilterStrength=X (v3.15) -> High'
+        self.pv_off = 0           # v3.58 PV358: page openings with Preview Off
+        self.pv_stockbad = Counter()  # v3.58 PV358: the stock picture missing / not usable lines
+        self.pv_fsfail = 0        # v3.58 PV358: plain copies that failed (Filter Strength Low / Medium)
         self.snd_in = None        # v3.52 SND352: (pan, volume, reverb, mono streams, mono music) from the install line, or 'off'
         self.snd_start = None     # v3.52 SND352: the first frame's start line (ts, groups)
         self.snd_first = None     # v3.52 SND352: (ts, mode, the save's byte) of the first start's migration, or a bad Mode
@@ -1022,6 +1163,15 @@ class Session:
         self.sd_dev_ev = []       # v3.56 SD356: (ts, 'new' / 'back' / the game device's state, name)
         self.sd_dev_off = None    # v3.56 SD356: why there is no device watch
         self.sd_cfg = Counter()   # v3.56 SD356: ini values read as the default
+        self.sd_zero = None       # v3.58 SD358: ('silent', 2D, streams, 0x2774) / ('off',) / ('NOT IN',) from the install line
+        self.sd_zero_n = [0, 0, 0]  # v3.58 SD358: volumes silenced (2D, 3D, streams) from the minute lines
+        self.sd_sess = None       # v3.58 SD358: ('session', n, devices) / ('none', why) from the watch thread's start
+        self.sd_mutes = Counter()  # v3.58 SD358: 'mute' / 'more' / 'unmute' requests done, 'sessions' muted, 'fixed' / 'user' at the start
+        self.sd_sites = []        # v3.58 SD358: (ts, 'Play' / 'Mute' / 'FAILED') the buffer sites followed the session
+        self.sd_stale = []        # v3.58 SD358: (ts, n) sounds with the global focus behind other windows (Mute without a session)
+        self.sd_exit = None       # v3.58 SD358: (ts, 'done' / 'no answer') the window closed while muted
+        self.sd_keep_hold = 0     # v3.58 SD358: the keep-awake tone stopped behind other windows
+        self.sd_sess_lost = []    # v3.58 SD358: (ts, what) ANOMALY: sessions that could not be (un)muted, the session lost
         self.ol_set = None        # v3.53 OL2: 'in' / 'off' from the Options look's install line
         self.ol_pages = OrderedDict()  # v3.53 OL2: page -> [name, the largest estimate, measured with it, ts, lines]
         self.ol_inert = Counter()  # v3.53 OL2: keys on a grey row, by row
@@ -1047,6 +1197,10 @@ class Session:
         self.hb_ref_lines = Counter()  # v3.52 HB352: the per-being lines by reason (bounded: 60 a session)
         self.hb_ref_first = None  # v3.52 HB352: (ts, id, type, room) of the first per-being line
         self.hb_ref_tot = (0, 0)  # v3.52 HB352: the last room line's session totals (hidden, place)
+        self.en358 = Counter()  # v3.58 EN358: g_doors (door lines with ghosts), g_door (ghosts at doors), g_rooms, g_tag, g_in, g_arr,
+        #                         g_out, g_first, g_drawn, hb_undrawn, hb_dog, w_down, w_stumble, w_gone, w_other
+        self.en358_near = None  # v3.58 EN358: the nearest a followed ghost came (units)
+        self.en358_wsite = None
         self.hb_boss = []         # v3.52 HB352: (ts, name, room, seconds or None, why or None)
         self.perf_place = OrderedDict()  # v3.38 HB338: 'WxH' -> (where, of what, ts)
         self.fol = Counter()      # v3.38 EN338: doors, follow, most, wait, stopped, came, spotted, stops, story, wheelchairs
@@ -1075,6 +1229,9 @@ class Session:
         self.sh_worst = [0, 0.0, 0.0, '']  # most composites in a frame, the worst ms, the average ms of that room, its room
         self.sh_off = None        # (ts, why, where)
         self.sh_rooms = {}        # v3.52 SH352: room -> [composites, soft, hard, no darkness, no reason given, Counter(hard reasons)]
+        self.sh_sw = []           # v3.58 GX358: (ts, 'On' / 'Off', 'stage:room kept|none' or '')
+        self.sh_off_rooms = {}    # v3.58 GX358: room -> composites the game drew with Shadows Off
+        self.sh_pv_off = 0        # v3.58 GX358: the Shadows page's preview showed the game's Off
         self.sh_ns = []           # v3.52 SH352: the once-a-room reason lines (ts, room, why)
         self.sh_not = None
         self.sh_vram = 0.0
@@ -1164,6 +1321,19 @@ class Session:
             self.fi = ('in', 'scene pass' if m.group(1).startswith('from') else 'NOT available', m.group(3), m.group(4))
             if m.group(2):  # v3.51 PT351
                 self.fi_tar = (m.group(2), m.group(5) or '?', m.group(6) or '?')
+            if m.group(7):  # v3.58 FI358
+                self.fi_big = (m.group(7), m.group(8), m.group(9))
+            return True
+        m = FI_CLOSE.match(msg)  # v3.58 FI358
+        if m:
+            g = m.groups()
+            self.fi_close.append((g[0], float(g[2]), int(g[4]), int(g[5]), int(g[6]), int(g[8]), int(g[9]), int(g[10]),
+                                  float(g[11]), g[12], int(g[13]), int(g[14]), g[15], float(g[16]), float(g[17]), int(g[18]),
+                                  int(g[19]), float(g[20]), float(g[21])))
+            return True
+        m = FI_STICK_BAD.match(msg)
+        if m:
+            self.fi_stick_bad = m.group(1)
             return True
         m = FI_LETGO.match(msg)  # v3.51 PT351
         if m:
@@ -1225,6 +1395,31 @@ class Session:
         return False
 
     def parse_pv(self, ts, msg):  # v3.56 PV356: True = an Effects preview line read
+        m = PV_SET358.match(msg)  # v3.58 PV358
+        if m:
+            self.pv358 = (ts, m.group(1), m.group(3), m.group(5), m.group(6))
+            self.pv_set = (ts, 'preview ' + m.group(1).lower(), m.group(5))
+            return True
+        m = PV_OFF.match(msg)
+        if m:
+            self.pv_off += 1
+            self.pv_page[('(off)', 'Preview Off')] += 1
+            return True
+        m = PV_MIG.match(msg)
+        if m:
+            self.pv_mig.append('PreviewScene=%s -> %s' % (m.group(1), 'Preview=' + m.group(2) if m.group(2) else 'removed (Preview decides)'))
+            return True
+        m = PV_FSLEG.match(msg)
+        if m:
+            self.pv_mig.append("FilterStrength=%s (v3.15's) -> High" % m.group(1))
+            return True
+        m = PV_STOCKBAD.match(msg)
+        if m:
+            self.pv_stockbad[m.group(2)] += 1
+            return True
+        if PV_FSFAIL.match(msg):
+            self.pv_fsfail += 1
+            return True
         m = PV_SET.match(msg)
         if m:
             self.pv_set = (ts, 'scene' if m.group(1).startswith('SH4') else 'picture', m.group(4))
@@ -1252,6 +1447,7 @@ class Session:
             back = m.group(2)
             what = m.group(3) or ''
             kind = ('the scene' if back.startswith('SH4') else 'the picture' if back.startswith('the preview picture') else
+                    'the stock picture' if back.startswith('the stock picture') else  # v3.58 PV358
                     'the hallway' if back.startswith('the stock') else 'a pause')
             if what.startswith("the pause's heat layer"):
                 kind += " + its heat layer"
@@ -1261,6 +1457,8 @@ class Session:
                 kind += ' + ' + what.split(' (')[0]
             if m.group(4):
                 kind += ' (NOT drawn)'
+            if m.group(5):  # v3.58 PV358
+                kind += ' at ' + m.group(5)
             self.pv_page[(m.group(1), kind)] += 1
             return True
         if PV_LAID.match(msg):
@@ -1271,7 +1469,16 @@ class Session:
     def pv_line(self):  # v3.56 PV356: None when the log has none of its lines
         if not self.pv_set and not self.pv and not self.pv_page and not self.pv_anom:
             return None
-        if self.pv_set:
+        if self.pv358:  # v3.58 PV358
+            line = 'effects preview: Preview %s (the stock picture %s), Filter Strength %s; the pause layers %s at the start' % (
+                self.pv358[1], self.pv358[2], self.pv358[4], 'on' if self.pv358[3] == '1' else 'off (PreviewLayers=0)')
+            if self.pv_mig:
+                line += '; migrated: ' + ', '.join(self.pv_mig)
+            if self.pv_stockbad:
+                line += '; the stock picture %s' % ', '.join('%s x%d' % kv for kv in self.pv_stockbad.most_common())
+            if self.pv_fsfail:
+                line += '; %d plain cop(y/ies) failed' % self.pv_fsfail
+        elif self.pv_set:
             line = 'effects preview: with no paused game %s; the pause layers %s at the start' % (
                 "SH4 Refined's scene" if self.pv_set[1] == 'scene' else 'PreviewImage first (Picture)',
                 'on' if self.pv_set[2] == '1' else 'off (PreviewLayers=0)')
@@ -1319,6 +1526,13 @@ class Session:
                     hid, plc, self.hb_ref['rooms'], sum(self.hb_ref_lines.values()),
                     '; first %s type %s in room %s [%s]' % (self.hb_ref_first[1], self.hb_ref_first[2], self.hb_ref_first[3],
                                                             self.hb_ref_first[0]) if self.hb_ref_first else ''))
+        g = self.en358  # v3.58 EN358
+        if g['hb_undrawn'] or g['hb_dog']:
+            line += '; %d of them nothing draws yet (%d event dog(s) before story flag 130)' % (g['hb_undrawn'] + g['hb_dog'], g['hb_dog'])
+        if g['w_down'] or g['w_stumble'] or g['w_gone'] or g['w_other'] or self.en358_wsite:
+            line += ('; Walter downed: %d down with the revive bar (at most %d s), %d down without a countdown, %d gone, %d '
+                     'other%s' % (g['w_down'], g['w_most'], g['w_stumble'], g['w_gone'], g['w_other'],
+                                  ' (timers: the stalker %s, the final %s)' % self.en358_wsite if self.en358_wsite else ''))
         if self.hb_boss:
             up = [b for b in self.hb_boss if b[3] is not None]
             late = [b for b in self.hb_boss if b[3] is None]
@@ -1486,6 +1700,85 @@ class Session:
         if m:
             self.sd_cfg[m.group(1)] += 1
             return True
+        return self.parse_sd358(ts, msg)
+
+    def parse_sd358(self, ts, msg):  # v3.58 SD358: True = a Volume 0 / Mute-by-session line read
+        m = SD_ZERO_IN.match(msg)
+        if m:
+            self.sd_zero = (m.group(1),) + ((m.group(2), m.group(3), m.group(4)) if m.group(2) else ())
+            return True
+        m = SD_ZERO_MIN.match(msg)
+        if m:
+            for i in range(3):
+                self.sd_zero_n[i] += int(m.group(i + 1))
+            return True
+        m = SD_SESS.match(msg)
+        if m:
+            self.sd_sess = ('session', int(m.group(1)), int(m.group(2)))
+            return True
+        m = SD_SESS_NONE.match(msg)
+        if m:
+            self.sd_sess = ('none', m.group(1))
+            return True
+        m = SD_SESS_MUTED.match(msg)
+        if m:
+            self.sd_mutes['more' if m.group(2) else 'mute'] += 1
+            self.sd_mutes['sessions'] += int(m.group(1))
+            return True
+        m = SD_SESS_UNMUTED.match(msg)
+        if m:
+            self.sd_mutes['unmute'] += 1
+            return True
+        m = SD_SESS_FIXED.match(msg)
+        if m:
+            self.sd_mutes['fixed'] += int(m.group(1))
+            return True
+        m = SD_SESS_USER.match(msg)
+        if m:
+            self.sd_mutes['user'] += int(m.group(1))
+            return True
+        m = SD_SESS_KEPT.match(msg)  # v3.58 SD358-001
+        if m:
+            self.sd_mutes['kept'] += int(m.group(1))
+            return True
+        m = SD_SESS_DROP.match(msg)
+        if m:
+            self.sd_mutes['dropped'] += int(m.group(1))
+            return True
+        m = SD_SESS_TOUCH.match(msg)
+        if m:
+            self.sd_mutes['touched'] += 1
+            return True
+        m = SD_MARK_FAIL.match(msg)  # v3.58 SD358-002
+        if m:
+            self.sd_mutes['markfail'] += 1
+            self.sd_mutes['markfail ' + m.group(1)] += 1
+            return True
+        m = SD_SESS_PEND.match(msg)  # v3.58 SD358-003
+        if m:
+            self.sd_mutes['pending'] += int(m.group(1))
+            self.sd_mutes['pending muted'] += int(m.group(2))
+            return True
+        if SD_SESS_BACK.match(msg):
+            self.sd_mutes['back'] += 1
+            return True
+        m = SD_SITES.match(msg)
+        if m:
+            self.sd_sites.append((ts, m.group(2) or 'FAILED'))
+            return True
+        m = SD_STALE.match(msg)
+        if m:
+            self.sd_stale.append((ts, int(m.group(1))))
+            return True
+        m = SD_EXIT.match(msg)
+        if m:
+            self.sd_exit = (ts, m.group(1))
+            return True
+        m = SD_KEEP_HOLD.match(msg)
+        if m:
+            if m.group(1).startswith('stopped'):
+                self.sd_keep_hold += 1
+            return True
         return False
 
     def parse_snd(self, ts, msg):  # v3.52 SND352: True = a Sound line read
@@ -1588,6 +1881,23 @@ class Session:
         return False
 
     def parse_mn(self, ts, msg):  # v3.56 MN356: True = a value-line, folder-click or Extra Menu text line read
+        m = VBX_ON.match(msg)  # v3.58 MN358: the value box
+        if m:
+            self.vbx = ('on', bool(m.group(1)), m.group(2))
+            return True
+        m = VBX_OFF.match(msg)
+        if m:
+            self.vbx = ('off', 'off (ValueBox=0)' if m.group(1).startswith('off') else 'NOT on (%s not stock)' % m.group(2))
+            return m.group(1).startswith('off')
+        m = VBX_PAGE.match(msg)
+        if m:
+            g = m.groups()
+            self.vbx_pages[int(g[0])] = (g[1], int(g[2]), int(g[3]), int(g[4]), int(g[5]), int(g[6]), int(g[7]), g[8], bool(g[9]))
+            return True
+        m = VBX_GROW.match(msg)
+        if m:
+            self.vbx_grow.append((ts,) + tuple(int(x) for x in m.groups()))
+            return True
         m = MN_VL_IN.match(msg)
         if m:
             self.mn_vl = (int(m.group(1)), int(m.group(2)), int(m.group(3)), 'OVER THE ROW LIMIT' in m.group(4))
@@ -1735,13 +2045,23 @@ class Session:
                 self.snd_fix['byte'], self.snd_fix['engine'] + self.snd_fix['discard'], self.snd_fix['discard'])
         if self.snd_notin:
             line += '; NOT the GOG code: %s' % ', '.join('%s %s' % (w, va) for w, va in self.snd_notin[:4])
+        if self.sd_zero:  # v3.58 SD358
+            z = self.sd_zero
+            if z[0] == 'silent' and len(z) == 4:
+                bad = [n for n, v in zip(('2D / music', 'streams', 'the 0x2774 fade'), z[1:]) if v == 'NOT IN']
+                line += '; volume 0 silent (%s)' % ('all in' if not bad else 'NOT IN: ' + ', '.join(bad))
+            else:
+                line += "; volume 0 the game's own (%s)" % z[0]
+            if any(self.sd_zero_n):
+                line += ': %d 2D, %d 3D, %d stream volume(s) silenced' % tuple(self.sd_zero_n)
         if self.snd_anom:
             line += '; %d ANOMALY line(s)' % self.snd_anom
         return line
 
     def sd_line(self):  # v3.56 SD356: None when the log has no Background / keep-awake / focus / device line
         if not (self.sd_bg or self.sd_keep or self.sd_focus or self.sd_dev or self.sd_dev_ev or self.sd_dev_off or self.sd_cfg or
-                self.sd_keep_re):
+                self.sd_keep_re or self.sd_sess or self.sd_mutes or self.sd_sites or self.sd_stale or self.sd_exit or self.sd_sess_lost or
+                self.sd_keep_hold):  # v3.58 SD358
             return None
         parts = []
         if self.sd_bg:
@@ -1774,10 +2094,52 @@ class Session:
                 parts.append('at the end another default device: a restart takes it')
         if self.sd_cfg:
             parts.append('ini read as the default: %s' % ', '.join(sorted(self.sd_cfg)))
+        parts += self.sd358_parts()  # v3.58 SD358
         return 'sound background: ' + '; '.join(parts)
 
+    def sd358_parts(self):  # v3.58 SD358: Mute by the sound session (the sd_line's tail)
+        parts = []
+        if self.sd_sess and self.sd_sess[0] == 'session':
+            parts.append('Mute by the sound session (%d session(s) on %d device(s))' % self.sd_sess[1:])
+        elif self.sd_sess:
+            parts.append("Mute by DirectSound's focus rule (no sound session: %s)" % self.sd_sess[1])
+        mu = self.sd_mutes
+        if mu['mute'] or mu['unmute'] or mu['more']:
+            parts.append('muted %d time(s) (%d session(s)%s), unmuted %d time(s)' % (
+                mu['mute'], mu['sessions'], ', %d re-sweep(s) found more' % mu['more'] if mu['more'] else '', mu['unmute']))
+        if mu['fixed']:
+            parts.append('%d session(s) left muted by an earlier game unmuted at the start' % mu['fixed'])
+        if mu['user']:
+            parts.append('%d session(s) muted in Windows by the user (left: the game is muted in the Volume Mixer)' % mu['user'])
+        if mu['kept'] or mu['dropped']:  # v3.58 SD358-001
+            parts.append('SH4Refined.muted: %d entr(y/ies) kept for a later start, %d dropped (30 days)' % (mu['kept'], mu['dropped']))
+        if mu['touched']:
+            parts.append('%d held session(s) changed by the user in the Volume Mixer (left as set)' % mu['touched'])
+        if mu['back']:
+            parts.append('the session came back %d time(s)' % mu['back'])
+        if self.sd_sess_lost:
+            parts.append('%d session problem(s) (ANOMALY): %s [%s]' % (len(self.sd_sess_lost), self.sd_sess_lost[0][1], self.sd_sess_lost[0][0]))
+        if self.sd_sites:
+            parts.append('buffer sites now %s [%s]%s' % (self.sd_sites[-1][1], self.sd_sites[-1][0],
+                                                       ' (%d change(s))' % len(self.sd_sites) if len(self.sd_sites) > 1 else ''))
+        if self.sd_stale:
+            parts.append('%d time(s) sounds with the global focus played on behind other windows (most %d)' % (
+                len(self.sd_stale), max(n for t, n in self.sd_stale)))
+        if self.sd_keep_hold:
+            parts.append('keep-awake stopped behind other windows %d time(s)' % self.sd_keep_hold)
+        if self.sd_exit:
+            parts.append('closed behind other windows: sessions unmuted first (%s) [%s]' % (self.sd_exit[1], self.sd_exit[0]))
+        if mu['markfail']:  # v3.58 SD358-002
+            parts.append('SH4Refined.muted could not be written %d time(s) (%s): the old one kept, sessions it could not name not muted' % (
+                mu['markfail'], ', '.join(sorted(k[9:] for k in mu if k.startswith('markfail ')))))
+        if mu['pending']:  # v3.58 SD358-003
+            parts.append('SH4Refined.muted: %d pending entr(y/ies) at the start (a mute not confirmed; left as they are, %d muted: '
+                         'unmute in the Volume Mixer if silent), dropped' % (mu['pending'], mu['pending muted']))
+        return parts
+
     def fadein_line(self):  # v3.50 FI350: None when the log has no Fade In line
-        if not (self.fi or self.fi_rooms or self.fi_sets or self.fi_bad or self.fi_fault or self.fi_starts or self.fi_letgo):
+        if not (self.fi or self.fi_rooms or self.fi_sets or self.fi_bad or self.fi_fault or self.fi_starts or self.fi_letgo or
+                self.fi_close):
             return None
         if self.fi is None:
             line = 'fade in: (no start line)'
@@ -1809,6 +2171,30 @@ class Session:
             line += '; FAULT in %s (code %s) [%s]: off for the session' % (self.fi_fault[1], self.fi_fault[2], self.fi_fault[0])
         return line
 
+    def fadein_big_part(self):  # v3.58 FI358: the bigger, stickier portal ('' when the log has none of it)
+        out = ''
+        if self.fi_big:
+            out += '; v3.58 portal: strands %s s, pieces up to %s, sticky strands %s' % self.fi_big
+        if self.fi_stick_bad is not None:
+            out += '; unknown ini value: FadeInStrandSeconds "%s" -> 3.0' % self.fi_stick_bad
+        c = self.fi_close
+        if c:
+            seen = [x for x in c if x[9] != 'not seen']
+            own = [x for x in c if x[11]]
+            out += '; %d closed (grids at most %d, %.1f a portal; ' % (len(c), max(x[2] for x in c), sum(x[2] for x in c) / len(c))
+            out += ('portal / body %.2f .. %.2f x (%d by bones, %d by type)' % (
+                min(x[8] for x in seen), max(x[8] for x in seen), sum(1 for x in seen if x[9] == 'its bones'),
+                sum(1 for x in seen if x[9] != 'its bones')) if seen else 'no body seen')
+            out += '; strands held %.1f .. %.1f s after it was in' % (min(x[13] for x in c), max(x[13] for x in c))
+            if own:
+                out += ", Refined's %d (%d on its box), %d stretched loose" % (
+                    sum(x[11] for x in own), sum(x[11] for x in own if x[12] == 'its box'), sum(x[16] for x in own))
+            out += '; closed at %.1f .. %.1f s; draw at most %.3f ms a frame a portal, worst %.3f)' % (
+                min(x[1] for x in c), max(x[1] for x in c), max(x[17] for x in c), max(x[18] for x in c))
+            if seen and min(x[8] for x in seen) < 1.0:
+                out += '; a portal SMALLER than its body'
+        return out
+
     def fadein_tar_part(self):  # v3.51 PT351: the tar portal and the hold ('' when the log has none of it)
         out = ''
         if self.fi_tar is not None:
@@ -1839,6 +2225,7 @@ class Session:
                 '; early: ' + ', '.join('%s %d' % (k, early[k]) for k in sorted(early)) if early else '')
         if self.fi_tar_starts:
             out += '; tar starts: %s' % ', '.join('%s %d' % (k, self.fi_tar_starts[k]) for k in sorted(self.fi_tar_starts))
+        out += self.fadein_big_part()  # v3.58 FI358
         if self.fi_real:
             out += '; %d placeholder(s) turned real' % self.fi_real
         if self.fi_never:
@@ -2370,10 +2757,55 @@ class Session:
             if g[24] is not None:  # v3.51 SN351
                 r['ev_rooms'] += 1
                 r['ev_set' if g[25] == 'set' else 'ev_clear'] += int(g[24])
+            if g[26] is not None:  # v3.58 RZ358: the dead kept dead
+                d = self.rzm_dead
+                d['rooms'] += 1
+                d['dead'] += int(g[26])
+                d['hid'] += int(g[27])
+                d['killed'] += int(g[28])
+                d['lost'] += bool(g[29])
             for part in g[7].split(', '):
                 name, _, n = part.rpartition(' ')
                 if name and n.isdigit():
                     self.rzm_by[name] += int(n)
+            return True
+        m = RZM_DEADV.match(msg)  # v3.58 RZ358 (before RZM_LIST: the same start)
+        if m:
+            self.rzm_dead['v_hid'] += 1
+            return True
+        m = RZM_DEADLOST.match(msg)  # v3.58 RZ358: a body that stood again (no kill index): a warning
+        if m:
+            self.rzm_dead['v_lost'] += 1
+            return False
+        m = RZM_SAVEDEAD.match(msg)  # v3.58 RZ358
+        if m:
+            self.rzm_dead['saves'] += 1
+            self.rzm_dead['save_dead'] += int(m.group(1))
+            self.rzm_dead['save_lost'] += bool(m.group(2))
+            return not m.group(2)
+        m = RZM_COPIES.match(msg)  # v3.58 RZ358
+        if m:
+            g = m.groups()
+            c = self.rzm_cp
+            c['rooms'] += 1
+            for key, i in (('made', 3), ('drawn', 5), ('sited', 6), ('files', 7), ('not', 8)):
+                c[key] += int(g[i])
+            for part in g[4].split(', '):
+                name, _, n = part.rpartition(' ')
+                if name and n.isdigit():
+                    self.rzm_cp_by[name] += int(n)
+            return True
+        m = RZM_CPFILES.match(msg)  # v3.58 RZ358
+        if m:
+            self.rzm_cp['files_lines'] += 1
+            return True
+        m = RZM_SESS5.match(msg)  # v3.58 RZ358
+        if m:
+            self.rzm_sess5 = tuple(int(x) for x in m.groups())
+            return not (self.rzm_sess5[3] or self.rzm_sess5[5])
+        m = RZM_SESS6.match(msg)  # v3.58 RZ358
+        if m:
+            self.rzm_sess6 = tuple(int(x) for x in m.groups())
             return True
         if RZM_LIST.match(msg):
             self.rzm_lists += 1
@@ -2493,6 +2925,21 @@ class Session:
             line += '; session records: %d adopted (%d changed)' % self.rzm_sess3[:2]
         if self.rzm_sess4:  # v3.51 SN351
             line += '; session: %d rolled again (roll again %s), event dogs %d planned / %d kept asleep' % self.rzm_sess4
+        d = self.rzm_dead  # v3.58 RZ358: a reroll never brings the dead back
+        if d['rooms'] or d['saves'] or d['v_lost'] or self.rzm_sess5:
+            line += '; the dead stayed dead in %d room load(s): %d bod(ies) as they died (%d with the placement empty), %d by a kill bit' % (
+                d['rooms'], d['dead'], d['hid'], d['killed'])
+            if d['lost'] or d['v_lost']:
+                line += ', %d BACK (no kill index)' % max(d['lost'], d['v_lost'])
+            if d['saves']:
+                line += '; %d save(s) kept %d randomized bod(ies) dead as kill bits%s' % (d['saves'], d['save_dead'],
+                                                                                     ' (SOME lost)' if d['save_lost'] else '')
+        c = self.rzm_cp  # v3.58 RZ358: Extra Enemies' copies drawn
+        if c['rooms'] or self.rzm_sess6:
+            line += '; copies drawn in %d room load(s): %d made (as %s), %d drawn (%d at a site of their own), %d kept their original\'s type (files), %d not made' % (
+                c['rooms'], c['made'], ', '.join('%s %d' % kv for kv in sorted(self.rzm_cp_by.items(), key=lambda kv: -kv[1])) or 'none',
+                c['drawn'], c['sited'], c['files'], c['not'])
+
         if self.rzm_anom:
             line += '; %d ANOMALY line(s)' % self.rzm_anom
         return line
@@ -2555,6 +3002,11 @@ class Session:
         if m:
             self.rz_bad.append(m.groups())
             return False  # (kept in the warnings too)
+        m = RZ_NOMODELS.match(msg)  # v3.58 MN358
+        if m:
+            if int(m.group(1)) not in self.rz_nomodels:
+                self.rz_nomodels.append(int(m.group(1)))
+            return True
         m = RZ_FIRST.match(msg)
         if m:
             self.rz_first = (ts, int(m.group(1)), int(m.group(2)), m.group(3))
@@ -2768,7 +3220,7 @@ class Session:
     def rando_line(self):
         """v3.48 RZ348: the Randomizer summary line (None without any of its lines)."""
         if not (self.rz or self.rz_first or self.rz_plans or self.rz_rooms or self.rz_sets or self.rz_sess or self.rz_anom or
-                self.rz_migs or self.rz_seedline):  # v3.56 RI356
+                self.rz_migs or self.rz_seedline or self.rz_nomodels):  # v3.56 RI356  # v3.58 MN358
             return None
         line = '  randomizer: '
         if self.rz:
@@ -2816,8 +3268,34 @@ class Session:
             s = self.rz_sess
             line += '; session: %s room load(s), %s pooled, %s changed, %s weapon(s), %s plan(s), %s left as found%s' % (
                 s[5], s[6], s[7], s[8], s[9], s[10], s[11])
+        if self.rz_nomodels:  # v3.58 MN358
+            line += '; stage(s) %s left alone by design (no pickup model files in the world%s)' % (
+                ', '.join(str(x) for x in self.rz_nomodels),
+                '; written as %d ANOMALY line(s) before v3.58, not counted' % self.rz_nomodels_anom if self.rz_nomodels_anom else '')
         if self.rz_anom:
             line += '; %d ANOMALY line(s)' % self.rz_anom
+        return line
+
+    def vbx_line(self):
+        """v3.58 MN358: the Options value box (None without its lines)."""
+        if not self.vbx and not self.vbx_pages:
+            return None
+        if not self.vbx:
+            line = '  options value box (v3.58): (no install line)'
+        elif self.vbx[0] == 'on':
+            line = '  options value box (v3.58): on%s' % ('' if self.vbx[1] else '; the volume bars\' arrows NOT moved%s' % (self.vbx[2] or ''))
+        else:
+            line = '  options value box (v3.58): %s' % self.vbx[1]
+        if self.vbx_pages:
+            grown = [p for p, v in self.vbx_pages.items() if v[7] != 'the stock places']
+            line += '; %d page(s) measured, %d at the stock arrows, %d grown: %s' % (
+                len(self.vbx_pages), len(self.vbx_pages) - len(grown), len(grown),
+                ', '.join('%s %d / %d' % (self.vbx_pages[p][0], self.vbx_pages[p][5], self.vbx_pages[p][6]) for p in grown[:8]))
+            tight = [self.vbx_pages[p][0] for p, v in self.vbx_pages.items() if v[8]]
+            if tight:
+                line += '; a value wider than the room on %s' % ', '.join(tight)
+        if self.vbx_grow:
+            line += '; %d page(s) grew for a wider value' % len(self.vbx_grow)
         return line
 
     def parse_r302(self, ts, msg):
@@ -2870,7 +3348,8 @@ class Session:
         m = FRG_DOWN.match(msg)
         if m:
             g = m.groups()
-            self.frg_downs.append((ts, int(g[0]), int(g[1]), float(g[2]), float(g[3]), float(g[4]), g[7], g[8], int(g[9]), bool(g[10])))
+            self.frg_downs.append((ts, int(g[0]), int(g[1]), float(g[2]), float(g[3]), float(g[4]), g[8], g[9], int(g[10]), bool(g[11]),
+                                   g[7] is not None))  # v3.58 GX358: + the quick window
             return True
         m = FRG_UP.match(msg)
         if m:
@@ -2916,9 +3395,9 @@ class Session:
             line += '(no start line)'
         if self.frg_downs:
             line += '; %d step(s) down: %s' % (len(self.frg_downs), ', '.join(
-                '%d -> %d (%.2f ms against %.2f, %.2f x, stage %s room %s, budget level %d%s) [%s]' % (
-                    f, t, mean, tgt, r, st, rm, lv, ', locked' if lk else '', ts)
-                for ts, f, t, mean, tgt, r, st, rm, lv, lk in self.frg_downs[-4:]))
+                '%d -> %d (%.2f ms against %.2f, %.2f x, stage %s room %s, budget level %d%s%s) [%s]' % (
+                    f, t, mean, tgt, r, st, rm, lv, ', locked' if lk else '', ', the quick 1 s window' if q else '', ts)
+                for ts, f, t, mean, tgt, r, st, rm, lv, lk, q in self.frg_downs[-4:]))
         else:
             line += '; no step down'
         if self.frg_retry:
@@ -3022,6 +3501,12 @@ class Session:
         self.kinds[norm(msg, 70)] += 1
         if msg.startswith('ANOMALY: '):
             body = msg[9:]
+            m = RZ_NOMODELS.match(body)  # v3.58 MN358: by design (v3.57's ANOMALY form): the randomizer line says it
+            if m:
+                if int(m.group(1)) not in self.rz_nomodels:
+                    self.rz_nomodels.append(int(m.group(1)))
+                self.rz_nomodels_anom += 1
+                return
             self.add_group(self.anomalies, norm(body), ts, body)
             if body.startswith('room 302: '):  # v3.50 R302
                 self.r3_anom += 1
@@ -3031,6 +3516,9 @@ class Session:
                 self.snd_anom += 1
                 if SD_KEEP_FAIL.match(body):  # v3.56 SD356
                     self.sd_keep = 'FAILED'
+                m = SD_SESS_LOST.match(body)  # v3.58 SD358
+                if m:
+                    self.sd_sess_lost.append((ts, m.group(1)[:60]))
             if LKL_OVER.match(body):  # v3.53 OL2
                 self.ol_over += 1
             if LYL_VB_FAIL.match(body):  # v3.55 OL56
@@ -3040,7 +3528,7 @@ class Session:
             if body.startswith('extra menu: Quick Load: '):  # v3.52 QL352
                 self.ql_anom += 1
             if body.startswith(('screen effects: the clean pause picture', "screen effects: the preview", "screen effects: the Effects preview",
-                                "screen effects: releasing the preview")):  # v3.56 PV356
+                                "screen effects: releasing the preview", "screen effects: Filter Strength")):  # v3.56 PV356  # v3.58 PV358: + Filter Strength
                 self.pv_anom += 1
             if body.startswith('randomizer: spawn site'):  # v3.56 RE356
                 self.ss_anom += 1
@@ -3113,6 +3601,18 @@ class Session:
             if m:
                 self.bhr_kept.append((ts, int(m.group(1)), float(m.group(2))))
                 return
+            m = BUDGET_QUICK_IN.match(msg)  # v3.58 GX358
+            if m:
+                self.bq = m.group(1)
+                return
+            m = BUDGET_PRE.match(msg)  # v3.58 GX358 (a step line: counted below too)
+            if m:
+                self.bq_pre.append((ts, int(m.group(1)), int(m.group(2)), int(m.group(3)), m.group(4)))
+            m = BUDGET_REFILL.match(msg)
+            if m:
+                self.bq_refill[0 if m.group(3).startswith('the powers') else 1] += 1
+            if BUDGET_QUICK.match(msg):
+                self.bq_quick += 1
             m = BUDGET_YIELD.match(msg)
             if m:
                 self.bhr_yield.append((ts, int(m.group(1)), int(m.group(2))))
@@ -3128,6 +3628,9 @@ class Session:
                 sr = msg[len('budget: room '):].split(':', 2)
                 self.bhr_rooms.append(('%s:%s' % (sr[0], sr[1].zfill(2)) if len(sr) > 1 else '?', int(g[0]), int(g[1]), int(g[2]),
                                        int(g[3]), int(g[4])))
+                q = BUDGET_ROOM_GX.search(msg)  # v3.58 GX358
+                if q:
+                    self.bq_rooms.append((self.bhr_rooms[-1][0], int(q.group(1)), int(q.group(2))))
         m = BUDGET_STEP.match(msg)
         if m:
             a, b = int(m.group(1)), int(m.group(2))
@@ -3266,7 +3769,9 @@ class Session:
                 self.rb_sw.append((ts, 'switch' if msg.startswith('read back: now') else 'lost', m.group(1)))
                 return
         if msg.startswith(("screen effects: the Effects page's preview", "screen effects: the pause's look layers",
-                           'screen effects: the preview scene laid out')):  # v3.56 PV356
+                           'screen effects: the preview scene laid out',
+                           'screen effects: [ScreenEffects] PreviewScene=', 'screen effects: [ScreenEffects] FilterStrength=',  # v3.58 PV358
+                           'screen effects: the stock picture ', 'screen effects: Filter Strength ')):  # v3.56 PV356  # v3.58 PV358
             if self.parse_pv(ts, msg):
                 return
         if msg.startswith('screen effects: the pause picture kept on the GPU') or msg.startswith('screen effects: a frame read back'):
@@ -3521,6 +4026,15 @@ class Session:
             if m:
                 self.sh_ns.append((ts, '%s:%s' % (m.group(1), m.group(2)), m.group(3)))
                 return
+            m = SH_SW.match(msg)  # v3.58 GX358
+            if m:
+                h = SH_SW_HERE.search(msg)
+                self.sh_sw.append((ts, m.group(1), '%s:%s %s' % (h.group(1), h.group(2).zfill(2), h.group(3)) if h else ''))
+                return
+            m = SH_PV_OFF.match(msg)
+            if m:
+                self.sh_pv_off += m.group(1).startswith('Shadows Off')
+                return
             m = SH_ROOM.match(msg)
             if m:
                 n, soft = int(m.group(3)), int(m.group(6))
@@ -3536,6 +4050,10 @@ class Session:
                 for i, v in enumerate((n, soft, hard, nodark, unexpl)):
                     rr[i] += v
                 rr[5].update(why)
+                o = SH_ROOM_OFF.search(msg)  # v3.58 GX358: drawn with Shadows Off (the game's own Off list)
+                if o:
+                    k = '%s:%s' % (m.group(1), m.group(2))
+                    self.sh_off_rooms[k] = self.sh_off_rooms.get(k, 0) + int(o.group(1))
                 self.sh['hard'] += hard
                 self.sh['nodark'] += nodark
                 self.sh['unexpl'] += unexpl
@@ -3616,6 +4134,9 @@ class Session:
         m = HB_REF.match(msg)  # v3.52 HB352
         if m:
             self.hb_ref_lines['hidden' if m.group(4) == 'not in the room yet' else 'place'] += 1
+            mu = HB_UNDRAWN.match(msg)  # v3.58 EN358
+            if mu:
+                self.en358['hb_dog' if mu.group(1).startswith('an event dog') else 'hb_undrawn'] += 1
             if self.hb_ref_first is None:
                 self.hb_ref_first = (ts, m.group(1), m.group(2), m.group(3))
             return
@@ -3625,6 +4146,20 @@ class Session:
             self.hb_ref['hidden'] += int(m.group(2))
             self.hb_ref['place'] += int(m.group(3))
             self.hb_ref_tot = (int(m.group(4)), int(m.group(5)))
+            return
+        m = HB_UNDRAWN.match(msg)  # v3.58 EN358 (the line also counts as a refusal: HB_REF read it above)
+        if m:
+            self.en358['hb_dog' if m.group(1).startswith('an event dog') else 'hb_undrawn'] += 1
+        m = HB_WALTER.match(msg)  # v3.58 EN358
+        if m:
+            k = {'down': 'w_down', 'stumble': 'w_stumble', 'gone': 'w_gone'}.get(m.group(2), 'w_other')
+            self.en358[k] += 1
+            if k == 'w_down':
+                self.en358['w_most'] = max(self.en358['w_most'], int(float(m.group(5))))
+            return
+        m = HB_WALTER_SITE.match(msg)
+        if m:
+            self.en358_wsite = (m.group(1), m.group(2))
             return
         m = HB_BOSS.match(msg)
         if m:
@@ -3648,7 +4183,8 @@ class Session:
         if msg.startswith('options layout: '):  # v3.54 OL34
             if self.parse_ly(ts, msg):
                 return
-        if msg.startswith(('options: value lines: ', 'options: folder rows ', 'options: a click on page ', 'extra menu: text drawn ')):
+        if msg.startswith(('options: value lines: ', 'options: folder rows ', 'options: a click on page ', 'extra menu: text drawn ',
+                           'options: value box')):  # v3.58 MN358: + the value box
             if self.parse_mn(ts, msg):  # v3.56 MN356
                 return
         if msg.startswith(('options look: ', 'options: page ')):  # v3.53 OL2
@@ -3716,6 +4252,14 @@ class Session:
                 self.ef_site, self.ef_mode = m.group(1), m.group(2)
                 return
         if msg.startswith('enemies: '):  # v3.51 EP351: Enemy Pursuit inside the room
+            m = ENM_CPRECS.match(msg)  # v3.58 RZ358: copies not made for the enemy records
+            if m:
+                self.cp_recs['rooms'] += 1
+                self.cp_recs['not'] += int(m.group(3))
+                return
+            if ENM_CPRECV.match(msg):
+                self.cp_recs['v'] += 1
+                return
             m = EP_ROOM.match(msg)
             if m:
                 g = [int(x) for x in m.groups()[1:]]
@@ -3752,6 +4296,26 @@ class Session:
         m = FOL_HOME_CW.match(msg)
         if m:
             self.fol_home[1] += int(m.group(1) or m.group(2))
+            return
+        m = FOL_DOOR_G.match(msg)  # v3.58 EN358 (FOL_DOOR below reads the same line)
+        if m and int(m.group(1)):
+            self.en358['g_doors'] += 1
+            self.en358['g_door'] += int(m.group(1))
+        m = FOL_GSUM.match(msg)
+        if m:
+            self.en358['g_rooms'] += 1
+            self.en358['g_in'] += int(m.group(1))
+            self.en358['g_tag'] += int(m.group(2))
+            self.en358['g_arr'] += int(m.group(4))
+            self.en358['g_out'] += int(m.group(5))
+            if int(m.group(3)) >= 0 and (self.en358_near is None or int(m.group(3)) < self.en358_near):
+                self.en358_near = int(m.group(3))
+            return
+        m = FOL_GIN.match(msg)
+        if m:
+            self.en358['g_first'] += 1
+            if m.group(2):
+                self.en358['g_drawn'] += 1
             return
         m = FOL_DOOR.match(msg)  # v3.38 EN338
         if m:
@@ -3886,6 +4450,20 @@ class Session:
         if m:
             self.gt_fades[0] += 1
             self.gt_fades[1] += int(m.group(1)) == 0
+            p = GT_FADE_PATH.search(msg)  # v3.58 GT358
+            if p:
+                row = self.gt_fpath.setdefault(p.group(6), [0] * 9)
+                row[0] += 1
+                for j, g in enumerate((1, 2, 3, 4, 5, 7, 8, 9)):
+                    row[j + 1] += int(p.group(g))
+            return
+        m = GT_FADE_DRAW.match(msg)  # v3.58 GT358
+        if m:
+            self.gt_fdraw = m.group(1)
+            return
+        m = GT_FADE_NOTIN.match(msg)
+        if m:
+            self.gt_fnotin = m.group(1)
             return
         m = GT_OFF.match(msg)
         if m:
@@ -4088,6 +4666,11 @@ class Session:
             for x in sorted(hr_rooms, key=lambda t: -(t[2] + t[4]))[:3 if not full else 20]:
                 if x[2] or x[5] < 100:
                     say('    %s: %d high-rate frame(s), %d blind step(s), %d kept, %d taken back; the sparks at %d %%' % x)
+        if self.bq or self.bq_pre or self.bq_quick or any(self.bq_refill):  # v3.58 GX358: the quick rules
+            say('  effect budget quick rules: %s; %d start step(s) (powers starting together)%s; refill: %d level(s) back, %d take-back(s); '
+                '%d quick step(s)' % (self.bq or '?', len(self.bq_pre), (': ' + ', '.join(
+                    '%d -> %d at %d fps (%s) [%s]' % (a, b, f, w, t) for t, a, b, f, w in self.bq_pre[-3:])) if self.bq_pre else '',
+                    self.bq_refill[0], self.bq_refill[1], self.bq_quick))
         if self.ots_cam or self.ots_rooms or self.ots_fade or self.ots_ini is not None:  # v3.56 PW356: After Shock's OTS fade
             dim = sum(x[2] for x in self.ots_rooms)
             least = min([x[3] for x in self.ots_rooms] or [100])
@@ -4146,6 +4729,9 @@ class Session:
                 'copy\'s write); %d copies\' record(s) purged' % (len(self.recs), top[1], top[0], sum(r[2] for r in self.recs),
                                                                  sum(r[3] for r in self.recs), sum(r[4] for r in self.recs),
                                                                  sum(r[5] for r in self.recs)))
+        if self.cp_recs['rooms'] or self.cp_recs['v']:  # v3.58 RZ358
+            say('  enemy records for copies: %d cop(ies) not made in %d room load(s): the records would be full at the room\'s exit (a copy '
+                'never takes a real record of this world)' % (self.cp_recs['not'], self.cp_recs['rooms']))
         # v3.37 MN337: Supply Drops against its caps
         if self.drops or self.drop_caps:
             d = self.drops
@@ -4237,6 +4823,9 @@ class Session:
         line = self.mn_line()  # v3.56 MN356: value lines, folder clicks, the Extra Menu's text
         if line:
             say('  ' + line)
+        line = self.vbx_line()  # v3.58 MN358: the Options value box
+        if line:
+            say(line)
         # v3.37 INV337: Extended Toolbelt / Stackable Items
         if self.inv or self.inv_sw or self.inv_counts:
             head = '  inventory: '
@@ -4269,6 +4858,18 @@ class Session:
             if self.gt_fades[0]:
                 line += "; Richard's fade %d time(s)%s" % (self.gt_fades[0], ', %d NEVER DRAWN on her body' % self.gt_fades[1]
                                                           if self.gt_fades[1] else ', drawn each time')
+            if self.gt_fdraw or self.gt_fpath:  # v3.58 GT358: the fade's draw path, by filter
+                rows = self.gt_fpath
+                tot = [sum(r[j] for r in rows.values()) for j in range(9)]
+                line += "; the fade's draw %s%s" % (self.gt_fdraw or '?', ' (Clean NOT in: %s)' % self.gt_fnotin if self.gt_fnotin else '')
+                if rows:
+                    line += (': late %d frame(s) (%d with the depth pre-pass), in place %d (shader 4 %d), %s; by filter %s' % (
+                        tot[1], tot[2], tot[3] + tot[4], tot[3], '%d frame(s) MISSED after the actor models' % tot[5] if tot[5]
+                        else 'none missed', ', '.join('%s x%d%s' % (k, r[0], ''.join(
+                            ', %s %d' % (w, r[j]) for j, w in ((6, 'heat faded'), (7, 'soul faded')) if r[j]))
+                            for k, r in sorted(rows.items())), ))
+                    if tot[8]:
+                        line += ', her shadow hidden %d frame(s)' % tot[8]
             if self.gt_off:
                 line += '; called off %d: %s' % (sum(self.gt_off.values()), ', '.join('%s x%d' % (k, v) for k, v in self.gt_off.most_common(4)))
             if self.gt_holds:  # v3.49 GT349
@@ -4348,6 +4949,12 @@ class Session:
                 line += "; %d v3.37 Wheelchair stray(s) sent home" % f['wheelchairs']
             if f['fresh']:  # v3.41 EN341
                 line += "; %d ghost copy(ies) made in another room without their record (the ghosts' way)" % f['fresh']
+            g = self.en358  # v3.58 EN358: the ghosts through doors and what became of them
+            if g['g_doors'] or g['g_rooms']:
+                line += ('; ghosts: %d at %d door(s); in their rooms %d of %d came in (%d seen arriving: %d of them drawn by the '
+                         'randomizer; nearest %s units), %d still arriving, %d never in the room (%d room line(s))' % (
+                             g['g_door'], g['g_doors'], g['g_in'], g['g_tag'], g['g_first'], g['g_drawn'],
+                             self.en358_near if self.en358_near is not None else '-', g['g_arr'], g['g_out'], g['g_rooms']))
             say(line)
         line = self.fol_mode_line()  # v3.49 EF349
         if line:
@@ -4457,6 +5064,16 @@ class Session:
             if self.sh_ns:  # v3.52 SH352
                 line += '; %d not-soft reason line(s) (%s)' % (len(self.sh_ns), ', '.join('%s [%s]: %s' % (r, t, w.split(':')[0].split(' (')[0])
                                                                                            for t, r, w in self.sh_ns[:3 if not full else 64]))
+            if self.sh_sw:  # v3.58 GX358: the stock Realtime Shadow switch and what the game drew with it Off
+                offs = [x for x in self.sh_sw if x[1] == 'Off']
+                line += '; Shadows (Realtime Shadow): %d line(s), %s at the end%s' % (
+                    len(self.sh_sw), self.sh_sw[-1][1], (', Off %d time(s) (%s)' % (len(offs), ', '.join(
+                        '%s [%s]' % (x[2] or '?', x[0]) for x in offs[-3:]))) if offs else '')
+            if self.sh_off_rooms:
+                line += "; drawn with Shadows Off (the game's own Off list): %s" % ', '.join(
+                    '%s %d' % kv for kv in sorted(self.sh_off_rooms.items())[:6 if not full else 64])
+            if self.sh_pv_off:
+                line += "; the page's preview showed the game's Off %d time(s)" % self.sh_pv_off
             if self.sh_vram:
                 line += '; render targets at most %.1f MB' % self.sh_vram
             if h['kept'] or h['scene'] or h['figure']:
@@ -4726,7 +5343,7 @@ class Session:
         r['va'] = int(va.group(1)) if va else None
         a = END_ANOM.search(e)
         seen = sum(g[0] for g in self.anomalies.values())
-        r['anomalies'] = max(seen, int(a.group(1))) if a else seen
+        r['anomalies'] = max(seen, int(a.group(1)) - self.rz_nomodels_anom) if a else seen  # v3.58 MN358: not the by-design lines
         if self.perf:
             fr = sum(x[3] for x in self.perf)
             r['perf'] = (len(self.perf), fr / max(1e-9, sum(x[3] / x[4] for x in self.perf if x[4] > 0)),

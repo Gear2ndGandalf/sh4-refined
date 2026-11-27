@@ -120,7 +120,7 @@ static int ExeBytes(const unsigned char *img, long n, unsigned long va, unsigned
 }
 static void TestExe(void)
 {
-    const char *path = getenv("SH4_EXE") ? getenv("SH4_EXE") : "sh4.exe";  /* a copy of your stock GOG v7 exe */
+    const char *path = "sh4.exe";  /* a copy of your stock GOG v7 exe */
     FILE *f = fopen(path, "rb");
     unsigned char *img, b[32];
     long n;

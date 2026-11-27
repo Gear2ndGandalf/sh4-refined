@@ -855,6 +855,7 @@ static void LhFrameEndC(void)
         {   // v3.56 MERGE: preview.inc's pause capture drew in this interval: not the effects' doing (a skip frame)
             static LONG s_pvSeen;
             const int pvCap = PvCapNew(&s_pvSeen);
+            g_bgPwMask = BgPowerMask(led[BGC_ECHO], led[BGC_AI], led[BGC_DP], g_gtFade.phase != GTF_IDLE);  // v3.58 GX358: the powers drawing (the start step)
             BgFrame(dt, target, BgEffectsMs(led), since < 1500.0f || sinceLoad < 1500.0f || led[BGC_WARM] > 0.5f || g_lhPlayRun < 20 || pvCap, 1, key);
         }
     } else {

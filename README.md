@@ -1,6 +1,6 @@
 # SH4 Refined
 
-**Current version: v3.57.0 (play-tested 2026-11-27 with v3.56.0: passed, a few changes requested for the next version; see Versions below)**
+**Current version: v3.58.0 (new, not yet tested in game; v3.56.0 and v3.57.0 were play-tested 2026-11-27 and passed; see Versions below)**
 
 SH4 Refined is a fan-made enhancement mod for the PC version of **Silent Hill 4: The Room** sold by GOG. It is a
 single `winmm.dll` that the game loads from its own folder: no loader, no installer and no changes to the game's exe
@@ -10,7 +10,8 @@ randomizer, all switched from new pages in the game's own Options menu and saved
 [dgVoodoo2](https://github.com/dege-diosg/dgVoodoo2) renderer by Dege is included as well.
 
 > Unofficial fan mod. Not affiliated with or endorsed by Konami or GOG. You need your own copy of the game;
-> no game files are included in this repository.
+> no game files are included in this repository. The one picture from the game, `Install\SH4Refined_preview_stock.dds`
+> (the backdrop of the Effects pages), is the author's own screenshot of it.
 
 ## Features at a glance
 
@@ -102,12 +103,12 @@ Every option, its ini key and its limits are described in [docs/FULL_README.md](
    `SILENT HILL 4.exe`) and say yes to replace.
 3. Start the game. The new rows and pages are in the game's Options (six pages: Display to Gameplay); `SH4Refined.ini` is written on the first start.
 
-To play without dgVoodoo2, copy only `winmm.dll` and the `fonts` folder. Details, the file list and uninstalling:
+To play without dgVoodoo2, copy only `winmm.dll`, the `fonts` folder and `SH4Refined_preview_stock.dds`. Details, the file list and uninstalling:
 [INSTALL.md](INSTALL.md).
 
 ## Uninstall
 
-Close the game and delete `winmm.dll` and the `fonts` folder (plus `d3d9.dll`, `dgVoodoo.conf` and
+Close the game and delete `winmm.dll`, the `fonts` folder and `SH4Refined_preview_stock.dds` (plus `d3d9.dll`, `dgVoodoo.conf` and
 `dgVoodoo_variants\` if you installed the renderer). Your saves stay. See [INSTALL.md](INSTALL.md).
 
 ## Build from source
@@ -126,7 +127,14 @@ Python tools need Python 3 (some previews use NumPy, Pillow and SciPy). Build no
 ## Versions
 
 The current version is named at the top of this page. Every release, newest changes included, is described in the
-history of [docs/FULL_README.md](docs/FULL_README.md#history). v3.57.0 rewords the Options menu after a review of
+history of [docs/FULL_README.md](docs/FULL_README.md#history). v3.58.0 answers the v3.56 / v3.57 play test: an
+Effects > Preview row (Off / Stock / Live; the stock picture is the author's screenshot), Filter Strength Low to Ultra,
+a Depth of Field > folder, value arrows that stay in place, Reveal Method (was Fade In) with a bigger portal and
+clinging tar strands, a clean Ghost Teleport fade (under Thermal and Spirit Vision too), Shadows Off obeyed by the
+preview and Echo Doubles, Walter's bar while he is down, no health bars before an enemy appears, randomized victims
+that chase you again, the randomizer's Reroll keeping the dead dead and copies of other kinds with Extra Enemies, Music
+and Effects Volume 0 really silent, and a Background Mute that mutes the whole game in Windows while it is behind;
+not yet play-tested. v3.57.0 rewords the Options menu after a review of
 every row (clearer descriptions; Turn or Strafe, Reroll, Quick Charge x1.5 / x2 / x3; no setting changes); play-tested
 2026-11-27. v3.56.0 answers the v3.55 play test: folder rows open
 with one click, every value has its own description, the Effects preview shows Thermal and Spirit Vision (and draws its

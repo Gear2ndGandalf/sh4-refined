@@ -272,9 +272,386 @@ static void TestSd356(void)
     CHECK(nm[0] == 0, "no name");
 }
 
+// v3.58 SD358: Volume 0 = silent (the game's -60 dB floor), the 3D path, the 0x2774 stream's fade, and Background Mute by the
+// sound session across focus changes, Mute / Play switches, a session lost and the next start
+static void TestZero(void)
+{
+    int raw, n, worst = 0;
+    // the bug: the game's own 0 reaches DirectSound as -60 dB (2D and streams), and Night Mode lifted it
+    CHECK(SndGameAtt2D(SND_VOL_MIN) == -6000 && SndGameAtt2D(SND_ZERO_RAW) == -6000, "the game's 0 -> -60 dB (%d / %d)",
+          SndGameAtt2D(SND_VOL_MIN), SndGameAtt2D(SND_ZERO_RAW));
+    CHECK(SndNightDb(-6000, 2) == -4000 && SndNightDb(-6000, 1) == -4800, "Night Mode lifted the floor to -40 / -48 dB (%d / %d)",
+          SndNightDb(-6000, 2), SndNightDb(-6000, 1));
+    CHECK(SndGameAtt2D(0) == -1397 || SndGameAtt2D(0) == -1398, "full volume = -14 dB (%d)", SndGameAtt2D(0));
+    // Refined: the game's 0 = silence; every other level as the game gives it
+    CHECK(SndZero2D(SND_VOL_MIN, SndGameAtt2D(SND_VOL_MIN)) == SND_VOL_MIN && SndZero2D(-9600, SndGameAtt2D(-9600)) == SND_VOL_MIN,
+          "the game's 0 is silent");
+    for (raw = -9599, n = 0; raw <= 0; ++raw) n += SndZero2D(raw, SndGameAtt2D(raw)) != SndGameAtt2D(raw);
+    CHECK(n == 0, "every level above the game's 0 unchanged (%d changed)", n);
+    // the levels the game makes: SndDb(1) = -4207 (a sound at 1 of 127), the stream table's level 1 = -361 x 10
+    CHECK(SndZero2D(-4207, SndGameAtt2D(-4207)) == SndGameAtt2D(-4207) && SndZero2D(-3610, SndGameAtt2D(-3610)) == SndGameAtt2D(-3610),
+          "the quietest real levels stay (%d / %d)", SndGameAtt2D(-4207), SndGameAtt2D(-3610));
+    // Night Mode never lifts silence
+    CHECK(SndNightDb(SND_VOL_MIN, 1) == SND_VOL_MIN && SndNightDb(SND_VOL_MIN, 2) == SND_VOL_MIN, "Night Mode leaves silence");
+    // 3D: silent exactly for the game's 0 (and below), the rest unchanged
+    CHECK(SndGameAtt3D(-9600) == SND_ZERO_3D_OUT && SndGameAtt3D(-9599) > SND_ZERO_3D_OUT && SndGameAtt3D(SND_VOL_MIN) <= SND_ZERO_3D_OUT,
+          "3D: the threshold (%d / %d / %d)", SndGameAtt3D(-9600), SndGameAtt3D(-9599), SndGameAtt3D(SND_VOL_MIN));
+    for (raw = SND_VOL_MIN, n = 0; raw <= 0; ++raw) {
+        const int o = SndGameAtt3D(raw), z = SndZero3D(o);
+        if ((raw <= -9600) != (z == SND_VOL_MIN)) ++n, worst = raw;
+        if (raw > -9600 && z != o) ++n, worst = raw;
+    }
+    CHECK(n == 0, "3D: silent iff the game's 0 (%d wrong, last %d)", n, worst);
+    // streams: the level the game set decides; 0x2774's own fade (+500 a call up to 0) cannot lift a 0 any more
+    {
+        int vol = -9600, calls, loud = 0, unset = 0;
+        for (calls = 0; calls < 40; ++calls) {
+            vol += 500;
+            if (vol > 0) vol = 0;
+            loud += SndZeroStream(-9600, vol, SndGameAtt2D(vol)) != SND_VOL_MIN;
+            unset += SndZeroStream(SND_STR_UNSET, vol, SndGameAtt2D(vol)) != SND_VOL_MIN;
+        }
+        CHECK(loud == 0, "0x2774 set to the game's 0 stays silent through its fade (%d loud calls)", loud);
+        CHECK(unset == 40, "without the set level (no 0x40B2E7) the fade is the game's (%d)", unset);
+        vol = -1980;  // Music Volume 1 of 10 (level 12 of 127: -198 x 10)
+        for (calls = 0, loud = 0; calls < 10; ++calls) {
+            vol += 500;
+            if (vol > 0) vol = 0;
+            loud += SndZeroStream(-1980, vol, SndGameAtt2D(vol)) == SndGameAtt2D(vol);
+        }
+        CHECK(loud == 10, "a stream set above 0 keeps the game's own level (%d of 10)", loud);
+        CHECK(SndZeroStream(-9600, -9600, -6000) == SND_VOL_MIN && SndZeroStream(-3610, -3610, SndGameAtt2D(-3610)) == SndGameAtt2D(-3610),
+              "a plain stream: by its level");
+    }
+}
+
+// v3.58 SD358-001: each session has an identity; Refined holds the ones it muted (touched by the user through the Volume
+// Mixer's callback); a kill leaves SH4Refined.muted naming the held, untouched ones; the next start unmutes only those
+// v3.58 SD358-002: the marker on disk (named) changes only when a whole write and its replace work; a session is muted only
+// after the marker that names it is in place
+// v3.58 SD358-003: each entry on disk is pending (written before the SetMute) or muted (rewritten after it worked); only a
+// muted one unmutes at a start; SetMute(TRUE) can fail; one write can fail alone (script); a failed write is written again at
+// the watch thread's next pass (dirty)
+typedef struct { int muted, held, conf, touched, lastMute, user, named, staleUser, absent, leftPend; } SimSess;  // user = their mute;
+// named = the entry on disk (SND_MARK_NONE / _PENDING / _MUTED); leftPend = Refined's own mute a start left (pending: logged)
+typedef struct {
+    int bg, front, sessOk, sitesPlay, keepHeld, wanted;
+    int disk;  // 0 fine, 1 writes come out short, 2 the replace fails (the temporary file is written, never moved over)
+    int notMuted;  // sessions left unmuted because the marker could not name them
+    int muteFail, muteFailed;  // v3.58 SD358-003: SetMute(TRUE) fails while set; how many failed
+    int dirty;                 // v3.58 SD358-003: the last write failed (written again at the next pass)
+    int script[8], nscript, iscript;  // v3.58 SD358-003: the next writes' results (1 whole, 0 failed), before `disk` decides
+    int pendLeft, undone, confFail;  // v3.58 SD358-003: pending entries a start found muted; user mutes a start undid; confirms lost
+    SimSess s[3];
+} SimBg;
+// SdMarkerWrite: the new marker names `want` (held, untouched, + the one about to be muted); 1 = in place
+static int SimMarkerWrite(SimBg *b, const int *want)
+{
+    int i, ok;
+    if (b->iscript < b->nscript) {
+        ok = b->script[b->iscript++];  // v3.58 SD358-003: a single write's result
+    } else {
+        const int writesOk = SndMarkWriteOk(100, b->disk == 1 ? 60 : 100, 1);
+        ok = SndMarkCommit(1, writesOk, writesOk, 1, writesOk && b->disk != 2);
+    }
+    b->dirty = SndMarkDirty(ok);
+    if (!ok) return 0;  // the old marker stays
+    for (i = 0; i < 3; ++i) b->s[i].named = want[i];
+    return 1;
+}
+static void SimScript(SimBg *b, int ok)  // v3.58 SD358-003: the next write (after those queued) comes out as `ok`
+{
+    if (b->iscript >= b->nscript) b->iscript = b->nscript = 0;
+    if (b->nscript < 8) b->script[b->nscript++] = ok;
+}
+static void SimWant(const SimBg *b, int *want, int extra)  // v3.58 SD358-003: the state of each entry
+{
+    int i;
+    for (i = 0; i < 3; ++i)
+        want[i] = i == extra ? SND_MARK_PENDING
+                : b->s[i].held && SndMarkKeep(b->s[i].touched) ? SndMarkHeldState(b->s[i].conf) : SND_MARK_NONE;
+}
+static void SimThreadMute(SimBg *b)  // the request, and the re-sweep every 2 s while behind other windows
+{
+    int i, want[3];
+    for (i = 0; i < 3; ++i)
+        if (b->sessOk && !b->s[i].absent && SndSessMuteAct(b->s[i].muted, b->s[i].held)) {
+            SimSess *const s = &b->s[i];
+            SimWant(b, want, i);
+            if (!SndSessMayMute(SimMarkerWrite(b, want))) {  // the pending entry first
+                ++b->notMuted;
+                continue;
+            }
+            if (b->muteFail) {  // v3.58 SD358-003: SetMute failed: dropped; a failed clean-up leaves the entry pending
+                ++b->muteFailed;
+                SimWant(b, want, -1);
+                SimMarkerWrite(b, want);
+                continue;
+            }
+            s->muted = 1, s->held = 1, s->conf = 1, s->touched = SND_TOUCH_NONE, s->lastMute = 1, s->user = 0, s->staleUser = 0;
+            s->leftPend = 0;
+            SimWant(b, want, -1);
+            if (!SimMarkerWrite(b, want)) ++b->confFail;  // v3.58 SD358-003: the confirm (dirty: again at the next pass)
+        }
+    b->wanted = 1;
+}
+static void SimThreadUnmute(SimBg *b)
+{
+    int i, want[3] = { 0, 0, 0 };
+    for (i = 0; i < 3; ++i) {
+        SimSess *const s = &b->s[i];
+        if (s->held && SndSessUnmuteAct(s->muted, s->touched)) s->muted = 0;
+        s->held = 0, s->conf = 0;
+    }
+    SimMarkerWrite(b, want);  // a failure keeps old names of sessions that are not muted now: harmless at the next start
+    b->wanted = 0;
+}
+static void SimUser(SimBg *b, int i)  // the user toggles a session's mute in the Volume Mixer (another event context)
+{
+    SimSess *const s = &b->s[i];
+    int want[3];
+    s->muted = !s->muted, s->user = s->muted, s->staleUser = 0, s->leftPend = 0;
+    if (s->held) {
+        s->touched = SndSessTouchStep(s->touched, &s->lastMute, s->muted);
+        SimWant(b, want, -1);
+        if (!SimMarkerWrite(b, want) && s->named == SND_MARK_MUTED && s->user) s->staleUser = 1;  // README: the next start may undo this one
+    } else if (s->user && s->named == SND_MARK_MUTED) {  // (the model's own rule, not the predicate under test)
+        s->staleUser = 1;  // v3.58 SD358-003: a confirmed entry an unmute's / a start's failed rewrite left (README: until a rewrite works)
+    }
+}
+static void SimVolume(SimBg *b, int i)  // the user moves a held session's volume slider only (the mute as it was)
+{
+    SimSess *const s = &b->s[i];
+    if (s->held) s->touched = SndSessTouchStep(s->touched, &s->lastMute, s->muted);
+}
+static void SimKillRestart(SimBg *b)  // killed from outside; the next start reads SH4Refined.muted
+{
+    int i, want[3] = { 0, 0, 0 };
+    for (i = 0; i < 3; ++i) {
+        SimSess *const s = &b->s[i];
+        if (SndSessStartAct(s->muted, SndMarkMayUnmute(s->named))) {  // v3.58 SD358-003: a confirmed entry only
+            if (s->user && !s->staleUser) ++b->undone;  // the user's own mute undone by the start
+            s->muted = 0, s->user = 0, s->staleUser = 0;
+        } else if (s->muted && s->named == SND_MARK_PENDING) {
+            ++b->pendLeft;            // left as it is, logged ("unmute it in the Windows Volume Mixer")
+            s->leftPend = !s->user;   // Refined's own mute that never reached "muted" on disk (README: the remaining window)
+        }
+        s->held = 0, s->conf = 0, s->touched = SND_TOUCH_NONE;
+    }
+    SimMarkerWrite(b, want);  // pending entries dropped (a failure keeps them: the next start leaves them alone again)
+    b->wanted = 0;
+}
+// one SndBgTick + the watch thread's answer
+static void SimTick(SimBg *b)
+{
+    const int want = SndBgWantMute(b->bg, !b->front);
+    if (b->dirty) {  // v3.58 SD358-003: the watch thread's pass writes a failed marker again
+        int w[3];
+        SimWant(b, w, -1);
+        SimMarkerWrite(b, w);
+    }
+    if (want) SimThreadMute(b);
+    else if (b->wanted) SimThreadUnmute(b);
+    b->sitesPlay = SndBgSitesPlay(b->bg, b->sessOk);
+    b->keepHeld = SndKeepHold(want, b->sessOk);
+}
+static void TestBgSession(void)
+{
+    SimBg b;
+    unsigned seed = 12345;
+    int step, i, bad = 0, silentStart = 0, kills = 0, refused = 0, pendLeft = 0, recovered = 0, confFail = 0, muteFailed = 0;
+    unsigned long t;
+    const char *id;
+    size_t n;
+    int lm, st;  // v3.58 SD358-003: + st
+    memset(&b, 0, sizeof b);
+    b.bg = SND_BG_MUTE, b.front = 1, b.sessOk = 1;
+    b.s[2].muted = b.s[2].user = 1;  // the user muted one session of the game in Windows' mixer
+    SimTick(&b);
+    CHECK(b.sitesPlay && !b.keepHeld && !b.s[0].muted && b.s[2].muted, "in front, Mute by the session: sites Play, nothing muted");
+    b.front = 0, SimTick(&b);
+    CHECK(b.s[0].muted && b.s[1].muted && b.s[0].held && !b.s[2].held && !b.keepHeld, "behind: Refined mutes every session (the tone too)");
+    b.front = 1, SimTick(&b);
+    CHECK(!b.s[0].muted && !b.s[1].muted && b.s[2].muted, "in front: only Refined's unmuted; the user's stays muted");
+    b.bg = SND_BG_PLAY, SimTick(&b), b.front = 0, SimTick(&b);
+    CHECK(!b.s[0].muted && b.sitesPlay && !b.wanted, "Play behind other windows: nothing muted");
+    b.bg = SND_BG_MUTE, SimTick(&b);  // Mute chosen behind other windows (a pad works there)
+    CHECK(b.s[0].muted && b.s[1].muted, "Mute while behind: muted at once");
+    b.bg = SND_BG_PLAY, SimTick(&b);  // the Options "No" discard back to Play while behind
+    CHECK(!b.s[0].muted && !b.s[1].muted && b.s[2].muted, "back to Play while behind: unmuted at once, the user's kept");
+    // no session: v3.56's rule (the sites' own byte) and the tone stopped behind other windows under Mute only
+    b.sessOk = 0, b.bg = SND_BG_MUTE, b.front = 1, SimTick(&b);
+    CHECK(!b.sitesPlay && !b.keepHeld, "no session, in front: sites Mute, tone plays");
+    b.front = 0, SimTick(&b);
+    CHECK(!b.sitesPlay && b.keepHeld && !b.s[0].muted, "no session, behind: sites Mute, tone stopped");
+    b.bg = SND_BG_PLAY, SimTick(&b);
+    CHECK(b.sitesPlay && !b.keepHeld, "no session, Play: sites Play, tone plays");
+    // SD358-001: the start's rule is by the session's own entry, never by "a marker exists"
+    CHECK(SndSessStartAct(1, 1) && !SndSessStartAct(1, 0) && !SndSessStartAct(0, 1) && !SndSessStartAct(0, 0), "the start's rule");
+    memset(&b, 0, sizeof b);
+    b.bg = SND_BG_MUTE, b.front = 0, b.sessOk = 1;
+    b.s[2].muted = b.s[2].user = 1;  // the user's own mute, before Refined's
+    SimTick(&b), SimKillRestart(&b);  // killed behind other windows
+    CHECK(!b.s[0].muted && !b.s[1].muted && b.s[2].muted, "killed behind: the next start unmutes Refined's two, the user's stays");
+    SimTick(&b), SimUser(&b, 0), SimTick(&b);  // behind again; the user unmutes one in the mixer: not muted again by the re-sweep
+    CHECK(!b.s[0].muted && b.s[0].touched == SND_TOUCH_UNMUTED && !b.s[0].named && b.s[1].muted && b.s[1].named,
+          "unmuted by the user while behind: left playing, no longer named");
+    SimUser(&b, 0), SimVolume(&b, 1);  // the user mutes it again (theirs now); a volume slider on the other changes nothing
+    CHECK(b.s[0].muted && b.s[0].touched == SND_TOUCH_USER && b.s[1].touched == SND_TOUCH_NONE && b.s[1].named, "touch states");
+    SimKillRestart(&b);
+    CHECK(b.s[0].muted && !b.s[1].muted, "killed again: the user's re-mute stays, Refined's own is unmuted");
+    b.front = 1, SimTick(&b), b.front = 0, SimTick(&b), SimUser(&b, 1), SimUser(&b, 1), b.front = 1, SimTick(&b);
+    CHECK(b.s[1].muted && b.s[1].user, "the user unmuted and muted a held session: Refined does not unmute it in front");
+    // SD358-002: a write that comes out short, a replace that fails
+    CHECK(SndMarkWriteOk(100, 100, 1) && !SndMarkWriteOk(100, 99, 1) && !SndMarkWriteOk(100, 0, 1) && !SndMarkWriteOk(100, 100, 0),
+          "a write counts only whole");
+    CHECK(SndMarkCommit(1, 1, 1, 1, 1) && !SndMarkCommit(0, 1, 1, 1, 1) && !SndMarkCommit(1, 0, 1, 1, 1) && !SndMarkCommit(1, 1, 0, 1, 1) &&
+          !SndMarkCommit(1, 1, 1, 0, 1) && !SndMarkCommit(1, 1, 1, 1, 0) && SndSessMayMute(1) && !SndSessMayMute(0), "the commit's steps");
+    memset(&b, 0, sizeof b);
+    b.bg = SND_BG_MUTE, b.front = 0, b.sessOk = 1, b.disk = 1;  // every write short (a full disk)
+    SimTick(&b);
+    CHECK(!b.s[0].muted && !b.s[1].muted && !b.s[0].named && b.notMuted == 3, "short writes: nothing muted, nothing named (%d)", b.notMuted);
+    SimKillRestart(&b);
+    CHECK(!b.s[0].muted && !b.s[1].muted && !b.s[2].muted, "short writes, killed: no session left muted");
+    memset(&b, 0, sizeof b);
+    b.bg = SND_BG_MUTE, b.front = 0, b.sessOk = 1;
+    b.s[1].absent = 1, b.s[2].absent = 1;  // two sessions the game opens later
+    SimTick(&b);
+    CHECK(b.s[0].muted && b.s[0].named, "one session muted and named");
+    b.disk = 2, b.s[1].absent = 0, SimTick(&b);  // a second one appears; the replace fails
+    CHECK(!b.s[1].muted && !b.s[1].named && b.s[0].named && b.s[0].muted, "a failed replace: the new one not muted, the old marker kept");
+    b.front = 1, SimTick(&b);  // back in front: unmuted; the marker cannot be rewritten: it still names an unmuted session
+    CHECK(!b.s[0].muted && b.s[0].named, "unmuted in front; the old name stays (harmless)");
+    b.disk = 0, SimKillRestart(&b);
+    CHECK(!b.s[0].muted && !b.s[0].named, "the next start: the named one is not muted: nothing to do, the name dropped");
+    // SD358-003: pending (before the SetMute) / muted (after it worked); only a confirmed entry unmutes at a start
+    CHECK(SndMarkMayUnmute(SND_MARK_MUTED) && !SndMarkMayUnmute(SND_MARK_PENDING) && !SndMarkMayUnmute(SND_MARK_NONE) &&
+          !SndSessStartAct(1, SndMarkMayUnmute(SND_MARK_PENDING)) && SndSessStartAct(1, SndMarkMayUnmute(SND_MARK_MUTED)) &&
+          SndMarkHeldState(0) == SND_MARK_PENDING && SndMarkHeldState(1) == SND_MARK_MUTED && SndMarkKeepAtStart(0, SND_MARK_MUTED) &&
+          !SndMarkKeepAtStart(1, SND_MARK_MUTED) && !SndMarkKeepAtStart(0, SND_MARK_PENDING) && SndMarkDirty(0) && !SndMarkDirty(1),
+          "SD358-003: the entry states");
+    memset(&b, 0, sizeof b);  // (1) the pending write fails: no mute
+    b.bg = SND_BG_MUTE, b.front = 0, b.sessOk = 1, b.s[1].absent = b.s[2].absent = 1;
+    SimScript(&b, 0), SimTick(&b);
+    CHECK(!b.s[0].muted && !b.s[0].held && !b.s[0].named && b.notMuted == 1 && b.dirty, "SD358-003: the pending write fails: not muted");
+    SimTick(&b);  // the next pass: written again (nothing to name), the re-sweep mutes it
+    CHECK(b.s[0].muted && b.s[0].named == SND_MARK_MUTED && !b.dirty, "SD358-003: the next pass mutes it, confirmed");
+    memset(&b, 0, sizeof b);  // (2) SetMute fails and its clean-up write fails: the entry stays pending
+    b.bg = SND_BG_MUTE, b.front = 0, b.sessOk = 1, b.s[1].absent = b.s[2].absent = 1, b.muteFail = 1;
+    SimScript(&b, 1), SimScript(&b, 0), SimTick(&b);
+    CHECK(!b.s[0].muted && !b.s[0].held && b.s[0].named == SND_MARK_PENDING && b.dirty && b.muteFailed == 1,
+          "SD358-003: SetMute failed, the clean-up failed: a pending entry for an unmuted session");
+    b.disk = 2, b.muteFail = 0, b.bg = SND_BG_PLAY, SimTick(&b);  // the disk stays bad; Play behind other windows
+    SimUser(&b, 0);  // the user mutes that session in the Volume Mixer
+    CHECK(b.s[0].muted && b.s[0].user && !b.s[0].staleUser && b.s[0].named == SND_MARK_PENDING, "SD358-003: the user's mute on it");
+    SimKillRestart(&b);
+    CHECK(b.s[0].muted && b.s[0].user && !b.undone && b.pendLeft == 1 && !b.s[0].leftPend,
+          "SD358-003: killed: the next start leaves the user's mute alone (a pending entry never unmutes)");
+    memset(&b, 0, sizeof b);  // (3) the confirm write fails, the next pass writes it
+    b.bg = SND_BG_MUTE, b.front = 0, b.sessOk = 1, b.s[1].absent = b.s[2].absent = 1;
+    SimScript(&b, 1), SimScript(&b, 0), SimTick(&b);
+    CHECK(b.s[0].muted && b.s[0].held && b.s[0].named == SND_MARK_PENDING && b.dirty && b.confFail == 1,
+          "SD358-003: muted; the confirm write failed: still pending on disk");
+    SimTick(&b);
+    CHECK(b.s[0].muted && b.s[0].named == SND_MARK_MUTED && !b.dirty, "SD358-003: the next pass confirms it");
+    SimKillRestart(&b);
+    CHECK(!b.s[0].muted && !b.pendLeft && !b.s[0].named, "SD358-003: killed after the retry: the next start unmutes it");
+    memset(&b, 0, sizeof b);  // (4) the confirm write and every retry fail, then a kill: the remaining window
+    b.bg = SND_BG_MUTE, b.front = 0, b.sessOk = 1, b.s[1].absent = b.s[2].absent = 1;
+    SimScript(&b, 1), SimScript(&b, 0), SimTick(&b);
+    b.disk = 1, SimTick(&b), SimTick(&b);
+    CHECK(b.s[0].muted && b.s[0].named == SND_MARK_PENDING && b.dirty, "SD358-003: every retry failed: still pending");
+    SimKillRestart(&b);
+    CHECK(b.s[0].muted && !b.s[0].user && b.pendLeft == 1 && b.s[0].leftPend && !b.undone,
+          "SD358-003: killed: the next start leaves it muted and logs it (README: unmute it in the Volume Mixer)");
+    SimUser(&b, 0), b.disk = 0, b.front = 1, SimTick(&b);  // the user follows the log line (the game in front)
+    CHECK(!b.s[0].muted && !b.s[0].leftPend && !b.s[0].user && b.s[0].named == SND_MARK_NONE && !b.dirty,
+          "SD358-003: unmuted by the user; the pending entry dropped");
+    // the marker's line format and age
+    CHECK(SndMarkParse("1764200000\t{0.0.0.00000000}.{abc}|\\Device\\x.exe%b{GUID}\r\n", &t, &st, &id, &n) && t == 1764200000ul &&
+          st == SND_MARK_MUTED && n == strlen("{0.0.0.00000000}.{abc}|\\Device\\x.exe%b{GUID}") && id[0] == '{',
+          "marker line without a state (the v3.58 test builds): confirmed (%lu, %u)", t, (unsigned)n);
+    CHECK(SndMarkParse("1764200000\tmuted\t{0.0.0.00000000}.{abc}|x%b{G}\r\n", &t, &st, &id, &n) && st == SND_MARK_MUTED &&
+          n == strlen("{0.0.0.00000000}.{abc}|x%b{G}") && id[0] == '{' &&
+          SndMarkParse("1764200001\tpending\t{a}\n", &t, &st, &id, &n) && st == SND_MARK_PENDING && t == 1764200001ul && n == 3 &&
+          id[0] == '{' && SndMarkParse("5\tmutedx\t{a}", &t, &st, &id, &n) && st == SND_MARK_PENDING &&
+          SndMarkParse("5\t\t{a}", &t, &st, &id, &n) && st == SND_MARK_PENDING && n == 3 && !SndMarkParse("5\tmuted\t\r\n", &t, &st, &id, &n) &&
+          !SndMarkParse("5\tpending\t", &t, &st, &id, &n) && !strcmp(SndMarkWord(SND_MARK_MUTED), "muted") &&
+          !strcmp(SndMarkWord(SND_MARK_PENDING), "pending"), "SD358-003: marker states read (an unknown state is pending)");
+    CHECK(!SndMarkParse("# text", &t, &st, &id, &n) && !SndMarkParse("12 x", &t, &st, &id, &n) && !SndMarkParse("12\t\r\n", &t, &st, &id, &n) &&
+          !SndMarkParse("\tx", &t, &st, &id, &n) && !SndMarkParse(NULL, &t, &st, &id, &n) &&
+          !SndMarkParse("SH4 Refined muted ...", &t, &st, &id, &n), "marker: text, v3.58 SD358's old one-line file and bad lines are not entries");
+    CHECK(!SndMarkExpired(1000000000ul, 1000000000ul - 86400ul) && SndMarkExpired(1000000000ul, 1000000000ul - SND_MARK_MAX_AGE - 1) &&
+          SndMarkExpired(1000000000ul, 1000000000ul + 2 * 86400ul), "marker age");
+    lm = 1;
+    CHECK(SndSessTouchStep(SND_TOUCH_NONE, &lm, 1) == SND_TOUCH_NONE && lm == 1 && SndSessTouchStep(SND_TOUCH_NONE, &lm, 0) == SND_TOUCH_UNMUTED &&
+          lm == 0 && SndSessTouchStep(SND_TOUCH_UNMUTED, &lm, 1) == SND_TOUCH_USER && SndSessTouchStep(SND_TOUCH_USER, &lm, 1) == SND_TOUCH_USER,
+          "touch steps");
+    CHECK(SndSessUnmuteAct(1, SND_TOUCH_NONE) && !SndSessUnmuteAct(1, SND_TOUCH_USER) && !SndSessUnmuteAct(0, SND_TOUCH_NONE) &&
+          SndSessMuteAct(0, 0) && !SndSessMuteAct(0, 1) && !SndSessMuteAct(1, 0), "mute / unmute rules");
+    // random walks with kills and disk failures: a session Refined holds (untouched) is always named on disk; Refined's sessions
+    // are muted while Mute and behind (unless the user unmuted one, or the marker could not name it); the user's mute is never
+    // undone by Refined (but the README's case: a rewrite failed after their change); a start never leaves Refined's mute on
+    // v3.58 SD358-003: + SetMute failures and single failed writes (a lost confirm, a lost clean-up); a start never undoes the
+    // user's mute (a pending entry never unmutes); a start leaves Refined's own mute on only for a pending entry (the remaining
+    // window: the confirm and every retry failed), logged; the user then unmutes it in the mixer
+    memset(&b, 0, sizeof b);
+    b.front = 1, b.sessOk = 1;
+    for (step = 0; step < 300000; ++step) {
+        unsigned r;
+        int k, refusedNow;
+        const int nm0 = b.notMuted, mf0 = b.muteFailed;
+        seed = seed * 1103515245u + 12345u;
+        r = (seed >> 16) % 14;
+        k = (int)((seed >> 8) % 3);
+        if (r < 3) b.front = !b.front;
+        else if (r < 5) b.bg = !b.bg;
+        else if (r < 7) SimUser(&b, k);
+        else if (r == 7) SimVolume(&b, k);
+        else if (r == 8) {
+            SimKillRestart(&b), ++kills;
+            for (i = 0; i < 3; ++i) {
+                silentStart += b.s[i].muted && !b.s[i].user && !b.s[i].leftPend;
+                if (b.s[i].leftPend) SimUser(&b, i), ++recovered;  // the log line's advice: unmuted in the Volume Mixer
+            }
+        } else if (r == 9) {
+            b.disk = (b.disk + 1 + (int)((seed >> 4) % 2)) % 3;  // the disk goes bad (short / no replace) or comes back
+        } else if (r == 10) {
+            b.muteFail = (seed >> 4) % 3 == 0;  // v3.58 SD358-003: SetMute(TRUE) refused for a while (a third of the time)
+        } else if (r == 11) {  // v3.58 SD358-003: one write fails alone (a confirm, a clean-up, a pending entry, a retry)
+            if ((seed >> 4) % 2) SimScript(&b, 1);  // (the one after the next: a mute's confirm)
+            SimScript(&b, 0);
+        } else if (r == 12) {
+            SimScript(&b, 1), b.disk = 1;  // v3.58 SD358-003: one more whole write (a pending entry), then the disk goes bad
+        }
+        refused = b.notMuted;
+        SimTick(&b);
+        refusedNow = b.notMuted != nm0 || b.muteFailed != mf0;
+        for (i = 0; i < 3; ++i) {
+            const SimSess *const s = &b.s[i];
+            const int want = SndBgWantMute(b.bg, !b.front);
+            if (want && !s->muted && !(s->held && s->touched == SND_TOUCH_UNMUTED) && !b.disk && !refusedNow) ++bad;  // plays behind under Mute
+            if (!want && s->held) ++bad;                             // Refined holds a mute in front / under Play
+            if (s->user && !s->muted && !s->staleUser) ++bad;        // the user's mute undone
+            if (s->held && s->touched == SND_TOUCH_NONE && !s->named) ++bad;  // SD358-002: muted by Refined, not on disk
+            if (s->held && s->touched == SND_TOUCH_NONE && !b.dirty && s->named != SND_MARK_MUTED) ++bad;  // SD358-003: written = confirmed
+            if (s->held && !s->conf) ++bad;                          // SD358-003: held = its SetMute worked
+        }
+        if (b.sitesPlay != 1) ++bad;  // with a session the sites carry the global focus in both modes
+    }
+    pendLeft = b.pendLeft, confFail = b.confFail, muteFailed = b.muteFailed;
+    CHECK(bad == 0 && silentStart == 0 && b.undone == 0 && kills > 1000 && refused > 0 && muteFailed > 0 && confFail > 0,
+          "random walk with %d kills, %d refused mutes, %d failed SetMutes, %d lost confirms: %d broken state(s), %d silent start(s), "
+          "%d user mute(s) undone at a start", kills, refused, muteFailed, confFail, bad, silentStart, b.undone);
+    printf("  (SD358-003 walk: %d pending entries found muted at a start, %d of them Refined's own: unmuted by the user)\n", pendLeft,
+           recovered);
+}
+
 int main(void)
 {
     TestSd356();  // v3.56 SD356
+    TestZero();       // v3.58 SD358
+    TestBgSession();  // v3.58 SD358  // v3.58 SD358-001: + identities, kills, the Volume Mixer  // v3.58 SD358-002: + disk failures  // v3.58 SD358-003: + pending / confirmed entries
     TestStockTable();
     TestSmooth();
     TestFloor();

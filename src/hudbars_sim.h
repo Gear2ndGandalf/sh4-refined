@@ -818,4 +818,78 @@ static int HbRefNote(HbRefCount *c, int *said, int why)
     ++c->n[why];
     return 1;  // first time for this being and reason: the caller may log it
 }
+
+// ---------------------------------------------------------------- v3.58 EN358: no bar before the game draws the body
+// The user's v3.57 QA: "Where the first monsters appear in-game, subway world, the health bars are drawn over their spawn
+// points before they spawn in-game." The Subway's first monsters are room 2:2's event dogs (Sniffer Dog 0x0A, mode words
+// 7 / 6 / 6). SnifferDogCreate 0x48E690 makes them in class 1 (EnemySetState 1, ai 0x11 / 0x15) with a real HP block and a
+// model object whose no-draw bit (+0xE4 & 4) is clear, so HB352's rules (class 0 / 0x0D..0x0F hidden, a place in the room,
+// the no-draw bit) all passed; but SnifferDogTask 0x492C00 returns BEFORE EnemyRegisterDraw 0x45D2F0 while their mode word
+// is 6 or 7 and story flag 0x130 ([0x13D80C6] bit 0) is clear: nothing draws them. What draws an actor is its record (task
+// +0x41C): ActorDrawModels 0x52AE50 draws rec->model (+0x14) between rec->preDraw (+0x24) and rec->postDraw (+0x28), the
+// draw passes call rec->draw (+0x20); ActorRecordAlloc 0x52B2C0 zeroes the record and only ActorSetModel 0x52AD30
+// (EnemyRegisterDraw and its kin) gives it a model. The rules: (1) a record with no model and no draw callbacks: the game
+// draws nothing for it (every enemy whose task returns before its draw registration: the event dogs, the final Walter
+// before story flag 0x76F, ...); (2) an event dog before flag 0x130, by the dog's own gate (in case its record kept an older
+// model). Either refuses the bar as "not in the room yet" (HB_RF_HIDDEN, its own note in the verbose line).
+enum { HB_UD_NONE, HB_UD_ACTOR, HB_UD_DOG, HB_UD_N };
+static const char *const kHbUdName[HB_UD_N] = { "", " (nothing draws it: no model in its actor record)",
+                                                " (an event dog before story flag 130: its task returns before its draw)" };
+static int HbUndrawnWhy(int recOk, const void *model, const void *draw, const void *pre, const void *post, int type,
+                        unsigned modeWord, int released)
+{
+    if (type == 0x0A && (modeWord == 6 || modeWord == 7) && !released) return HB_UD_DOG;
+    if (recOk && !model && !draw && !pre && !post) return HB_UD_ACTOR;
+    return HB_UD_NONE;
+}
+static int HbRefuseWhy2(int cls, const float *pos, int undrawn)
+{
+    if (undrawn != HB_UD_NONE) return HB_RF_HIDDEN;
+    return HbRefuseWhy(cls, pos);
+}
+// the bar appears with the body: Fade In's share of the body shown now (1 = all, or not fading) scales the bar's alpha
+static float HbWithBody(float barAlpha, float bodyShown)
+{
+    if (!(bodyShown == bodyShown)) bodyShown = 1.0f;  // (NaN: not known)
+    return HbClamp01(barAlpha) * HbClamp01(bodyShown);
+}
+
+// ---------------------------------------------------------------- v3.58 EN358: Walter downed keeps his bars
+// The user's v3.57 QA: "While Walter is downed we cannot see his health and revival bars." Walter is type 0x10; the
+// placement's mode word & 0xF picks the kind (EnemyWalterTask 0x4A4D60): 8 the final Walter, 7 the Conjoined Bodies, else
+// the stalker of the second half (SH4Decomp src/enemy/en_4a0550.c, en_4a4e20.c). The stalker goes down in AI state 0x0D
+// (0x4A47A0: class 9, the fall) and lies in 0x0E (0x4A4930: class 0x0A): step 0 sets the timer [[work+0x24]+0x94] to
+// 0..1 s (stagger gauge left), 5..10 s (HP left) or 30..60 s (HP 0), step 1 counts it down (0x4A4A12 fld / 0x4A4A1C fst
+// [edi+94h]; a hit there adds 0..3 s, 0x4A2040), then he gets up (step 3, class 8, +10 HP) or plays dead (steps 2 / 6);
+// step 4 is the Sword's end (the fall, then class 0x0B). His HP is usually 0 while he lies: v3.29 - v3.57 called a boss at
+// HP 0 "gone" and faded the bar out. The final Walter kneels after the eighth spear (AI 7, 0x4A8690: class 9, the timer
+// [[work+0x24]+0x80] 3..5 s counted in steps 2 / 5, 0x4A8760 / 0x4A8801), is knocked down in AI 0x10 (rises at step 0,
+// dies from step 1: the animation 0x1A, then AI 0x12 State18). Returns HB_GS_* (as a ghost's: DOWN = lying with a running
+// countdown, *countdown its seconds; STUMBLE = lying without one; RISING; GONE = dead or dying); timerOk = the timer's
+// bytes were checked (else no countdown: the health bar only).
+enum { HB_WK_STALKER, HB_WK_FINAL, HB_WK_BODIES };
+static int HbWalterKind(unsigned modeWord) { const int k = (int)(modeWord & 0xF); return k == 8 ? HB_WK_FINAL : k == 7 ? HB_WK_BODIES : HB_WK_STALKER; }
+static int HbWalterState(int kind, int cls, int ai, int step, float hp, float timer, int timerOk, float *countdown)
+{
+    *countdown = 0.0f;
+    if (!(timer == timer) || timer > 1000.0f) timerOk = 0;  // (NaN or not a timer)
+    if (kind == HB_WK_BODIES) return cls == 0x0B || cls >= 0x10 || !(hp > 0.0f) ? HB_GS_GONE : HB_GS_STAND;
+    if (cls < 0 || cls == 0x0B || cls >= 0x10) return HB_GS_GONE;
+    if (kind == HB_WK_STALKER) {
+        if (ai == 0x0E && step == 4) return HB_GS_GONE;  // the Sword: his last fall
+        if (ai == 0x0E && step == 1 && timerOk && timer > 0.0f) {
+            *countdown = timer;
+            return HB_GS_DOWN;
+        }
+    } else {
+        if (ai == 0x12 || (ai == 0x10 && step >= 1)) return HB_GS_GONE;  // dying / dead (the ending follows)
+        if (ai == 7 && (step == 2 || step == 5) && timerOk && timer > 0.0f) {
+            *countdown = timer;
+            return HB_GS_DOWN;
+        }
+    }
+    if (cls == 9 || cls == 0x0A) return HB_GS_STUMBLE;
+    if (cls == 8) return HB_GS_RISING;
+    return HB_GS_STAND;
+}
 #endif

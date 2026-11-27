@@ -1,3 +1,4 @@
+// v3.58 EN358: + the randomizer's victims take the ghosts' path, the per-door ghost summary.
 // v3.38 EN338: + no timing rule, the pursuit for the world visit, spotted at any distance, story ghosts follow, no
 // Wheelchair, the space gates, the game's own downs.
 // v3.35 GH335: + victims pursue (mode 4), victims' copies follow, late copies, the down countdown at 30-180 Hz.
@@ -1291,6 +1292,46 @@ static void TestFollowValues349(void)
     EnmCwClear(&l);
     Check(EnmCwDropMonsters(&l) == 0, "349: an empty ledger: nothing");
 }
+// v3.58 EN358: the randomizer's victims (a monster placement made a victim's ghost: its script id) take the ghosts' path
+static void TestDrawnGhosts(void)
+{
+    const unsigned drawn = EnmScriptId(2, 0, 2, 2), drawnHalf = EnmScriptId(5, 1, 11, 9), stock = 0xFFFF0009u;
+    const unsigned copy = EnmCopyId(2, 2, 1);
+    int v;
+    Check(EnmDrawnGhost(0x0B, 1, 0, drawn), "drawn 0B v1 (script id 02020002) is a drawn victim");
+    Check(EnmDrawnGhost(0x0C, 1, 0, drawnHalf) && EnmDrawnGhost(0x0D, 1, 0, drawnHalf), "drawn 0C v1 / 0D v1 (second half)");
+    for (v = 0; v < 4; ++v) Check(EnmDrawnGhost(0x0B, v, 0, drawn), "0B every variant");
+    Check(!EnmDrawnGhost(0x0C, 0, 0, drawn) && !EnmDrawnGhost(0x0D, 0, 0, drawn), "the story ghosts (0C v0 / 0D v0) are never drawn ones");
+    Check(!EnmDrawnGhost(0x0E, 0, 0, drawn) && !EnmDrawnGhost(0x0F, 0, 0, drawn), "Andrew / Richard are never drawn ones");
+    Check(!EnmDrawnGhost(0x0B, 1, 0, stock), "a stock victim (FFFF00nn) is not a drawn one");
+    Check(!EnmDrawnGhost(0x0B, 1, 1, copy) && !EnmDrawnGhost(0x0B, 1, 0, copy), "a copy is not a drawn one");
+    Check(!EnmDrawnGhost(0x0A, 0, 0, drawn) && !EnmDrawnGhost(0x07, 1, 0, drawn), "monsters are not");
+    Check(!EnmDrawnGhost(0x0B, 1, 0, 0u), "no id: not");
+    Check(EnmGhostPath(0x0B, 1, 0, stock) && EnmGhostPath(0x0B, 1, 0, drawn) && EnmGhostPath(0x0B, 1, 1, copy), "the ghosts' path");
+    Check(!EnmGhostPath(0x0A, 0, 0, drawn) && !EnmGhostPath(0x0A, 0, 1, copy), "monsters and their copies: not the ghosts' path");
+    // EnmTakePursuers' verdict: v3.57 passed ghostId = EnmIsGhostId(id) only (a drawn victim was ENM_PUR_OTHER)
+    Check(EnmPursuerWhy4(1, 0, EnmIsGhostId(drawn), 1, 1, 0x0B, 1, 0x100, 0, 0, 1, 3) == ENM_PUR_OTHER, "v3.57: drawn = of no following kind");
+    Check(EnmPursuerWhy4(1, 0, EnmIsGhostId(drawn) || EnmDrawnGhost(0x0B, 1, 0, drawn), 1, 1, 0x0B, 1, 0x100, 0, 0, 1, 3) == ENM_PUR_YES,
+          "v3.58: drawn victim follows (Monsters + Victims)");
+    Check(EnmPursuerWhy4(0, 0, 1, 1, 1, 0x0B, 1, 0x100, 0, 0, 1, 3) == ENM_PUR_YES, "v3.58: drawn victim follows (Victims Only)");
+    Check(EnmPursuerWhy4(1, 0, 1, 0, 1, 0x0B, 1, 0x100, 0, 0, 1, 3) == ENM_PUR_OTHER, "Monsters only: a drawn victim does not follow");
+    Check(EnmPursuerWhy4(1, 0, 1, 1, 1, 0x0B, 1, 0x106, 0, 0, 1, 3) == ENM_PUR_EVENT, "a victim in an event mode does not");
+    {   // the door's per-room line: came in / still arriving / never in the room
+        const unsigned tag[5] = { 0xFFFF0002u, drawn, 0xFFFF0009u, 0u, drawnHalf };
+        unsigned char seen[5] = { 0, 0, 0, 0, 0 };
+        EnmTagSum s;
+        seen[0] |= (unsigned char)EnmTagSeenBits(0x0D), seen[0] |= (unsigned char)EnmTagSeenBits(1);
+        seen[1] |= (unsigned char)EnmTagSeenBits(0x0F);
+        seen[4] |= (unsigned char)EnmTagSeenBits(0x0A);
+        s = EnmTagSummary(tag, seen, 5);
+        Check(s.tagged == 4 && s.in == 2 && s.arriving == 1 && s.outside == 1, "tag summary 4 tagged: 2 in, 1 arriving, 1 outside");
+        Check(EnmTagSeenBits(0) == ENM_TAG_ARRIVING && EnmTagSeenBits(0x0E) == ENM_TAG_ARRIVING && EnmTagSeenBits(0x0C) == ENM_TAG_IN &&
+              EnmTagSeenBits(0x12) == ENM_TAG_IN && EnmTagSeenBits(0x0B) == ENM_TAG_IN, "seen bits by class");
+        s = EnmTagSummary(tag, seen, 0);
+        Check(s.tagged == 0 && s.in == 0, "no tags");
+    }
+}
+
 int main(void)
 {
     TestFollowValues349();  // v3.49 EF349
@@ -1324,6 +1365,7 @@ int main(void)
     TestClock();
     TestSnapStore();
     TestFlyer();
+    TestDrawnGhosts();  // v3.58 EN358
     printf("%s: %d checks, %d failed\n", g_fail ? "FAIL" : "ok", g_n, g_fail);
     return g_fail ? 1 : 0;
 }

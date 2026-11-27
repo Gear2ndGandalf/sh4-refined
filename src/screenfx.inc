@@ -329,15 +329,24 @@ static void PvCollect(const BYTE *task, BYTE *model);  // 0x52AEB5: the capture 
 static void PvCyn(BYTE *model);                        // 0x4EE376: the trapped Cynthia, the same
 static void PvCapture(void);                           // 0x4EFBFD, the capture frame, after FxCaptureClean
 static void PvPageDraw(int where);                     // the layer of the filter over the page's / the pause's picture
-static int PvBackPick(void *dev);                      // FxBackdropC: the scene, the picture or the hallway
 static int PvSceneDraw(void *dev);
 static void PvBackNote(int back);
 static void PvFrameEnd(void);                          // FxAfterPost
 static void PvInstall(void);                           // ScreenFxInstall: [ScreenEffects] PreviewLayers / PreviewScene
 static int PvF7Hidden(void);                           // FxFilterDesc: no PreviewKey sentence while the scene is the backdrop
 static void PvBeforeReset(void);                       // shadows.inc ShBeforeReset: the layers' targets released
-static volatile LONG g_pvNoZw;                         // GvOverride: the preview's heat redraw writes no depth
+// v3.58 PV358: g_pvNoZw is gone (the preview's heat redraw writes the living bodies' depth again, as the live one: their
+// near faces win; v3.56's no-depth redraw showed the inside of a close-camera-faded body: USER_FEEDBACK_v357 "Thermal ...
+// only displaying the inside faces of her model")
 static int g_pvColl;                                   // GvNote: the preview's own collection logs no "collected" line
+// v3.58 PV358: [ScreenEffects] Preview / FilterStrength (preview.inc)
+static int PvBackPick(void *dev, void **tex, UINT *pw, UINT *ph, int *pause);  // FxBackdropC: by Preview (was PvBackPick(dev))
+static int PvPreviewOff(void);                         // Preview Off: no backdrop on the Effects pages (shadows.inc ShMode too)
+static void PvOffNote(int lp);                         // FxBackdropC: the page opened with Preview Off (logged once an opening)
+static int PvIsStockPath(const char *path);            // FxPrevWrite: F7 / the auto-capture never write the stock picture
+static void PvFsGrab(void *dev, int f);                // FxPass: Filter Strength Low / Medium: the plain frame before the filter
+static void PvFsMix(void *dev);                        // FxPass / GvPass: ... laid back over the filter (before the heat / ghosts)
+static int __cdecl PvFsIn(BYTE *cfg, int count);       // Effects > Filter Strength (look.inc: grey with Filter None)
 
 typedef struct {
     BYTE tech, vigTex, specks, pad;
@@ -360,6 +369,9 @@ static const FxLook kFxLook[FX_FILTERS] = {
     { FXT_GVLIFT, FXX_VIG, 0, 0, { 1, 1, 1 }, { 0, 0, 0 }, 1, 1, 0, GV_EDGE_PX, 0, 0, 0, 0, 0, 0 },  // Ghost Vision (GvPass)
     { FXT_NONE, FXX_VIG, 0, 0, { 1, 1, 1 }, { 0, 0, 0 }, 0, 1, 0, 0, VIG_ONLY, 0, 0, 0, 0, 0 },
 };
+// v3.58 PV358 (preview.inc): Filter Strength Ultra scales a copy of the look and two macro constants; 0 = untouched (High)
+static int PvFsLookApply(FxLook *L, int f);
+static void PvFsConstsApply(int f, float c[][4]);
 
 // ================================================================ ps.1.1 shaders (hand-assembled D3D8 tokens)
 // Encoding as the game's own ps0 at 0x5D52A0 and v3.15.0's live-tested shader: opcode token, then destination
@@ -633,6 +645,11 @@ static int g_thN, g_thFaults, g_thVpOk;
 static LONG g_thStamp = -1;
 static Viewport8 g_thVp;
 static volatile LONG g_thMode;                 // set only while the heat redraw runs: the override acts in heat mode
+static volatile LONG g_thGtPass;               // v3.58 GT358: 1 = Ghost Teleport's faded heat body's depth pre-pass (teleport.inc)
+static float GtHeatOp(const BYTE *model);      // v3.58 GT358: teleport.inc: her opacity in the fade (1 = not fading)
+static void GtHeatFade(BYTE *m, float op);     // v3.58 GT358: teleport.inc: her faded heat body (pre-pass + blend)
+static float GtSoulOp(void);                   // v3.58 GT358: teleport.inc: her soul fire's alpha factor (spiritfire.inc)
+static int GtShadowC(const BYTE *task);        // v3.58 GT358: teleport.inc: 0 = her shadow not drawn (below half opacity)
 static DWORD g_thPs;                           // the heat shader handle for the override
 static float g_thC[6][4];                      // its constants c0..c5 (c1 / c5 per body)
 static int g_thermHeatOn = 1;                  // [ScreenEffects] ThermalHeat (0 = the v3.21 look)
@@ -1480,6 +1497,7 @@ static int FxPass(int where)  // v3.22.0 (review V322-007): 1 = the filter was d
 {
     const int f = (int)g_fx[FX_FILTER];
     const FxLook *L;
+    FxLook Lu;  // v3.58 PV358: Filter Strength Ultra's copy of the look
     void *dev = DEV, *frame = NULL, *vig = NULL, *scan = NULL, *mask = NULL, *grain = NULL, *atlas = NULL;
     FxSaved sv;
     float c[FX_NPSC][4], off[4][2], fw = 0, fh = 0;
@@ -1488,9 +1506,11 @@ static int FxPass(int where)  // v3.22.0 (review V322-007): 1 = the filter was d
     if (f <= 0 || f >= FX_FILTERS) return 0;
     if (!dev || !*(void *volatile *)0x13DC3A0) return 0;
     if (!FxOnBackBuffer(dev)) return 0;
-    L = &kFxLook[f];
+    Lu = kFxLook[f];
+    L = PvFsLookApply(&Lu, f) ? &Lu : &kFxLook[f];  // v3.58 PV358: Ultra scales a copy; High / Low / Medium: the table's own
     tech = L->tech;
     FxDeviceCheck(dev);
+    PvFsGrab(dev, f);  // v3.58 PV358: Low / Medium: the plain frame, before any filter pass (PvFsMix lays it back)
     if (f == FXF_GHOST) {  // three edge passes, then (gameplay phase 0) the ghosts and their damage areas
         const int ok = GvPass(dev, where);  // v3.29 AFTERIMAGE
         if (ok && where == 1) AiPostDraw(dev, 3);  // v3.29 AFTERIMAGE: the trail as spirit light, after Spirit Vision's own pass
@@ -1519,6 +1539,7 @@ static int FxPass(int where)  // v3.22.0 (review V322-007): 1 = the filter was d
         frame = ((void *(__cdecl *)(float *, float *))0x4036E0)(&fw, &fh);  // the frame so far
         if (frame) {
             FxConsts(L, tick, c);
+            PvFsConstsApply(f, c);  // v3.58 PV358: Ultra: Vivid's sharpening, Night Vision's bloom (High: nothing)
             FxOffsets(L, tick, off);
             ((SpSetDW_t)VT(dev, SPV_SETVS))(dev, 0x444);  // FVF XYZRHW | DIFFUSE | TEX4
             ((FxPsc_t)VT(dev, FXV_SETPSC))(dev, 0, c, FX_NPSC);
@@ -1579,6 +1600,7 @@ static int FxPass(int where)  // v3.22.0 (review V322-007): 1 = the filter was d
         }
     }
     FxRestore(dev, &sv);
+    if (tech == FXT_NONE || frame) PvFsMix(dev);  // v3.58 PV358: Low / Medium: the plain picture back over the filter (before the hot bodies)
     if (f == FXF_THERMAL && where == 1 && frame) {
         ThHeatPass(dev);  // v3.22.0: footprints and hot bodies over the cold world
         BG_RUN(BGC_DP, DpPostDraw(dev, NULL));  // v3.27.2 (user item 6): Death Presence black over the heat palette (v3.35 FX335: BG_RUN)
@@ -1773,7 +1795,10 @@ static UINT g_fxPausePicW, g_fxPausePicH;
 static LONG g_fxPausePicSeq;          // bumped at every new pause picture (the page re-uploads its texture)
 static int g_fxKeyVk, g_fxKeyDown, g_fxKeyArmed;  // [ScreenEffects] PreviewKey (0 = none)
 static int FxPrevExists(void) { return g_fxPrevPath[0] && GetFileAttributesA(g_fxPrevPath) != INVALID_FILE_ATTRIBUTES; }
-static void *FxPrevLoad(void *dev)
+// v3.58 PV358: the file part of FxPrevLoad, by path (PreviewImage and the stock picture SH4Refined_preview_stock.dds): a
+// DDS (DXT1/3/5 or 32-bit, any size TpDdsParse reads; F7 writes 32-bit BGRX up to 1280 x 720) into a MANAGED texture.
+// *missing 1: no such file (nothing logged: the callers say what they show instead). The lines as v3.18 - v3.57's.
+static void *FxDdsLoad(void *dev, const char *path, UINT *pw, UINT *ph, int *missing)
 {
     HANDLE f;
     DWORD sz = 0, got = 0;
@@ -1783,31 +1808,28 @@ static void *FxPrevLoad(void *dev)
     void *tex = NULL;
     struct { int pitch; BYTE *bits; } lr;
     UINT r;
-    if (g_fxPrevDev != dev) {  // a new device: the old texture went with the old one
-        g_fxPrevDev = dev;
-        g_fxPrevTex = NULL;
-        g_fxPrevFailed = 0;
+    *missing = 0;
+    f = CreateFileA(path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+    if (f == INVALID_HANDLE_VALUE) {
+        *missing = 1;
+        return NULL;
     }
-    if (g_fxPrevTex || g_fxPrevFailed || !g_fxPrevPath[0]) return g_fxPrevTex;
-    g_fxPrevFailed = 1;  // until it is made (a missing file is checked again after a capture)
-    f = CreateFileA(g_fxPrevPath, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
-    if (f == INVALID_HANDLE_VALUE) return NULL;
     sz = GetFileSize(f, NULL);
     if (sz < 128 || sz > 96u * 1024 * 1024 || (buf = (BYTE *)malloc(sz)) == NULL) {
         CloseHandle(f);
-        Log("screen effects: preview picture %s: unusable size (%lu bytes)", g_fxPrevPath, sz);
+        Log("screen effects: preview picture %s: unusable size (%lu bytes)", path, sz);
         return NULL;
     }
     if (!ReadFile(f, buf, sz, &got, NULL) || got != sz) got = 0;
     CloseHandle(f);
     why = got ? TpDdsParse(buf, sz, &dds) : "read failed";
     if (why) {
-        Log("screen effects: preview picture %s not used: %s", g_fxPrevPath, why);
+        Log("screen effects: preview picture %s not used: %s", path, why);
         free(buf);
         return NULL;
     }
     if (FAILED(((SpCreateTex_t)VT(dev, SPV_CREATETEX))(dev, dds.w, dds.h, 1, 0, dds.fmt, 1 /*MANAGED*/, &tex)) || !tex) {
-        Log("screen effects: preview picture %s (%ux%u %s): the texture could not be made", g_fxPrevPath, dds.w, dds.h, TpFmtName(dds.fmt));
+        Log("screen effects: preview picture %s (%ux%u %s): the texture could not be made", path, dds.w, dds.h, TpFmtName(dds.fmt));
         free(buf);
         return NULL;
     }
@@ -1819,11 +1841,28 @@ static void *FxPrevLoad(void *dev)
     for (r = 0; r < dds.rows[0]; ++r) memcpy(lr.bits + r * lr.pitch, buf + dds.off[0] + r * dds.rowBytes[0], dds.rowBytes[0]);
     ((SpUnlock_t)VT(tex, 17))(tex, 0);
     free(buf);
+    *pw = dds.w;
+    *ph = dds.h;
+    Log("screen effects: preview picture %s: %ux%u %s", path, dds.w, dds.h, TpFmtName(dds.fmt));
+    return tex;
+}
+static void *FxPrevLoad(void *dev)
+{
+    int missing;
+    void *tex;
+    UINT w = 0, h = 0;
+    if (g_fxPrevDev != dev) {  // a new device: the old texture went with the old one
+        g_fxPrevDev = dev;
+        g_fxPrevTex = NULL;
+        g_fxPrevFailed = 0;
+    }
+    if (g_fxPrevTex || g_fxPrevFailed || !g_fxPrevPath[0]) return g_fxPrevTex;
+    g_fxPrevFailed = 1;  // until it is made (a missing file is checked again after a capture)
+    if ((tex = FxDdsLoad(dev, g_fxPrevPath, &w, &h, &missing)) == NULL) return NULL;  // v3.58 PV358: FxDdsLoad (the same lines)
     g_fxPrevTex = tex;
-    g_fxPrevW = dds.w;
-    g_fxPrevH = dds.h;
+    g_fxPrevW = w;
+    g_fxPrevH = h;
     g_fxPrevFailed = 0;
-    Log("screen effects: preview picture %s: %ux%u %s", g_fxPrevPath, dds.w, dds.h, TpFmtName(dds.fmt));
     return tex;
 }
 // v3.21.0 (review V321-004): the Screen Effects page is on screen when it is the committed page or the target of the
@@ -1921,6 +1960,7 @@ static void __cdecl FxBackdropC(void)
     g_fxPrevDrew = 0;
     g_fxPrevPause = 0;
     if (ShPageShown()) {  // v3.40 SH340: the Shadows page's backdrop (the paused scene without its shadow, or preview.dds)
+        if (PvPreviewOff()) PvOffNote(LP_SHADOWS);  // v3.58 PV358: Preview Off (ShMode answers none: the game's background)
         __try {
             g_fxPrevDrew = dev ? ShBackdrop(dev) : 0;
         } __except (EXCEPTION_EXECUTE_HANDLER) {
@@ -1934,18 +1974,24 @@ static void __cdecl FxBackdropC(void)
         FxDeviceCheck(dev);
         {
             UINT pw = 0, ph = 0;
-            PvBackNote(PVB_STOCK);  // v3.56 PV356: what this frame's backdrop is (the layer over it follows it)
-            if ((tex = FxPauseTex(dev)) != NULL) pw = g_fxPauseTexW, ph = g_fxPauseTexH, pause = 1, PvBackNote(PVB_PAUSE);  // v3.22.0: the paused scene
-            else {  // v3.56 PV356 (improvement 19): no paused game: SH4 Refined's own scene (PreviewScene=Scene), else / then PreviewImage
-                const int back = PvBackPick(dev);
-                if (back == PVB_SCENE && PvSceneDraw(dev)) {
-                    g_fxPrevDrew = 1;
-                    PvBackNote(PVB_SCENE);
-                    return;
-                }
-                if (back != PVB_STOCK && (tex = FxPrevLoad(dev)) != NULL) pw = g_fxPrevW, ph = g_fxPrevH, PvBackNote(PVB_PICTURE);
+            // v3.58 PV358 (USER_FEEDBACK_v357, Effects Preview): by [ScreenEffects] Preview (preview.inc PvBackPick): Off no
+            // backdrop (the game's own background), Stock the stock picture (the title menu and a pause), Live a pause's own
+            // picture (v3.22.0), else the stock picture, else PreviewImage; the scene without a picture (v3.56 PV356)
+            const int back = PvBackPick(dev, &tex, &pw, &ph, &pause);
+            PvBackNote(back);  // v3.56 PV356: what this frame's backdrop is (the layer over it follows it)
+            if (back == PVB_OFF) {
+                PvOffNote(g_lpage);
+                return;  // (g_fxPrevDrew 0: 0x524010 draws the game's own background; FxBackdropFilter adds nothing)
             }
-            if (!tex || !pw || !ph) return;
+            if (back == PVB_SCENE) {
+                if (PvSceneDraw(dev)) g_fxPrevDrew = 1;
+                else PvBackNote(PVB_STOCK);
+                return;
+            }
+            if (!tex || !pw || !ph) {
+                PvBackNote(PVB_STOCK);
+                return;
+            }
             if (!FxSave(dev, &sv, 0)) return;
             FxBase(dev);
             w = FxW();
@@ -2067,7 +2113,11 @@ static void FxTextPanels(void *dev, float rowsBottom)
 {
     FxPanel(dev, 112.0f, 44.0f, 400.0f, 68.0f);                           // the page title
     FxPanel(dev, 34.0f, 94.0f, FX_PANEL_LABEL_X1, rowsBottom);            // the labels
-    FxPanel(dev, FX_PANEL_VALUE_X0, 94.0f, 478.0f, rowsBottom);           // the values (and their arrows)
+    {   // the values (and their arrows)
+        float x0 = FX_PANEL_VALUE_X0, x1 = 478.0f;
+        VbxPanelX(g_lpage, &x0, &x1);  // v3.58 MN358: round the page's value box
+        FxPanel(dev, x0, 94.0f, x1, rowsBottom);
+    }
 }
 static void FxPanels(void)
 {
@@ -2092,6 +2142,7 @@ static void __cdecl FxBackdropFilter(void)
         return;
     }
     if (!g_fxOn || !FxPageShown() || !DEV) return;
+    if (PvPreviewOff()) return;  // v3.58 PV358: Preview Off: the game's own background, nothing of ours over it (no filter, no panels)
     DofFxPreview();  // v3.44 DF344: the depth of field first (in play it runs before every other effect too)
     PpPreview();  // v3.43 PP343: bloom / grading / lens (the lens at full strength) before the noise and the filter
     FxPreviewNoise();
@@ -2165,6 +2216,12 @@ static int FxPrevWrite(const DWORD *out, UINT ow, UINT oh, UINT w, UINT h)
     hdr[24] = 0x0000FF00u;
     hdr[25] = 0x000000FFu;
     hdr[27] = 0x1000;                // TEXTURE
+    if (PvIsStockPath(g_fxPrevPath)) {  // v3.58 PV358: PreviewImage names the stock picture: F7 / the auto-capture never replace it
+        static int s_logged;
+        if (!s_logged++) Log("screen effects: preview picture %s is the stock picture: F7 and the first-pause capture do not overwrite it "
+                             "(set [ScreenEffects] PreviewImage to another file for your own)", g_fxPrevPath);
+        return 0;
+    }
     sprintf_s(tmp, sizeof tmp, "%s.tmp", g_fxPrevPath);
     fh = CreateFileA(tmp, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, 0, NULL);
     ok = fh != INVALID_HANDLE_VALUE;
@@ -2304,7 +2361,8 @@ static void FxCaptureClean(void)
 static const char *FxFilterDesc(void)
 {
     static char s[64];
-    if (PvF7Hidden()) return "";  // v3.56 PV356: the page shows SH4 Refined's scene, not the F7 picture (PreviewScene=Scene)
+    if (PvF7Hidden()) return "";  // v3.56 PV356: the page shows SH4 Refined's scene, not the F7 picture (PreviewScene=Scene)  // v3.58 PV358: always
+                                  // (the sentence is added where F7 changes the page: preview.inc PvFilterDesc, FxDesc3)
     if (g_fxKeyVk >= VK_F1 && g_fxKeyVk <= VK_F12) {
         sprintf_s(s, sizeof s, OLW_FILTER_F7, g_fxKeyVk - VK_F1 + 1);  // v3.53 OL1: " F%d in play: new preview."  // v3.57 OLP1: " Press F%d in play for a new preview." (39 at most)
         return s;
@@ -2661,7 +2719,7 @@ static int __cdecl ThermDrawFi(const BYTE *task, BYTE *model)
     }
     return r;
 }
-static int __cdecl ThermShadowC(const BYTE *task) { return (!ThermalLive() || ThermClass(task) != 2) && FiShadowC(task); }  // v3.50 FI350: + FiShadowC
+static int __cdecl ThermShadowC(const BYTE *task) { return (!ThermalLive() || ThermClass(task) != 2) && FiShadowC(task) && GtShadowC(task); }  // v3.50 FI350: + FiShadowC  // v3.58 GT358: + GtShadowC
 // v3.21.0 (user item 6): the trapped Cynthia behind the Subway train door is an event actor (record 0x62A6FC, model
 // cynl.bin 29 bones / cybl.bin 30): its late handler 0x4EE360 draws her with its own `call 55C650` at 0x4EE376, in
 // 0x52B380 before the registry model loop, so 0x52AEB5 never saw her (staging/feedback_v321/cynthia_re.md). Only that
@@ -3044,8 +3102,16 @@ static void __cdecl GvOverride(void)
         if (!g_thRedrawZ) ((SpSetRS_t)VT(dev, SPV_SETRS))(dev, 23 /*ZFUNC*/, 8 /*ALWAYS*/);  // v3.29.1: test only
         if (g_thOpaque) {  // a living body: solid; v3.24.0 (user item 1): and it writes its depth, so its near faces win
             ((SpSetRS_t)VT(dev, SPV_SETRS))(dev, 27 /*ALPHABLENDENABLE*/, 0);  // over its far ones even where the stock
-            if (!g_pvNoZw) ((SpSetRS_t)VT(dev, SPV_SETRS))(dev, 14 /*ZWRITEENABLE*/, 1);  // draw left no depth (the close-camera fade)
-        }   // v3.56 PV356: not the preview's heat layer (g_pvNoZw: the capture frame's depth stays the game's for the live passes)
+            ((SpSetRS_t)VT(dev, SPV_SETRS))(dev, 14 /*ZWRITEENABLE*/, 1);  // draw left no depth (the close-camera fade)
+        }   // v3.58 PV358: also the preview's heat layer again (v3.56's g_pvNoZw showed the faded body's inside faces)
+        if (g_thGtPass == 1) {  // v3.58 GT358: Ghost Teleport's faded heat body: its nearest surface's depth first (no colour)
+            ((SpSetRS_t)VT(dev, SPV_SETRS))(dev, 168 /*COLORWRITEENABLE*/, 0);
+            ((SpSetRS_t)VT(dev, SPV_SETRS))(dev, 27 /*ALPHABLENDENABLE*/, 0);
+            ((SpSetRS_t)VT(dev, SPV_SETRS))(dev, 14 /*ZWRITEENABLE*/, 1);
+            ((SpSetRS_t)VT(dev, SPV_SETRS))(dev, 15 /*ALPHATESTENABLE*/, 1);
+            ((SpSetRS_t)VT(dev, SPV_SETRS))(dev, 25 /*ALPHAFUNC*/, 5 /*GREATER*/);
+            ((SpSetRS_t)VT(dev, SPV_SETRS))(dev, 24 /*ALPHAREF*/, 127 /*teleport_sim.h GT_PRE_REF*/);
+        }
         ((SpSetDW_t)VT(dev, SPV_SETPS))(dev, g_thPs);
         ((FxPsc_t)VT(dev, FXV_SETPSC))(dev, 0, g_thC, 6);
         return;
@@ -4739,16 +4805,21 @@ static int ThRedraw(void *dev, FxSaved *sv, int *drawn)
         memset(g_thBiasOut12, 0xFF, sizeof g_thBiasOut12);
     }
     for (k = 0; k < 2 * g_thN; ++k) {  // v3.24.0: every living (solid) body first, then the cooling (blended) ones
+        float gtOp;
         i = k % g_thN;
-        if ((g_th[i].heat * TH_ALPHA_K >= 1.0f) != (k < g_thN)) continue;
+        gtOp = GtHeatOp(g_th[i].model);  // v3.58 GT358: Ghost Teleport's fade: her heat body blended at her opacity (1 = not fading)
+        if ((g_th[i].heat * TH_ALPHA_K >= 1.0f && gtOp >= 1.0f) != (k < g_thN)) continue;
         if (!ThValid(&g_th[i])) continue;
+        if (!(gtOp > 0.0f)) continue;  // v3.58 GT358: the warp's middle: she is gone, so is her heat
         ThConsts(g_th[i].heat);
-        g_thOpaque = g_th[i].heat * TH_ALPHA_K >= 1.0f;  // v3.23.0: alive (or early in the cool-down): solid
+        g_thOpaque = g_th[i].heat * TH_ALPHA_K >= 1.0f && gtOp >= 1.0f;  // v3.23.0: alive (or early in the cool-down): solid
         InterlockedExchange(&g_thMode, 1);
         __try {
-            ((void(__cdecl *)(void *))(ULONG_PTR)g_fnModel)(g_th[i].model);
+            if (gtOp < 1.0f) GtHeatFade(g_th[i].model, gtOp);  // v3.58 GT358: a depth pre-pass, then the heat x her opacity
+            else ((void(__cdecl *)(void *))(ULONG_PTR)g_fnModel)(g_th[i].model);
             ++*drawn;
         } __except (GvFaultNote(GetExceptionInformation()), EXCEPTION_EXECUTE_HANDLER) {
+            InterlockedExchange(&g_thGtPass, 0);  // v3.58 GT358
             InterlockedExchange(&g_thMode, 0);
             ++g_thFaults;
             Log("screen effects: Thermal: a heat redraw faulted (code %08lX at %p)%s", g_gvFaultCode, g_gvFaultAt,
@@ -4890,6 +4961,7 @@ static int GvPass(void *dev, int where)  // v3.22.0: 1 = the edge world was draw
         FxQuad4(dev, off);
     }
     for (i = 0; i < 4; ++i) ((SpSetTex_t)VT(dev, SPV_SETTEX))(dev, (DWORD)i, NULL);
+    if (frame) PvFsMix(dev);  // v3.58 PV358: Low / Medium: the plain picture back over the edge world (the ghosts, auras and fires after it stay full)
     if (frame && where == 1 && !GvPhase0() && GvPeep() && g_gvStamp == g_fxFrame && g_svSoulN) {  // v3.24.0: the peephole:
         int k, flames = 0;                                                                           // soul fires only
         static int s_peepLogged;
@@ -5127,6 +5199,11 @@ static void ScreenFxInstall(void)
         if (v < 0 && k == FX_NTYPE && !_stricmp(buf, "Colour")) {  // v3.18.0: Colour is a Noise Colour now
             v = 1;  // Fine
             legacyColour = 1;
+        }
+        if (v < 0 && k == FX_NOISE && buf[0]) {  // v3.58 MN358: the screen word Ultra (typed by hand) reads as the ini's Very High
+            const char *iw = OlIni(OLM_GRAIN_STRENGTH, buf);
+            for (v = kFxCount[k] - 1; v >= 0 && _stricmp(iw, kFxName[k][v]); --v) {}
+            if (v >= 0) Log("screen effects: [ScreenEffects] NoiseStrength=%s (the Options word) reads as %s", buf, kFxName[k][v]);
         }
         if (v < 0 && k == FX_FILTER && !_stricmp(buf, "Ghost Vision")) {  // v3.17.0: renamed Spirit Vision
             v = FXF_GHOST;

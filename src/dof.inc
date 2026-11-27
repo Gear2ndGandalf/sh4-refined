@@ -119,11 +119,11 @@ static const BYTE *DofText(int id)
 static void DofTexts(void)
 {
     int v;
-    Encode(g_txtDof[DFM_MODE_L], 72, OLW_EFFECTS_DEPTH_OF_FIELD_L);  // v3.53 OL1: the plan's words (DoF Strength -> Blur Strength)
-    Encode(g_txtDof[DFM_STR_L], 72, OLW_EFFECTS_BLUR_STRENGTH_L);
-    Encode(g_txtDof[DFM_MODE_D], 72, OLW_EFFECTS_DEPTH_OF_FIELD_D);
+    Encode(g_txtDof[DFM_MODE_L], 72, OLW_DOF_DEPTH_OF_FIELD_L);  // v3.53 OL1: the plan's words (DoF Strength -> Blur Strength)  // v3.58 PV358: Effects > Depth of Field's words
+    Encode(g_txtDof[DFM_STR_L], 72, OLW_L_BLUR_STRENGTH);  // v3.58 PV358: the record keeps Blur Strength (its folder row says Strength)
+    Encode(g_txtDof[DFM_MODE_D], 72, OLW_DOF_DEPTH_OF_FIELD_D);  // v3.58 PV358
     Encode(g_txtDof[DFM_NA], 72, OLW_OFF_SESSION);
-    Encode(g_txtDof[DFM_STR_D], 72, OLW_EFFECTS_BLUR_STRENGTH_D);  // v3.45 QS345
+    Encode(g_txtDof[DFM_STR_D], 72, OLW_DOF_STRENGTH_D);  // v3.45 QS345  // v3.58 PV358
     for (v = 0; v < DOF_MODE_N; ++v) {
         Encode(g_txtDof[DFM_V0 + v], 72, kDofModeName[v]);
         g_dofModeIds[v] = MSG_DOF0 + DFM_V0 + v;

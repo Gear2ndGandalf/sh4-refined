@@ -12,6 +12,7 @@
 #include <string.h>
 #include <math.h>
 #include "../src/preview_sim.h"
+#include "../src/texpack_core.h"  // v3.58 PV358: TpDdsParse (the stock picture as FxDdsLoad reads it)
 
 static int g_fail, g_n;
 #define CHECK(c, ...) do { ++g_n; if (!(c)) { ++g_fail; printf("FAIL %s:%d: ", __FILE__, __LINE__); printf(__VA_ARGS__); printf("\n"); } } while (0)
@@ -66,22 +67,45 @@ static void TestPage(void)
 {
     PvBackIn b;
     PvPageIn p;
+    int m;
+    // v3.58 PV358: by Preview Off / Stock / Live
     memset(&b, 0, sizeof b);
-    b.sceneOn = b.sceneOk = 1;
-    CHECK(PvBackdrop(&b) == PVB_SCENE, "the title menu: Refined's scene");
-    CHECK(!PvBackNeedsPicture(0, 1, 1), "the scene decides: the picture file is not even loaded");
+    b.mode = PVM_LIVE, b.sceneOk = 1;
+    CHECK(PvBackdrop(&b) == PVB_SCENE, "Live, the title menu, no files: Refined's scene");
+    CHECK(PvBackNeedsStock(PVM_LIVE, 0) && PvBackNeedsPicture(PVM_LIVE, 0, 0), "Live without a pause asks the stock picture, then PreviewImage");
     b.picture = 1;
-    CHECK(PvBackdrop(&b) == PVB_SCENE, "Scene wins over an old F7 picture");
-    b.sceneOn = 0;
-    CHECK(PvBackdrop(&b) == PVB_PICTURE && PvBackNeedsPicture(0, 0, 1), "PreviewScene=Picture: the picture (as v3.55)");
-    b.picture = 0;
-    CHECK(PvBackdrop(&b) == PVB_SCENE, "Picture without a file: the scene (not the hallway)");
-    b.sceneOk = 0;
-    CHECK(PvBackdrop(&b) == PVB_STOCK, "the scene off after a fault, no file: the stock hallway");
-    b.sceneOn = 1;
-    CHECK(PvBackdrop(&b) == PVB_STOCK && PvBackNeedsPicture(0, 1, 0), "Scene but off after a fault: the picture is asked");
+    CHECK(PvBackdrop(&b) == PVB_PICTURE, "Live, no stock file: PreviewImage (F7's preview.dds)");
+    b.stockOk = 1;
+    CHECK(PvBackdrop(&b) == PVB_STOCKPIC && !PvBackNeedsPicture(PVM_LIVE, 0, 1), "Live, the title menu: the stock picture first; PreviewImage not loaded");
     b.pausePic = 1;
-    CHECK(PvBackdrop(&b) == PVB_PAUSE && !PvBackNeedsPicture(1, 0, 0), "a paused game: its own picture, always");
+    CHECK(PvBackdrop(&b) == PVB_PAUSE && !PvBackNeedsStock(PVM_LIVE, 1) && !PvBackNeedsPicture(PVM_LIVE, 1, 0),
+          "Live in a pause: the paused scene; no file is loaded");
+    b.mode = PVM_STOCK;
+    CHECK(PvBackdrop(&b) == PVB_STOCKPIC && !PvBackNeedsPause(PVM_STOCK) && PvBackNeedsStock(PVM_STOCK, 1),
+          "Stock in a pause: the stock picture, not the paused scene (the pause picture is not even asked)");
+    b.stockOk = 0;
+    CHECK(PvBackdrop(&b) == PVB_SCENE && !PvBackNeedsPicture(PVM_STOCK, 0, 0), "Stock without the file: Refined's scene (never PreviewImage)");
+    b.pausePic = 0;
+    CHECK(PvBackdrop(&b) == PVB_SCENE, "Stock, the title menu, no file: Refined's scene");
+    b.sceneOk = 0;
+    CHECK(PvBackdrop(&b) == PVB_STOCK, "Stock, no file, the scene off after a fault: the hallway");
+    for (m = 0; m < 16; ++m) {
+        b.mode = PVM_OFF, b.pausePic = m & 1, b.stockOk = m >> 1 & 1, b.picture = m >> 2 & 1, b.sceneOk = m >> 3 & 1;
+        CHECK(PvBackdrop(&b) == PVB_OFF, "Off: no backdrop whatever there is (%d)", m);
+    }
+    CHECK(!PvBackNeedsPause(PVM_OFF) && !PvBackNeedsStock(PVM_OFF, 0) && !PvBackNeedsPicture(PVM_OFF, 0, 0), "Off loads nothing");
+    for (m = 0; m < PVB_N; ++m) CHECK(kPvBack[m] && kPvBack[m][0], "a backdrop name %d", m);
+    // the F7 sentence only where F7 changes what the page shows
+    CHECK(PvF7Shows(PVM_LIVE, PVB_PICTURE) && PvF7Shows(PVM_LIVE, PVB_SCENE) && PvF7Shows(PVM_LIVE, PVB_STOCK),
+          "Live outside a pause without the stock picture: F7's picture is (or becomes) the backdrop");
+    CHECK(!PvF7Shows(PVM_LIVE, PVB_STOCKPIC) && !PvF7Shows(PVM_LIVE, PVB_PAUSE) && !PvF7Shows(PVM_LIVE, -1),
+          "Live over the stock picture / a pause / no page: no sentence");
+    CHECK(!PvF7Shows(PVM_STOCK, PVB_SCENE) && !PvF7Shows(PVM_STOCK, PVB_STOCKPIC) && !PvF7Shows(PVM_OFF, PVB_OFF),
+          "Stock and Off never show F7's picture: no sentence");
+    // the stock file is never F7's
+    CHECK(PvSamePath("G:\\Games\\SH4\\SH4Refined_preview_stock.dds", "g:/games/sh4/sh4refined_PREVIEW_stock.DDS"), "the same path, case / slash blind");
+    CHECK(!PvSamePath("G:\\Games\\SH4\\preview.dds", "G:\\Games\\SH4\\SH4Refined_preview_stock.dds") && !PvSamePath("", "") &&
+          !PvSamePath(NULL, "x") && !PvSamePath("G:\\a.dds", "G:\\a.dds.tmp"), "other paths differ (also a prefix, empty, NULL)");
     memset(&p, 0, sizeof p);
     p.thermal = 1, p.back = PVB_PAUSE, p.layersSeq = p.picSeq = 7, p.haveHeat = p.haveSpirit = 1;
     CHECK(PvPageLayer(&p) == PVP_PAUSE_HEAT, "Thermal over this pause: the heat layer");
@@ -103,6 +127,10 @@ static void TestPage(void)
     CHECK(PvPageLayer(&p) == PVP_NONE, "the F7 picture: no layer (it has no bodies of its own)");
     p.back = PVB_STOCK;
     CHECK(PvPageLayer(&p) == PVP_NONE, "the hallway: no layer");
+    p.back = PVB_STOCKPIC, p.thermal = 1, p.spirit = 0;
+    CHECK(PvPageLayer(&p) == PVP_NONE, "v3.58: the stock picture under Thermal: its palette only (a picture has no bodies)");
+    p.back = PVB_OFF;
+    CHECK(PvPageLayer(&p) == PVP_NONE, "v3.58: Preview Off: no layer");
 }
 static void TestParse(void)
 {
@@ -278,6 +306,107 @@ static void Dump(const char *dir)
         printf("wrote %s\n", p);
     }
 }
+
+// v3.58 PV358: Preview's and Filter Strength's ini words, the migration, v3.15's leftover
+static void TestIni358(void)
+{
+    int v, k, i;
+    for (i = 0; i < PVM_N; ++i) CHECK(PvParseMode(kPvModeName[i], &k) == i && k, "Preview %s reads", kPvModeName[i]);
+    CHECK(PvParseMode("live", &k) == PVM_LIVE && k && PvParseMode("OFF", &k) == PVM_OFF && k && PvParseMode("1", &k) == PVM_STOCK && k,
+          "case-blind, digits");
+    CHECK(PvParseMode("Scene", &k) == PVM_LIVE && !k && PvParseMode("", &k) == PVM_LIVE && !k && PvParseMode(NULL, &k) == PVM_LIVE && !k &&
+          PvParseMode("3", &k) == PVM_LIVE && !k, "not a value: Live, flagged");
+    CHECK(PvModeIni(NULL, NULL, &v) == PVI_MISSING && v == PVM_LIVE, "both missing: Live, added");
+    CHECK(PvModeIni(NULL, "Scene", &v) == PVI_MIGRATE && v == PVM_LIVE, "v3.56's PreviewScene=Scene alone: migrated to Live");
+    CHECK(PvModeIni(NULL, "Picture", &v) == PVI_MIGRATE && v == PVM_LIVE, "PreviewScene=Picture alone: Live too");
+    CHECK(PvModeIni(NULL, "", &v) == PVI_MIGRATE && v == PVM_LIVE, "PreviewScene= (empty) alone: Live");
+    CHECK(PvModeIni("Stock", "Scene", &v) == PVI_STALE && v == PVM_STOCK, "both: Preview decides, the old key goes");
+    CHECK(PvModeIni("Off", NULL, &v) == PVI_OK && v == PVM_OFF, "Preview alone: read");
+    CHECK(PvModeIni("Sometimes", NULL, &v) == PVI_BAD && v == PVM_LIVE, "Preview not a value: Live, rewritten");
+    CHECK(PVM_DEFAULT == PVM_LIVE && !strcmp(kPvModeName[PVM_DEFAULT], "Live"), "the default is Live");
+    for (i = 0; i < PVS_N; ++i) CHECK(PvParseFs(kPvFsName[i], &k) == i && k, "FilterStrength %s reads", kPvFsName[i]);
+    CHECK(PVS_DEFAULT == PVS_HIGH && !strcmp(kPvFsName[PVS_DEFAULT], "High"), "the default is High (v3.16 - v3.57's strength)");
+    CHECK(PvFsIni("Medium", NULL, &v) == PVF_LEGACY && v == PVS_HIGH, "v3.15's FilterStrength=Medium without the marker: High (the user's ini)");
+    CHECK(PvFsIni("Low", "345", &v) == PVF_LEGACY && v == PVS_HIGH, "another marker: not ours, High");
+    CHECK(PvFsIni("Low", PV_FS_MARK, &v) == PVF_OK && v == PVS_LOW, "with the marker: the value");
+    CHECK(PvFsIni("Ultra", PV_FS_MARK, &v) == PVF_OK && v == PVS_ULTRA, "Ultra with the marker");
+    CHECK(PvFsIni("Very High", PV_FS_MARK, &v) == PVF_BAD && v == PVS_HIGH, "not a value with the marker: High, rewritten");
+    CHECK(PvFsIni(NULL, NULL, &v) == PVF_MISSING && v == PVS_HIGH && PvFsIni("", PV_FS_MARK, &v) == PVF_MISSING, "missing: High, added");
+}
+// v3.58 PV358: Filter Strength: High is the identity (byte for byte), Low / Medium mix, Ultra scales; Thermal / Spirit
+static void TestStrength358(void)
+{
+    // the looks of screenfx.inc's kFxLook (mix, con, bri, px, vig, scan, mask, grain, flicker), by family
+    static const PvFsLookV kL[] = {
+        { PVT_CRT, -0.12f, 1.06f, 0.03f, 1.0f, 0.30f, 0.30f, 0.18f, 0, 0 }, { PVT_VIVID, -0.85f, 1.15f, 0, 1.0f, 0, 0, 0, 0, 0 },
+        { PVT_TONE, 0.88f, 1.04f, 0.01f, 0, 0.30f, 0, 0, 0, 0 }, { PVT_TONE, 0.92f, 1.12f, 0.02f, 0, 0.62f, 0, 0, 0.12f, 0.035f },
+        { PVT_NV, 1, 1, 0, 2.5f, 0.40f, 0, 0, 0.22f, 0 }, { PVT_TONE, 1, 1.06f, 0.02f, 0, 0.30f, 0, 0, 0.12f, 0 },
+        { PVT_THERMAL, 1, 1, 0, 0, 0, 0, 0, 0, 0 }, { PVT_GHOST, 1, 1, 0, 1.5f, 0, 0, 0, 0, 0 }, { PVT_OTHER, 0, 1, 0, 0, 0.45f, 0, 0, 0, 0 } };
+    int i, v, r;
+    for (i = 0; i < (int)(sizeof kL / sizeof kL[0]); ++i) {
+        for (v = 0; v < PVS_N; ++v) {
+            PvFsLookV L = kL[i];
+            const int ch = PvFsLook(&L, v);
+            if (v != PVS_ULTRA) CHECK(!ch && !memcmp(&L, &kL[i], sizeof L), "look %d at %s: untouched, byte for byte", i, kPvFsName[v]);
+        }
+        {
+            PvFsLookV L = kL[i];
+            const int ch = PvFsLook(&L, PVS_ULTRA);
+            if (kL[i].fam == PVT_THERMAL || kL[i].fam == PVT_GHOST)
+                CHECK(!ch && !memcmp(&L, &kL[i], sizeof L), "look %d (Thermal / Spirit Vision) at Ultra: as High", i);
+            else {
+                CHECK(ch && L.vig >= kL[i].vig && L.vig <= 1.0f && L.grain >= kL[i].grain && L.grain <= 1.0f && L.scan <= 1.0f && L.mask <= 1.0f,
+                      "look %d at Ultra: the overlays stronger, at most 1", i);
+                CHECK(fabsf(L.con - 1.0f) >= fabsf(kL[i].con - 1.0f) && fabsf(L.bri) >= fabsf(kL[i].bri) && fabsf(L.mix) >= fabsf(kL[i].mix) - 1e-6f &&
+                      (L.fam != PVT_TONE || L.mix <= 1.0f), "look %d at Ultra: further from neutral (the tone's share at most 1)", i);
+                CHECK(L.con > 0.0f && L.con < 2.0f && L.mix > -2.0f, "look %d at Ultra: in the shaders' range", i);
+            }
+        }
+    }
+    CHECK(PvFsMixAlpha(PVS_HIGH) == 0.0f && PvFsMixAlpha(PVS_ULTRA) == 0.0f && !PvFsNeedsCopy(PVS_HIGH, 1) && !PvFsNeedsCopy(PVS_ULTRA, 1),
+          "High / Ultra: no copy, nothing laid back (High draws exactly v3.57's frame)");
+    CHECK(fabsf(PvFsMixAlpha(PVS_LOW) - 0.65f) < 1e-6f && fabsf(PvFsMixAlpha(PVS_MEDIUM) - 0.35f) < 1e-6f, "Low lays 65 %%, Medium 35 %% of the plain picture back");
+    CHECK(PvFsNeedsCopy(PVS_LOW, 1) && PvFsNeedsCopy(PVS_MEDIUM, 1) && !PvFsNeedsCopy(PVS_LOW, 0), "a copy only with a filter on");
+    CHECK(kPvFsK[PVS_HIGH] == 1.0f && kPvFsK[PVS_LOW] < kPvFsK[PVS_MEDIUM] && kPvFsK[PVS_MEDIUM] < 1.0f && kPvFsK[PVS_ULTRA] > 1.0f, "the strengths rise");
+    for (r = 0; r < 12; ++r)
+        for (v = 0; v < PVS_N; ++v) {
+            const int want = v == PVS_ULTRA && r == 2;
+            CHECK(PvFsConstK(PVT_VIVID, v, r) == want && PvFsConstK(PVT_NV, v, r) == (v == PVS_ULTRA && r == 4) && !PvFsConstK(PVT_THERMAL, v, r) &&
+                  !PvFsConstK(PVT_TONE, v, r), "the constants scaled: Vivid c2 / Night Vision c4 at Ultra only (c%d, %s)", r, kPvFsName[v]);
+        }
+    {   // Low on Thermal: the hot body stays its colour (drawn after the mix), the world is 35 percent palette, 65 percent picture
+        const float world = 0.2f, plain = 0.6f, a = PvFsMixAlpha(PVS_LOW), out = world * (1.0f - a) + plain * a;
+        CHECK(fabsf(out - (0.35f * world + 0.65f * plain)) < 1e-5f, "the mix: SRCALPHA / INVSRCALPHA with the plain picture at 1 - k");
+    }
+}
+// v3.58 PV358: the stock picture the installer places: the user's F7 picture (1280 x 720 32-bit) reads as F7's do
+static void TestStockFile(void)
+{
+    static const char *const kAt[] = { "../../../preview_user_F7_2026-11-26_2338.dds", "../../../../preview_user_F7_2026-11-26_2338.dds",
+                                         "../../preview_user_F7_2026-11-26_2338.dds" };  // v3.58 merge: + merge358/test
+    FILE *f = NULL;
+    unsigned char *buf;
+    long n;
+    int i;
+    for (i = 0; i < 3 && !f; ++i) f = fopen(kAt[i], "rb");  // v3.58 merge: 3 places
+    if (!f) {
+        printf("(the user's F7 picture is not beside this sandbox: its parse is not checked)\n");
+        return;
+    }
+    fseek(f, 0, SEEK_END);
+    n = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    buf = (unsigned char *)malloc((size_t)n);
+    CHECK(buf && fread(buf, 1, (size_t)n, f) == (size_t)n, "the stock picture reads (%ld bytes)", n);
+    fclose(f);
+    if (buf) {
+        TpDds d;
+        const char *why = TpDdsParse(buf, (size_t)n, &d);
+        CHECK(!why && d.w == 1280 && d.h == 720 && d.fmt == TP_FMT_X8R8G8B8 && d.levels == 1 && n == 128 + 1280 * 720 * 4,
+              "the user's F7 picture is a 1280 x 720 X8R8G8B8 DDS as F7 writes (%s; %ux%u, %ld bytes)", why ? why : "ok", d.w, d.h, n);
+        free(buf);
+    }
+}
 int main(int argc, char **argv)
 {
     TestCapture();
@@ -286,6 +415,9 @@ int main(int argc, char **argv)
     TestKey();
     TestScene();
     TestFire();
+    TestIni358();  // v3.58 PV358
+    TestStrength358();
+    TestStockFile();
     if (argc > 2 && !strcmp(argv[1], "--dump")) Dump(argv[2]);
     printf("preview_sim_test: %d checks, %d failed\n", g_n, g_fail);
     return g_fail ? 1 : 0;

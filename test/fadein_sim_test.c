@@ -7,6 +7,9 @@
 // v3.51 PT351: the tar portal and the hold: FadeInPortalDraw, the hold's factor and step, the portal's timeline, the blots /
 // drips layout, the drips' run, the strands' snap order and phases, the plane's axes, the room line's new part; and in the
 // stock exe: the game code it calls (kFiTarFns), the step list's entry 8, and the offsets it reads / writes there.
+// v3.58 FI358: the bigger, stickier portal: the hidden keys, the strands' end and snap window, the body's box from its
+// bones / its type, the whole portal's size, the pieces' layout (never one bigger than the first, all inside, the target
+// spanned), their amounts, the budget's share and weights, the strands' width / sag / drop, the timeline, the close line.
 // Usage: out\fadein_sim_test.exe [path of the stock sh4.exe]
 #define _CRT_SECURE_NO_WARNINGS
 #include <stdio.h>
@@ -578,9 +581,241 @@ static void TestTarExe(void)
     CHECK(p && p[19] == 0xE8 && 0x4AD293u + 5u + (unsigned)rel == 0x482D60u, "the victims' draw 0x4AD280 calls 0x482D60");
 }
 
+// ---------------------------------------------------------------- v3.58 FI358: the bigger, stickier portal
+// a standing victim (sizes.md's idle Eileen: feet at y 0, y down) at x / z, the work position 200 u above the feet
+static int MakeBody(float (*b)[3], float x, float z, float k)
+{
+    static const float kY[25] = { -184, -184, -178, -75, -26, -178, -75, -26, -184, -239, -263, -280, -258, -247, -200,
+                                  -154, -140, -258, -247, -200, -154, -140, -8, -4, -8 };  // (bone 11 the head: 280)
+    static const float kX[25] = { 0, 0, -12, -13, -14, 12, 13, 14, 0, 0, 0, 0, -10, -28, -33, -36, -38, 10, 28, 33, 36, 38,
+                                  -14, 0, 14 };
+    int i;
+    for (i = 0; i < 25; ++i) b[i][0] = x + kX[i] * k, b[i][1] = kY[i] * k, b[i][2] = z + 4.0f * (float)(i % 3) * k;
+    return 25;
+}
+static void TestBig(void)
+{
+    float bp[40][3], a, b, prev, tx, ty;
+    const float work[3] = { 0.0f, -200.0f, 0.0f };
+    FiBody B;
+    FiBig G, G2;
+    int i, k, n, okAll, seed, mx;
+    // the hidden keys
+    CHECK(FiStickClamp((float)NAN) == FI_STICK_DEFAULT && FiStickClamp(-1.0f) == FI_STICK_DEFAULT && FiStickClamp(0.0f) == 0.0f &&
+          FiStickClamp(2.5f) == 2.5f && FiStickClamp(9.0f) == FI_STICK_MAX, "FadeInStrandSeconds: NaN / below 0 the default, 0 kept, at most 6");
+    CHECK(FiCountClamp(-1, 9, 9) == 9 && FiCountClamp(0, 9, 9) == 0 && FiCountClamp(40, 16, 24) == 24 && FiCountClamp(5, 9, 9) == 5,
+          "the counts: below 0 the default, 0 kept, at most the top");
+    // the strands' end and their snap window
+    CHECK(FiStickEnd(0.8f, 0.0f) == FI_HOLD_END_S && FiStickEnd(0.8f, (float)NAN) == FI_HOLD_END_S, "stick 0 / NaN: v3.57's 2.5 s");
+    CHECK(fabsf(FiStickEnd(0.8f, 3.0f) - 3.8f) < 1e-5f, "defaults: the strands hold 3 s after the body is in (3.8 s)");
+    CHECK(FiStickEnd(0.2f, 1.0f) == FI_HOLD_END_S, "never before the hold's end");
+    FiStickWindow(FI_HOLD_END_S, &a, &b);
+    CHECK(a == FI_HOLD_SLOW_S && b == FI_HOLD_END_S, "v3.57's window 1.5 .. 2.5 s");
+    FiStickWindow(3.8f, &a, &b);
+    CHECK(fabsf(a - 2.5f) < 1e-5f && b == 3.8f, "the last 1.3 s (2.5 .. 3.8)");
+    FiStickWindow(2.6f, &a, &b);
+    CHECK(a == FI_HOLD_SLOW_S && b == 2.6f, "the window never starts before 1.5 s");
+    for (n = 1, okAll = 1; n <= FI_STRANDS_MAX; ++n) {
+        int seen[FI_STRANDS_MAX];
+        memset(seen, 0, sizeof seen);
+        for (i = 0; i < n; ++i) {
+            const float at = FiSnapAtW(i, n, 0x1234u, 2.5f, 3.8f);
+            const int r = (int)floorf((at - 2.5f) / 1.3f * (float)n);
+            if (!(at > 2.5f && at < 3.8f) || r < 0 || r >= n || seen[r]++) okAll = 0;
+        }
+    }
+    CHECK(okAll, "FiSnapAtW: every strand at its own moment inside the window (1 .. 24 strands)");
+    for (i = 0, okAll = 1; i < 32; ++i)
+        if (FiSnapAt(i, 32, 77u) != FiSnapAtW(i, 32, 77u, FI_HOLD_SLOW_S, FI_HOLD_END_S)) okAll = 0;
+    CHECK(okAll, "FiSnapAt is v3.57's window");
+    // the body's box from its bones
+    n = MakeBody(bp, 0.0f, 0.0f, 1.0f);
+    CHECK(FiBodyBones((const float(*)[3])bp, n, work, &B) && B.bones == 25, "a standing victim's 25 bones");
+    CHECK(FiBodyH(&B) > 300.0f && FiBodyH(&B) < 345.0f, "its height %.0f (the mesh top ~314 above the feet)", FiBodyH(&B));
+    CHECK(B.bottom > -5.0f && B.bottom < 25.0f && B.top < -280.0f, "its box from the soles (%.0f) to above the head (%.0f)", B.bottom, B.top);
+    CHECK(B.half > 30.0f && B.half < 90.0f && fabsf(B.c[0]) < 5.0f, "its half width %.0f, centred", B.half);
+    bp[3][0] = 5000.0f, bp[4][1] = (float)NAN;
+    CHECK(FiBodyBones((const float(*)[3])bp, n, work, &B) && B.bones == 23, "a bone far away or not finite is left out");
+    CHECK(!FiBodyBones((const float(*)[3])bp, 2, work, &B) && !B.ok, "fewer than 3 bones: not usable");
+    for (i = 0; i < n; ++i) bp[i][0] = bp[i][1] = bp[i][2] = 0.0f;  // (a ghost made this frame: no bones drawn yet)
+    {   // (the user's Jasper at -62 -1000 404, 2026-11-27: its first frame's bones at the origin)
+        const float jw[3] = { -62.0f, -1000.0f, 404.0f };
+        CHECK(!FiBodyBones((const float(*)[3])bp, n, jw, &B), "bones at the origin, 1000 u off its position: not usable");
+    }
+    FiBodyType(0x0B, work, &B);
+    CHECK(B.ok && fabsf(FiBodyH(&B) - 340.0f) < 0.01f && B.bottom == 0.0f && !B.bones, "a victim by its type: 340 u, feet 200 below");
+    FiBodyType(0x0E, work, &B);
+    CHECK(fabsf(FiBodyH(&B) - 420.0f) < 0.01f, "Andrew by his type: 420 u");
+    // the whole portal's size for a body
+    n = MakeBody(bp, 0.0f, 0.0f, 1.0f);
+    FiBodyBones((const float(*)[3])bp, n, work, &B);
+    FiBigTarget(&B, 100.0f, 150.0f, &tx, &ty);
+    CHECK(fabsf(ty - FI_COVER_Y * FiBodyH(&B)) < 0.01f && 2.0f * ty > FiBodyH(&B) * 1.2f, "on a wall: %.0f u tall for a body of %.0f (1.24 x)",
+          2.0f * ty, FiBodyH(&B));
+    CHECK(tx >= FI_COVER_X * FiBodyH(&B) - 0.01f && tx >= 100.0f, "and %.0f u wide", 2.0f * tx);
+    FiBigTarget(&B, 60.0f, 95.0f, &tx, &ty);
+    CHECK(2.0f * ty > 1.2f * FiBodyH(&B) && ty <= FI_COVER_MAXK * 95.0f && tx <= FI_COVER_MAXK * 60.0f, "in the air: 1.24 x too, at most 3 x the first");
+    n = MakeBody(bp, 0.0f, 0.0f, 0.3f);  // a small body (a crawling one): never smaller than the first portal
+    FiBodyBones((const float(*)[3])bp, n, work, &B);
+    FiBigTarget(&B, 100.0f, 150.0f, &tx, &ty);
+    CHECK(tx == 100.0f && ty == 150.0f, "a small body: the first portal alone (%.0f x %.0f)", tx, ty);
+    FiBigMake(&G, 5u, 100.0f, 150.0f, tx, ty, 0.0f, 0.0f, FI_PIECES_MAX);
+    CHECK(G.n == 1 && G.sets == 1, "nothing to add around it (%d pieces)", G.n);
+    // the layout: never a piece bigger than the first, all inside the target, the target covered, the counts
+    okAll = 1;
+    for (seed = 0; seed < 400; ++seed)
+        for (mx = 0; mx <= FI_PIECES_MAX; ++mx) {
+            const float sx = seed & 1 ? 60.0f : 100.0f, sy = seed & 1 ? 95.0f : 150.0f, h = 150.0f + (float)(seed % 9) * 55.0f;
+            const float du = (float)(seed % 7 - 3) * 20.0f, dv = (float)(seed % 5 - 2) * 15.0f;
+            float lo[2] = { 1e9f, 1e9f }, hi[2] = { -1e9f, -1e9f }, ttx = FI_COVER_X * h, tty = FI_COVER_Y * h;
+            if (ttx < sx) ttx = sx;
+            if (tty < sy) tty = sy;
+            if (ttx > 3.0f * sx) ttx = 3.0f * sx;
+            if (tty > 3.0f * sy) tty = 3.0f * sy;
+            FiBigMake(&G, (unsigned)seed, sx, sy, ttx, tty, du, dv, mx);
+            if (G.n < 1 || G.n > mx + 1 || G.g[0].s != 1.0f || G.nOn != G.n) okAll = 0;
+            if (G.sets != (G.n == 1 ? 1 : G.n - 1 >= 5 ? 3 : 2)) okAll = 0;
+            for (k = 0; k < G.n; ++k) {
+                const FiPiece *g = &G.g[k];
+                if (k && !(g->s >= 0.5f && g->s <= 0.8f)) okAll = 0;  // never stretched past the first
+                if (g->u - g->s * sx < G.du - G.tx - 0.01f || g->u + g->s * sx > G.du + G.tx + 0.01f) okAll = 0;
+                if (g->v - g->s * sy < G.dv - G.ty - 0.01f || g->v + g->s * sy > G.dv + G.ty + 0.01f) okAll = 0;
+                if (k && !(g->open > 0.0f && g->open < 0.6f)) okAll = 0;
+                if (g->u - g->s * sx < lo[0]) lo[0] = g->u - g->s * sx;
+                if (g->u + g->s * sx > hi[0]) hi[0] = g->u + g->s * sx;
+                if (g->v - g->s * sy < lo[1]) lo[1] = g->v - g->s * sy;
+                if (g->v + g->s * sy > hi[1]) hi[1] = g->v + g->s * sy;
+            }
+            if (mx == FI_PIECES_MAX && (hi[0] - lo[0] < 1.8f * G.tx || hi[1] - lo[1] < 1.8f * G.ty)) okAll = 0;  // 90 % covered
+            if (mx == 0 && G.n != 1) okAll = 0;
+            FiBigMake(&G2, (unsigned)seed, sx, sy, ttx, tty, du, dv, mx);
+            if (memcmp(&G, &G2, sizeof G)) okAll = 0;
+        }
+    CHECK(okAll, "FiBigMake (400 seeds x 0 .. 9 pieces, wall / air, bodies 150 .. 590): the first at its size, the rest 0.5 .. 0.8 "
+                 "of it, all inside the target, 90 %% of it spanned with 9, the counts, the same twice");
+    FiBigMake(&G, 7u, 100.0f, 150.0f, 141.0f, 209.0f, 0.0f, -20.0f, FI_PIECES_MAX);
+    CHECK(G.n == 10 && G.sets == 3, "a victim on a wall: the first + 9 (%d), 3 blot sets", G.n);
+    CHECK(G.g[1].v > G.g[0].v && G.g[2].v < G.g[0].v && G.g[3].u < 0.0f && G.g[4].u > 0.0f, "below, above, the sides first");
+    CHECK(FiBigCovers(&G, G.g[0].u, G.g[0].v, 100.0f, 150.0f) && FiBigCovers(&G, G.g[5].u, G.g[5].v, 100.0f, 150.0f) &&
+          !FiBigCovers(&G, 400.0f, 0.0f, 100.0f, 150.0f), "FiBigCovers: the pieces' centres in, far away out");
+    for (k = 1; k < G.n; ++k) G.g[k].on = 0;  // (a wall that ends: every piece around the first left out)
+    CHECK(!FiBigCovers(&G, G.g[1].u, G.g[1].v + 0.9f * G.g[1].s * 150.0f, 100.0f, 150.0f) &&
+          FiBigCovers(&G, G.g[0].u, G.g[0].v, 100.0f, 150.0f), "a piece left out covers nothing (the first still does)");
+    FiBigMake(&G, 7u, 100.0f, 150.0f, 141.0f, 150.0f, 0.0f, 0.0f, FI_PIECES_MAX);
+    CHECK(G.n >= 3 && G.g[1].slot == 2 && G.g[2].slot == 3, "wider only: the sides (no piece above / below)");
+    // the pieces' amounts: they open one after another, close faster than the first (it shrinks to its centre)
+    FiBigMake(&G, 7u, 100.0f, 150.0f, 141.0f, 209.0f, 0.0f, 0.0f, FI_PIECES_MAX);
+    CHECK(FiPieceAmount(0.05f, 3.8f, &G.g[3], 0) == 0.0f && FiPieceAmount(1.0f, 3.8f, &G.g[3], 0) == 1.0f, "a piece opens after its delay");
+    CHECK(FiPieceAmount(2.0f, 3.8f, &G.g[0], 1) == FiTarAmount(2.0f, 3.8f), "the first: v3.57's curve");
+    CHECK(FiPieceAmount(3.8f + FI_PIECE_CLOSE_S, 3.8f, &G.g[3], 0) == 0.0f && FiTarAmount(3.8f + FI_PIECE_CLOSE_S, 3.8f) > 0.0f,
+          "when the pieces around are gone the first is still closing");
+    for (i = 0, okAll = 1, prev = 2.0f; i <= 200; ++i) {
+        const float t = 3.8f + (float)i * 0.01f, v = FiPieceAmount(t, 3.8f, &G.g[4], 0);
+        if (v > prev + 1e-6f || v < 0.0f || v > 1.0f) okAll = 0;
+        prev = v;
+    }
+    CHECK(okAll, "a piece's close never grows");
+    // the budget
+    CHECK(FiPieceKeep(1.0f, 0, 9) == 9.0f && fabsf(FiPieceKeep(0.6f, 0, 9) - 5.4f) < 1e-4f && fabsf(FiPieceKeep(0.35f, 0, 9) - 3.15f) < 1e-4f,
+          "the spark levels keep 100 / 60 / 35 %% of the pieces");
+    CHECK(fabsf(FiPieceKeep(1.0f, 1, 9) - 3.15f) < 1e-4f && FiPieceKeep(0.1f, 0, 9) == FiPieceKeep(0.35f, 0, 9) &&
+          FiPieceKeep((float)NAN, 0, 4) == 4.0f, "a deep level 35 %%, never below 35 %%, NaN = all");
+    for (i = 0, a = 0.0f; i < 9; ++i) a += FiPieceWeight(5.4f, i + 1);
+    CHECK(fabsf(a - 5.4f) < 1e-4f && FiPieceWeight(5.4f, 1) == 1.0f && fabsf(FiPieceWeight(5.4f, 6) - 0.4f) < 1e-4f &&
+          FiPieceWeight(5.4f, 7) == 0.0f, "the weights add up to the share: the last kept one fades (continuous)");
+    CHECK(FiSetWeight(1.0f, 0, 0) == 1.0f && FiSetWeight(1.0f, 0, 1) == 1.0f && FiSetWeight(1.0f, 0, 2) == 1.0f, "all three sets at full");
+    CHECK(FiSetWeight(0.6f, 0, 1) > 0.5f && FiSetWeight(0.6f, 0, 2) == 0.0f && FiSetWeight(0.35f, 0, 1) == 0.0f &&
+          FiSetWeight(0.35f, 1, 0) == 1.0f, "60 %%: the outer set goes; 35 %%: the second too; the first always");
+    {   // the portals' own limit: 8 %% of the frame (180 fps: 0.44 ms; 60 fps: 1.33 ms)
+        float kk = 1.0f;
+        for (i = 0; i < 180; ++i) kk = FiSelfKeepStep(kk, 0.6f, 1000.0f / 180.0f, 1.0f / 180.0f);
+        CHECK(kk == 0.35f, "180 fps, the portals at 0.6 ms a frame: the pieces around thin to 35 %% within a second (%.2f)", kk);
+        for (i = 0; i < 180; ++i) kk = FiSelfKeepStep(kk, 0.2f, 1000.0f / 180.0f, 1.0f / 180.0f);
+        CHECK(fabsf(kk - 0.65f) < 0.01f, "under 60 %% of the limit they come back at 0.3 a second (%.2f)", kk);
+        kk = 1.0f;
+        for (i = 0; i < 60; ++i) kk = FiSelfKeepStep(kk, 0.6f, 1000.0f / 60.0f, 1.0f / 60.0f);
+        CHECK(kk == 1.0f && FiSelfKeepStep(0.5f, 9.0f, 5.0f, 0.0f) == 0.5f && FiSelfKeepStep((float)NAN, 0.0f, 5.0f, 0.01f) == 1.0f,
+              "60 fps: 0.6 ms is under its 1.33 ms; no time step: no change; NaN: all");
+        kk = 0.6f;
+        CHECK(FiSelfKeepStep(kk, 0.30f, 1000.0f / 180.0f, 0.01f) == 0.6f, "between 60 and 100 %% of the limit it holds");
+    }
+    CHECK(FiLifeAtWeight(1.0f, 1.0f) == 1.0f && FiLifeAtWeight(0.3f, 0.0f) < -FI_TAR_FADE_S && fabsf(FiTarLifeAlpha(FiLifeAtWeight(1.0f, 0.5f)) - 0.5f) < 1e-3f &&
+          FiLifeAtWeight(-1.0f, 0.9f) == -1.0f, "a blot's life at a weight: whole -> that alpha, a fading one stays as faded");
+    // the strands' look
+    CHECK(fabsf(FiStickWidth(0.0f, 3.8f, 200.0f, 200.0f) - 1.0f) < 1e-5f && fabsf(FiStickWidth(3.8f, 3.8f, 200.0f, 200.0f) - 0.5f) < 1e-5f,
+          "a strand thins to half over its time");
+    CHECK(fabsf(FiStickWidth(0.0f, 3.8f, 800.0f, 200.0f) - 0.5f) < 1e-5f && fabsf(FiStickWidth(0.0f, 3.8f, 9000.0f, 200.0f) - 0.35f) < 1e-5f &&
+          FiStickWidth(0.0f, 3.8f, 100.0f, 200.0f) == 1.0f, "and as it stretches (4 x: half; never below 35 %%; shorter: as it was)");
+    for (i = 0, okAll = 1, prev = 2.0f; i <= 100; ++i) {
+        const float v = FiStickWidth((float)i * 0.05f, 3.8f, 300.0f, 200.0f);
+        if (v > prev + 1e-6f || !(v > 0.0f)) okAll = 0;
+        prev = v;
+    }
+    CHECK(okAll, "it never gets wider as it ages");
+    CHECK(FiStickSag(3.8f, 3.8f, 5000.0f) == 160.0f && FiStickSag(0.0f, 3.8f, 200.0f) < FiStickSag(3.0f, 3.8f, 200.0f) &&
+          fabsf(FiStickSag(0.0f, 3.8f, 200.0f) - 10.0f) < 1e-4f, "it sags more as it ages, at most 160 u");
+    CHECK(FiDropFall(0.0f) == 0.0f && FiDropLeft(0.0f) == 1.0f && FiDropLeft(FI_DROP_S) == 0.0f && fabsf(FiDropFall(0.5f) - 112.5f) < 1e-3f,
+          "a dropped end falls (112 u in 0.5 s) and is gone after 0.6 s");
+    // the timeline with the defaults: the hold as v3.57, the strands to 3.8 s, the portal open as long, closed by 5.4 s
+    {
+        const float sEnd = FiStickEnd(FI_SECONDS_DEFAULT, FI_STICK_DEFAULT);
+        CHECK(FiHoldFactor(FI_HOLD_END_S) == 1.0f && FiTarAmount(sEnd - 0.01f, sEnd) == 1.0f && FiTarAmount(sEnd + 0.8f, sEnd) > 0.0f &&
+              FiTarDone(sEnd + FI_TAR_CLOSE_S, sEnd) && !FiTarDone(sEnd + 1.0f, sEnd),
+              "the hold ends at 2.5 s; the portal stays open to %.1f s and has closed at %.1f s", sEnd, sEnd + FI_TAR_CLOSE_S);
+    }
+    // the close line (tools\logcheck.py reads it)
+    {
+        FiClose c;
+        char buf[480], tiny[12];
+        memset(&c, 0, sizeof c);
+        c.id = 0xFFFF0002u, c.type = 0x0C, c.at = 5.4f, c.grids = 10, c.gridsOf = 10, c.sets = 3, c.drips = 31;
+        c.w = 282.0f, c.h = 418.0f, c.body = 337.0f, c.bones = 1, c.strGame = 32, c.strOwn = 8, c.snapped = 7, c.loose = 1;
+        c.stick = 3.0f, c.stickTo = 3.8f, c.ms = 30.0, c.msMax = 0.41f, c.frames = 100;
+        FiCloseText(&c, buf, sizeof buf);
+        CHECK(!strcmp(buf, "FFFF0002 (type 0C): its tar portal closed at 5.4 s: 13 piece(s) (grids 10 of 10, blot sets 3, drips 31), "
+                           "282 x 418 u for a body 337 u tall (1.24 x, its bones); strands: the ghost's own 32, Refined's 8 (its bones), "
+                           "held 3.0 s after it was in (to 3.8 s; 7 snapped, 1 stretched loose); portal draw 0.300 ms a frame (max 0.410, "
+                           "100 frames)"), "the close line: %s", buf);
+        c.bones = -1, c.body = 0.0f, c.ownBox = 1;
+        FiCloseText(&c, buf, sizeof buf);
+        CHECK(strstr(buf, "for a body 0 u tall (0.00 x, not seen)") && strstr(buf, "Refined's 8 (its box)"), "not seen / its box: %s", buf);
+        CHECK(FiCloseText(&c, tiny, sizeof tiny) == (int)sizeof tiny - 1 && tiny[sizeof tiny - 1] == 0, "a short buffer stays terminated");
+    }
+}
+
+// v3.58 FI358: "--dump": the layouts of four arrivals for tools\portal_sheet.py (an SVG sheet: the pieces, the body, the target)
+static void DumpBig(const char *name, float sx, float sy, const FiBody *B, float cy, unsigned seed)
+{
+    FiBig G;
+    float tx, ty;
+    int k;
+    FiBigTarget(B, sx, sy, &tx, &ty);
+    FiBigMake(&G, seed, sx, sy, tx, ty, B->c[0], B->c[1] - cy, FI_PIECES_MAX);
+    printf("CASE %s %.1f %.1f %.1f %.1f %.1f %.1f %.1f %.1f %.1f %d\n", name, sx, sy, G.tx, G.ty, G.du, G.dv, B->top - cy,
+           B->bottom - cy, B->half, G.sets);
+    for (k = 0; k < G.n; ++k) printf("PIECE %d %.1f %.1f %.3f %.2f\n", k, G.g[k].u, G.g[k].v, G.g[k].s, G.g[k].open);
+}
+static int Dump(void)
+{
+    float bp[40][3];
+    const float work[3] = { 0.0f, -200.0f, 0.0f };
+    FiBody B;
+    int n = MakeBody(bp, 0.0f, 0.0f, 1.0f);
+    FiBodyBones((const float(*)[3])bp, n, work, &B);
+    DumpBig("victim_on_a_wall", 100.0f, 150.0f, &B, -200.0f, 11u);
+    DumpBig("victim_in_the_air", 60.0f, 95.0f, &B, -200.0f, 12u);
+    FiBodyType(0x0E, work, &B);
+    DumpBig("Andrew_by_type_on_a_wall", 100.0f, 150.0f, &B, -200.0f, 13u);
+    n = MakeBody(bp, 0.0f, 0.0f, 0.55f);
+    FiBodyBones((const float(*)[3])bp, n, work, &B);
+    DumpBig("crouching_in_the_air", 60.0f, 95.0f, &B, -200.0f, 14u);
+    return 0;
+}
+
 int main(int argc, char **argv)
 {
     const char *exe = argc > 1 ? argv[1] : "C:\\ClaudeCode\\CModding\\SH4Decomp\\orig\\sh4.exe";
+    if (argc > 1 && !strcmp(argv[1], "--dump")) return Dump();  // v3.58 FI358
     TestTexts();
     TestWho();
     TestRules();
@@ -592,6 +827,7 @@ int main(int argc, char **argv)
     TestExe(exe);
     TestTar();      // v3.51 PT351
     TestTarExe();   // v3.51 PT351 (after TestExe: the image is loaded)
+    TestBig();      // v3.58 FI358
     printf("%s: %d checks, %d failed\n", g_fail ? "FAIL" : "ok", g_n, g_fail);
     return g_fail ? 1 : 0;
 }

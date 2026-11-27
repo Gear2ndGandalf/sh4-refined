@@ -200,6 +200,13 @@ static int g_enmDoorSerial = 1;                    // + 1 at every room load: th
 // v3.38 EN338: the tags already logged at the victims' room rule (reset at the door), one bit per tag (32): let in, kept out
 // by a story flag, waiting for space, the story guard
 static unsigned g_enmTagSaidIn, g_enmTagSaidDenied, g_enmTagSaidWait, g_enmTagSaidStory;
+// v3.58 EN358: what became of each tag in its room visit (enemies_sim.h ENM_TAG_*), its nearest distance to you (XZ) once
+// in, the clock at the door; the room it was tagged for (the line at the next door names it)
+static unsigned char g_enmTagSeen[ENM_FOLLOW_MAX];
+static float g_enmTagNear[ENM_FOLLOW_MAX];
+static float g_enmTagT0;
+static int g_enmTagRoom = -1;
+static volatile LONG g_enmQuotaTagIn, g_enmQuotaTagSum;
 // v3.38 EN338 (staging/v338_feedback/w2_ghosts/PLAN.md)
 static int g_enmStoryFollow = 1;                   // [Gameplay] FollowStoryGhosts (ini only): the story ghosts and their copies follow
 static EnmSeenSet g_enmSeen;                       // this room visit's spotted marks (near, hit, saw you)
@@ -874,7 +881,7 @@ static int EnmScanCb(void *c, int n, const BYTE *desc)
 // not get all of its copies); the free count is read at the start and at the end (v3.29 printed the last budget test,
 // 0 when none ran); five spot rings; a room without eligible or standing originals is logged too.
 // v3.31 EN331: + back (restored from the store), its down / pinned counts, and the ghost copies beside a downed original.
-typedef struct { int made, cut, nospot, dead, exists, limit, failed, badId, back, away, why[ENM_SPOT_N]; } EnmCopyTally;  // v3.34 EN334: + away
+typedef struct { int made, cut, nospot, dead, exists, limit, failed, badId, back, away, recs, why[ENM_SPOT_N]; } EnmCopyTally;  // v3.34 EN334: + away  // v3.58 RZ358: + recs
 // v3.31 EN331: a pin of the Sword with this id lies in this room (gPlayerPins 0x10A4A60: +0 stage, +4 room, +0x30 id)
 static int EnmPinHeld(unsigned id, int stage, int room)
 {
@@ -938,9 +945,42 @@ static int EnmCopyFromStore(const EnmOrig *o, int room, unsigned cid, EnmSnap *e
 // v3.35 GH335: one copy k of original o (its placement in room `home`, made in `room`): EnmMakeCopies' loop body, shared
 // with the late copies (EnmLateCopies). ENM_ONE_* = what happened (the callers count it).
 enum { ENM_ONE_MADE, ENM_ONE_BACK, ENM_ONE_KEPT, ENM_ONE_BADID, ENM_ONE_DEAD, ENM_ONE_AWAY, ENM_ONE_EXISTS, ENM_ONE_LIMIT,
-       ENM_ONE_CUT, ENM_ONE_NOSPOT, ENM_ONE_FAILED };
-static int EnmMakeOne(const EnmOrig *o, int home, int room, int k, unsigned clearOver, int released, int *head, const float *pp,
-                      int *how, int *why)
+       ENM_ONE_CUT, ENM_ONE_NOSPOT, ENM_ONE_FAILED, ENM_ONE_RECS };  // v3.58 RZ358: + RECS (the enemy records are full)
+// v3.58 RZ358: the enemy records at this room's exit (rzmon_sim.h RmCopyRecordsOk): may a copy be made without its record
+// write taking a real record of this world? The free slots, the other stages' monster records (the game's own first
+// choice), the real writes to come (the room's real enemies, the followers on their way). [Gameplay] CopyRecordGuard
+// (hidden): 1 = this world's records (default), 2 = no real record at all, 0 = v3.57 (no test)
+static int g_enmCopyRecGuard = RM_CRG_WORLD;
+static LONG g_enmCopyRecRefused;
+static int EnmCopyRecOk(void)
+{
+    const BYTE *r = ENM_RECORDS, *t = NULL;
+    const int stage = ENM_STAGE;
+    int i, fr = 0, other = 0, real = 0;
+    if (g_enmCopyRecGuard == RM_CRG_OFF) return 1;
+    for (i = 0; i < 64; ++i, r += 0x50) {
+        if (*(const short *)(r + 0x26) == 0) ++fr;
+        else if (!EnmIsCopyId(*(const unsigned *)(r + 0x20)) && !EnmGhostType(*(const short *)(r + 0x24)) &&
+                 *(const signed char *)(r + 0x36) != stage)
+            ++other;
+    }
+    while ((t = ENM_NEXT(t)) != NULL && real < 96)
+        if (!EnmIsCopyId(ENM_ID(t))) ++real;
+    real += g_enmQN + g_enmGhostTagN;
+    if (RmCopyRecordsOk(g_enmCopyRecGuard, fr, other, real)) return 1;
+    if (InterlockedIncrement(&g_enmCopyRecRefused) <= 20)
+        LogV("enemies: copies: the enemy records are full for this room's exit (%d free, %d of other worlds, %d real enemies to "
+             "write): no copy is made (a copy never takes a real record of this world%s)", fr, other, real,
+             g_enmCopyRecGuard == RM_CRG_STRICT ? "; CopyRecordGuard=2: of any world" : "");
+    return 0;
+}
+static int RmCopyPick(int home, int room, int n, int k, int *type, int *variant, float *site, int *sited);  // v3.58 RZ358: rzmon.inc
+static int RmCopyRetype(unsigned cid, int type, int variant, BYTE *d);                                    // v3.58 RZ358: rzmon.inc
+static void RmCopyResult(int type, int made);                                                             // v3.58 RZ358: rzmon.inc
+static void RmCopiesSay(int stage, int room);                                                             // v3.58 RZ358: rzmon.inc
+// v3.58 RZ358: site = a site of its own (Spawn Site, rzmon.inc RmCopyPick), NULL = a ring spot near the original (as v3.57)
+static int EnmMakeOneC(const EnmOrig *o, int home, int room, int k, unsigned clearOver, int released, int *head, const float *pp,
+                       int *how, int *why, const float *site)
 {
     const int stage = ENM_STAGE, half = ENM_HALF() ? 1 : 0;
     __declspec(align(16)) BYTE d[0x94];
@@ -954,6 +994,7 @@ static int EnmMakeOne(const EnmOrig *o, int home, int room, int k, unsigned clea
     if (EnmCwFind(&g_enmCw, EnmCopyKey(stage, half, cid))) return ENM_ONE_AWAY;  // v3.34 EN334: it lives in another room
     if (ENM_FIND(cid)) return ENM_ONE_EXISTS;
     if (!EnmRoomForOne()) return ENM_ONE_LIMIT;
+    if (!EnmCopyRecOk()) return ENM_ONE_RECS;  // v3.58 RZ358: a copy never takes a real record of this world
     if (!EnmBudgetFits(o->type, o->bones, *head, NULL)) return ENM_ONE_CUT;
     memcpy(d, o->desc, 0x94);
     *(unsigned *)(d + 0x2C) = clearOver;  // no id override (a ghost copy is an ordinary ghost)
@@ -977,15 +1018,40 @@ static int EnmMakeOne(const EnmOrig *o, int home, int room, int k, unsigned clea
         *(int *)(d + 0x30) = 0;
         *(unsigned *)(d + 0x24) = EnmCopyModeWord2(o->type, *(const unsigned *)(o->desc + 0x24), g_enmCopyDogs, released);  // v3.33 EN333; v3.34 EN334
     }
-    if (!EnmFindSpot(o->pos, cid, o->flyer ? 2 : EnmGhostType(o->type) ? 1 : 0, o->floor0, pp, kEnmCopyTiers, ENM_COPY_TIERS,
-                     spot, why))
+    if (site) {  // v3.58 RZ358: Spawn Site's own site for this copy
+        memcpy(spot, site, 12);
+    } else if (!EnmFindSpot(o->pos, cid, o->flyer ? 2 : EnmGhostType(o->type) ? 1 : 0, o->floor0, pp, kEnmCopyTiers, ENM_COPY_TIERS,
+                            spot, why)) {
         return ENM_ONE_NOSPOT;
+    }
     memcpy(d + 0x14, spot, 12);
     nt = ENM_CREATE(d, room, cid);
     nt = nt ? ENM_FIND(cid) : NULL;
     if (!nt || !EnmWork(nt) || ENM_DEAD(nt)) return ENM_ONE_FAILED;
     *head += EnmHead(o->type, EnmModelBones(EnmWork(nt)));
     return ENM_ONE_MADE;
+}
+// v3.58 RZ358: copy k of original o: the type the Randomizer drew for it (rzmon.inc RmCopyPick: Enemies Same World / All
+// Worlds, a randomized room's source placement; else its original's type, as v3.57) and, with Spawn Site, its own site
+static int EnmMakeOne(const EnmOrig *o, int home, int room, int k, unsigned clearOver, int released, int *head, const float *pp,
+                      int *how, int *why)
+{
+    static EnmOrig oc;  // (game thread only)
+    float site[3];
+    int type = -1, variant = 0, sited = 0, planned, r;
+    const EnmOrig *use = o;
+    planned = RmCopyPick(home, room, o->n, k, &type, &variant, site, &sited);
+    if (planned && (type != o->type || variant != o->variant)) {
+        oc = *o;
+        oc.type = type, oc.variant = variant, oc.bones = 0;  // (its model's bones are not known before it stands)
+        oc.flyer = o->flyer && type == 0x03, oc.floor0 = oc.flyer ? o->floor0 : 0.0f;
+        if (!RmCopyRetype(EnmCopyId(home, o->n, k), type, variant, oc.desc)) oc = *o, planned = 0;  // (no draw after all: its own type)
+        else use = &oc;
+    }
+    r = EnmMakeOneC(use, home, room, k, clearOver, released, head, pp, how, why, sited ? site : NULL);
+    if (planned && r != ENM_ONE_BADID && r != ENM_ONE_DEAD && r != ENM_ONE_AWAY && r != ENM_ONE_EXISTS)
+        RmCopyResult(use->type, r == ENM_ONE_MADE || r == ENM_ONE_BACK);
+    return r;
 }
 static void EnmMakeCopies(int room)
 {
@@ -998,6 +1064,7 @@ static void EnmMakeCopies(int room)
     float pp[3];
     int i, boss, head, made = 0, cut = 0, nospot = 0, dead = 0, failed = 0, limit = 0, present = 0, gone = 0, retyped = 0,
         down = 0, evmode = 0, beside = 0, back = 0, backDown = 0, backPin = 0, flyers = 0, away = 0;  // v3.31 EN331: + beside .. flyers; v3.34 EN334: + away
+    int recs = 0;  // v3.58 RZ358
     const int released = g_enmReviveDogs && ENM_DOGS_AWAKE;  // v3.34 EN334: released event dogs' copies are made awake
     if (stage < 2 || stage > 8) return;
     if (!ENM_MGR_ON()) {
@@ -1098,6 +1165,7 @@ static void EnmMakeCopies(int room)
         case ENM_ONE_NOSPOT: ++nospot, ++T->nospot; break;
         case ENM_ONE_FAILED: ++failed, ++T->failed; break;
         case ENM_ONE_MADE: ++made, ++T->made; break;
+        case ENM_ONE_RECS: ++recs, ++T->recs; break;  // v3.58 RZ358
         }
     }
     Log("enemies: room %d:%d copies x%d: %d placements (%d eligible, %d in the room%s), %d of %d copies made (%d back as they "
@@ -1105,7 +1173,12 @@ static void EnmMakeCopies(int room)
         "leave the world%s), %d failed%s; bone pool free %d -> %d of %d (reserve %d)", stage, room, per + 1, x.kind2,
         x.eligible, present, beside ? ", some down or pinned: their copies stand beside them" : "", made, present * per,
         back, backDown, backPin, cut, nospot, dead, EnmReviveLive() ? "" : " or with Enemies Return By Room", failed,  // v3.56 ER356: (was Revive Enemies)
-        limit ? ", the room's enemy / task limit reached" : "", free0, *(volatile const int *)0xED73E4, total, EnmReserve(total));
+        limit ? ", the room's enemy / task limit reached" : recs ? ", the enemy records are full (a copy never takes a real record)" : "",  // v3.58 RZ358: + recs
+        free0, *(volatile const int *)0xED73E4, total, EnmReserve(total));
+    if (recs && LogQuota(&g_enmQuotaCopy, 400))  // v3.58 RZ358
+        Log("enemies: room %d:%d copies: %d not made: the enemy records would be full at this room's exit (a copy never takes a "
+            "real record of this world; fewer copies instead)", stage, room, recs);
+    RmCopiesSay(stage, room);  // v3.58 RZ358: the Randomizer's line: what the copies were drawn as and made
     if (flyers && !g_enmLogged[9]++)
         Log("enemies: %d flying original(s) here: their copies keep the height above the floor", flyers);
     if (away)  // v3.34 EN334
@@ -1120,7 +1193,7 @@ static void EnmMakeCopies(int room)
         const EnmOrig *o = &g_enmOrig[i];
         const EnmCopyTally *T = &tal[i];
         char w[160];
-        if (T->made + T->exists + T->away >= per) continue;  // v3.34 EN334: + away
+        if (T->made + T->exists + T->away + T->recs >= per) continue;  // v3.34 EN334: + away  // v3.58 RZ358: + recs (said in one line)
         EnmSpotWhyText(T->why, w, sizeof w);
         Log("enemies:   %08X (type %02X v%d at %.0f %.0f %.0f, %d bones%s): %d of %d made; %d over the bone budget (a "
             "copy needs %d + the room's headroom), %d without a spot%s%s%s, %d killed before, %d failed%s", o->id, o->type,
@@ -1328,6 +1401,42 @@ static int EnmSawYou(const BYTE *w, int type)
     return r;
 }
 static const char *EnmPurKind(int copy, int ghost) { return copy ? (ghost ? "ghost copy" : "copy") : ghost ? "ghost" : "monster"; }
+// v3.58 EN358: a tagged ghost seen in this room's list (normal-play tick): its first sight as the real ghost is logged once
+// (quota), the line at the next door sums them (EnmTagRoomSay)
+static void EnmTagSee(unsigned id, int type, int cls, float d2)
+{
+    int i;
+    if (g_enmTagRoom != ENM_ROOM) return;
+    for (i = 0; i < g_enmGhostTagN; ++i) {
+        if (!g_enmGhostTag[i] || g_enmGhostTag[i] != id) continue;
+        {
+            const int bits = EnmTagSeenBits(cls), first = (bits & ENM_TAG_IN) && !(g_enmTagSeen[i] & ENM_TAG_IN);
+            const float d = d2 >= 0.0f ? sqrtf(d2) : -1.0f;
+            g_enmTagSeen[i] |= (unsigned char)bits;
+            if ((bits & ENM_TAG_IN) && d >= 0.0f && (g_enmTagNear[i] < 0.0f || d < g_enmTagNear[i])) g_enmTagNear[i] = d;
+            if (first && LogQuota(&g_enmQuotaTagIn, 300))
+                LogV("enemies: ghost %08X (type %02X) that followed you is in room %d now (class %02X, %.1f s after the door, %.0f units "
+                     "from you)%s", id, type, ENM_ROOM, cls, g_enmClock - g_enmTagT0, d,
+                     EnmIsGhostId(id) ? "" : " (a victim the randomizer drew)");
+        }
+        return;
+    }
+}
+// v3.58 EN358: at the next door (or a load): the ghosts that followed you into the room you leave, one line
+static void EnmTagRoomSay(const char *why)
+{
+    EnmTagSum s;
+    float nearest = -1.0f;
+    int i;
+    if (!g_enmGhostTagN || g_enmTagRoom < 0) return;
+    s = EnmTagSummary(g_enmGhostTag, g_enmTagSeen, g_enmGhostTagN);
+    for (i = 0; i < g_enmGhostTagN; ++i)
+        if (g_enmGhostTag[i] && g_enmTagNear[i] >= 0.0f && (nearest < 0.0f || g_enmTagNear[i] < nearest)) nearest = g_enmTagNear[i];
+    if (s.tagged && LogQuota(&g_enmQuotaTagSum, 400))
+        Log("enemies: ghosts that followed you into room %d: %d of %d came in (the real ghost in the room; nearest %.0f units from you), "
+            "%d still arriving through the walls, %d never in the room (waiting outside: space or the room timer) (%s)", g_enmTagRoom,
+            s.in, s.tagged, nearest, s.arriving, s.outside, why);
+}
 
 // the pursuers of this room (normal-play tick)
 // v3.35 GH335: a pursuing victim seen in the room: downed (HP 0) or pinned ends its pursuit, else it is seen here
@@ -1384,7 +1493,9 @@ static void EnmTakePursuers(const float *pp)
         cls = *(const int *)(w + 0x3C);
         mw = EnmModeWord(t);
         variant = (int)(mw >> 8 & 0xF);
-        gkind = EnmGhostKind(type, copy, id);  // a ghost or a ghost's copy: its 0x0B is a pin, never death (v3.38 REV338 R1)
+        gkind = EnmGhostPath(type, variant, copy, id);  // a ghost or a ghost's copy: its 0x0B is a pin, never death (v3.38 REV338 R1)  // v3.58 EN358: + a victim the randomizer drew (EnmDrawnGhost; was EnmGhostKind)
+        if (gkind && !copy && g_enmGhostTagN && EnmFinite3(q))  // v3.58 EN358: a ghost that followed you: in the room yet?
+            EnmTagSee(id, type, cls, (q[0] - pp[0]) * (q[0] - pp[0]) + (q[2] - pp[2]) * (q[2] - pp[2]));
         if (g_enmStoryFollow && EnmStoryNoGhostId(type, variant, copy, id) && LogQuota(&g_enmQuotaAnom, 20))  // v3.38 REV338 R1
             LogAnomaly("enemies", "story ghost %08X (type %02X v%d) in room %d has no ghost id (every stock placement has one): it "
                        "does not follow", id, type, variant, ENM_ROOM);
@@ -1404,7 +1515,7 @@ static void EnmTakePursuers(const float *pp)
             ++st.down;
             continue;
         }
-        why = EnmPursuerWhy4(monsters, copy, EnmIsGhostId(id), victims, g_enmStoryFollow, type, variant, mw, ENM_DOGS_AWAKE,  // v3.49 EF349: Why4
+        why = EnmPursuerWhy4(monsters, copy, EnmIsGhostId(id) || EnmDrawnGhost(type, variant, copy, id), victims, g_enmStoryFollow, type, variant, mw, ENM_DOGS_AWAKE,  // v3.49 EF349: Why4  // v3.58 EN358: + drawn victims
                              ENM_AISTATE(t), EnmIsScriptId(id), copy || gkind ? 0 : ENM_KILLIDX(t));
         if (why == ENM_PUR_OTHER) {
             ++st.other;
@@ -1695,6 +1806,8 @@ static void EnmDoorPass(int room)
     if (pend && LogQuota(&g_enmQuotaFollow, 300))  // v3.38 EN338: they wait for a later door (v3.37: left in the old room)
         LogV("enemies: %d follower(s) had not come into room %d when you left it: they keep pursuing you (a later door)", pend,
              g_enmQRoom);
+    EnmTagRoomSay("you left the room");  // v3.58 EN358: the ghosts that followed you into the room you leave
+    g_enmTagRoom = -1;
     g_enmQN = g_enmGhostTagN = 0;
     g_enmTagSaidIn = g_enmTagSaidDenied = g_enmTagSaidWait = g_enmTagSaidStory = 0;  // v3.38 EN338
     g_enmDoorSet = 0;
@@ -1773,6 +1886,11 @@ static void EnmDoorPass(int room)
     }
     g_enmGhostTagStage = g_enmQStage = stage;
     g_enmQRoom = room;
+    if (x.ng) {  // v3.58 EN358: the tags of this door: what becomes of them is summed at the next door (EnmTagRoomSay)
+        memset(g_enmTagSeen, 0, sizeof g_enmTagSeen);
+        for (i = 0; i < ENM_FOLLOW_MAX; ++i) g_enmTagNear[i] = -1.0f;
+        g_enmTagT0 = g_enmClock, g_enmTagRoom = room;
+    }
     Log("enemies: through door %d from room %d to %d: %d follow (%d monster(s), %d of them copies, %d ghost(s); %d from that room, "
         "%d pursuing from other rooms or on their way): %s; %d wait for a later door (%d FollowMax %d full, %d files, %d story "
         "rule, %d down in their room), %d already here, %d stopped, %d in that room had not spotted you", door, g_enmPurRoom, room,
@@ -1818,13 +1936,18 @@ static int EnmReplay(unsigned id, int room, const float *spot, BYTE *rec, const 
 // v3.34 EN334: a copy's descriptor away from its room: its original's placement (the copy id holds its room and object
 // number) rebuilt from that room's script, made as EnmMakeCopies makes it (no id override, no kill index), awake (spawn
 // mode 0: a follower or a wanderer only stands in an awake mode)
-static int EnmCopyDescFor(unsigned cid, int type, BYTE *d)
+static int EnmCopyDescFor(unsigned cid, int type, int variant, BYTE *d)  // v3.58 RZ358: + variant (the copy's record's)
 {
     EnmFindCtx x;
     if (!EnmIsCopyId(cid) || EnmCopyRoomOf(cid) <= 0) return 0;
     x.want = EnmCopyNOf(cid), x.found = 0, x.out = d;
     EnmWalk(EnmCopyRoomOf(cid), EnmFindCb, &x);
-    if (!x.found || *(const int *)d != 2 || EnmTypeOfDesc(d) != type) return 0;
+    if (!x.found || *(const int *)d != 2) return 0;
+    if (EnmTypeOfDesc(d) != type) {  // v3.58 RZ358: + a copy of the type it drew (Enemies Same World / All Worlds)
+        if (!RmCopyRetype(cid, type, variant, d)) return 0;
+    } else if (variant >= 0 && variant != (int)(*(const unsigned *)(d + 0x24) >> 8 & 0xFu)) {
+        RmCopyRetype(cid, type, variant, d);  // (its own variant; else as v3.57: the original's)
+    }
     *(unsigned *)(d + 0x2C) = *(const unsigned *)0x10A0EAC;  // no id override
     *(int *)(d + 0x30) = 0;                                  // no kill index
     *(unsigned *)(d + 0x24) &= 0xF00u;                       // its variant, spawn mode 0
@@ -1843,7 +1966,7 @@ static int EnmCopyReplay(unsigned cid, int type, int room, const float *spot, co
     BYTE *slot = NULL, *r, *t;
     int i, ok;
     if (story) *story = 0;  // v3.41 EN341
-    if (!EnmCopyDescFor(cid, type, d)) {
+    if (!EnmCopyDescFor(cid, type, srec ? *(const signed char *)(srec + 0x33) : -1, d)) {  // v3.58 RZ358: + its variant
         if (LogQuota(&g_enmQuotaCopyF, 200))
             LogV("enemies: copy %08X: its placement (room %d object %d) could not be rebuilt as type %02X: not made in room %d",
                  cid, EnmCopyRoomOf(cid), EnmCopyNOf(cid), type, room);
@@ -2956,6 +3079,7 @@ static void EnmLoadWatch(const char *where)
         if (n) LogV("enemies: a save load (%s): %d cop%s that followed you are made in their own rooms again", where, n,
                     n == 1 ? "y" : "ies");
         EnmPursueDrop("a save load");  // v3.35 GH335
+        EnmTagRoomSay("a save load"), g_enmTagRoom = -1;  // v3.58 EN358
         g_enmQN = g_enmGhostTagN = 0;  // v3.38 EN338: the followers on their way belong to the timeline the load abandoned
         g_enmCdRoomKey = 0xFFFFFFFFu;  // (the countdown watch starts afresh)
         g_enmArrivedN = 0;  // v3.50 EF350: and the arrivals watched there (v3.49: "came into room 2 and is gone 4.2 s later")
@@ -3303,6 +3427,8 @@ static void EnmReadIni(void)  // the ini-only keys (not written into SH4Refined.
     g_enmStoryFollow = GetPrivateProfileIntA("Gameplay", "FollowStoryGhosts", 1, g_iniPath) != 0;       // v3.38 EN338 (hidden)
     g_enmTaskAllIni = GetPrivateProfileIntA("Gameplay", "CopiesAllTasks", 1, g_iniPath) != 0;  // v3.36.1 TL3361 (hidden)
     g_erTremerIni = GetPrivateProfileIntA("Gameplay", "ReturnTremers", 1, g_iniPath) != 0;      // v3.56 ER356 (hidden)
+    v = (int)GetPrivateProfileIntA("Gameplay", "CopyRecordGuard", RM_CRG_WORLD, g_iniPath);     // v3.58 RZ358 (hidden): 0 / 1 / 2
+    g_enmCopyRecGuard = v >= RM_CRG_OFF && v < RM_CRG_N ? v : RM_CRG_WORLD;
 }
 
 // ---------------------------------------------------------------- install (Init, after DeathPresenceInstall)

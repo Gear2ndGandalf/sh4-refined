@@ -158,6 +158,61 @@ static int GtFadeFix(float see)
     return fix < 0 ? 0 : fix > 128 ? 128 : fix;
 }
 
+// ---------------------------------------------------------------- v3.58 GT358: a clean fade (the user's v3.57 QA)
+// "Ghost Teleport shows all these weird black line artifacts during fade." Two causes in v3.44 .. v3.57's draw (the
+// ghost's own states on her model, staging/v358_feedback/w6_teleport/PLAN.md):
+//  1. pixel shader 4 (0x5D5538: r0 = t0 x v0; r0.a = c0.a) takes the fade as the alpha of EVERY texel, and blend mode 5
+//     (TEST 0x53001 -> RenderModelSetBlend(5)) has the alpha test off: the cut-out texels of Eileen's lashes and hair
+//     cards (DXT3 alpha 0, dark RGB) are drawn at the fade's alpha: thin dark strips and fringes;
+//  2. blend mode 5 writes no depth: every surface of her model blends, the overlapping strips at the seams of her body
+//     parts and the hair over the scalp twice: lines and layers.
+// The clean draw (GT_FD_CLEAN, the default): her stock draw in the actor loop builds the pose but draws nothing; right
+// after the loop (0x4EF905, every actor model drawn: no enemy behind her is cut out of the picture) her body and weapon
+// are drawn again: a depth pre-pass (the texel's alpha > GT_PRE_REF writes her nearest surface's depth) and one colour
+// pass on it (GREATEREQUAL, no depth write) with the game's pixel shader 5 (0x5D5590: r0.a = t0.a x c0.a, the alpha
+// test on): her nearest surface blends once, the cut-out texels not at all. GT_FD_ONE: the colour pass only, in place
+// (shader 5; the layers stay); GT_FD_STOCK: v3.57 exactly (shader 4). Hidden [Gameplay] GhostTeleportFadeDraw = 0 / 1 / 2.
+// The same opacity (GtFadeOp: the fix the draw uses / 128) drives her heat body under Thermal (a blended heat body on its
+// own pre-pass, at the heat's alpha x her opacity), her soul fire under Spirit Vision (its sprites x her opacity) and her
+// real-time shadow (drawn while her opacity is at least GT_SHADOW_OP: Fade In's rule; one stencil mask cannot fade one
+// caster).
+#define GT_FD_STOCK    0        // v3.57: shader 4, one pass in place (the cut-out texels drawn)
+#define GT_FD_ONE      1        // shader 5, one pass in place (no cut-out texels; the layers stay)
+#define GT_FD_CLEAN    2        // shader 5 after the actor loop on a depth pre-pass (default)
+#define GT_FD_DEF      GT_FD_CLEAN
+#define GT_SHADOW_OP   0.5f     // her shadow is drawn while her opacity is at least this
+#define GT_PRE_REF     127      // the pre-pass's alpha test: texels above this write her depth (a hair card's soft edge
+                                //   below it blends over what lies behind it, as the stock opaque draw)
+enum { GTD_NONE = 0, GTD_INPLACE = 1, GTD_LATE = 2 };
+typedef struct { int path, ps, prepass, fix, drawn; } GtFadeDraw;
+static int GtFadeDrawKey(int has, int v) { return has && v >= GT_FD_STOCK && v <= GT_FD_CLEAN ? v : GT_FD_DEF; }
+static const char *GtFadeDrawName(int mode)
+{
+    return mode == GT_FD_STOCK ? "Stock (v3.57: one pass, pixel shader 4)" : mode == GT_FD_ONE ? "One pass (pixel shader 5)" :
+           "Clean (after the actor models: depth pre-pass + one blend, pixel shader 5)";
+}
+// her opacity in the fade's draw: the draw's own quantised alpha (fix / 128): 1 = stock, 0 = gone
+static float GtFadeOp(float see) { return (float)GtFadeFix(see) * 0.0078125f; }
+// The plan of one draw of her body or weapon: see = the fade's transparency, mode the key, lateOk = the 0x4EF905 hook and
+// the draw-call override are in (and the late draw has not failed), phase0 = gameplay phase 0 now (the step list with the
+// hook), ovrFree = no other redraw holds the draw-call override. path GTD_NONE = drawn as stock.
+static void GtFadePlan(GtFadeDraw *o, int mode, float see, int lateOk, int phase0, int ovrFree)
+{
+    o->path = GTD_NONE, o->ps = 8, o->prepass = 0, o->fix = 128, o->drawn = 1;
+    if (!(see > 0.0f)) return;
+    o->fix = GtFadeFix(see);
+    o->drawn = o->fix > 0;  // (0: nothing of her is drawn this frame, as the stock fade at its end)
+    if (mode == GT_FD_CLEAN && lateOk && phase0 && ovrFree) o->path = GTD_LATE, o->ps = 5, o->prepass = 1;
+    else o->path = GTD_INPLACE, o->ps = mode == GT_FD_STOCK ? 4 : 5;
+}
+// her real-time shadow this frame (v3.57 always)
+static int GtShadowKeep(int mode, float see) { return mode == GT_FD_STOCK || GtFadeOp(see) >= GT_SHADOW_OP; }
+// Thermal's heat body: its alpha (the heat's own alpha base x her opacity) and whether it stays the solid one-pass draw
+static float GtHeatAlpha(int mode, float base, float see) { return mode == GT_FD_STOCK ? base : base * GtFadeOp(see); }
+static int GtHeatSolid(int mode, int solid, float see) { return solid && (mode == GT_FD_STOCK || GtFadeOp(see) >= 1.0f); }
+// Spirit Vision's soul fire: its sprites' alpha factor
+static float GtSoulK(int mode, float see) { return mode == GT_FD_STOCK ? 1.0f : GtFadeOp(see); }
+
 // ---------------------------------------------------------------- v3.44 GT344: no enemy near: the way she faces
 // [Gameplay] GhostTeleportForward (hidden): the distance (default GT_FWD_DEF, GT_FWD_MIN .. GT_FWD_MAX; 0 = off: with
 // no enemy in range the warp is refused as in v3.43). Tries at the full distance, then GT_FWD_STEP shorter each, down

@@ -1301,6 +1301,189 @@ static void TestRollAgain(void)
     }
 }
 
+// ---------------------------------------------------------------- v3.58 RZ358: the dead stay dead; the copies' draws
+static void TestRz358(void)
+{
+    int stage, v, k, none = 0, total = 0, dup = 0, outside = 0;
+    // the kill indexes of the stock sources (commands 0x10 / 0x2A): every source has one, and no two of a stage share a bit
+    for (stage = 2; stage <= 8; ++stage) {
+        static unsigned char used[2][1024];
+        memset(used, 0, sizeof used);
+        for (v = 0; v < 1 + g_has1[stage]; ++v) {
+            const RmScan *sc = &g_sc[stage][v];
+            for (k = 0; k < sc->n; ++k) {
+                int w;
+                unsigned m;
+                ++total;
+                if (sc->s[k].kill <= 0) {
+                    ++none;
+                    continue;
+                }
+                if (!EnmKillBit(stage, sc->s[k].kill, &w, &m)) {
+                    ++outside;
+                    continue;
+                }
+                if (used[v][w * 32 + RmNthBit(m, 0)]++) ++dup;
+            }
+        }
+    }
+    printf("  v3.58 RZ358: %d source placement(s): %d without a kill index, %d outside the kill bits, %d sharing a bit in a half\n",
+           total, none, outside, dup);
+    CHECK(total == 238 && none == 0 && outside == 0, "every stock source has a kill index inside the kill bits (%d none, %d outside)",
+          none, outside);
+    CHECK(kRmTargets[6].type == 9 && kRmTargets[6].variant == 0 && RM_TREMER_TARGET == 1u << 6 && !(RM_COPY_TARGETS & RM_TREMER_TARGET) &&
+          RmBitCount(RM_COPY_TARGETS) == RM_TARGET_N - 1, "the copies' targets: every target but the Tremer");
+    {   // the plan's dead rules over a real room (Water Prison 2nd half room with the most sources)
+        const RmScan *sc = &g_sc[4][1];
+        int room, best = 0, bestRoom = 0, idx[RM_ROOM_MAX], m, j, again;
+        RmRec rec[RM_ROOM_MAX];
+        RmPick a[RM_ROOM_MAX], b[RM_ROOM_MAX];
+        RmPlanStat sa, sb;
+        unsigned char yes[RM_ROOM_MAX];
+        memset(yes, 1, sizeof yes);
+        for (room = 1; room < RZ_ROOMS; ++room)
+            if ((m = RoomIdx(sc, room, idx)) > best) best = m, bestRoom = room;
+        m = RoomIdx(sc, bestRoom, idx);
+        for (again = 0; again < 2; ++again) {  // reroll On (By Room) and Off (By World)
+            RmPlanIn in = In(RMM_ALL, 1398963150u, 4, 1, bestRoom, 7, RM_ALL_TARGETS, RM_ALL_TARGETS);
+            in.reroll = !again;
+            for (k = 0; k < m; ++k) {  // Refined made each one as another type, and each lies dead here
+                const RmSlot *s = &sc->s[idx[k]];
+                rec[k].type = s->type == 8 ? 0x0A : 8, rec[k].variant = 0, rec[k].here = 1, rec[k].ours = 1;
+            }
+            in.dead = (1u << m) - 1u;
+            RmPlanRoom(&in, sc, idx, m, rec, yes, a, &sa);
+            for (k = 0, j = 0; k < m; ++k) j += a[k].type == rec[k].type && a[k].variant == rec[k].variant && a[k].why == RMW_DEAD && !a[k].drop;
+            CHECK(j == m && sa.dead == m && sa.drops == 0, "reroll %s: every body keeps the type it died as, no record deleted (%d of %d)",
+                  in.reroll ? "By Room" : "By World", j, m);
+            for (j = 1; j < 40; ++j) {  // whatever the visit: the same
+                in.visit = (unsigned)j * 7919u;
+                RmPlanRoom(&in, sc, idx, m, rec, yes, b, &sb);
+                if (memcmp(a, b, sizeof a[0] * (size_t)m)) break;
+            }
+            CHECK(j == 40, "a body is never rolled again, whatever the visit salt");
+            in.dead = 0;  // the same records standing (not dead): reroll By Room rolls them over and drops the old records
+            RmPlanRoom(&in, sc, idx, m, rec, yes, b, &sb);
+            if (in.reroll) CHECK(sb.drops > 0 && sb.dead == 0, "standing records here: rolled again, some dropped (%d)", sb.drops);
+            else CHECK(sb.dead == 0 && sb.sticky > 0, "By World: standing records keep their type where they may (sticky %d of %d)", sb.sticky, m);
+            in.killed = 1u;  // slot 0's kill bit: stock words, its record kept
+            in.dead = 0;
+            RmPlanRoom(&in, sc, idx, m, rec, yes, b, &sb);
+            CHECK(b[0].why == RMW_KILLED && b[0].type == sc->s[idx[0]].type && b[0].variant == sc->s[idx[0]].variant && !b[0].drop &&
+                  sb.killed == 1, "a kill bit: as placed, its record kept");
+            in.killed = 0;
+            in.dead = 1u;  // a body of another writer (not ours, not the stock type): rule 0 (as placed, kept)
+            rec[0].ours = 0;
+            RmPlanRoom(&in, sc, idx, m, rec, yes, b, &sb);
+            CHECK(b[0].why == RMW_OTHER && !b[0].drop, "another writer's body: as placed, its record kept");
+            rec[0].type = sc->s[idx[0]].type, rec[0].variant = sc->s[idx[0]].variant;  // the game's own stock body: never adopted
+            RmPlanRoom(&in, sc, idx, m, rec, yes, b, &sb);
+            CHECK(b[0].why == RMW_DEAD && !b[0].adopt && !b[0].drop && b[0].type == sc->s[idx[0]].type, "the game's own body: not adopted, kept");
+            in.dead = 0;
+            RmPlanRoom(&in, sc, idx, m, rec, yes, b, &sb);
+            CHECK(b[0].adopt, "(the same record standing: adopted, as v3.50)");
+        }
+        CHECK(RmDeadFallback(&sc->s[idx[0]]) == RMD_HIDE, "a stock source's body can always be kept with its placement empty");
+        {
+            RmSlot z = sc->s[idx[0]];
+            z.kill = 0;
+            CHECK(RmDeadFallback(&z) == RMD_LOST && RmDeadFallback(NULL) == RMD_LOST, "no kill index: lost");
+        }
+        {   // the copies' draws: in the pool, deterministic, salted by k, different across visits; Tremers never
+            RmPlanIn in = In(RMM_ALL, 1398963150u, 4, 1, bestRoom, 3, RM_ALL_TARGETS, RM_ALL_TARGETS);
+            int byT[RM_TARGET_N], c, n = 0, diffK = 0, diffV = 0, sameOrig = 0;
+            memset(byT, 0, sizeof byT);
+            for (k = 0; k < m; ++k)
+                for (c = 1; c <= RM_COPY_K; ++c) {
+                    const int t = RmCopyDraw(&in, &sc->s[idx[k]], c);
+                    RmPlanIn in2 = in;
+                    CHECK(t >= 0 && (RM_COPY_TARGETS >> t & 1u), "a copy's draw is a copy target");
+                    if (t < 0) continue;
+                    ++byT[t], ++n;
+                    CHECK(RmCopyDraw(&in, &sc->s[idx[k]], c) == t, "the same draw again (deterministic)");
+                    if (c > 1 && RmCopyDraw(&in, &sc->s[idx[k]], c - 1) != t) ++diffK;
+                    in2.visit = 4;
+                    if (RmCopyDraw(&in2, &sc->s[idx[k]], c) != t) ++diffV;
+                }
+            CHECK(n == m * RM_COPY_K && !byT[6], "every copy drew, no Tremer (%d)", byT[6]);
+            CHECK(diffK > 0 && diffV > 0, "copies differ by k (%d) and by visit (%d)", diffK, diffV);
+            (void)sameOrig;
+            in.allowed = 1u << RmTargetIndex(2, 0);
+            for (k = 0; k < m; ++k) CHECK(RmCopyDraw(&in, &sc->s[idx[k]], 1) == RmTargetIndex(2, 0), "a pool of one: that one");
+            in.allowed = RM_TREMER_TARGET;
+            CHECK(RmCopyDraw(&in, &sc->s[idx[0]], 1) < 0, "only the Tremer allowed: no draw (the copy keeps its original's type)");
+            in.allowed = RM_ALL_TARGETS;
+            CHECK(RmCopyDraw(&in, &sc->s[idx[0]], 0) < 0 && RmCopyDraw(&in, &sc->s[idx[0]], 4) < 0 && RmCopyDraw(&in, NULL, 1) < 0,
+                  "k outside 1..3: none");
+            {   // Same World: the world's pool only
+                RmPlanIn w = In(RMM_WORLD, 77, 2, 0, 2, 0, 0, RM_ALL_TARGETS);
+                w.world = g_sc[2][0].placed | g_sc[2][1].placed;
+                for (k = 0; k < g_sc[2][0].n; ++k)
+                    for (c = 1; c <= 3; ++c) {
+                        const int t = RmCopyDraw(&w, &g_sc[2][0].s[k], c);
+                        CHECK(t >= 0 && (w.world >> t & 1u) && t != 6, "Same World: a copy of the world's own types, never a Tremer");
+                    }
+            }
+        }
+        CHECK(RmCopiesDrawn(2, RMW_ROLL) && RmCopiesDrawn(0x0A, RMW_SAME) && RmCopiesDrawn(3, RMW_STICKY) && RmCopiesDrawn(8, RMW_BONES),
+              "copies of standing originals draw");
+        CHECK(!RmCopiesDrawn(2, RMW_DEAD) && !RmCopiesDrawn(2, RMW_KILLED) && !RmCopiesDrawn(0x0A, RMW_EVENT) && !RmCopiesDrawn(2, RMW_OTHER)
+              && !RmCopiesDrawn(2, RMW_AWAY), "no draw for a body, a kill bit, an event dog asleep, another writer's, one elsewhere");
+        CHECK(!RmCopiesDrawn(9, RMW_ROLL) && !RmCopiesDrawn(0x0B, RMW_ROLL) && !RmCopiesDrawn(0x11, RMW_ROLL),
+              "an original made a Tremer or a ghost gets no copies of drawn types (Enemy Copies' own rules)");
+    }
+    {   // the save keeps a randomized body dead as its kill bit
+        static unsigned char block[0x1B90];
+        static RmProv pv;
+        unsigned char *recs = block + RM_SAVE_RECS;
+        const RmScan *sc = &g_sc[4][1];
+        const RmSlot *a = &sc->s[0], *b = &sc->s[1], *c = &sc->s[2];
+        const unsigned ida = EnmScriptId(4, 1, a->room, a->n), idb = EnmScriptId(4, 1, b->room, b->n), idc = EnmScriptId(4, 1, c->room, c->n);
+        short ka = a->kill, kz = 0;
+        int lost, n, w;
+        unsigned msk, word;
+        memset(block, 0, sizeof block), memset(&pv, 0, sizeof pv);
+        Rec(recs, ida, a->type == 8 ? 2 : 8, 0x0B, 0, 4, a->room), memcpy(recs + 0x30, &ka, 2);                  // dead, retyped
+        Rec(recs + RM_REC_SIZE, idb, b->type == 8 ? 2 : 8, 1, 0, 4, b->room);                                    // alive, retyped
+        Rec(recs + 2 * RM_REC_SIZE, idc, 0x0B, 0x0B, 1, 4, c->room), memcpy(recs + 2 * RM_REC_SIZE + 0x30, &ka, 2);  // a pinned ghost
+        Rec(recs + 3 * RM_REC_SIZE, idc + 0x40, 8, 0x0B, 0, 4, c->room), memcpy(recs + 3 * RM_REC_SIZE + 0x30, &kz, 2);  // no kill index
+        CHECK(RmSaveKeepDead(block, recs, &pv, &lost) == 0 && lost == 0, "nothing of Refined's: nothing");
+        RmProvPut(&pv, ida, a->type == 8 ? 2 : 8, 0, a->type, a->variant);
+        RmProvPut(&pv, idb, b->type == 8 ? 2 : 8, 0, b->type, b->variant);
+        RmProvPut(&pv, idc, 0x0B, 1, c->type, c->variant);
+        RmProvPut(&pv, idc + 0x40, 8, 0, c->type, c->variant);
+        n = RmSaveKeepDead(block, recs, &pv, &lost);
+        CHECK(n == 1 && lost == 1, "one randomized body kept dead (%d), one without a kill index lost (%d)", n, lost);
+        CHECK(EnmKillBit(4, a->kill, &w, &msk) && (memcpy(&word, block + 4 * w, 4), word & msk), "its kill bit is set in the save's copy");
+        CHECK(RmSaveClean(recs, &pv) == 4, "then the records go as before (4)");
+        {
+            unsigned char zero[0x80];
+            int bits = 0, i;
+            memset(zero, 0, sizeof zero);
+            for (i = 0; i < 0x80; ++i) bits += block[i] != 0;
+            CHECK(bits == 1, "only that bit (%d bytes changed)", bits);
+        }
+    }
+    // the copies' record guard
+    CHECK(RmCopyRecordsOk(RM_CRG_OFF, 0, 0, 30), "Off: always");
+    CHECK(RmCopyRecordsOk(RM_CRG_WORLD, 20, 0, 19) && !RmCopyRecordsOk(RM_CRG_WORLD, 19, 0, 19), "this world: a free slot left after the real writes");
+    CHECK(RmCopyRecordsOk(RM_CRG_WORLD, 0, 40, 19) && !RmCopyRecordsOk(RM_CRG_WORLD, 0, 19, 19) && RmCopyRecordsOk(RM_CRG_WORLD, 5, 15, 19),
+          "this world: or another world's record left (the log's 5:11: 64 of 64 in use, most of them stage 4's)");
+    CHECK(!RmCopyRecordsOk(RM_CRG_STRICT, 0, 40, 19) && RmCopyRecordsOk(RM_CRG_STRICT, 20, 0, 19), "strict: free slots only");
+    {   // a descriptor made as another type from the slot's stock words, also back to the stock type
+        const RmSlot *s = &g_sc[4][1].s[0];
+        unsigned char d[0x94];
+        unsigned row[4] = { 1, 2, 3, 4 }, mw;
+        memset(d, 0xEE, sizeof d);
+        RmFixDescTo(d, s, s->type == 8 ? 2 : 8, 0, row);
+        memcpy(&mw, d + 0x24, 4);
+        CHECK(!memcmp(d + 4, row, 16) && mw == 0 && d[0] == 0xEE && d[0x14] == 0xEE, "another type: its row, mode word 0 (variant 0)");
+        RmFixDescTo(d, s, s->type, s->variant, row);
+        memcpy(&mw, d + 0x24, 4);
+        CHECK(mw == s->mw, "back to the stock type: the stock mode word (%04X)", mw);
+    }
+}
+
 int main(int argc, char **argv)
 {
     const char *exe = argc > 1 ? argv[1] : "C:\\ClaudeCode\\CModding\\SH4Decomp\\orig\\sh4.exe";
@@ -1315,6 +1498,7 @@ int main(int argc, char **argv)
         TestSaveRoundTrip();  // v3.50 RM350
         TestEventDogs();      // v3.51 SN351
         TestRollAgain();      // v3.51 SN351
+        TestRz358();          // v3.58 RZ358
     }
     TestMadeUp();
     TestDesc();

@@ -92,9 +92,9 @@ EXTRA = [
     ('OLW_OMNI_PE', 'D', 'On: any angle (Eileen keeps her own speed).'),
     ('OLW_OMNI_BIND', 'D', 'Movement is not on a stick: no effect.'),
     ('OLW_OMNI_NOSRC', 'D', 'The stick could not be read: no effect.'),
-    # Extra Enemies gets its "Next room." tag (its note)  # v3.57 OLP1: OLW_PLAYER_FOLDER_R1_D retired (the Player folder
-    # line is OLW_GAMEPLAY_PLAYER_D now: Codex OLP1-002)
-    ('OLW_EXTRA_ENEMIES_R1_D', 'D', 'More of every monster and ghost. Next room.'),
+    # v3.57 OLP1: OLW_PLAYER_FOLDER_R1_D retired (the Player folder line is OLW_GAMEPLAY_PLAYER_D now: Codex OLP1-002)
+    # v3.58 MN358: OLW_EXTRA_ENEMIES_R1_D retired too (the user: no "Next room." in Extra Enemies' lines; its row line is
+    # the plan's OLW_ENEMIES_EXTRA_ENEMIES_D)
     ('OLW_RESERVED', 'V', ''),
 ]
 # v3.54 OL34 (rounds R3 + R4): the texts of the moved layout that the plan leaves to the build: the new pages' titles (the
@@ -109,6 +109,9 @@ EXTRA34 = [
     ('OLW_MENUS_L', 'L', 'Menus'), ('OLW_MENUS_D', 'D', 'The pause list, the menu font and the start-up.'),
     ('OLW_GRAIN_SWITCH_D', 'D', 'Grain on or off. Settings: Effects > Film Grain.'),
     ('OLW_SHADOWS_SWITCH_D', 'D', 'Real-time shadows. Settings: Effects > Shadows.'),
+    ('OLW_T_DOF', 'T', 'Depth of Field'),
+    ('OLW_L_BLUR_STRENGTH', 'L', 'Blur Strength'),  # v3.58 PV358: the record's own label (the layout calls it Strength in its folder)  # v3.58 PV358: Effects > Depth of Field (the folder's page title, the leaf)
+    ('OLW_PV_STOCK_NOFILE', 'D', "Stock: no picture file; Refined's own scene."),  # v3.58 PV358: Preview Stock without the file
 ]
 EXTRA += EXTRA34
 KIND_CHAR = {'value': 'v', 'bar': 'b', 'folder': 'f', 'combo': 'c', 'screen': 's', 'action': 'a', 'info': 'i'}

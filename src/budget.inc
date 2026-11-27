@@ -12,6 +12,11 @@
 // v3.56 PW356 (staging/v356_feedback/w5_powers/PLAN.md): the high frame-rate fallback (budget_sim.h: at 120 fps and up
 // the late rule 1.06 x, the spark levels BGL_SPARK1 / 2, blind steps judged by the frame time) and the go-ahead for the
 // frame-rate guard (BgRateMayStepNow). Hidden [Graphics] EffectBudgetHighRate=1 (0 = v3.55's rules at every rate).
+// v3.58 GX358 (USER_FEEDBACK_v357 item 13, staging/v358_feedback/w7_gfx/PLAN.md): the quick rules at a high rate
+// (budget_sim.h): two or more powers starting together take the start step at once (the deepest useful level, then a level
+// back every 0.5 s while the frames hold), frames far over step 0.25 s apart, and the frame-rate guard's go-ahead comes
+// after 0.5 s (its quick window: rateguard.inc). The powers drawing come from loghealth.inc (g_bgPwMask: the ledger's
+// draw parts and Ghost Teleport's fade). Hidden [Graphics] EffectBudgetQuick=1 (0 = v3.56's rules).
 #include "budget_sim.h"
 
 static LARGE_INTEGER g_bgQf;
@@ -70,11 +75,18 @@ static int g_bgHrOn = 1;                 // hidden [Graphics] EffectBudgetHighRa
 static float g_bgSparkK = 1.0f;          // the sparks, arcs and smoke kept (BgSparkK of the level, faded over 0.5 s)
 static int g_bgRoomHr, g_bgRoomBlind, g_bgRoomKept, g_bgRoomBack;  // the room's high-rate frames seen, blind steps, verdicts
 static float BgSparkNow(void) { return g_bgOn ? g_bgSparkK : 1.0f; }
+// v3.58 GX358: the quick rules
+static int g_bgQuick = 1;                // hidden [Graphics] EffectBudgetQuick (0 = v3.56's rules)
+static unsigned g_bgPwMask;              // the powers drawing this frame (loghealth.inc, before BgFrame; bits BG_PW_*)
+static int g_bgRoomPre, g_bgRoomQuick;   // the room's start steps and quick steps
+static const char *const kBgPwName[BG_PW_N] = { "Echo Doubles", "After Shock", "Death Presence", "Ghost Teleport's fade" };
 // Echo's light look by the spark levels: the 2nd / 3rd shadow from 60 %, every shadow at 35 % (v3.31's light look)
 static int BgSparkLite(int shadow) { const float k = BgSparkNow(); return k < 0.5f || (k < 0.8f && shadow > 0); }
 // the frame-rate guard (w7 FR356) may lower the logic rate: frames have missed at a high rate for 1 s with nothing left
 // for the budget to shed (or the budget is off)
 static int BgRateMayStepNow(void) { return !g_bgOn || BgRateMayStep(&g_bgGov); }
+// v3.58 GX358: the rate guard's quick window may decide: the budget is on with its quick rules and has nothing left to shed
+static int BgRateQuickNow(void) { return g_bgOn && g_bgGov.quick && BgRateMayStep(&g_bgGov); }
 static void BgIni(void)
 {
     char buf[32];
@@ -83,6 +95,7 @@ static void BgIni(void)
     BgGovReset(&g_bgGov);
     g_bgOn = GetPrivateProfileIntA("Graphics", "EffectBudget", 1, g_iniPath) != 0;
     g_bgHrOn = GetPrivateProfileIntA("Graphics", "EffectBudgetHighRate", 1, g_iniPath) != 0;  // v3.56 PW356
+    g_bgQuick = GetPrivateProfileIntA("Graphics", "EffectBudgetQuick", 1, g_iniPath) != 0;  // v3.58 GX358
     GetPrivateProfileStringA("Graphics", "EffectBudgetMs", "", buf, sizeof buf, g_iniPath);
     if (buf[0]) {
         const float v = (float)atof(buf);
@@ -102,6 +115,11 @@ static void BgIni(void)
             100.0f * BgSparkK(BGL_SPARK1, 1), 100.0f * BgSparkK(BGL_SPARK2, 1), 100.0f * BG_HR_GAIN, BG_SETTLE_S, BG_HR_RETRY, BG_HR_RETRY_MAX);
     else if (g_bgOn)
         Log("budget: high rate fallback off ([Graphics] EffectBudgetHighRate=0): v3.55's rules at every frame rate");
+    if (g_bgOn && g_bgHrOn)  // v3.58 GX358
+        Log("budget: quick rules %s (v3.58: at a high rate two or more powers starting within %.0f s of each other take the start step "
+            "at once, the deepest useful level, then a level back each %.1f s the frames hold; frames far over step %.2f s apart; "
+            "nothing left to shed for %.1f s lets the frame-rate guard judge its last second; [Graphics] EffectBudgetQuick=%d)",
+            g_bgQuick ? "on" : "off: v3.56's rules", BG_PRE_WIN_S, BG_PRE_UP_S, BG_HR_FAST_S, BG_HR_YIELD_FAST_S, g_bgQuick);
     if (!g_bgOn)
         Log("budget: off ([Graphics] EffectBudget=0): v3.34's behaviour (Echo's budget level for the room, After Shock's copy ladder)");
 }
@@ -137,10 +155,28 @@ static void BgFrame(float frameMs, float targetMs, float effMs, int skip, int pl
         return;
     }
     if (!play) return;
-    before = g_bgGov.level;
     // v3.56 PW356: the high-rate rules (budget_sim.h) only with EffectBudgetHighRate=1 (g_bgGov.hrOff: every rule v3.55's)
     hr = g_bgHrOn && BgHighRate(targetMs);
     g_bgGov.hrOff = !g_bgHrOn;
+    g_bgGov.quick = g_bgQuick && g_bgHrOn;  // v3.58 GX358
+    {   // v3.58 GX358: two or more powers start together (a skipped frame too: they start in the first frames after a pause)
+        static volatile LONG s_qPre;
+        const int from = g_bgGov.level;
+        if (BgGovPowers(&g_bgGov, g_bgPwMask, frameMs > 0.0f && frameMs < 500.0f ? frameMs / 1000.0f : 0.0f, hr, BgUseful(hr)) > 0) {
+            char names[96];
+            int p, k = 0;
+            names[0] = 0;
+            for (p = 0; p < BG_PW_N; ++p)
+                if (g_bgGov.preMask >> p & 1u) sprintf_s(names + strlen(names), sizeof names - strlen(names), "%s%s", k++ ? ", " : "", kBgPwName[p]);
+            ++g_bgRoomPre, ++g_bgRoomDowns;
+            InterlockedExchange(&g_bgLevel, g_bgGov.level);
+            if (LogQuota(&s_qPre, 100))
+                LogV("budget: level %d -> %d (powers start together at %.0f fps: %s: a start step before any late frame; they fill back "
+                     "in a level each %.1f s the frames hold; stage %lX room %lX): %s", from, g_bgGov.level, 1000.0f / targetMs, names,
+                     BG_PRE_UP_S, room >> 16, room & 0xFFFF, kBgLevelText[g_bgGov.level]);
+        }
+    }
+    before = g_bgGov.level;
     step = BgGovStep(&g_bgGov, frameMs / 1000.0f, frameMs, effMs, targetMs, g_bgT60, BgUseful(hr), skip);
     if (!skip && targetMs > 1.0f && hr != s_hrSaid) {  // v3.56 PW356: the rules in force (a rate change)
         if ((s_hrSaid >= 0 || hr) && LogQuota(&s_qHr, 40))
@@ -150,6 +186,7 @@ static void BgFrame(float frameMs, float targetMs, float effMs, int skip, int pl
     }
     if (!skip && frameMs > 0.0f && frameMs < BG_SPIKE_MS) g_bgRoomHr += hr;  // v3.56 PW356
     if (step > 0 && g_bgGov.lastBlind) ++g_bgRoomBlind;
+    if (step > 0 && g_bgGov.stepKind == BGK_QUICK) ++g_bgRoomQuick;  // v3.58 GX358
     if (g_bgGov.verdict == 1) {  // v3.56 PW356: a blind step's verdict
         ++g_bgRoomKept;
         if (LogQuota(&s_qV, 300))
@@ -184,6 +221,12 @@ static void BgFrame(float frameMs, float targetMs, float effMs, int skip, int pl
     if (step && LogQuota(&s_q, 600)) {
         char why[96];  // v3.56 PW356: a blind step and a take-back say so
         if (step > 0 && g_bgGov.lastBlind) strcpy_s(why, sizeof why, "frames run over, no CPU evidence: a blind try");
+        else if (step < 0 && g_bgGov.stepKind == BGK_REFILL_UP)  // v3.58 GX358: the refill after a start step
+            sprintf_s(why, sizeof why, "the powers fill back in: on time for %.1f s", BG_PRE_UP_S);
+        else if (step > 0 && g_bgGov.stepKind == BGK_REFILL_BACK)
+            strcpy_s(why, sizeof why, "late again as they filled in: the last level back, the refill ends");
+        else if (step > 0 && g_bgGov.stepKind == BGK_QUICK)
+            strcpy_s(why, sizeof why, "frames run far over: a quick step");
         else if (step < 0 && g_bgGov.verdict == 2)
             sprintf_s(why, sizeof why, "a blind try taken back: the frames %.1f %% shorter, %.0f %% needed", 100.0f * g_bgGov.blindGain, 100.0f * BG_HR_GAIN);
         else strcpy_s(why, sizeof why, step > 0 ? "frames run over" : "calm again");
@@ -199,8 +242,9 @@ static const char *BgRoomHrText(void)
     static char s[128];
     s[0] = 0;
     if (g_bgRoomHr)
-        sprintf_s(s, sizeof s, "; high rate: %u frame(s), %d blind step(s), %d kept, %d taken back; the sparks at %.0f %%", (unsigned)g_bgRoomHr,
-                  g_bgRoomBlind, g_bgRoomKept, g_bgRoomBack, 100.0f * g_bgSparkK);
+        sprintf_s(s, sizeof s, "; high rate: %u frame(s), %d blind step(s), %d kept, %d taken back; the sparks at %.0f %%; %d start step(s), "
+                  "%d quick step(s)", (unsigned)g_bgRoomHr, g_bgRoomBlind, g_bgRoomKept, g_bgRoomBack, 100.0f * g_bgSparkK, g_bgRoomPre,
+                  g_bgRoomQuick);  // v3.58 GX358: + the start and quick steps
     return s;
 }
 // the room's line (loghealth.inc LhRoomEnd), then the room's numbers start again (the level itself carries on)
@@ -213,6 +257,7 @@ static void BgRoomLog(int stage, int room, float targetMs)
              g_bgRoomCost / g_bgRoomN, g_bgRoomCostMax, BgTargetMs(g_bgT60, targetMs), 100.0 * g_bgRoomLate / g_bgRoomN,
              BgRoomHrText());  // v3.56 PW356: + the high-rate part
     g_bgRoomHr = g_bgRoomBlind = g_bgRoomKept = g_bgRoomBack = 0;  // v3.56 PW356
+    g_bgRoomPre = g_bgRoomQuick = 0;  // v3.58 GX358
     BgGovRoomNew(&g_bgGov);  // v3.56 PW356: a new scene: a blind step may be tried again at once
     g_bgRoomMax = g_bgGov.level;
     g_bgRoomDowns = g_bgRoomUps = 0;

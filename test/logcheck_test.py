@@ -669,6 +669,20 @@ V351SN = V333_END + """10:00:00.042 """ + RZM_INSTALL.replace('235 / 783', '238 
 10:09:00.002 randomizer: monsters session: the game's own records: 4 adopted (3 made as another type); stock type kept: 1 rolled it, 0 by a stock record, 0 recorded elsewhere, 0 with no target
 10:09:00.003 randomizer: monsters session: 2 placement(s) rolled again for their own type (MonsterRollAgain On); event dogs: 3 planned with story flag 130 set, 3 kept as placed for their event (flag clear)
 """
+# v3.58 RZ358: the dead stay dead (a reroll never brings them back), Extra Enemies' copies drawn, the copies' record guard
+V358RZ = V351SN + """10:10:00.003 """ + SN351_ROOM % (2, 5, 1, 3, 'Whitestool 1, Gum Head 2', 0, 0, 0, 0, 0, 0, 0, 0) + """; the dead stay dead: 2 bodies as they died (1 empty here), 1 by a kill bit
+10:10:00.004 [v] randomizer: monsters: room 2:2: n1 lies dead here as another type (its files could not be loaded): its body record stays and its placement stays empty for this room's build (kill index 2)
+10:10:00.005 [v] randomizer: monsters: room 2:2: n1 Sniffer Dog v0 kept as Sniffer Dog v0 (killed: its body stays, its placement empty here); n2 Sniffer Dog v0 -> Gum Head v0 (killed: its body stays); n3 Sniffer Dog v0 kept as Sniffer Dog v0 (killed: its kill bit)
+10:10:01.000 enemies: room 2:2 copies: 1 not made: the enemy records would be full at this room's exit (a copy never takes a real record of this world; fewer copies instead)
+10:10:01.001 [v] enemies: copies: the enemy records are full for this room's exit (0 free, 2 of other worlds, 9 real enemies to write): no copy is made (a copy never takes a real record of this world)
+10:10:01.002 randomizer: monsters: copies x2: room 2:2: 2 made, types Hummer 1, Twin Victim 1; 3 drawn by the seed (1 at a site of their own), 1 kept their original's type (files), 1 not made (the copies' line says why)
+10:10:01.003 randomizer: monsters: copies: room 2:2: Hummer's files could not be loaded (16 extra files in this room already): those copies keep their original's type
+10:11:00.000 randomizer: monsters: a save: 2 randomized monster(s) lying dead are kept dead in it as kill bits (their records are left out: after a load they stay dead whatever they are made as; Enemies Return brings them back)
+10:19:00.004 randomizer: monsters session: the dead stay dead: 2 bodies kept as they died, 1 kept by a kill bit, 1 kept with their placement empty for a room's build (type not makeable / Enemies Off), 0 lost (no kill index); saves: 2 randomized bodies kept dead as kill bits, 0 lost
+10:19:00.005 randomizer: monsters session: copies: 1 room load(s) with copies drawn: 3 drawn by the seed (1 at a site of their own), 2 made, 1 kept their original's type (files); 3 descriptor(s) made as a drawn type (in their room or away)
+"""
+V358RZ_LOST = V351SN + """10:10:00.004 randomizer: monsters: room 2:2: n1 lies dead here as another type (a word was not the stock value) and has no kill index: its body record is deleted (it stands again)
+"""
 # v3.56 RE356: Enemies (Monsters renamed, + the victims' ghosts, the story rule) and Spawn Site (Ghosts renamed: every monster
 # and victim at a site of its room), the renamed keys read once, in the dll's formats
 RE356_INSTALL = ('randomizer: [Randomizer] Enemies %s; self-check: 238 source placement(s) of 783 enemy placement(s) in 17 script(s) (stock '
@@ -865,6 +879,21 @@ V352G = V333_END + """10:00:00.200 ghost teleport: in (no exe patch; 34 game fun
 10:01:08.000 [v] ghost teleport: room 4:17 left: 2 warp(s) (0 through walls, 1 behind the enemy she faces, 1 ahead), 1 refused (behind the faced enemy 1); 0 Action / Check press(es) taken back in fade-outs; 0 enemy(ies) in the cone skipped behind collision in 0 try(ies); 2 time(s) freed from a wall; floor map 1624 cell(s), finished, 12.6 ms over 1 run(s)
 """
 
+# v3.58 GT358: the clean fade's lines (the install's draw mode, the fade line's draw path by filter, a missed late frame)
+V358GT = V333_END + """10:00:00.200 ghost teleport: the fade's draw: Clean (after the actor models: depth pre-pass + one blend, pixel shader 5) (the call 004EF905 to ActorDrawModels hooked); Thermal: her heat body fades with her (a depth pre-pass, then the heat x her opacity); Spirit Vision: her soul fire fades with her; her real-time shadow drawn from half opacity
+10:00:00.201 ghost teleport: in (no exe patch but the clean fade's call 004EF905; 35 game functions checked), [Gameplay] GhostTeleport On; Run + Action together (within 80 ms): behind the standing enemy she faces (+-35 degrees) within 5000 u in the open (none past collision), else up to 800 u ahead the way she faces, through walls on (onto floor a route of the room reaches), cooldown 0.0 s; every landing proven (her body free, on the room's floor map); inside a wall after a warp: moved to the nearest proven floor; held: the next warp once she has faded in; never across or into a walk-in event zone; Richard's transition: his warp sound 0xEC86 on, his see-through fade (0.5 s out, 0.5 s in) on her model in
+10:01:01.000 [v] ghost teleport: Richard's fade ended (drawn see-through on 179 body and 179 weapon draw(s)); the draw: late 180 frame(s) (179 with the depth pre-pass), in place 0 (shader 4) / 0 (shader 5), 0 missed; filter None: heat body faded 0, soul fire faded 0; her shadow hidden 90
+10:01:01.001 ghost teleport: the first fade under the filter None: clean (after the actor models: her nearest surface on a depth pre-pass, one blend, the game's pixel shader 5); the draw: late 180 frame(s) (179 with the depth pre-pass), in place 0 (shader 4) / 0 (shader 5), 0 missed; filter None: heat body faded 0, soul fire faded 0; her shadow hidden 90
+10:01:03.000 [v] ghost teleport: Richard's fade ended (drawn see-through on 178 body and 178 weapon draw(s)); the draw: late 180 frame(s) (178 with the depth pre-pass), in place 0 (shader 4) / 0 (shader 5), 0 missed; filter Thermal: heat body faded 178, soul fire faded 0; her shadow hidden 90
+10:01:05.000 [v] ghost teleport: Richard's fade ended (drawn see-through on 170 body and 170 weapon draw(s)); the draw: late 172 frame(s) (170 with the depth pre-pass), in place 6 (shader 4) / 2 (shader 5), 1 missed; filter Spirit Vision: heat body faded 0, soul fire faded 176; her shadow hidden 88
+10:01:05.001 ANOMALY: ghost teleport: her pose was built for the clean fade but she was not drawn after the actor models in 1 frame(s)
+"""
+V358GT_NOTIN = V333_END + """10:00:00.200 ghost teleport: the fade's draw: One pass (pixel shader 5); Thermal: her heat body fades with her (the heat x her opacity, one pass); Spirit Vision: her soul fire fades with her; her real-time shadow drawn from half opacity
+10:00:00.200 ghost teleport: the clean fade's draw is not in (004EF900 is not the game's code (another mod?)): one pass in place
+10:00:00.201 ghost teleport: in (no exe patch; 34 game functions checked), [Gameplay] GhostTeleport On; Run + Action together (within 80 ms): behind the standing enemy she faces (+-35 degrees) within 5000 u, cooldown 0.0 s; Richard's transition: his warp sound 0xEC86 on, his see-through fade (0.5 s out, 0.5 s in) on her model in
+10:01:01.000 [v] ghost teleport: Richard's fade ended (drawn see-through on 180 body and 180 weapon draw(s)); the draw: late 0 frame(s) (0 with the depth pre-pass), in place 0 (shader 4) / 180 (shader 5), 0 missed; filter None: heat body faded 0, soul fire faded 0; her shadow hidden 90
+"""
+
 V343G = V333_END + """10:00:00.200 ghost teleport: in (no exe patch; 13 game functions checked), [Gameplay] GhostTeleport On; hold Run 0.4 s standing still: behind the nearest standing enemy within 2500 u, cooldown 3.0 s, Richard's warp sound 0xEC86 on, Echo Doubles' teleport smoke
 10:01:00.000 [v] ghost teleport: behind type 03 640 u away (enemy 1 of 2 tried, spot 0: 155 u behind its back, floor +0 u of hers): from (100, 200) to (700, 900), facing it; cooldown 3.0 s (warp 1)
 10:01:01.000 [v] ghost teleport: Run held, waiting for the cooldown (2.0 s left)
@@ -1022,6 +1051,50 @@ V356SD1 = V333_END + """10:00:00.005 sound: [Sound] Background="Loud" is not Mut
 10:05:00.000 sound: device: the default sound device changed to "Headset"; restart the game to use it (the game keeps playing on "Speakers": DirectSound stays on the device it started with; following it live is not built)
 10:05:10.000 sound: device: the default sound device is the game's "Speakers" again: nothing to do
 """
+# v3.58 SD358: Volume 0 = silent; Background Mute by the sound session (mute / unmute, a re-sweep, a session left muted by an
+# earlier game, the user's own mute, the window closing behind other windows, the minute line)
+SD_ZERO_IN = ("sound: volume 0: silent: the game's own 0 (Music / Effects Volume 0, a pause's master 0) reached DirectSound as -60 dB "
+              "(its attenuation's floor; -40 dB with Night Mode High); now DirectSound's silence: 2D sounds and the music in (004090A6), "
+              "streams in (0040B5E7) (the fading stream 0x2774 by its set level, 0040B2E7), 3D sounds in")
+V358SD = V333_END + "10:00:00.010 " + SND_IN_OK + """
+10:00:00.011 """ + SD_ZERO_IN + """
+10:00:00.012 """ + SD_BG_IN + """
+10:00:01.000 """ + SND_START % ('Stereo', 1, 1, 'Smooth', 100, 'On', 'probe ok', 'High') + """
+10:00:01.000 sound: keep-awake: on: a 45 Hz tone at -72.2 dBFS (level 8 of 32767, far below hearing) loops under the game's sound, also while another window is in front (DirectSound's global focus): the sound device never carries a silent stream, so a wireless headset stays awake
+10:00:01.100 sound: device: the game plays on \"""" + SD_SPK + """\" (Windows' default when its sound started); a change of Windows' default device is logged (DirectSound stays on the device it started with: restart the game to use another one)
+10:00:01.101 sound: background: 2 sound session(s) of the game were still muted by SH4 Refined (the game ended behind other windows): unmuted
+10:00:01.102 sound: background: 1 sound session(s) of the game are muted in Windows (not by SH4 Refined): the game is muted in the Windows Volume Mixer; left as it is (unmute it there)
+10:00:01.102 sound: background: SH4Refined.muted names 1 session(s) not found at this start (another output device?): kept for a later start (30 days at most)
+10:00:01.102 sound: background: 2 entries of SH4Refined.muted older than 30 days dropped
+10:02:20.000 sound: background: a sound session SH4 Refined had muted was unmuted in the Windows Volume Mixer while the game was behind other windows: left as you set it
+10:00:01.103 sound: background: Mute by the sound session: 2 session(s) of the game on 2 output device(s) ("Speakers (Realtek(R) Audio)" among them); while another window is in front Refined mutes them (every sound at once, the keep-awake tone included) and unmutes only those it muted
+10:00:01.300 sound: background: the buffer sites now Play (Background Mute by the sound session: DirectSound's own focus rule is not needed)
+10:01:01.000 [v] sound: minute: volume 0: 120 2D, 4 3D, 1800 stream volume(s) set to silence (the game's own 0; it gives DirectSound -60 dB)
+10:02:01.000 sound: focus: another window is in front (the game was in front 120.5 s): Background Mute: Refined mutes the game's sound session (every sound at once); keep-awake muted with it
+10:02:01.004 sound: background: muted 2 sound session(s) of the game (2 output device(s); 3 ms; 1 already muted, left alone)
+10:02:09.000 sound: background: muted 1 more sound session(s) of the game (2 output device(s); 2 ms; 3 already muted, left alone)
+10:02:46.200 sound: focus: the game is in front again after 45.2 s behind other windows: its sounds play
+10:02:46.203 sound: background: unmuted 3 sound session(s) of the game
+10:03:00.000 sound: focus: another window is in front (the game was in front 13.8 s): Background Mute: Refined mutes the game's sound session (every sound at once); keep-awake muted with it
+10:03:00.004 sound: background: muted 3 sound session(s) of the game (2 output device(s); 4 ms; 1 already muted, left alone)
+10:03:10.000 sound: background: the window closes behind other windows: the game's sound sessions unmuted first (done)
+"""
+# v3.58 SD358: no session to mute (the fallback): the sites back to Mute, sounds with the global focus behind other windows, the
+# tone stopped and played again, a session lost later (ANOMALY), Volume 0 off
+V358SD1 = V333_END + "10:00:00.010 " + SND_IN_OK + """
+10:00:00.011 sound: volume 0: off ([Sound] ZeroSilent=0): the game's own (its 0 plays at -60 dB)
+10:00:01.103 sound: background: no sound session of the game to mute (none found): Background Mute by DirectSound's own focus rule (sounds that start from now on)
+10:02:01.000 sound: focus: another window is in front (the game was in front 120.5 s): Background Mute: DirectSound mutes the game's sounds; keep-awake stopped (Mute)
+10:02:01.001 sound: keep-awake: stopped while another window is in front (Background Mute without a sound session) (hr 00000000)
+10:02:01.002 sound: background: 3 of the game's sounds carry the global focus and go on behind other windows until they end (no sound session to mute: DirectSound's focus rule mutes the sounds that start from now on)
+10:02:46.200 sound: focus: the game is in front again after 45.2 s behind other windows: its sounds play
+10:02:46.201 sound: keep-awake: playing again (hr 00000000)
+10:04:00.000 ANOMALY: sound: background: no sound session of the game could be muted (0 found): Background Mute by DirectSound's own focus rule from now on (sounds that start from now on)
+10:04:00.001 sound: background: the buffer sites now Mute (Background Mute without a sound session: DirectSound's own focus rule mutes sounds that start from now on)
+10:05:00.000 sound: background: SH4Refined.muted could not be written (a write failed, error 112): the old one is kept; a sound session it would newly name is not muted (Background Mute by DirectSound's own focus rule for it)
+10:05:00.001 sound: background: SH4Refined.muted could not be written (the replace failed, error 5): the old one is kept; a sound session it would newly name is not muted (Background Mute by DirectSound's own focus rule for it)
+10:05:00.002 sound: background: SH4Refined.muted named 2 sound session(s) of the game as pending (a mute not confirmed when the game ended): left as they are, 1 of them muted now (if the game stays silent, unmute it in the Windows Volume Mixer); the entries dropped
+"""
 # v3.53 OL2: the Options look: the install line, the glyph lines (a page logged twice, the larger kept), a key on a grey
 # v3.54 OL34: the Options layout's lines (install, a row left out, two openings)
 V354LY = ("10:00:00.030 options layout: R3 + R4 (OL34): the cycle Display, Controls, Interface, Sound, Effects, Gameplay; 19 "
@@ -1129,6 +1202,28 @@ V351PT3 = V333_END + """10:00:00.300 """ + FI_INSTALL351 % ("NOT available (Fade
 """
 
 
+# v3.58 FI358: the bigger, stickier portal: the start line's three new keys and its v3.58 part, two close lines (a victim on
+# a wall with the ghost's own strands and Refined's beside them; Jasper in the air on his box), a bad FadeInStrandSeconds
+FI_INSTALL358 = ("fade in: in (no code patch: the model draw 0052AEB5 and shadow 0052AF95 hooks; the game's see-through enemy draw "
+                 "0045C880; the portal from the scene pass 004EFBFD; the tar portal %s); [Gameplay] FadeIn Fade + Portal, "
+                 "FadeInSeconds 0.80, FadeInPortalDraw Auto, FadeInHold 1, FadeInStrandSeconds 3.0, FadeInPortalPieces 9, "
+                 "FadeInStrands 16; never bosses, Wall Men, Walter, event or cut-scene figures; a fading enemy acts as usual; a held "
+                 "ghost cannot grab; v3.58: the tar portal 1.24 x the arriving body's height (the first portal and up to 9 more of "
+                 "the same around it, thinned by the effect budget), its strands on the body 3.0 s after it is in, the portal open "
+                 "as long")
+V358FI = V333_END + """10:00:00.290 fade in: [Gameplay] FadeInStrandSeconds "long" is not 0 .. 6: 3.0 (the default)
+10:00:00.300 """ + FI_INSTALL358 % FI_TAR_OK + """
+10:00:09.000 [v] fade in: follower FFFF0002 (type 0C) fades in over 0.80 s from a tar portal (the game's own draw, on a wall 80 u behind; held 2.50 s, 40 % for 1.50 s) at -453 -200 957 (room 5:4, 29.2 s into the visit)
+10:00:09.000 [v] fade in: ghost FFFF0009 (type 0D) fades in over 0.80 s from a tar portal (the game's own draw, in the air 70 u behind; held 2.50 s, 40 % for 1.50 s) at -62 -1000 404 (room 5:4, 29.2 s into the visit)
+10:00:09.010 fade in: a tar portal drawn (the game's own draw, viewport 3D 2560x1440, after the game's pass 2 004EF900)
+10:00:11.510 [v] fade in: FFFF0002 (type 0C) let go by its tar portal (the game's own draw) after 2.51 s (held to the end): strands: the ghost's own 32; moved 282 of 459 u; no attack for 2.51 s; portal draw 0.316 ms a frame (max 0.452, 301 frames)
+10:00:11.510 [v] fade in: FFFF0009 (type 0D) let go by its tar portal (the game's own draw) after 2.51 s (held to the end): strands: Refined's 16; moved 125 of 253 u; no attack for 2.51 s; portal draw 0.316 ms a frame (max 0.452, 301 frames)
+10:00:14.410 [v] fade in: FFFF0002 (type 0C): its tar portal closed at 5.4 s: 13 piece(s) (grids 10 of 10, blot sets 3, drips 31), 282 x 418 u for a body 337 u tall (1.24 x, its bones); strands: the ghost's own 32, Refined's 8 (its bones), held 3.0 s after it was in (to 3.8 s; 7 snapped, 1 stretched loose); portal draw 0.300 ms a frame (max 0.410, 648 frames)
+10:00:14.420 [v] fade in: FFFF0009 (type 0D): its tar portal closed at 5.4 s: 12 piece(s) (grids 10 of 10, blot sets 2, drips 20), 280 x 418 u for a body 340 u tall (1.23 x, its type's box); strands: the ghost's own 0, Refined's 16 (its box), held 3.0 s after it was in (to 3.8 s; 16 snapped, 0 stretched loose); portal draw 0.280 ms a frame (max 0.390, 648 frames)
+10:00:30.000 fade in: room 5:4: 2 fade(s) (room load 0, follower 1, wanderer 0, copy 0, revive 0, ghost 1, monster 0), 2 portal(s) (the game's own draw 2, Refined's 0, vortex 0; 2 held; portal draw 0.316 ms a frame, max 0.452); 0 not faded (stage 0, cut-scene 0, type 0, boss 0, event 0, dead 0, own draw 0, own portal 0, own fade 0)
+"""
+
+
 # v3.56 MN356: the value lines, the folder click and the Extra Menu's text
 V356MN = ("10:00:00.020 extra menu: text drawn once, with its glyphs' own shadow (no second dark copy under bright parts of the "
           "picture) ([ExtraMenu] StockShadow=0)\n"
@@ -1146,6 +1241,29 @@ V356MN = ("10:00:00.020 extra menu: text drawn once, with its glyphs' own shadow
 V356MN_OFF = ("10:00:00.020 extra menu: text drawn with the stock pause's second shadow string (v3.55) ([ExtraMenu] StockShadow=1)\n"
               "10:00:05.000 options: folder rows open on a mouse click only as in v3.55 (Enter) ([Options] FolderClick=0; no Menus43 "
               "mouse hooks: on the cursor row's value column only)\n")
+
+
+# v3.58 MN358: the Options value box, the by-design randomizer stage line (v3.57's ANOMALY form and v3.58's plain form)
+V358MN = ("10:00:00.040 options: value box on: each page's values centred in one box, both arrows at its edges on every row and "
+          "for every value, the mouse rects with them (0052570E, 00525802, 0052587C, 00525CE3; the volume bars' arrows 0x5256B6 / "
+          "0x5256E2)\n"
+          "10:00:05.000 [v] options: value box: page 1 (Controls): 3 value row(s), 9 value(s), the widest 84 px, the widest label "
+          "177 px: the arrows at x 344 and 464 on every row (the stock places)\n"
+          "10:00:06.000 [v] options: value box: page 3 (Sound): 5 value row(s), 13 value(s), the widest 118 px, the widest label 152 "
+          "px: the arrows at x 344 and 482 on every row (the box grown for the widest value)\n"
+          "10:00:07.000 [v] options: value box: page 2 (Interface): 7 value row(s), 20 value(s), the widest 300 px, the widest label "
+          "138 px: the arrows at x 196 and 500 on every row (the box grown for the widest value); a value is wider than the room "
+          "left by the labels: drawn centred, under the arrows\n"
+          "10:00:08.000 [v] options: value box: page 3 row 2: a 130 px value is wider than the page's measure: the arrows at x 344 "
+          "and 494 from now on\n"
+          "10:26:30.334 ANOMALY: randomizer: stage 11: item_model.bin / wp_model.bin are not both in the world's file list: its "
+          "pickups are left alone\n"
+          "10:34:19.218 randomizer: stage 10: item_model.bin / wp_model.bin are not both in the world's file list: its pickups are "
+          "left alone (by design: this stage loads no pickup models)\n"
+          "10:34:20.000 randomizer: stage 10: item_model.bin / wp_model.bin are not both in the world's file list: its pickups are "
+          "left alone (by design: this stage loads no pickup models)\n")
+V358MN_OFF = "10:00:00.040 options: value box off ([Options] ValueBox=0): v3.57's arrows (each row's own place, long values move the column)\n"
+V358MN_NOT = "10:00:00.040 options: value box NOT on: 00525802 not stock (another mod?): v3.57's arrows\n"
 
 
 def sess(t0, ver, rend, chain, rooms, end=True, started=None, anomalies=0, perf=None, title=None):
@@ -1367,6 +1485,23 @@ V356FR_OFF = V333_END + """10:00:00.040 rate guard: off (hidden [Window] RateGua
 """
 V356FR_FM1 = V333_END + """10:00:00.040 rate guard: not used (FrameMode 1: the game runs at 30)
 """
+# v3.58 GX358: the quick rules (a start step for powers starting together, the refill, a quick step), the rate guard's
+# quick 1 s window, the stock Realtime Shadow switch (Shadows On / Off), a room drawn with Shadows Off, the preview's Off
+V358GX = V333_END + """10:00:00.040 rate guard: on (hidden [Window] RateGuard=0 turns it off): above 60 fps, when the play frames' mean over 3 s is over 1.15 x the frame in 2 windows in a row (the effect budget sheds first: up to 3 windows held), the game steps down 180 -> 120 -> 60 for this run; back up after 10 minutes clean at the next room change, a rate stepped down from 2 times stays down; the ini's FrameRate never changes; v3.58: while the effect budget has nothing left to shed, its last 1 s decides (top now 180)
+10:00:00.050 budget: quick rules on (v3.58: at a high rate two or more powers starting within 1 s of each other take the start step at once, the deepest useful level, then a level back each 0.5 s the frames hold; frames far over step 0.25 s apart; nothing left to shed for 0.5 s lets the frame-rate guard judge its last second; [Graphics] EffectBudgetQuick=1)
+10:00:00.060 shadows: Edge Soft
+10:00:00.070 shadows: Shadows On (the game's Realtime Shadow, cfg+0x19): real-time shadows wherever the game draws them
+10:00:05.000 [v] budget: level 0 -> 11 (powers start together at 180 fps: Echo Doubles, Death Presence: a start step before any late frame; they fill back in a level each 0.5 s the frames hold; stage 2 room 1): Echo: every shadow's body fades into its smoke
+10:00:06.700 [v] budget: level 11 -> 10 (the powers fill back in: on time for 0.5 s; 7 % of frames late, the effects 2.1 ms a frame against 2.0; stage 2 room 1): Echo: every shadow's body fades into its smoke comes back
+10:00:07.500 [v] budget: level 10 -> 11 (late again as they filled in: the last level back, the refill ends; 40 % of frames late, the effects 3.1 ms a frame against 2.0; stage 2 room 1): Echo: every shadow's body fades into its smoke
+10:00:20.000 [v] budget: room 2:01: level 11 now (Echo: every shadow's body fades into its smoke), at most 11 this room; 2 step(s) down, 1 up; 100 % of its play frames thinned; the effects 3.1 ms a frame on average, 6.2 at most (target 2.0); 1.2 % of the frames late; high rate: 5000 frame(s), 0 blind step(s), 0 kept, 0 taken back; the sparks at 35 %; 1 start step(s), 0 quick step(s)
+10:01:00.000 [v] budget: level 1 -> 2 (frames run far over: a quick step; 91 % of frames late, the effects 2.9 ms a frame against 2.0; stage 5 room B): high rate: the sparks, arcs and smoke at 35 %
+10:01:02.800 rate guard: 180 -> 120: the play frames took 8.10 ms on average against 5.56 (1.46 x) in the last 1 s, the effect budget with nothing left to shed (stage 5 room B; effect budget level 9); [Window] FrameRate stays 180
+10:02:00.000 shadows: Shadows Off (the game's Realtime Shadow, cfg+0x19, read by the game every frame: at once): no real-time shadows, as the game's Off, except in the rooms the game keeps them (Room 302's living room, the Water Prison, Hospital rooms 1 / 1F); here (stage 5 room B): none; the Tremers' wall shadows stay (the game never hides them)
+10:02:01.000 [v] shadows: the Shadows page's preview: Shadows Off: no real-time shadow here, as the game's Off (the picture without it, no split)
+10:03:00.000 [v] shadows: room 4:05: 900 composites over 900 frames (at most 1 in a frame), 900 soft; ours 0.050 ms a composite on average, 0.100 at most; edge Soft; render targets 4.8 MB; darkness 100 %; 600 with Shadows Off (the game keeps this room's)
+10:04:00.000 shadows: Shadows On (the game's Realtime Shadow, cfg+0x19): real-time shadows wherever the game draws them
+"""
 
 def run(text, name='SH4Refined.log'):
     d = tempfile.mkdtemp(prefix='logcheck_')
@@ -1421,6 +1556,42 @@ V356ER_NOT = V333_END + """10:00:00.040 gameplay: EnemyRevive On (v3.30 - v3.55)
 10:00:00.100 enemies: return: 0048ACE0 or 004215D0 differs from the GOG v7 exe (another mod?): By World leaves Tremers the game's own rule
 10:00:00.200 enemies: in (room load 004F0AF8, kill count 00450DB0, bone pool 00419830); EnemyCopies Off, EnemyFollow Off, EnemyRevive By Room, BonePool -1
 """
+
+
+# v3.58 EN358: the ghosts through doors (a randomizer-drawn victim too), what became of them, the undrawn refusals, Walter downed
+V358EN = V333_END + """10:00:01.000 enemies: through door 27 from room 4 to 11: 2 follow (0 monster(s), 0 of them copies, 2 ghost(s); 2 from that room, 0 pursuing from other rooms or on their way): FFFF0002 ghost 0C, 05040002 ghost 0B; 0 wait for a later door (0 FollowMax 32 full, 0 files, 0 story rule, 0 down in their room), 0 already here, 0 stopped, 0 in that room had not spotted you
+10:00:03.000 [v] enemies: ghost 05040002 (type 0B) that followed you is in room 11 now (class 01, 2.0 s after the door, 1800 units from you) (a victim the randomizer drew)
+10:00:04.000 [v] enemies: ghost FFFF0002 (type 0C) that followed you is in room 11 now (class 01, 3.0 s after the door, 2400 units from you)
+10:00:30.000 enemies: ghosts that followed you into room 11: 2 of 2 came in (the real ghost in the room; nearest 120 units from you), 0 still arriving through the walls, 0 never in the room (waiting outside: space or the room timer) (you left the room)
+10:00:30.000 enemies: through door 27 from room 11 to 4: 1 follow (0 monster(s), 0 of them copies, 1 ghost(s); 1 from that room, 0 pursuing from other rooms or on their way): FFFF0002 ghost 0C; 0 wait for a later door (0 FollowMax 32 full, 0 files, 0 story rule, 0 down in their room), 0 already here, 1 stopped, 0 in that room had not spotted you
+10:01:00.000 enemies: ghosts that followed you into room 4: 0 of 1 came in (the real ghost in the room; nearest -1 units from you), 1 still arriving through the walls, 0 never in the room (waiting outside: space or the room timer) (a save load)
+10:02:00.000 [v] hud bars: no bar for 02020001 (type 0A) in room 2:2: not in the room yet (the game does not draw it: hidden, arriving or a placeholder) (an event dog before story flag 130: its task returns before its draw) (state 1, at 120 -150 -2200, 900 from you)
+10:02:00.100 [v] hud bars: no bar for 841F0001 (type 10) in room 9:2: not in the room yet (the game does not draw it: hidden, arriving or a placeholder) (nothing draws it: no model in its actor record) (state 1, at 0 0 -2000, 900 from you)
+10:03:00.000 hud bars: Walter downed keeps his bar (boss rules) with a revive bar from the game's own down timer: the stalker's (004A4A12) read, the final Walter's (004A8760) read
+10:03:10.000 [v] hud bars: the stalker Walter 850B0010 stumble (class 9, AI D step 1, hp 0 / 1200, down timer 0.0 s): his bar stays up
+10:03:11.000 [v] hud bars: the stalker Walter 850B0010 down (class A, AI E step 1, hp 0 / 1200, down timer 47.3 s): his bar and the revive bar stay up
+10:04:00.000 [v] hud bars: the stalker Walter 850B0010 gone (class B, AI E step 4, hp 0 / 1200, down timer 0.0 s): his bar fades out
+"""
+
+
+def test_en358():  # v3.58 EN358
+    s, r = run(V358EN)
+    print(r)
+    g = s.en358
+    check(g['g_doors'] == 2 and g['g_door'] == 3 and g['g_rooms'] == 2 and g['g_tag'] == 3 and g['g_in'] == 2 and
+          g['g_arr'] == 1 and g['g_out'] == 0 and g['g_first'] == 2 and g['g_drawn'] == 1 and s.en358_near == 120,
+          'v3.58 EN358: the ghosts through doors (%r %r)' % (dict(g), s.en358_near))
+    check(g['hb_dog'] == 1 and g['hb_undrawn'] == 1 and s.hb_ref_lines['hidden'] == 2, 'v3.58 EN358: the undrawn refusals (%r %r)'
+          % (dict(g), dict(s.hb_ref_lines)))
+    check(g['w_down'] == 1 and g['w_stumble'] == 1 and g['w_gone'] == 1 and g['w_most'] == 47 and s.en358_wsite == ('read', 'read'),
+          'v3.58 EN358: Walter downed (%r %r)' % (dict(g), s.en358_wsite))
+    check('; ghosts: 3 at 2 door(s); in their rooms 2 of 3 came in (2 seen arriving: 1 of them drawn by the randomizer; nearest 120 '
+          'units), 1 still arriving, 0 never in the room (2 room line(s))' in r, 'v3.58 EN358: the follow summary names the ghosts')
+    check('; 2 of them nothing draws yet (1 event dog(s) before story flag 130); Walter downed: 1 down with the revive bar (at most '
+          '47 s), 1 down without a countdown, 1 gone, 0 other (timers: the stalker read, the final read)' in r,
+          'v3.58 EN358: the enemy health bars summary')
+    s, r = run(V352HB)
+    check(not s.en358 and 'nothing draws yet' not in r and 'Walter downed' not in r, 'v3.58 EN358: a v3.52 log reads as before')
 
 
 def test_er356():  # v3.56 ER356
@@ -1486,8 +1657,21 @@ V356PV = """10:00:00.050 screen effects: the Effects page's preview: with no pau
 10:05:00.000 ANOMALY: screen effects: the preview scene's draw faulted: off for this session (PreviewImage / the hallway instead)
 """
 
+# v3.58 PV358: Preview Off / Stock / Live, Filter Strength, the migrations, the stock picture
+V358PV = """10:00:00.040 screen effects: [ScreenEffects] PreviewScene=Scene (v3.56, hidden) is now Preview=Live (v3.58: the Effects row Preview; written, the old key removed)
+10:00:00.041 screen effects: [ScreenEffects] FilterStrength=Medium is v3.15's (unread since v3.16): now High, the strength of v3.16 - v3.57 (written with the marker FilterStrengthV=358)
+10:00:00.050 screen effects: the Effects page's preview: Preview=Live (the title menu: the stock picture, else PreviewImage; a pause: its scene); the stock picture C:\\Program Files (x86)\\GOG Galaxy\\Games\\Silent Hill 4\\SH4Refined_preview_stock.dds: present; a pause keeps Thermal's heat and Spirit Vision's ghosts and soul fires for it: on (PreviewLayers=1); Filter Strength High
+10:00:11.000 screen effects: the Effects page's preview: Thermal over the stock picture (SH4Refined_preview_stock.dds)
+10:00:12.000 screen effects: the Effects page's preview: CRT over the stock picture (SH4Refined_preview_stock.dds) (Filter Strength Low)
+10:00:13.000 screen effects: the Effects page's preview: off (Preview Off) over the game's own menu background (page 4)
+10:00:14.000 screen effects: the stock picture C:\\Program Files (x86)\\GOG Galaxy\\Games\\Silent Hill 4\\SH4Refined_preview_stock.dds is missing: Preview Stock shows SH4 Refined's own scene instead
+10:00:15.000 screen effects: Filter Strength Low: the plain picture could not be copied (1 of 3): this frame shows the filter at High
+10:01:05.000 screen effects: the Effects page's preview: Thermal over the paused scene with the pause's heat layer (3 bodies, 2 footprint(s)) (Filter Strength Medium)
+"""
+
 
 def main():
+    test_en358()  # v3.58 EN358
     test_er356()  # v3.56 ER356
     s, r = run(V333)
     print(r)
@@ -2353,6 +2537,27 @@ def main():
           'v3.51: the summary shows the event dogs and the second roll')
     check(not [v for v in s.warnings.values() if 'monsters' in v[3].lower()], 'v3.51: no Monsters line lands in the warnings (%r)' % (
         list(s.warnings.values()),))
+    s, r = run(V358RZ)  # v3.58 RZ358
+    check(s.rzm_rooms['rooms'] == 4 and s.rzm_dead['rooms'] == 1 and s.rzm_dead['dead'] == 2 and s.rzm_dead['hid'] == 1 and
+          s.rzm_dead['killed'] == 1 and s.rzm_dead['v_hid'] == 1 and s.rzm_dead['saves'] == 1 and s.rzm_dead['save_dead'] == 2 and
+          s.rzm_lists == 4, 'v3.58 RZ358: the room line with the dead, the verbose body line, the save line parse (%r %r %d)' % (
+              s.rzm_rooms, s.rzm_dead, s.rzm_lists))
+    check(s.rzm_cp['rooms'] == 1 and s.rzm_cp['made'] == 2 and s.rzm_cp['drawn'] == 3 and s.rzm_cp['sited'] == 1 and
+          s.rzm_cp['files'] == 1 and s.rzm_cp['not'] == 1 and s.rzm_cp['files_lines'] == 1 and s.rzm_cp_by['Hummer'] == 1 and
+          s.rzm_sess5 == (2, 1, 1, 0, 2, 0) and s.rzm_sess6 == (1, 3, 1, 2, 1, 3) and s.cp_recs['rooms'] == 1 and
+          s.cp_recs['not'] == 1 and s.cp_recs['v'] == 1, "v3.58 RZ358: the copies' lines and the session lines parse (%r %r %r %r %r)" % (
+              s.rzm_cp, s.rzm_cp_by, s.rzm_sess5, s.rzm_sess6, s.cp_recs))
+    check('; the dead stayed dead in 1 room load(s): 2 bod(ies) as they died (1 with the placement empty), 1 by a kill bit; 1 save(s) '
+          'kept 2 randomized bod(ies) dead as kill bits' in r and '; copies drawn in 1 room load(s): 2 made (as Hummer 1, Twin Victim 1), '
+          "3 drawn (1 at a site of their own), 1 kept their original's type (files), 1 not made" in r and
+          '  enemy records for copies: 1 cop(ies) not made in 1 room load(s)' in r, 'v3.58 RZ358: the summary shows them')
+    check(not [v for v in s.warnings.values() if 'monsters' in v[3].lower() or 'copies' in v[3].lower()],
+          'v3.58 RZ358: none of them lands in the warnings (%r)' % (list(s.warnings.values()),))
+    s, r = run(V358RZ_LOST)
+    check(s.rzm_dead['v_lost'] == 1 and '1 BACK (no kill index)' in r, 'v3.58 RZ358: a body that stood again is said in the summary')
+    s, r = run(V351SN)
+    check(not s.rzm_dead and not s.rzm_cp and 'the dead stayed dead' not in r and 'copies drawn' not in r,
+          'v3.58 RZ358: a v3.57 log has none of them')
     s, r = run(V351SN.replace(SN351_EVIN % (3, 'On'), SN351_EVIN % (5, 'Off')))
     check(s.rzm_ev == (5, 3, 'Off') and '; event dogs 5 of 3 stock (NOT the stock count) (rolled once story flag 130 is set), roll '
           'again Off' in r, 'v3.51: event dogs not the stock 3: said in the summary (%r)' % (s.rzm_ev,))
@@ -2505,6 +2710,39 @@ def main():
               s.sd_bg, s.sd_keep, s.sd_dev_off, s.snd_notin))
     check('keep-awake FAILED (ANOMALY)' in r and 'no device watch: no MMDevice enumerator' in r and 'ini read as the default: Background' in r
           and 'at the end another default' not in r, 'v3.56: the SD356 failure summary')
+    s, r = run(V358SD)  # v3.58 SD358: Volume 0 = silent, Mute by the sound session
+    print(r)
+    check(s.sd_zero == ('silent', 'in', 'in', 'by its set level') and s.sd_zero_n == [120, 4, 1800] and
+          s.sd_sess == ('session', 2, 2) and s.sd_mutes['mute'] == 2 and s.sd_mutes['more'] == 1 and s.sd_mutes['unmute'] == 1 and
+          s.sd_mutes['sessions'] == 6 and s.sd_mutes['fixed'] == 2 and s.sd_mutes['user'] == 1 and s.sd_sites == [('10:00:01', 'Play')] and
+          s.sd_exit == ('10:03:10', 'done') and [x[1] for x in s.sd_focus] == ['away', 'back', 'away'] and not s.snd_anom and
+          not s.sd_sess_lost, 'v3.58: the SD358 lines read (%r %r %r %r %r)' % (s.sd_zero, s.sd_zero_n, s.sd_sess, dict(s.sd_mutes), s.sd_sites))
+    check('volume 0 silent (all in): 120 2D, 4 3D, 1800 stream volume(s) silenced' in r, 'v3.58: the Volume 0 part of the Sound line')
+    check('Mute by the sound session (2 session(s) on 2 device(s)); muted 2 time(s) (6 session(s), 1 re-sweep(s) found more), unmuted 1 '
+          'time(s); 2 session(s) left muted by an earlier game unmuted at the start; 1 session(s) muted in Windows by the user (left: the '
+          'game is muted in the Volume Mixer); SH4Refined.muted: 1 entr(y/ies) kept for a later start, 2 dropped (30 days); 1 held '
+          'session(s) changed by the user in the Volume Mixer (left as set); '
+          'buffer sites now Play [10:00:01]; closed behind other windows: sessions unmuted first (done) [10:03:10]' in r,
+          'v3.58: the SD358 summary')
+    check(not [v for v in s.warnings.values() if v[3].startswith('sound: ')], 'v3.58: no SD358 line lands in the warnings')
+    s, r = run(V358SD1)
+    print(r)
+    check(s.sd_zero == ('off',) and s.sd_sess == ('none', 'none found') and s.sd_keep_hold == 1 and s.sd_stale == [('10:02:01', 3)] and
+          s.sd_sites == [('10:04:00', 'Mute')] and len(s.sd_sess_lost) == 1 and s.snd_anom == 1,
+          'v3.58: the fallback lines read (%r %r %r %r %r)' % (s.sd_zero, s.sd_sess, s.sd_stale, s.sd_sites, s.sd_sess_lost))
+    check("Mute by DirectSound's focus rule (no sound session: none found); 1 session problem(s) (ANOMALY): no sound session of the "
+          "game could be muted [10:04:00]; buffer sites now Mute [10:04:00]; 1 time(s) sounds with the global focus played on behind "
+          "other windows (most 3); keep-awake stopped behind other windows 1 time(s)" in r and "volume 0 the game's own (off)" in r and
+          "SH4Refined.muted could not be written 2 time(s) (a write, the replace): the old one kept, sessions it could not name not "
+          "muted" in r,
+          'v3.58: the fallback summary')
+    check(s.sd_mutes['pending'] == 2 and s.sd_mutes['pending muted'] == 1 and
+          'SH4Refined.muted: 2 pending entr(y/ies) at the start (a mute not confirmed; left as they are, 1 muted: unmute in the '
+          'Volume Mixer if silent), dropped' in r and not [v for v in s.warnings.values() if v[3].startswith('sound: background: SH4Refined.muted named')],
+          'v3.58 SD358-003: the pending line read, in the summary, not a warning (%r)' % dict(s.sd_mutes))
+    s, r = run(V356SD)
+    check(s.sd_zero is None and s.sd_sess is None and not s.sd_mutes and 'volume 0' not in r and 'Mute by' not in r,
+          'v3.58: a v3.56 log has no SD358 part')
     s, r = run(V352SND)
     check(s.sd_line() is None and 'sound background:' not in r, 'v3.56: a v3.52 log has no SD356 line')
     s, r = run(V333_END + '10:00:00.010 sound: [Sound] Enabled=0: the game\'s own sound and Sound row (no Refined sound site)\n')
@@ -2539,6 +2777,18 @@ def main():
     check(s.fi_tar and s.fi_tar[1] == 'Vortex' and s.fi_by == {'vortex': 1} and s.fi_held == 0 and s.fi_cost == [0, 0.0, 0.0] and
           "tar portal NOT available (FadeInPortalDraw=Vortex): v3.50's blood vortex; by draw: vortex 1; 0 held" in r and
           'NEVER DRAWN' not in r, 'v3.51: Vortex: v3.50\'s portal, no hold (%r %r)' % (s.fi_tar, dict(s.fi_by)))
+    s, r = run(V358FI)  # v3.58 FI358: the bigger, stickier portal
+    print(r)
+    check(s.fi_big == ('3.0', '9', '16') and s.fi_tar and s.fi_tar[1:] == ('Auto', '1') and s.fi_stick_bad == 'long' and
+          len(s.fi_close) == 2 and s.fi_close[0][:5] == ('FFFF0002', 5.4, 10, 10, 3) and s.fi_close[0][5:13] == (282, 418, 337, 1.24, 'its bones', 32, 8, 'its bones') and
+          s.fi_close[0][13:17] == (3.0, 3.8, 7, 1) and s.fi_close[1][9:13] == ("its type's box", 0, 16, 'its box') and len(s.fi_letgo) == 2,
+          'v3.58: the start line\'s keys and the close lines read (%r %r)' % (s.fi_big, s.fi_close))
+    check("; v3.58 portal: strands 3.0 s, pieces up to 9, sticky strands 16; unknown ini value: FadeInStrandSeconds \"long\" -> 3.0; 2 "
+          "closed (grids at most 10, 10.0 a portal; portal / body 1.23 .. 1.24 x (1 by bones, 1 by type); strands held 3.0 .. 3.0 s after "
+          "it was in, Refined's 24 (16 on its box), 1 stretched loose; closed at 5.4 .. 5.4 s; draw at most 0.300 ms a frame a portal, "
+          "worst 0.410)" in r and 'SMALLER than its body' not in r, 'v3.58: the portal summary')
+    s, r = run(V351PT)
+    check(s.fi_big is None and not s.fi_close and 'v3.58 portal' not in r and ' closed (grids' not in r, 'v3.58: a v3.57 log reads as before')
     s, r = run(V352FX)  # v3.52 FX352
     print(r)
     dof = [x for x in r.splitlines() if x.startswith('  depth of field: ')]
@@ -2635,6 +2885,26 @@ def main():
     check([v for v in s.warnings.values() if 'final-room sites is used' in v[3]], 'v3.56 FR356: the site not stock is also a warning')
     s, r = run(V356FR_FM1)
     check(s.frg[0] == 'not used' and 'rate guard: not used at the start' in r, 'v3.56 FR356: FrameMode 1')
+    # v3.58 GX358: the quick rules, the quick window, Shadows On / Off
+    s, r = run(V358GX)
+    fr = [x for x in r.splitlines() if x.startswith('  rate guard: ')]
+    bq = [x for x in r.splitlines() if x.startswith('  effect budget quick rules: ')]
+    sh = [x for x in r.splitlines() if x.startswith('  shadows: ')]
+    check(s.frg == ('on', 180, '10:00:00') and len(s.frg_downs) == 1 and s.frg_downs[0][1:3] == (180, 120) and s.frg_downs[0][10] and
+          s.frg_downs[0][6:9] == ('5', 'B', 9) and len(fr) == 1 and 'the quick 1 s window' in fr[0],
+          'v3.58 GX358: the quick window step read (%r %r)' % (s.frg_downs, fr))
+    check(s.bq == 'on' and len(s.bq_pre) == 1 and s.bq_pre[0][1:4] == (0, 11, 180) and s.bq_pre[0][4] == 'Echo Doubles, Death Presence' and
+          s.bq_refill == [1, 1] and s.bq_quick == 1 and s.bq_rooms == [('2:01', 1, 0)], 'v3.58 GX358: the quick rules read (%r %r %r %r)' % (
+              s.bq_pre, s.bq_refill, s.bq_quick, s.bq_rooms))
+    check(len(bq) == 1 and 'on; 1 start step(s)' in bq[0] and '0 -> 11 at 180 fps (Echo Doubles, Death Presence)' in bq[0] and
+          '1 level(s) back, 1 take-back(s); 1 quick step(s)' in bq[0], 'v3.58 GX358: the quick rules line (%r)' % bq)
+    check(s.budget_steps[0] == 3 and s.budget_steps[1] == 1, 'v3.58 GX358: the start step, the take-back and the quick step count as steps down (%r)' % (s.budget_steps,))
+    check([x[1] for x in s.sh_sw] == ['On', 'Off', 'On'] and s.sh_sw[1][2] == '5:0B none' and s.sh_off_rooms == {'4:05': 600} and s.sh_pv_off == 1,
+          'v3.58 GX358: Shadows On / Off, the kept room, the preview (%r %r %r)' % (s.sh_sw, s.sh_off_rooms, s.sh_pv_off))
+    check(len(sh) == 1 and 'Shadows (Realtime Shadow): 3 line(s), On at the end, Off 1 time(s) (5:0B none' in sh[0] and
+          "drawn with Shadows Off (the game's own Off list): 4:05 600" in sh[0] and "preview showed the game's Off 1 time(s)" in sh[0],
+          'v3.58 GX358: the shadows line (%r)' % sh)
+    check(not [v for v in s.warnings.values() if 'Shadows Off' in v[3] or 'quick' in v[3]], 'v3.58 GX358: none of them a warning')
     s, r = run(V333_END)
     check(s.frg is None and s.t60f is None and 'rate guard:' not in r, 'v3.56 FR356: no guard lines, no summary line')
     s, r = run(V333_END + V356PV)  # v3.56 PV356
@@ -2654,6 +2924,20 @@ def main():
           'v3.56 PV356: no preview line lands in the warnings')
     s, r = run(V333_END)
     check(s.pv_set is None and 'effects preview:' not in r, 'v3.56 PV356: no preview lines, no summary line')
+    s, r = run(V333_END + V358PV)  # v3.58 PV358
+    pv = [x for x in r.splitlines() if x.startswith('  effects preview: ')]
+    check(s.pv358 and s.pv358[1:] == ('Live', 'present', '1', 'High') and s.pv_off == 1 and s.pv_fsfail == 1 and
+          s.pv_stockbad['missing'] == 1 and len(s.pv_mig) == 2, 'v3.58 PV358: the install line, the Off opening, the failed copy, '
+          'the missing stock picture and both migrations read (%r %r %r %r %r)' % (s.pv358, s.pv_off, s.pv_fsfail, s.pv_stockbad, s.pv_mig))
+    check(s.pv_page[('Thermal', 'the stock picture')] == 1 and s.pv_page[('CRT', 'the stock picture at Low')] == 1 and
+          s.pv_page[('Thermal', 'a pause + its heat layer at Medium')] == 1 and s.pv_page[('(off)', 'Preview Off')] == 1,
+          'v3.58 PV358: the page lines by backdrop and strength (%r)' % s.pv_page)
+    check(len(pv) == 1 and 'effects preview: Preview Live (the stock picture present), Filter Strength High; the pause layers on' in pv[0] and
+          "migrated: PreviewScene=Scene -> Preview=Live, FilterStrength=Medium (v3.15's) -> High" in pv[0] and
+          'the stock picture missing x1' in pv[0] and '1 plain cop(y/ies) failed' in pv[0], 'v3.58 PV358: the summary line (%r)' % pv)
+    check(not [v for v in s.warnings.values() if v[3].startswith(('screen effects: the Effects page', 'screen effects: [ScreenEffects] Preview',
+                                                                   'screen effects: Filter Strength'))],
+          'v3.58 PV358: no preview line lands in the warnings')
     # v3.56 MN356: the value lines, the folder click and the Extra Menu's text
     s, r = run(V333_END + V356MN)
     mn = [x for x in r.splitlines() if x.startswith('  options menu (v3.56): ')]
@@ -2675,6 +2959,52 @@ def main():
           'with the stock second shadow (StockShadow=1)' in mn[0], 'v3.56 MN356: the switches off (%r %r)' % (s.mn_fc, mn))
     s, r = run(V333_END)
     check(s.mn_vl is None and not s.mn_fc_open and 'options menu (v3.56)' not in r, 'v3.56 MN356: none of its lines, no summary line')
+    # v3.58 GT358: the clean fade's draw path
+    s, r = run(V358GT)
+    gt = [x for x in r.splitlines() if x.startswith('  ghost teleport: ')]
+    check(s.gt == ('in', 'On') and s.gt_fdraw == 'Clean' and s.gt_fnotin is None and s.gt_fades == [3, 0] and
+          s.gt_fpath == {'None': [1, 180, 179, 0, 0, 0, 0, 0, 90], 'Thermal': [1, 180, 178, 0, 0, 0, 178, 0, 90],
+                         'Spirit Vision': [1, 172, 170, 6, 2, 1, 0, 176, 88]},
+          'v3.58 GT358: the fade lines read by filter (%r %r %r)' % (s.gt, s.gt_fdraw, s.gt_fpath))
+    check(len(gt) == 1 and "Richard's fade 3 time(s), drawn each time; the fade's draw Clean: late 532 frame(s) (527 with the depth "
+          "pre-pass), in place 8 (shader 4 6), 1 frame(s) MISSED after the actor models; by filter None x1, Spirit Vision x1, soul faded "
+          "176, Thermal x1, heat faded 178, her shadow hidden 268 frame(s)" in gt[0], 'v3.58 GT358: the summary part (%r)' % gt)
+    check(not [v for v in s.warnings.values() if 'ghost teleport' in v[3]], 'v3.58 GT358: no fade line lands in the warnings')
+    s, r = run(V358GT_NOTIN)
+    gt = [x for x in r.splitlines() if x.startswith('  ghost teleport: ')]
+    check(s.gt == ('in', 'On') and s.gt_fdraw == 'One pass' and s.gt_fnotin == "004EF900 is not the game's code (another mod?)" and
+          len(gt) == 1 and "the fade's draw One pass (Clean NOT in: 004EF900 is not the game's code (another mod?)): late 0 frame(s) (0 "
+          "with the depth pre-pass), in place 180 (shader 4 0), none missed; by filter None x1, her shadow hidden 90 frame(s)" in gt[0],
+          'v3.58 GT358: one pass, Clean not in (%r %r)' % (s.gt_fnotin, gt))
+    s, r = run(V352G)
+    check(s.gt_fdraw is None and not s.gt_fpath and "the fade's draw" not in r, 'v3.58 GT358: a v3.52 log reads as before (no draw part)')
+    # v3.58 MN358: the value box and the by-design randomizer stage line
+    s0, r0 = run(V333_END)
+    s, r = run(V333_END + V358MN)
+    vb = [x for x in r.splitlines() if x.startswith('  options value box (v3.58): ')]
+    rz = [x for x in r.splitlines() if x.startswith('  randomizer: ')]
+    check(s.vbx == ('on', True, '') and list(s.vbx_pages) == [1, 3, 2] and s.vbx_pages[3][5:8] == (344, 482, 'the box grown for the widest value')
+          and s.vbx_pages[2][8] and not s.vbx_pages[1][8] and s.vbx_grow == [('10:00:08', 3, 2, 130, 344, 494)],
+          'v3.58 MN358: the value box lines read (%r %r %r)' % (s.vbx, dict(s.vbx_pages), s.vbx_grow))
+    check(len(vb) == 1 and vb[0].startswith('  options value box (v3.58): on; 3 page(s) measured, 1 at the stock arrows, 2 grown: '
+          'Sound 344 / 482, Interface 196 / 500') and 'a value wider than the room on Interface' in vb[0] and
+          '1 page(s) grew for a wider value' in vb[0], 'v3.58 MN358: the value box line (%r)' % vb)
+    check(s.rz_nomodels == [11, 10] and s.rz_nomodels_anom == 1 and len(rz) == 1 and
+          'stage(s) 11, 10 left alone by design (no pickup model files in the world; written as 1 ANOMALY line(s) before v3.58, '
+          'not counted)' in rz[0], 'v3.58 MN358: the by-design stage line under the randomizer (%r %r)' % (s.rz_nomodels, rz))
+    check(sum(g[0] for g in s.anomalies.values()) == sum(g[0] for g in s0.anomalies.values()) and
+          not [k for k in s.anomalies if 'wp_model.bin' in k] and s.rz_anom == s0.rz_anom,
+          'v3.58 MN358: the by-design line is not an ANOMALY (%r)' % list(s.anomalies))
+    check(not [v for v in s.warnings.values() if 'value box' in v[3] or 'wp_model.bin' in v[3]],
+          'v3.58 MN358: no value box / stage line lands in the warnings')
+    s, r = run(V333_END + V358MN_OFF)
+    vb = [x for x in r.splitlines() if x.startswith('  options value box (v3.58): ')]
+    check(s.vbx == ('off', 'off (ValueBox=0)') and vb == ['  options value box (v3.58): off (ValueBox=0)'], 'v3.58 MN358: the switch off (%r)' % vb)
+    s, r = run(V333_END + V358MN_NOT)
+    vb = [x for x in r.splitlines() if x.startswith('  options value box (v3.58): ')]
+    check(s.vbx == ('off', 'NOT on (00525802 not stock)') and len(vb) == 1 and 'NOT on (00525802 not stock)' in vb[0],
+          'v3.58 MN358: not on (%r)' % vb)
+    check(s0.vbx is None and not s0.rz_nomodels and 'options value box' not in r0, 'v3.58 MN358: none of its lines, no line')
     test_compare()  # v3.40 LG340
     print('%d failure(s)' % len(FAILS))
     return 1 if FAILS else 0

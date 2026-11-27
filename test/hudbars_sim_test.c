@@ -1230,8 +1230,109 @@ static void TestCalm352(void)
     CHECK(HbRefuseWhy(0, pos) == HB_RF_HIDDEN, "class 0 shown");
 }
 
+// v3.58 EN358: no bar before the game draws the body (the event dogs of Subway 2:2 before story flag 0x130); the bar with
+// Fade In's body; Walter downed keeps his bars (the stalker's 0x4A4930, the final Walter's 0x4A8690)
+static void TestUndrawn358(void)
+{
+    static int model, fn;
+    const float at[3] = { 100.0f, -160.0f, 2000.0f };
+    CHECK(HbUndrawnWhy(1, NULL, NULL, NULL, NULL, 0x0A, 7, 0) == HB_UD_DOG, "event dog mode 7 asleep");
+    CHECK(HbUndrawnWhy(1, &model, NULL, NULL, NULL, 0x0A, 6, 0) == HB_UD_DOG, "event dog mode 6 asleep (even with a model)");
+    CHECK(HbUndrawnWhy(1, &model, NULL, NULL, NULL, 0x0A, 7, 1) == HB_UD_NONE, "event dog released and drawn");
+    CHECK(HbUndrawnWhy(1, NULL, NULL, NULL, NULL, 0x0A, 7, 1) == HB_UD_ACTOR, "released, its first tick not run yet: no model");
+    CHECK(HbUndrawnWhy(1, &model, NULL, NULL, NULL, 0x0A, 0x106, 0) == HB_UD_NONE, "variant-1 mode word 0x106 is not the gate (0x45B4B0 == 6)");
+    CHECK(HbUndrawnWhy(1, &model, NULL, NULL, NULL, 0x0A, 3, 0) == HB_UD_NONE, "a mode 3 dog is drawn (no story gate)");
+    CHECK(HbUndrawnWhy(1, NULL, NULL, NULL, NULL, 0x07, 0, 1) == HB_UD_ACTOR, "a Gum Head with no model: nothing draws it");
+    CHECK(HbUndrawnWhy(1, NULL, &fn, NULL, NULL, 0x05, 0, 1) == HB_UD_NONE, "a draw callback of its own: drawn");
+    CHECK(HbUndrawnWhy(1, NULL, NULL, &fn, NULL, 0x0B, 0, 1) == HB_UD_NONE, "a pre-draw: drawn");
+    CHECK(HbUndrawnWhy(1, NULL, NULL, NULL, &fn, 0x0B, 0, 1) == HB_UD_NONE, "a post-draw: drawn");
+    CHECK(HbUndrawnWhy(0, NULL, NULL, NULL, NULL, 0x07, 0, 1) == HB_UD_NONE, "no record readable: not judged (HB352's rules)");
+    CHECK(HbRefuseWhy2(1, at, HB_UD_DOG) == HB_RF_HIDDEN && HbRefuseWhy2(1, at, HB_UD_ACTOR) == HB_RF_HIDDEN, "undrawn: hidden");
+    CHECK(HbRefuseWhy2(1, at, HB_UD_NONE) == HB_RF_NONE, "drawn, class 1, a place: a bar");
+    CHECK(HbRefuseWhy2(0x0D, at, HB_UD_NONE) == HB_RF_HIDDEN, "HB352's class rule kept");
+    CHECK(kHbUdName[HB_UD_DOG][0] == ' ' && kHbUdName[HB_UD_ACTOR][0] == ' ' && kHbUdName[HB_UD_NONE][0] == 0, "notes");
+    CHECK(HbWithBody(1.0f, 0.0f) == 0.0f && HbWithBody(1.0f, 1.0f) == 1.0f, "the bar with the body");
+    CHECK(fabsf(HbWithBody(0.8f, 0.5f) - 0.4f) < 1e-6f && HbWithBody(2.0f, 2.0f) == 1.0f, "scaled, clamped");
+    {
+        const float nan = (float)(0.0 * HUGE_VAL);
+        CHECK(HbWithBody(0.5f, nan) == 0.5f && HbWithBody(nan, 1.0f) == 0.0f, "NaN body: as drawn; NaN bar: none");
+    }
+    {   // Fade In 0.8 s at 30 / 60 / 120 / 180 fps: the bar's shown alpha never runs ahead of the body
+        static const int kF[4] = { 30, 60, 120, 180 };
+        int i, f, ahead = 0;
+        for (i = 0; i < 4; ++i) {
+            HbBar b;
+            float body = 0.0f;
+            memset(&b, 0, sizeof b);
+            for (f = 0; f < kF[i] * 2; ++f) {
+                const float t = (float)f / (float)kF[i], s = t >= 0.8f ? 1.0f : t / 0.8f;
+                body = s * s * (3.0f - 2.0f * s);
+                HbBarStep(&b, 1.0f, 1.0f, 1, 1.0f / (float)kF[i]);
+                if (HbWithBody(b.alpha, body) > body + 1e-6f) ++ahead;
+            }
+            CHECK(fabsf(HbWithBody(b.alpha, body) - b.alpha) < 1e-6f, "%d fps: full once the fade is done", kF[i]);
+        }
+        CHECK(ahead == 0, "the bar never shows more than the body (%d frames ahead)", ahead);
+    }
+}
+static void TestWalter358(void)
+{
+    float cd = -1.0f;
+    const float nan = (float)(0.0 * HUGE_VAL);
+    CHECK(HbWalterKind(0x08) == HB_WK_FINAL && HbWalterKind(0x07) == HB_WK_BODIES && HbWalterKind(0) == HB_WK_STALKER &&
+          HbWalterKind(0x100) == HB_WK_STALKER && HbWalterKind(0x108) == HB_WK_FINAL, "kinds by the mode word & 0xF");
+    // the stalker: standing, knocked (0x0D, class 9), lying (0x0E, class 0x0A) with the timer, rising, the Sword's end
+    CHECK(HbWalterState(HB_WK_STALKER, 1, 4, 0, 300.0f, 0.0f, 1, &cd) == HB_GS_STAND && cd == 0.0f, "standing");
+    CHECK(HbWalterState(HB_WK_STALKER, 1, 4, 0, 0.0f, 0.0f, 1, &cd) == HB_GS_STAND, "standing at HP 0 (the frame before the fall): kept");
+    CHECK(HbWalterState(HB_WK_STALKER, 9, 0x0D, 1, 0.0f, 0.0f, 1, &cd) == HB_GS_STUMBLE, "knocked down at HP 0: kept (v3.57: gone)");
+    CHECK(HbWalterState(HB_WK_STALKER, 0x0A, 0x0E, 0, 0.0f, 0.0f, 1, &cd) == HB_GS_STUMBLE, "lying, step 0 (the timer not set yet)");
+    CHECK(HbWalterState(HB_WK_STALKER, 0x0A, 0x0E, 1, 0.0f, 42.5f, 1, &cd) == HB_GS_DOWN && cd == 42.5f, "lying at HP 0: 42.5 s");
+    CHECK(HbWalterState(HB_WK_STALKER, 0x0A, 0x0E, 1, 120.0f, 6.0f, 1, &cd) == HB_GS_DOWN && cd == 6.0f, "lying with HP: 6 s");
+    CHECK(HbWalterState(HB_WK_STALKER, 0x0A, 0x0E, 1, 0.0f, 42.5f, 0, &cd) == HB_GS_STUMBLE && cd == 0.0f, "timer bytes differ: bar only");
+    CHECK(HbWalterState(HB_WK_STALKER, 0x0A, 0x0E, 1, 0.0f, nan, 1, &cd) == HB_GS_STUMBLE && cd == 0.0f, "NaN timer: bar only");
+    CHECK(HbWalterState(HB_WK_STALKER, 0x0A, 0x0E, 1, 0.0f, 5000.0f, 1, &cd) == HB_GS_STUMBLE, "not a timer: bar only");
+    CHECK(HbWalterState(HB_WK_STALKER, 0x0A, 0x0E, 2, 0.0f, 2.0f, 1, &cd) == HB_GS_STUMBLE, "playing dead (step 2): no countdown");
+    CHECK(HbWalterState(HB_WK_STALKER, 8, 0x0E, 3, 10.0f, 0.0f, 1, &cd) == HB_GS_RISING, "getting up (class 8)");
+    CHECK(HbWalterState(HB_WK_STALKER, 0x0A, 0x0E, 4, 0.0f, 30.0f, 1, &cd) == HB_GS_GONE, "the Sword's fall (step 4): gone");
+    CHECK(HbWalterState(HB_WK_STALKER, 0x0B, 0x0E, 5, 0.0f, 0.0f, 1, &cd) == HB_GS_GONE, "dead (class 0x0B)");
+    CHECK(HbWalterState(HB_WK_STALKER, 0x10, 0, 0, 300.0f, 0.0f, 1, &cd) == HB_GS_GONE, "scripted (0x10+)");
+    // the final Walter: the kneel after the eighth spear (AI 7 steps 2 / 5), the knock-down (AI 0x10), death
+    CHECK(HbWalterState(HB_WK_FINAL, 9, 7, 2, 1200.0f, 3.5f, 1, &cd) == HB_GS_DOWN && cd == 3.5f, "final: fallen 3.5 s");
+    CHECK(HbWalterState(HB_WK_FINAL, 9, 7, 5, 1200.0f, 4.0f, 1, &cd) == HB_GS_DOWN && cd == 4.0f, "final: kneeling 4 s");
+    CHECK(HbWalterState(HB_WK_FINAL, 9, 7, 1, 1200.0f, 4.0f, 1, &cd) == HB_GS_STUMBLE, "final: the fall animation");
+    CHECK(HbWalterState(HB_WK_FINAL, 8, 7, 3, 1200.0f, 0.0f, 1, &cd) == HB_GS_RISING, "final: getting up");
+    CHECK(HbWalterState(HB_WK_FINAL, 9, 0x10, 0, 300.0f, 0.0f, 1, &cd) == HB_GS_STUMBLE, "final: knocked down, rises");
+    CHECK(HbWalterState(HB_WK_FINAL, 9, 0x10, 1, 0.0f, 0.0f, 1, &cd) == HB_GS_GONE, "final: the death animation");
+    CHECK(HbWalterState(HB_WK_FINAL, 9, 0x12, 1, 0.0f, 0.0f, 1, &cd) == HB_GS_GONE, "final: dead (State18)");
+    CHECK(HbWalterState(HB_WK_BODIES, 1, 0, 0, 100.0f, 0.0f, 1, &cd) == HB_GS_STAND, "the Bodies: standing");
+    CHECK(HbWalterState(HB_WK_BODIES, 1, 0, 0, 0.0f, 0.0f, 1, &cd) == HB_GS_GONE, "the Bodies at HP 0: as v3.57 (gone)");
+    {   // the revive bar from his timer at 30 / 60 / 120 / 180 fps: 45 s down, drains to 0, fades out when he rises
+        static const int kF[4] = { 30, 60, 120, 180 };
+        int i, f;
+        for (i = 0; i < 4; ++i) {
+            HbRevive r;
+            const float dt = 1.0f / (float)kF[i];
+            float timer = 45.0f, half = -1.0f;
+            int gs = HB_GS_STAND;
+            memset(&r, 0, sizeof r);
+            for (f = 0; f < kF[i] * 50; ++f) {
+                const float t = (float)f * dt;
+                const int step = timer > 0.0f ? 1 : 3;
+                gs = HbWalterState(HB_WK_STALKER, step == 1 ? 0x0A : 8, 0x0E, step, 0.0f, timer, 1, &cd);
+                HbReviveStep(&r, gs, cd, dt);
+                if (half < 0.0f && t >= 22.5f) half = r.frac;
+                timer -= dt;
+            }
+            CHECK(fabsf(half - 0.5f) < 0.02f, "%d fps: half the countdown left at 22.5 s (%.3f)", kF[i], half);
+            CHECK(gs == HB_GS_RISING && r.alpha == 0.0f && r.frac == 0.0f && r.seal == 0.0f, "%d fps: risen, the revive bar gone", kF[i]);
+        }
+    }
+}
+
 int main(void)
 {
+    TestUndrawn358();  // v3.58 EN358
+    TestWalter358();  // v3.58 EN358
     TestRefuse352();  // v3.52 HB352
     TestCalm352();  // v3.52 MERGE
     TestFrameRates();

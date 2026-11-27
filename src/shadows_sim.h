@@ -763,4 +763,32 @@ static int ShFigure(float cx, float top, float hgt, float *xy)
                   cx + 0.03f * u, top + 1.0f * u);                                                           // right leg
     return n;
 }
+
+// ---------------------------------------------------------------- v3.58 GX358: the stock Realtime Shadow Off
+// USER_FEEDBACK_v357 "turning off real-time shadows in the game never turned off the shadows". What stock Off does, from
+// the stock exe (SH4Decomp orig/sh4.exe; src/model/model_55c090.c ModelDrawShadow, src/model/shadow_55e610.c
+// ShadowCompositeDraw): the options byte cfg+0x19 (0x1091AE9) has exactly two readers in code, the shadow-volume build
+// 0x55C860 (`mov cl, [eax+19h]` at 0x55C8A3) and the composite 0x55F660 (0x55F66B), both every frame (the change shows at
+// once, not at the next room). Off is not "no real-time shadows": both keep drawing in a short list of rooms (the same
+// list in both, byte-checked): stage 7 (the Hospital World) rooms 0x1F and 1; stage 1 (Room 302) room 2, the living room,
+// unless a cut-scene track plays ([0x10775DC] & 1, 0x4F1540); stage 4 (the Water Prison) rooms 2, 4-10, 0xC, 0xE-0x14,
+// 0x16, 0x18-0x1E. The composite also draws once on the session's first call ([0x699C30] = 1 at boot). The Tremers' wall
+// shadows (0x45F480, a textured ribbon) never read the byte: stock draws them with Off too. Refined's soft composite
+// (0x55FE43) is inside 0x55F660 after the test, so it follows it; what did not: the Shadows page's preview (it drew the
+// split shadows whatever the byte said) and Echo Doubles' ground discs (Refined's own sprites). Both follow ShStockDraws now.
+// Native test: test\shadows_sim_test.c (TestStockOff358).
+static int ShStockOffKeeps(int stage, int room, int cutscene)  // 1 = stock Off still draws real-time shadows here
+{
+    if (stage == 7) return room == 0x1F || room == 1;
+    if (stage == 1) return room == 2 && !cutscene;
+    if (stage == 4)
+        return room == 2 || (room >= 4 && room <= 10) || room == 0xC || (room >= 0xE && room <= 0x14) || room == 0x16 ||
+               (room >= 0x18 && room <= 0x1E);
+    return 0;
+}
+// the stock test of 0x55C860 / 0x55F660: on = cfg+0x19 (non-zero: On), first = the composite's first call of the session
+static int ShStockDraws(int on, int first, int stage, int room, int cutscene)
+{
+    return on || first || ShStockOffKeeps(stage, room, cutscene);
+}
 #endif

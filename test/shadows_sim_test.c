@@ -892,8 +892,127 @@ static void TestNs352(void)
            "only); the longest room tail %u bytes\n", soft + nodark, soft, nodark, big);
 }
 
+// v3.58 GX358: the stock Realtime Shadow Off (ShStockOffKeeps / ShStockDraws) against the stock exe: both readers of
+// cfg+0x19 and both room lists, parsed from SH4Decomp's orig\sh4.exe (skipped with a note when the file is not there)
+#define GX_EXE "sh4.exe"  /* a copy of your stock GOG v7 exe */
+static unsigned char *g_gxExe;
+static long g_gxLen;
+static unsigned g_gxTextVa, g_gxTextRaw, g_gxTextSize;
+static const unsigned char *GxAt(unsigned va, unsigned n)  // the stock bytes at a virtual address in .text (NULL outside)
+{
+    if (!g_gxExe || va < 0x400000u + g_gxTextVa || va + n > 0x400000u + g_gxTextVa + g_gxTextSize) return NULL;
+    if ((long)(va - 0x400000u - g_gxTextVa + g_gxTextRaw + n) > g_gxLen) return NULL;
+    return g_gxExe + (va - 0x400000u - g_gxTextVa + g_gxTextRaw);
+}
+static int GxLoad(void)
+{
+    FILE *f = fopen(GX_EXE, "rb");
+    unsigned pe, opt, k, nsec;
+    if (!f) return 0;
+    fseek(f, 0, SEEK_END);
+    g_gxLen = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    g_gxExe = (unsigned char *)malloc((size_t)g_gxLen);
+    if (!g_gxExe || fread(g_gxExe, 1, (size_t)g_gxLen, f) != (size_t)g_gxLen) {
+        fclose(f);
+        free(g_gxExe), g_gxExe = NULL;
+        return 0;
+    }
+    fclose(f);
+    memcpy(&pe, g_gxExe + 0x3C, 4);
+    nsec = (unsigned)(g_gxExe[pe + 6] | g_gxExe[pe + 7] << 8);
+    opt = (unsigned)(g_gxExe[pe + 20] | g_gxExe[pe + 21] << 8);
+    for (k = 0; k < nsec; ++k) {
+        const unsigned char *s = g_gxExe + pe + 24 + opt + 40 * k;
+        if (!memcmp(s, ".text", 6)) {
+            memcpy(&g_gxTextSize, s + 8, 4), memcpy(&g_gxTextVa, s + 12, 4), memcpy(&g_gxTextRaw, s + 20, 4);
+            return 1;
+        }
+    }
+    return 0;
+}
+// the stage-4 room list at va: `cmp eax, imm8` (83 F8 ib) + `je` (74 rb or 0F 84 rd) to the same target, in a row
+static int GxRoomList(unsigned va, int rooms[64], unsigned *target)
+{
+    int n = 0;
+    *target = 0;
+    for (;;) {
+        const unsigned char *p = GxAt(va, 9);
+        unsigned t;
+        if (!p || p[0] != 0x83 || p[1] != 0xF8) break;
+        if (p[3] == 0x74) t = va + 5 + (unsigned)(signed char)p[4], va += 5;
+        else if (p[3] == 0x0F && p[4] == 0x84) {
+            int rel;
+            memcpy(&rel, p + 5, 4);
+            t = va + 9 + (unsigned)rel, va += 9;
+        } else break;
+        if (*target && t != *target) break;
+        *target = t;
+        if (p[2] < 64) rooms[p[2]] = 1;
+        ++n;
+    }
+    return n;
+}
+static void TestStockOff358(void)
+{
+    // the stage 7 / stage 1 parts of both tests (the composite 0x55F683, the volume build 0x55C8B3), as the stock exe has them
+    static const unsigned char kComp[] = { 0xA1, 0x90, 0x5A, 0xFD, 0x00, 0x83, 0xF8, 0x07, 0x75, 0x1C, 0xA1, 0x94, 0x5A, 0xFD, 0x00, 0x83, 0xF8, 0x1F,
+                                           0x0F, 0x84, 0xBC, 0x00, 0x00, 0x00, 0x83, 0xF8, 0x01, 0x0F, 0x85, 0x00, 0x09, 0x00, 0x00, 0xE9, 0xAE, 0x00,
+                                           0x00, 0x00, 0x83, 0xF8, 0x01, 0x75, 0x1B, 0x83, 0x3D, 0x94, 0x5A, 0xFD, 0x00, 0x02, 0x0F, 0x85, 0xE9, 0x08,
+                                           0x00, 0x00, 0xE8, 0x80, 0x1E, 0xF9, 0xFF, 0x85, 0xC0, 0x75, 0x05, 0xBE, 0x01, 0x00, 0x00, 0x00, 0x83, 0x3D,
+                                           0x90, 0x5A, 0xFD, 0x00, 0x04, 0x75, 0x7D, 0xA1, 0x94, 0x5A, 0xFD, 0x00 };
+    static const unsigned char kVol[] = { 0xA1, 0x90, 0x5A, 0xFD, 0x00, 0x83, 0xF8, 0x07, 0x75, 0x1C, 0xA1, 0x94, 0x5A, 0xFD, 0x00, 0x83, 0xF8, 0x1F,
+                                          0x0F, 0x84, 0xB8, 0x00, 0x00, 0x00, 0x83, 0xF8, 0x01, 0x0F, 0x85, 0x19, 0x01, 0x00, 0x00, 0xE9, 0xAA, 0x00,
+                                          0x00, 0x00, 0x83, 0xF8, 0x01, 0x75, 0x1B, 0x83, 0x3D, 0x94, 0x5A, 0xFD, 0x00, 0x02, 0x0F, 0x85, 0x02, 0x01,
+                                          0x00, 0x00, 0xE8, 0x50, 0x4C, 0xF9, 0xFF, 0x85, 0xC0, 0x75, 0x05, 0xBF, 0x01, 0x00, 0x00, 0x00, 0x83, 0x3D,
+                                          0x90, 0x5A, 0xFD, 0x00, 0x04, 0x75, 0x7D, 0xA1, 0x94, 0x5A, 0xFD, 0x00 };
+    static const unsigned char kRead[] = { 0x8A, 0x48, 0x19, 0x84, 0xC9, 0x0F, 0x85 };  // mov cl, [eax+19h]; test cl, cl; jne
+    static const unsigned char kCut[] = { 0xA1, 0xDC, 0x75, 0x07, 0x01, 0x83, 0xE0, 0x01, 0xC3 };  // 0x4F1540: [10775DC] & 1
+    int s, r, c, mism = 0;
+    // the model: the three rooms' kinds, and On / first always draw
+    CHECK(ShStockOffKeeps(7, 0x1F, 0) && ShStockOffKeeps(7, 1, 1) && !ShStockOffKeeps(7, 2, 0) && !ShStockOffKeeps(7, 0, 0),
+          "Hospital: rooms 1 / 1F only (a cut-scene does not matter)");
+    CHECK(ShStockOffKeeps(1, 2, 0) && !ShStockOffKeeps(1, 2, 1) && !ShStockOffKeeps(1, 1, 0) && !ShStockOffKeeps(0x0A, 2, 0),
+          "Room 302: the living room (stage 1 room 2) without a cut-scene; not stage 0A (the second Room 302)");
+    for (s = 0; s < 16; ++s)
+        for (r = 0; r < 64; ++r)
+            for (c = 0; c < 2; ++c) {
+                CHECK(ShStockDraws(1, 0, s, r, c) && ShStockDraws(0, 1, s, r, c), "On and the first call always draw");
+                if (s != 1 && s != 4 && s != 7 && ShStockOffKeeps(s, r, c)) ++mism;
+            }
+    CHECK(mism == 0, "Off keeps no room outside stages 1, 4, 7 (%d)", mism);
+    CHECK(!ShStockDraws(0, 0, 5, 0xB, 0) && !ShStockDraws(0, 0, 2, 1, 0), "Off: nothing in the user's rooms 5:0B and 2:01");
+    if (!GxLoad()) {
+        printf("TestStockOff358: %s not readable: the stock-exe part skipped\n", GX_EXE);
+        return;
+    }
+    {
+        const unsigned char *a = GxAt(0x55F683, sizeof kComp), *b = GxAt(0x55C8B3, sizeof kVol);
+        int comp[64], vol[64], nc, nv, keep;
+        unsigned tc, tv;
+        CHECK(GxAt(0x55F66B, 7) && !memcmp(GxAt(0x55F66B, 7), kRead, 7), "0x55F66B: the composite reads cfg+0x19");
+        CHECK(GxAt(0x55C8A8, 7) && !memcmp(GxAt(0x55C8A8, 7), kRead, 7), "0x55C8A8: the volume build reads cfg+0x19");
+        CHECK(GxAt(0x4F1540, 9) && !memcmp(GxAt(0x4F1540, 9), kCut, 9), "0x4F1540: the cut-scene track test");
+        CHECK(a && !memcmp(a, kComp, sizeof kComp), "0x55F683: the composite's stage 7 / stage 1 test as modelled");
+        CHECK(b && !memcmp(b, kVol, sizeof kVol), "0x55C8B3: the volume build's stage 7 / stage 1 test as modelled");
+        memset(comp, 0, sizeof comp), memset(vol, 0, sizeof vol);
+        nc = GxRoomList(0x55F6D7, comp, &tc);
+        nv = GxRoomList(0x55C907, vol, &tv);
+        CHECK(nc == 24 && nv == 24 && tc == 0x55F757 && tv == 0x55C983, "both stage-4 lists: 24 rooms each, to the draw (%d -> %X, %d -> %X)", nc, tc, nv, tv);
+        for (r = 0, mism = 0, keep = 0; r < 64; ++r) {
+            if (comp[r] != vol[r] || comp[r] != ShStockOffKeeps(4, r, 0) || comp[r] != ShStockOffKeeps(4, r, 1)) ++mism;
+            keep += comp[r];
+        }
+        CHECK(mism == 0 && keep == 24, "the Water Prison's rooms in ShStockOffKeeps = both stock lists (%d mismatches, %d rooms)", mism, keep);
+        printf("stock Realtime Shadow Off (orig\\sh4.exe): readers 0x55C8A8 / 0x55F66B; kept: stage 7 rooms 1 / 1F, stage 1 room 2 (no "
+               "cut-scene), stage 4: %d rooms; Tremer wall shadows never read it\n", keep);
+    }
+    free(g_gxExe), g_gxExe = NULL;
+}
+
 int main(void)
 {
+    TestStockOff358();  // v3.58 GX358
     TestDarkOrder352();  // v3.52 SH352
     TestNs352();  // v3.52 SH352
     TestRibbon349();  // v3.49 SH349

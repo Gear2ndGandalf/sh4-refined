@@ -35,6 +35,14 @@
 // v3.51 SN351 (staging/v351_feedback/w4_sniffers/PLAN.md; the user's v3.50 QA item 4): the Subway's first Sniffer Dogs (room
 // 2:2's event dogs, spawn mode 7 / 6 / 6) roll too once story flag 0x130 is set (their cut-scene is over), else they stay as
 // placed; a roll that gives the placement's own type rolls once more (hidden [Randomizer] MonsterRollAgain=0: v3.50's roll).
+// v3.58 RZ358 (staging/v358_feedback/w3_rando/PLAN.md; the user's v3.57 QA): (1) a reroll never brings the dead back:
+// a body lying in its room keeps the type it died as and its record, a kill bit keeps the stock words (rzmon_sim.h
+// RMW_DEAD / RMW_KILLED); a body that cannot be made as its type here (its files, a word, Enemies Off or a full room)
+// keeps its record and its placement stays empty for the room's script run (a kill bit for the run, enemies.inc's
+// g_enmHide); a save keeps a randomized body dead as a kill bit (RmSaveKeepDead). Enemies Return alone brings the dead
+// back (enemies.inc ErAtRoomLoad, before this plan). (2) Extra Enemies' copies of a randomized room draw their own types
+// (RmCopyPlan: the placements' rules and seed, salted by the copy; their files loaded here, before the room's script;
+// Spawn Site gives each its own site), read by enemies.inc EnmMakeOne / EnmCopyDescFor (RmCopyPick / RmCopyRetype).
 #include "rzmon_sim.h"
 
 static int g_rmFail;                 // faulted: off for this session
@@ -60,6 +68,21 @@ static int g_rmRollAgain = 1;        // v3.51 SN351: [Randomizer] MonsterRollAga
 static int g_rmSelfEv = -1;          // v3.51 SN351: event dogs among the start's sources
 static int g_rmAgain, g_rmEvPlanned, g_rmEvAsleep;  // v3.51 SN351: the session: rolled again, event dogs planned / kept asleep
 static unsigned g_rmStorySaid[RZ_STAGES];  // v3.56 RE356: the story rule's line said (bit: which flags were set)
+// v3.58 RZ358: the dead kept dead (the session): bodies kept as they died, kill bits kept, bodies whose placement stayed
+// empty for a run (their type could not be made / Enemies Off), bodies lost (no kill index), bodies kept dead in saves
+static int g_rmDeadKept, g_rmKilledKept, g_rmDeadHidden, g_rmDeadLost, g_rmSaveDead, g_rmSaveDeadLost;
+static volatile LONG g_rmQuotaDead;
+// v3.58 RZ358: the copies' types (this stage's ledger, per half's slot and copy k - 1; type 0 = no draw: the original's)
+typedef struct { unsigned char type, variant, drawn, files; } RmCopyE;
+static RmCopyE g_rmCopyT[2][RM_VMAX][RM_COPY_K];
+static int g_rmCopyStage = -1, g_rmCopyRoom = -1, g_rmCopyVis = -1;  // the room load whose plan holds the sites below
+static int g_rmCopyIdx[RM_ROOM_MAX], g_rmCopyM;                     // its slots (scan indexes)
+static float g_rmCopySite[RM_ROOM_MAX][RM_COPY_K][3];
+static unsigned char g_rmCopySited[RM_ROOM_MAX][RM_COPY_K];
+static int g_rmCopyPer;                                              // copies per original planned (1..3; 0 = none)
+static int g_rmCpDrawn, g_rmCpFiles, g_rmCpSited, g_rmCpMade, g_rmCpNot, g_rmCpByType[0x13];  // this room load
+static int g_rmCpRooms, g_rmCpDrawnAll, g_rmCpMadeAll, g_rmCpFilesAll, g_rmCpSitedAll, g_rmCpRetyped;  // the session
+static volatile LONG g_rmQuotaCopy;
 
 // ---------------------------------------------------------------- texts (MSG_RZ0 + 28 .. + 29, MSG_RZ1 + 0 .. 15)
 // v3.50 RM350: All Worlds' value and description appended (RZ1 + 5 / + 6: the v3.49 ids stay as they were)
@@ -131,6 +154,7 @@ static void RmScanStage(int stage)  // (no word of ours is in the scripts now: R
     g_rmScanHas1 = p1 != p0;
     g_rmTypes = 0;
     memset(g_rmCurT, 0, sizeof g_rmCurT), memset(g_rmCurV, 0, sizeof g_rmCurV);  // (a new world visit's ledger)
+    memset(g_rmCopyT, 0, sizeof g_rmCopyT), g_rmCopyRoom = -1;                   // v3.58 RZ358: and the copies'
     for (v = 0; v < 1 + g_rmScanHas1; ++v) {
         int m;
         RmScanScript(RzWindow(), v ? p1 : p0, stage, &g_rmScan[v]);
@@ -213,9 +237,54 @@ static void RmOtherSay(int stage, int room, int n)
         Log("randomizer: monsters: room %d:%d: %d record(s) of another type that Refined did not make (another writer): those "
             "placements stay as placed, the records are kept", stage, room, n);
 }
+// v3.58 RZ358: placement `id` (kill index k) stays empty for this room's script run: its kill bit is set now and cleared
+// right after the runner (enemies.inc's g_enmHide, EnmHideRestore in EnmWrap: the gate's 3, as Follow keeps a follower's
+// home empty). 1 = empty for the run (or dead for good already: its own bit)
+static int RmHideRun(int stage, int k, unsigned id)
+{
+    int w;
+    unsigned m;
+    if (!EnmKillBit(stage, k, &w, &m)) return 0;
+    if (ENM_KILLBITS[w] & m) return 1;
+    if (g_enmHideN >= (int)(sizeof g_enmHide / sizeof g_enmHide[0])) return 0;
+    ENM_KILLBITS[w] |= m;
+    g_enmHide[g_enmHideN].word = w, g_enmHide[g_enmHideN].mask = m, g_enmHide[g_enmHideN].id = id;
+    ++g_enmHideN;
+    return 1;
+}
+// v3.58 RZ358: is the kill bit of (stage, k) one that enemies.inc set for this room's script run only (g_enmHide: a
+// follower's home placement, a released event dog made awake after the script)? 1 = yes
+static int RmHeldForRun(int stage, int k)
+{
+    int w, i;
+    unsigned m;
+    if (!EnmKillBit(stage, k, &w, &m)) return 0;
+    for (i = 0; i < g_enmHideN && i < (int)(sizeof g_enmHide / sizeof g_enmHide[0]); ++i)
+        if (g_enmHide[i].word == w && (g_enmHide[i].mask & m)) return 1;
+    return 0;
+}
+// v3.58 RZ358: a body of Refined's in this room that cannot be made as the type it died as now: kept dead (1: its record
+// stays, the placement empty for this run) or, without a kill index, lost (0: the caller deletes its record as before)
+static int RmKeepDeadRun(int stage, int room, const RmSlot *s, unsigned id, const char *why)
+{
+    if (RmDeadFallback(s) == RMD_HIDE && RmHideRun(stage, s->kill, id)) {
+        ++g_rmDeadHidden;
+        if (LogQuota(&g_rmQuotaDead, 200))
+            LogV("randomizer: monsters: room %d:%d: n%d lies dead here as another type (%s): its body record stays and its "
+                 "placement stays empty for this room's build (kill index %d)", stage, room, s->n, why, s->kill);
+        return 1;
+    }
+    ++g_rmDeadLost;
+    if (LogQuota(&g_rmQuotaDead, 200))
+        Log("randomizer: monsters: room %d:%d: n%d lies dead here as another type (%s) and has no kill index: its body record "
+            "is deleted (it stands again)", stage, room, s->n, why);
+    return 0;
+}
 // Monsters Off (or a room left as placed): a record in this room that Refined made as another type (an earlier randomized
 // visit, still exactly that type) is deleted, so the stock create never restores Refined's record of another type; any
-// other record is left alone (v3.49 fix2 RZ349-SAVE-001: provenance, rzmon_sim.h RmOffDrops)
+// other record is left alone (v3.49 fix2 RZ349-SAVE-001: provenance, rzmon_sim.h RmOffDrops). v3.58 RZ358: a body of
+// such a record (state 0x0B) stays dead: its record is kept and the placement stays empty for this run (RmKeepDeadRun);
+// its provenance stays Refined's (the record is still that type)
 static int RmDropForeign(int stage, int half, int room, const int *idx, int m, int vis)
 {
     int k, n = 0, others = 0;
@@ -223,6 +292,11 @@ static int RmDropForeign(int stage, int half, int room, const int *idx, int m, i
         const RmSlot *s = &g_rmScan[vis].s[idx[k]];
         BYTE *r = RmRecLive(EnmScriptId(stage, half, room, s->n));
         if (RmOffDrops(&g_rmProv, r, stage, room)) {
+            if (RmRecState(r) == 0x0B &&  // v3.58 RZ358
+                RmKeepDeadRun(stage, room, s, EnmScriptId(stage, half, room, s->n), "Enemies Off or the room left as placed")) {
+                g_rmCurT[vis][idx[k]] = (unsigned char)RmRecType(r), g_rmCurV[vis][idx[k]] = (unsigned char)RmRecVariant(r);
+                continue;
+            }
             ENM_RECDEL(r);
             ++n;
         } else if (r && RmRecRoom(r) == room && !RmProvOurs(&g_rmProv, r) && !(RmRecType(r) == s->type && RmRecVariant(r) == s->variant)) {
@@ -281,6 +355,142 @@ static void RmSitesStock(int stage, int half, int room, int d, int vis, const in
                    stage, room, left);
     SsMonRoomSay(stage, room);
 }
+// v3.58 RZ358: a dead pick (RMW_DEAD of another type than the stock one) that cannot be made as the type it died as here:
+// kept dead with its placement empty for this run (*hid; the pick back to the stock words, its record and provenance kept),
+// or, without a kill index, back to the stock type with its record deleted (RmPickBack: it stands again; logged)
+static void RmDeadOut(int stage, int half, int room, const RmSlot *s, RmPick *p, const RmRec *r, RmPlanStat *st,
+                      unsigned char *hid, int *hidN, int *lostN, const char *why)
+{
+    if (RmKeepDeadRun(stage, room, s, EnmScriptId(stage, half, room, s->n), why)) {
+        if (p->type != s->type || p->variant != s->variant) --st->changed;
+        p->type = s->type, p->variant = s->variant;  // (no word: the gate never reads them this run)
+        *hid = 1, ++*hidN;
+        return;
+    }
+    RmPickBack(p, s, r, st, RMW_FILES);
+    --st->dead, ++*lostN;
+}
+// v3.58 RZ358: Extra Enemies' copies of this room's originals (RmBeforeScriptC, after the placements' words: their picks are
+// final). Each copy k = 1..per of an original whose plan lets it (rzmon_sim.h RmCopiesDrawn) draws its own type
+// (RmCopyDraw); a drawn type whose files are not resident is loaded now (EnmEnsureFiles: only before the room's script),
+// else that copy keeps its original's type (logged, bounded); with Spawn Site each drawn copy gets a site of its own
+// (spawnsite.inc SsCopySite). The ledger (g_rmCopyT) holds the types for this world visit (a copy that follows you is
+// rebuilt as its type: RmCopyRetype); the sites hold for this room load only.
+static void RmCopyPlan(int stage, int half, int room, int vis, const int *idx, int m, const RmPlanIn *in, const RmPick *pick)
+{
+    const int per = EnmCopiesLive() ? (int)g_enmCopies : 0;
+    unsigned ok = 0, bad = 0;
+    int k, c;
+    g_rmCopyStage = stage, g_rmCopyRoom = room, g_rmCopyVis = vis, g_rmCopyM = m, g_rmCopyPer = per;
+    memcpy(g_rmCopyIdx, idx, sizeof idx[0] * (size_t)m);
+    memset(g_rmCopySited, 0, sizeof g_rmCopySited);
+    for (k = 0; k < m; ++k) {
+        const RmSlot *s = &g_rmScan[vis].s[idx[k]];
+        RmCopyE *e = g_rmCopyT[vis][idx[k]];
+        memset(e, 0, sizeof g_rmCopyT[0][0]);
+        if (per <= 0 || !RmCopiesDrawn(pick[k].type, pick[k].why)) continue;
+        for (c = 1; c <= per && c <= RM_COPY_K; ++c) {
+            const int t = RmCopyDraw(in, s, c);
+            RmCopyE *x = &e[c - 1];
+            if (t < 0) continue;
+            x->type = kRmTargets[t].type, x->variant = kRmTargets[t].variant, x->drawn = 1;
+            if ((x->type != pick[k].type || x->variant != pick[k].variant) && !(ok >> t & 1u)) {
+                int kbi = 0;
+                if (!(bad >> t & 1u) && (EnmLoadedHere(x->type, x->variant) || EnmEnsureFiles(x->type, x->variant, &kbi))) {
+                    ok |= 1u << t;
+                } else {
+                    if (!(bad >> t & 1u) && LogQuota(&g_rmQuotaCopy, 200))
+                        Log("randomizer: monsters: copies: room %d:%d: %s's files could not be loaded (%s): those copies keep "
+                            "their original's type", stage, room, kRmTargets[t].name, g_enmFilesWhy ? g_enmFilesWhy : "");
+                    bad |= 1u << t;
+                    x->type = pick[k].type, x->variant = pick[k].variant, x->drawn = 0, x->files = 1;
+                    ++g_rmCpFiles;
+                    continue;
+                }
+            }
+            ++g_rmCpDrawn;
+            if (SsOn() && !g_ssFail && SsCopySite(stage, half, room, s, c, x->type, g_rmCopySite[k][c - 1]))
+                g_rmCopySited[k][c - 1] = 1, ++g_rmCpSited;
+        }
+    }
+}
+// v3.58 RZ358 (enemies.inc EnmMakeOne): copy k of original n of room `home`, made in `room`: 1 = this room load's plan has
+// its type (*type / *variant: drawn, or its original's when the drawn type's files could not be loaded) and *sited = 1
+// with *site = its own site (Spawn Site); 0 = no plan (a copy of its original's type, as v3.57)
+static int RmCopyPick(int home, int room, int n, int k, int *type, int *variant, float *site, int *sited)
+{
+    int j;
+    *sited = 0;
+    if (g_rmFail || home != room || g_rmCopyRoom != home || g_rmCopyStage != ENM_STAGE || g_rmCopyVis < 0 || g_rmCopyPer <= 0 ||
+        k < 1 || k > RM_COPY_K)
+        return 0;
+    for (j = 0; j < g_rmCopyM; ++j) {
+        const int i = g_rmCopyIdx[j];
+        const RmCopyE *e = &g_rmCopyT[g_rmCopyVis][i][k - 1];
+        if (g_rmScan[g_rmCopyVis].s[i].n != n || g_rmScan[g_rmCopyVis].s[i].room != room) continue;
+        if (!e->drawn && !e->files) return 0;
+        *type = e->type, *variant = e->variant;
+        if (g_rmCopySited[j][k - 1]) memcpy(site, g_rmCopySite[j][k - 1], 12), *sited = 1;
+        return 1;
+    }
+    return 0;
+}
+// v3.58 RZ358 (enemies.inc EnmMakeOne, EnmCopyDescFor): copy cid's descriptor (its original's placement, rebuilt from
+// its room's script) made as (type, variant): a copy that drew its own type, made in its room or rebuilt away from it (it
+// followed you, a wanderer: variant = its record's). Only a copy target (rzmon_sim.h RM_COPY_TARGETS) of a source
+// placement of this stage's scan; variant < 0 = the variant this world visit's draw gave that type (the ledger).
+// 1 = made so (d is the copy's); 0 = not (the caller refuses, as v3.57)
+static int RmCopyRetype(unsigned cid, int type, int variant, BYTE *d)
+{
+    const int room = EnmCopyRoomOf(cid), n = EnmCopyNOf(cid), k = EnmCopyKOf(cid);
+    int r = 0;
+    if (g_rmFail || g_rmScanStage < 0 || ENM_STAGE != g_rmScanStage || room <= 0 || room >= RZ_ROOMS || k < 1 || k > RM_COPY_K ||
+        type <= 0 || type >= RM_TYPE_MAX)
+        return 0;
+    __try {
+        const int vis = RmVisOf(room, ((const DWORD *)0x10A0A78)[room]);
+        const int i = vis >= 0 && g_rmVisitOk[vis] ? RmSlotOf(&g_rmScan[vis], room, n) : -1;
+        const RmCopyE *e = i >= 0 ? &g_rmCopyT[vis][i][k - 1] : NULL;
+        int t;
+        if (e && variant < 0 && e->drawn && e->type == type) variant = e->variant;
+        t = variant >= 0 ? RmTargetIndex(type, variant) : -1;
+        if (e && t >= 0 && (RM_COPY_TARGETS >> t & 1u)) {
+            RmFixDescTo(d, &g_rmScan[vis].s[i], type, variant, (const unsigned *)(ULONG_PTR)(RM_TYPE_TAB + 16u * (unsigned)type));
+            ++g_rmCpRetyped;
+            r = 1;
+        }
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        r = 0;
+    }
+    return r;
+}
+// v3.58 RZ358 (enemies.inc EnmMakeOne): what became of a planned copy (made = it stands now, as `type`)
+static void RmCopyResult(int type, int made)
+{
+    if (!made) {
+        ++g_rmCpNot;
+        return;
+    }
+    ++g_rmCpMade;
+    if (type >= 0 && type < 0x13) ++g_rmCpByType[type];
+}
+// v3.58 RZ358 (enemies.inc EnmMakeCopies, after the room's copies): one line per randomized room with copies
+static void RmCopiesSay(int stage, int room)
+{
+    char by[300];
+    int t, b = 0;
+    if (g_rmCopyRoom != room || g_rmCopyStage != stage || g_rmCopyPer <= 0 || g_rmCpDrawn + g_rmCpFiles + g_rmCpMade + g_rmCpNot == 0)
+        return;
+    by[0] = 0;
+    for (t = 0; t < 0x13; ++t)
+        if (g_rmCpByType[t]) b += sprintf_s(by + b, sizeof by - b, "%s%s %d", b ? ", " : "", RmTypeName(t), g_rmCpByType[t]);
+    ++g_rmCpRooms, g_rmCpDrawnAll += g_rmCpDrawn, g_rmCpMadeAll += g_rmCpMade, g_rmCpFilesAll += g_rmCpFiles, g_rmCpSitedAll += g_rmCpSited;
+    if (LogQuota(&g_rmQuotaCopy, 4000))
+        Log("randomizer: monsters: copies x%d: room %d:%d: %d made, types %s; %d drawn by the seed (%d at a site of their own), %d kept "
+            "their original's type (files), %d not made (the copies' line says why)", g_rmCopyPer + 1, stage, room, g_rmCpMade,
+            b ? by : "none", g_rmCpDrawn, g_rmCpSited, g_rmCpFiles, g_rmCpNot);
+    g_rmCopyRoom = -1;  // (said once: later copies of this room load are its originals' own type)
+}
 static void RmBeforeScriptC(int room, int d)
 {
     const int stage = ENM_STAGE, half = ENM_HALF() ? 1 : 0, mode = (int)g_rzMon;
@@ -294,10 +504,16 @@ static void RmBeforeScriptC(int room, int d)
     RmPlanIn in;
     float site[RM_ROOM_MAX][3];          // v3.56 RE356: Spawn Site
     unsigned char sited[RM_ROOM_MAX];    // v3.56 RE356
+    unsigned char hid[RM_ROOM_MAX];      // v3.58 RZ358: a body kept dead with its placement empty for this run
+    int hidN = 0, lostN = 0;             // v3.58 RZ358
+    unsigned deadM = 0, killedM = 0;     // v3.58 RZ358: RmPlanIn.dead / .killed
     char list[900];
     int o = 0;
     ++g_rmLoads;
     memset(sited, 0, sizeof sited);  // v3.56 RE356
+    memset(hid, 0, sizeof hid);      // v3.58 RZ358
+    g_rmCopyRoom = -1, g_rmCopyPer = 0, g_rmCopyM = 0;  // v3.58 RZ358: no copy plan until this room's below
+    g_rmCpDrawn = g_rmCpFiles = g_rmCpSited = g_rmCpMade = g_rmCpNot = 0, memset(g_rmCpByType, 0, sizeof g_rmCpByType);
     if (stage < 2 || stage > 8 || room <= 0 || room >= RZ_ROOMS) return;  // (only the monster worlds)
     if (stage != g_rmScanStage) RmScanStage(stage);
     start = ((const DWORD *)0x10A0A78)[room];
@@ -354,6 +570,10 @@ static void RmBeforeScriptC(int room, int d)
         rec[k].variant = r ? RmRecVariant(r) : 0;
         rec[k].here = r && RmRecRoom(r) == room;
         rec[k].ours = RmProvOurs(&g_rmProv, r);  // v3.49 fix2: only Refined's own records are kept, followed or deleted
+        if (r && RmRecState(r) == 0x0B && RmRecStage(r) == stage && RmRecRoom(r) == room) deadM |= 1u << k;  // v3.58 RZ358: a body here
+        // v3.58 RZ358: its kill bit (the gate's 3), not one set for this run only (a follower's home, an event dog made
+        // awake after the script: planned as v3.57)
+        if (EnmKillTest(stage, s->kill) && !RmHeldForRun(stage, s->kill)) killedM |= 1u << k;
         floorOk[k] = 0, floorY[k] = s->pos[1];
         if (RmIsFlyer(s->type)) {
             float base[3], cand[3];
@@ -363,6 +583,7 @@ static void RmBeforeScriptC(int room, int d)
     }
     memset(&in, 0, sizeof in);
     in.mode = mode, in.seed = (unsigned)g_rzSeed, in.stage = stage, in.half = half, in.room = room;
+    in.dead = deadM, in.killed = killedM;  // v3.58 RZ358: the dead stay dead (rzmon_sim.h RMW_DEAD / RMW_KILLED)
     in.visit = RzVisitSalt(stage, room);  // v3.56 RI356: By Room = the room's entries, By World = the world visit (worldvisit.inc)
     in.reroll = RZ_PERVISIT_ON();  // Change Each Visit: the monsters left in this room roll again too  // v3.56 RI356: By Room (By World: a record keeps its type, as v3.55's Off)
     in.allowed = RM_ALL_TARGETS & (RmGumGuard() ? RM_ALL_TARGETS : ~RM_GUM_TARGETS);
@@ -397,8 +618,13 @@ static void RmBeforeScriptC(int room, int d)
             Log("randomizer: monsters: room %d:%d: %s's files could not be loaded (%s): its placements stay as placed", stage, room,
                 kRmTargets[i].name, g_enmFilesWhy);
         for (k = 0; k < m; ++k)
-            if (pick[k].type == kRmTargets[i].type && pick[k].variant == kRmTargets[i].variant)
-                RmRevertPick(&pick[k], &g_rmScan[vis].s[idx[k]], &rec[k], &st);
+            if (pick[k].type == kRmTargets[i].type && pick[k].variant == kRmTargets[i].variant) {
+                if (pick[k].why == RMW_DEAD)  // v3.58 RZ358: a body stays dead (never "as placed": that would bring it back)
+                    RmDeadOut(stage, half, room, &g_rmScan[vis].s[idx[k]], &pick[k], &rec[k], &st, &hid[k], &hidN, &lostN,
+                              "its files could not be loaded");
+                else
+                    RmRevertPick(&pick[k], &g_rmScan[vis].s[idx[k]], &rec[k], &st);
+            }
     }
     // the words (a slot's mode and y words first, its type word last: a word that is not the stock value puts the slot back)
     list[0] = 0;
@@ -408,6 +634,7 @@ static void RmBeforeScriptC(int room, int d)
             const RmSlot *s = &g_rmScan[vis].s[idx[k]];
             const float hover = RmIsFlyer(s->type) && RmIsFlyer(pick[k].type) && floorOk[k] ? floorY[k] - s->pos[1] : 0.0f;
             int keep;
+            if (pick[k].why == RMW_DEAD || pick[k].why == RMW_KILLED) continue;  // v3.58 RZ358: the dead lie where they died
             sited[k] = (unsigned char)SsMonSite(stage, half, room, s, pick[k].type, g_rmScan[vis].roomBoss[room], in.released,
                                                 rec[k].type >= 0 && !rec[k].here && !pick[k].drop && !RmIsGhostTarget(pick[k].type),
                                                 hover, site[k], &keep);  // (a ghost's record elsewhere: 0x482590 drops it half the time)
@@ -432,7 +659,9 @@ static void RmBeforeScriptC(int room, int d)
                 ++other;
                 if (sited[k]) --g_ssRmMoved, ++g_ssRmKept;  // v3.56 RE356 (its site's count back)
                 sited[k] = 0;
-                if (ch) RmPickBack(p, s, &rec[k], &st, RMW_WORDS);  // v3.50 RM350: the shared rule (an adopted record stays)
+                if (ch && p->why == RMW_DEAD)  // v3.58 RZ358: a body stays dead
+                    RmDeadOut(stage, half, room, s, p, &rec[k], &st, &hid[k], &hidN, &lostN, "a word was not the stock value");
+                else if (ch) RmPickBack(p, s, &rec[k], &st, RMW_WORDS);  // v3.50 RM350: the shared rule (an adopted record stays)
             }
         }
         if (p->drop) {  // (a record of another type than the one it is made as now: that monster comes back fresh)
@@ -443,9 +672,14 @@ static void RmBeforeScriptC(int room, int d)
             SsMonRecMove(EnmScriptId(stage, half, room, s->n), stage, room, p->type, p->variant, site[k]);
         // v3.51 SN351: an event dog left asleep is not "built" by Refined: its record stays the game's own, so the first visit
         // after its release adopts and rolls it (else Change Each Visit Off would keep Refined's stock record: a dog for good)
-        if (p->why != RMW_EVENT) RmProvAfterBuild(stage, half, room, s, p->type, p->variant);  // v3.49 fix2 RZ349-SAVE-001
-        g_rmCurT[vis][idx[k]] = p->type != s->type || p->variant != s->variant ? p->type : 0;
-        g_rmCurV[vis][idx[k]] = p->variant;
+        if (hid[k]) {  // v3.58 RZ358: its body record stays Refined's, of the type it died as (the ledger says so too)
+            g_rmCurT[vis][idx[k]] = (unsigned char)rec[k].type, g_rmCurV[vis][idx[k]] = (unsigned char)rec[k].variant;
+        } else if (p->why == RMW_KILLED) {  // v3.58 RZ358: never made this run: its provenance and the ledger stay as they were
+        } else {
+            if (p->why != RMW_EVENT) RmProvAfterBuild(stage, half, room, s, p->type, p->variant);  // v3.49 fix2 RZ349-SAVE-001
+            g_rmCurT[vis][idx[k]] = p->type != s->type || p->variant != s->variant ? p->type : 0;
+            g_rmCurV[vis][idx[k]] = p->variant;
+        }
         if ((p->type != s->type) && !(g_rmTypes >> p->type & 1u) && !(g_rmSilent[stage] >> p->type & 1u)) {
             g_rmSilent[stage] |= 1u << p->type;
             Log("randomizer: monsters: %s is no monster of stage %d's scripts: its sounds may be missing there (allowed)",
@@ -457,6 +691,9 @@ static void RmBeforeScriptC(int room, int d)
                               : p->why == RMW_FLOOR ? "no floor" : p->why == RMW_AWAY ? "recorded elsewhere"
                               : p->why == RMW_OTHER ? "another writer's record" : p->why == RMW_NONE ? "no target" : p->why == RMW_WORDS ? "words not stock"
                               : p->why == RMW_EVENT ? "asleep for its event"  // v3.51 SN351: + the event dogs, the second roll
+                              : p->why == RMW_DEAD ? (hid[k] ? "killed: its body stays, its placement empty here"
+                                                              : "killed: its body stays")  // v3.58 RZ358
+                              : p->why == RMW_KILLED ? "killed: its kill bit"  // v3.58 RZ358
                               : p->why == RMW_ROLL ? (ch ? (p->again ? "rolled again" : "") : (p->again ? "rolled it twice" : "rolled"))
                               : "its stock record";
             const int w = _snprintf_s(list + o, sizeof list - o, _TRUNCATE, "%sn%d %s v%d%s%s v%d%s%s%s%s%s", o ? "; " : "", s->n,
@@ -468,6 +705,7 @@ static void RmBeforeScriptC(int room, int d)
         }
     }
     if (SsOn()) SsMonRoomSay(stage, room);  // v3.56 RE356
+    RmCopyPlan(stage, half, room, vis, idx, m, &in, pick);  // v3.58 RZ358: the copies' types (and files, sites) before the script
     for (k = 0, drops = 0; k < m; ++k) drops += pick[k].drop;
     RmOtherSay(stage, room, st.other);  // v3.49 fix2
     ++g_rmRooms;
@@ -476,14 +714,19 @@ static void RmBeforeScriptC(int room, int d)
     g_rmAdopted += st.adopted, g_rmAdoptChanged += st.adoptChanged, g_rmRollStock += st.rollStock, g_rmSame += st.same;  // v3.50 RM350
     g_rmAway += st.away, g_rmNone += st.none;
     g_rmAgain += st.again, g_rmEvPlanned += st.eventPlanned, g_rmEvAsleep += st.event;  // v3.51 SN351
+    g_rmDeadKept += st.dead, g_rmKilledKept += st.killed;  // v3.58 RZ358 (RmKeepDeadRun counts the empty / lost ones)
     if (LogQuota(&g_rmQuotaRoom, 4000)) {
-        char by[300], tail[160];  // v3.51 SN351: + tail (only when a placement rolled again or the room has event dogs)
+        char by[300], tail[260];  // v3.51 SN351: + tail (only when a placement rolled again or the room has event dogs)  // v3.58 RZ358: 260 (+ the dead)
         int b = 0, t, e = 0;
         by[0] = 0, tail[0] = 0;
         if (st.again) e += sprintf_s(tail + e, sizeof tail - e, "; rolled again for their own type: %d", st.again);
         if (st.event + st.eventPlanned)
             e += sprintf_s(tail + e, sizeof tail - e, "; event dogs: %d, story flag 130 %s", st.event + st.eventPlanned,
                            in.released ? "set (rolled as the others)" : "clear (kept as placed for their event)");
+        if (st.dead + st.killed + lostN)  // v3.58 RZ358: the reroll never brings the dead back (Enemies Return decides)
+            e += sprintf_s(tail + e, sizeof tail - e, "; the dead stay dead: %d bod%s as %s died (%d empty here), %d by a kill "
+                           "bit%s", st.dead, st.dead == 1 ? "y" : "ies", st.dead == 1 ? "it" : "they", hidN, st.killed,
+                           lostN ? ", SOME BACK: no kill index" : "");
         for (t = 0; t < 0x13; ++t) {
             int c = 0;
             for (k = 0; k < m; ++k) c += pick[k].type == t;
@@ -512,6 +755,7 @@ static void __cdecl RmBeforeScript(int room)
     } __except (EXCEPTION_EXECUTE_HANDLER) {
         SsFault(GetExceptionCode());
     }
+    g_rmCopyRoom = -1;  // v3.58 RZ358: no copy plan unless this run makes one (RmBeforeScriptC)
     if (d >= RZ_DEPTH || g_rmFail) return;
     __try {
         RmBeforeScriptC(room, d);
@@ -596,6 +840,15 @@ static void __cdecl RmSaveCopy(void *dst, const void *src, unsigned size)
             if (RmProvRetyped(&g_rmProv, r) && LogQuota(&g_rmQuotaAnom, 40))
                 LogV("randomizer: monsters: a save: %08X (made as %s v%d, placed as another type) is left out of it", RmRecId(r),
                      RmTypeName(RmRecType(r)), RmRecVariant(r));
+        {  // v3.58 RZ358: a randomized monster lying dead stays dead in the save (its kill bit in the save's copy)
+            int lost = 0;
+            const int dead = RmSaveKeepDead((BYTE *)dst, (const BYTE *)dst + RM_SAVE_RECS, &g_rmProv, &lost);
+            g_rmSaveDead += dead, g_rmSaveDeadLost += lost;
+            if (dead + lost && LogQuota(&g_rmQuotaDead, 200))
+                Log("randomizer: monsters: a save: %d randomized monster(s) lying dead are kept dead in it as kill bits (their records "
+                    "are left out: after a load they stay dead whatever they are made as; Enemies Return brings them back)%s", dead,
+                    lost ? ", SOME without a kill index come back after a load" : "");
+        }
         n = RmSaveClean((BYTE *)dst + RM_SAVE_RECS, &g_rmProv);
         g_rmSaveCleaned += n;
         if (n) Log("randomizer: monsters: a save: %d record(s) of monsters made as another type are left out of it (they come back "
@@ -680,6 +933,15 @@ static void RmSessionLine(void)  // randomizer.inc RzSessionLine
         Log("randomizer: monsters session: %d placement(s) rolled again for their own type (MonsterRollAgain %s); event dogs: %d "
             "planned with story flag 130 set, %d kept as placed for their event (flag clear)", g_rmAgain, g_rmRollAgain ? "On" : "Off",
             g_rmEvPlanned, g_rmEvAsleep);
+    if (g_rmRooms || g_rmSaveDead || g_rmDeadHidden)  // v3.58 RZ358
+        Log("randomizer: monsters session: the dead stay dead: %d bod%s kept as they died, %d kept by a kill bit, %d kept with "
+            "their placement empty for a room's build (type not makeable / Enemies Off), %d lost (no kill index); saves: %d "
+            "randomized bod%s kept dead as kill bits, %d lost", g_rmDeadKept, g_rmDeadKept == 1 ? "y" : "ies", g_rmKilledKept,
+            g_rmDeadHidden, g_rmDeadLost, g_rmSaveDead, g_rmSaveDead == 1 ? "y" : "ies", g_rmSaveDeadLost);
+    if (g_rmCpRooms || g_rmCpRetyped)  // v3.58 RZ358
+        Log("randomizer: monsters session: copies: %d room load(s) with copies drawn: %d drawn by the seed (%d at a site of their "
+            "own), %d made, %d kept their original's type (files); %d descriptor(s) made as a drawn type (in their room or away)",
+            g_rmCpRooms, g_rmCpDrawnAll, g_rmCpSitedAll, g_rmCpMadeAll, g_rmCpFilesAll, g_rmCpRetyped);
     if (g_rmOther || g_rmProv.full)  // v3.49 fix2 RZ349-SAVE-001
         Log("randomizer: monsters session: %d placement(s) left as placed for a record Refined did not make (another writer); %d "
             "placement(s) of Refined's (%d full)", g_rmOther, g_rmProv.n, g_rmProv.full);

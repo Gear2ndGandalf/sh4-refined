@@ -229,6 +229,31 @@ static int SsMonSite(int stage, int half, int room, const RmSlot *s, int type, i
     else ++g_ssRmKept;
     return ok;
 }
+// v3.58 RZ358: a site of its own for copy k (1..3) of a monster placement, made as `type` (rzmon.inc RmCopyPlan, after
+// the room's placements took theirs): its key is the placement's with k in the object number's high byte (copies stand
+// apart from their original and each other); a ghost type takes a ghost's site. Its refusals are not the room line's.
+// 1 = site holds it (taken: later sites keep their distance)
+static int SsCopySite(int stage, int half, int room, const RmSlot *s, int k, int type, float *site)
+{
+    const unsigned visit = RzVisitSalt(stage, room);
+    const int n = (int)s->n | (k & 3) << 8;
+    int why[SSW_N], ok = 0;
+    memset(why, 0, sizeof why);
+    SsRoomRead(room);
+    if (RmIsGhostTarget(type)) {
+        ok = SsGhostSite(stage, half, room, n, 0, s->pos, 0.0f, g_ssGhostsOk ? (const float(*)[3])g_ssGhostsHere.ghost : NULL,
+                         g_ssGhostsOk ? g_ssGhostsHere.nghost : 0, site, why);
+    } else if (SsMapReady()) {
+        SsMonIn in;
+        memset(&in, 0, sizeof in);
+        in.key = SsKey((unsigned)g_rzSeed, stage, half, room, n, visit, 0);
+        in.arrive = g_ssArrive, in.exits = g_ssExit, in.nExits = g_ssExitN;
+        in.taken = (const float(*)[3])g_ssTaken, in.nTaken = g_ssTakenN;
+        ok = SsMonPick(&in, &g_ssMap, g_ssCells, g_ssNCells, SsMonTest, NULL, site, why);
+        if (ok) SsTake(site);
+    }
+    return ok;
+}
 // a standing record of this placement in this room, of the type it is made as: moved to the site (world -> record,
 // 0x46FE30; its w kept). 1 = moved
 static int SsMonRecMove(unsigned id, int stage, int room, int type, int variant, const float *site)

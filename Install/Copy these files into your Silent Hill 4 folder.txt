@@ -1,6 +1,6 @@
 Copy everything in this folder into your Silent Hill 4 folder, the one that holds SILENT HILL 4.exe.
 Say yes to replace.
-- winmm.dll and the fonts folder: SH4 Refined.
+- winmm.dll, the fonts folder and SH4Refined_preview_stock.dds (the Effects pages' picture): SH4 Refined.
 - d3d9.dll, dgVoodoo.conf and the dgVoodoo_variants folder: the optional dgVoodoo2 renderer by Dege.
   Leave these three out to play without it, or if you already use your own dgVoodoo2.
 See ..\INSTALL.md.

@@ -77,13 +77,15 @@ static const char *const kPcSteal[] = { "Off", "5", "10" };                     
 static const char *const kHeadMotion[] = { "Off", "Slight", "On" };                              // the game's Head Motion words
 static const char *const kFpMove[] = { "Rotate", "Sideways" }, *const kFpCam[] = { "Normal", "Reverse" };
 static const char *const kPcQc[] = { "Off", "1.5x", "2x", "3x" };                                 // playercheats.inc kPcIni[PC_QC]  // v3.57 OLP1
+static const char *const kFxNoise[] = { "Low", "Normal", "High", "Very High" };                  // sh4windowmod.c kFxName[FX_NOISE]  // v3.58 MN358
 static const MapIni kMapIni[] = {
     { OLM_POWERS_ECHO_DOUBLES, kGpEcho, 3, "gameplay.inc kGpName[GP_ECHO]" },
     { OLM_ENEMIES_DOOR_CHASE, kGpFollow, 4, "gameplay.inc kGpName[GP_FOLLOW]" },
     { OLM_INTERFACE_ENEMY_HEALTH, kHbBars, 3, "hudbars.inc kHbName" },
     { OLM_SUBTITLES_EDGE, kSubEdge, 4, "sh4windowmod.c kSubName[SUB_EDGE]" },
     { OLM_EFFECTS_FILTER, kFxFilter, 10, "sh4windowmod.c kFxName[FX_FILTER]" },
-    { OLM_ENEMIES_FADE_IN, kFiModeName, FI_MODE_N, "fadein_sim.h kFiModeName" },
+    { OLM_ENEMIES_REVEAL_METHOD, kFiModeName, FI_MODE_N, "fadein_sim.h kFiModeName" },  // v3.58 MN358: Reveal Method (was Fade In)
+    { OLM_GRAIN_STRENGTH, kFxNoise, 4, "sh4windowmod.c kFxName[FX_NOISE]" },  // v3.58 MN358: Ultra on screen, Very High in the ini
     // v3.56 RI356: Room 302 Items shows its ini words (Off / Shuffle / Random): no map any more
     { OLM_INTERFACE_MENU_FONT, kFnRowStem, FN_ROW_N, "font_sim.h kFnRowStem" },
     { OLM_ITEMS_TOOLBELT, kInvOnOff, 2, "inventory.inc kInvName" },
@@ -180,7 +182,26 @@ static void TestIniWords(void)
     CHECK(!strcmp(kRzRerollName[RZR_ROOM], OLW_RANDO_REROLL_V_BY_ROOM) && !strcmp(kRzRerollName[RZR_WORLD], OLW_RANDO_REROLL_V_BY_WORLD),
           "Reroll: the screen words are the ini words By Room / By World");
     CHECK(!strcmp(OLW_ROOM302_TURN_OR_STRAFE_L, "Turn or Strafe") && !strcmp(OLW_RANDO_REROLL_L, "Reroll"), "the two renamed labels");
-    printf("ini words: Quick Charge, Turn or Strafe, Reroll checked\n");
+    {   // v3.58 MN358: Reveal Method (was Fade In): Fade In on screen = Fade in the ini, Portal = Fade + Portal; Film Grain >
+        // Strength: Ultra on screen = Very High in the ini (the code writes kFiModeName / kFxName; both words read)
+        CHECK(!strcmp(OLW_ENEMIES_REVEAL_METHOD_L, "Reveal Method") && !strcmp(OLW_ENEMIES_REVEAL_METHOD_V_FADE_IN, "Fade In") &&
+              !strcmp(OLW_ENEMIES_REVEAL_METHOD_V_PORTAL, "Portal") && !strcmp(OLW_GRAIN_STRENGTH_V_ULTRA, "Ultra"),
+              "v3.58: Reveal Method / Fade In / Portal / Ultra on screen");
+        CHECK(!strcmp(OlShow(OLM_ENEMIES_REVEAL_METHOD, "Fade"), "Fade In") && !strcmp(OlIni(OLM_ENEMIES_REVEAL_METHOD, "Fade In"), "Fade") &&
+              !strcmp(OlShow(OLM_ENEMIES_REVEAL_METHOD, "Fade + Portal"), "Portal") &&
+              !strcmp(OlIni(OLM_ENEMIES_REVEAL_METHOD, "Portal"), "Fade + Portal") &&
+              !strcmp(OlShow(OLM_ENEMIES_REVEAL_METHOD, "Off"), "Off"), "Reveal Method: Fade / Fade + Portal stay the ini words");
+        CHECK(!strcmp(kFiModeName[FI_MODE_FADE], "Fade") && !strcmp(kFiModeName[FI_MODE_PORTAL], "Fade + Portal"),
+              "fadein_sim.h writes Fade / Fade + Portal");
+        CHECK(FiModeParse("Fade", NULL) == FI_MODE_FADE && FiModeParse("Fade In", NULL) == FI_MODE_FADE &&
+              FiModeParse("fadein", NULL) == FI_MODE_FADE && FiModeParse("Fade + Portal", NULL) == FI_MODE_PORTAL &&
+              FiModeParse("Portal", NULL) == FI_MODE_PORTAL && FiModeParse("Off", NULL) == FI_MODE_OFF,
+              "[Gameplay] FadeIn reads Fade, Fade In, Fade + Portal, Portal, Off");
+        CHECK(!strcmp(OlShow(OLM_GRAIN_STRENGTH, "Very High"), "Ultra") && !strcmp(OlIni(OLM_GRAIN_STRENGTH, "Ultra"), "Very High") &&
+              !strcmp(OlIni(OLM_GRAIN_STRENGTH, "ultra"), "Very High") && !strcmp(OlShow(OLM_GRAIN_STRENGTH, "High"), "High"),
+              "Film Grain > Strength: Very High stays the ini word (Ultra reads as it)");
+    }
+    printf("ini words: Quick Charge, Turn or Strafe, Reroll, Reveal Method, Strength checked\n");
 }
 
 static void TestComposed(void)

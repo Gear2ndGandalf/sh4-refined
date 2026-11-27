@@ -9,6 +9,9 @@
 // behind the enemy that put her in a Water Prison wall) on a box world: v3.51's rules took it, the landing proof refuses
 // it; the warp ahead's spot at a wall; the proof's answers; the map's seeds inside collision; GtStuck; GtFreeCell (the
 // nearest proven floor cell, against every cell of the map); FreeWatch(): the watch after a warp at 30 .. 240 Hz.
+// v3.58 GT358 (staging/v358_feedback/w6_teleport/PLAN.md): FadeDraw(): the clean fade's plan (late on a pre-pass, in place
+// by shader 4 / 5, every gate), her opacity (= the draw's fix / 128), the shadow / heat / soul rules, the hidden key, and a
+// whole fade at 180 Hz without a jump.
 // Build and run: test\build_gt_test.cmd (cl /O2 x86, as build.cmd).
 #include <stdio.h>
 #include <stdlib.h>
@@ -210,6 +213,71 @@ static void FadeRules(void)
         Check(ok, "FIX over 0 .. 1 matches the ghost's rounding");
     }
     Check(GtFadeFix(sqrtf(-1.0f)) == 128, "a NaN transparency: drawn as stock");
+}
+
+// ---- v3.58 GT358: the clean fade's plan, her opacity for the heat body / the soul fire / the shadow, the hidden key
+static void FadeDraw(void)
+{
+    static const float kSee[] = { -1.0f, 0.0f, 0.004f, 0.25f, 0.5f, 0.75f, 0.996f, 1.0f, 2.0f };
+    GtFadeDraw d;
+    int m, i, ok;
+    // the key: missing / out of range = Clean; 0 / 1 / 2 kept
+    Check(GtFadeDrawKey(0, 0) == GT_FD_CLEAN && GtFadeDrawKey(1, 0) == GT_FD_STOCK && GtFadeDrawKey(1, 1) == GT_FD_ONE &&
+          GtFadeDrawKey(1, 2) == GT_FD_CLEAN && GtFadeDrawKey(1, 3) == GT_FD_CLEAN && GtFadeDrawKey(1, -1) == GT_FD_CLEAN,
+          "GhostTeleportFadeDraw: 0 / 1 / 2 read, anything else Clean");
+    Check(GtFadeDrawName(0)[0] == 'S' && GtFadeDrawName(1)[0] == 'O' && GtFadeDrawName(2)[0] == 'C', "the modes' names");
+    // her opacity is the draw's own alpha: fix / 128
+    ok = 1;
+    for (i = 0; i < (int)(sizeof kSee / sizeof kSee[0]); ++i) ok &= GtFadeOp(kSee[i]) == (float)GtFadeFix(kSee[i]) / 128.0f;
+    Check(ok && GtFadeOp(0.0f) == 1.0f && GtFadeOp(1.0f) == 0.0f && GtFadeOp(0.5f) == 0.5f && GtFadeOp(sqrtf(-1.0f)) == 1.0f,
+          "opacity = the draw's fix / 128 (1 stock, 0 gone, NaN stock)");
+    // not fading: stock (every mode, every gate)
+    for (m = 0; m <= 2; ++m) {
+        GtFadePlan(&d, m, 0.0f, 1, 1, 1);
+        Check(d.path == GTD_NONE && d.ps == 8 && !d.prepass && d.fix == 128 && d.drawn, "not fading: the stock draw (any mode)");
+        GtFadePlan(&d, m, sqrtf(-1.0f), 1, 1, 1);
+        Check(d.path == GTD_NONE, "a NaN transparency: the stock draw");
+    }
+    // Clean with every gate: late, pre-pass, shader 5; a closed gate: in place with shader 5 (never shader 4)
+    GtFadePlan(&d, GT_FD_CLEAN, 0.5f, 1, 1, 1);
+    Check(d.path == GTD_LATE && d.ps == 5 && d.prepass && d.fix == 64 && d.drawn, "Clean: after the actor loop, pre-pass, shader 5");
+    GtFadePlan(&d, GT_FD_CLEAN, 0.5f, 0, 1, 1);
+    Check(d.path == GTD_INPLACE && d.ps == 5 && !d.prepass, "Clean without the hook: one pass in place, shader 5");
+    GtFadePlan(&d, GT_FD_CLEAN, 0.5f, 1, 0, 1);
+    Check(d.path == GTD_INPLACE && d.ps == 5 && !d.prepass, "Clean outside phase 0 (a scene starting this frame): in place");
+    GtFadePlan(&d, GT_FD_CLEAN, 0.5f, 1, 1, 0);
+    Check(d.path == GTD_INPLACE && d.ps == 5 && !d.prepass, "Clean while another redraw holds the override: in place");
+    GtFadePlan(&d, GT_FD_ONE, 0.5f, 1, 1, 1);
+    Check(d.path == GTD_INPLACE && d.ps == 5 && !d.prepass, "One pass: in place, shader 5");
+    GtFadePlan(&d, GT_FD_STOCK, 0.5f, 1, 1, 1);
+    Check(d.path == GTD_INPLACE && d.ps == 4 && !d.prepass && d.fix == 64, "Stock: v3.57's shader 4 in place");
+    GtFadePlan(&d, GT_FD_CLEAN, 1.0f, 1, 1, 1);
+    Check(d.path == GTD_LATE && d.fix == 0 && !d.drawn, "fully gone: nothing drawn (the pose still built)");
+    // the shadow: Fade In's rule (drawn from half opacity), v3.57 always
+    Check(GtShadowKeep(GT_FD_CLEAN, 0.0f) && GtShadowKeep(GT_FD_CLEAN, 0.5f) && !GtShadowKeep(GT_FD_CLEAN, 0.51f) &&
+          !GtShadowKeep(GT_FD_ONE, 0.75f) && GtShadowKeep(GT_FD_STOCK, 1.0f), "her shadow from half opacity on (v3.57: always)");
+    // Thermal's heat body: alpha x opacity, solid only when not fading; continuous at both ends
+    Check(GtHeatAlpha(GT_FD_CLEAN, 1.0f, 0.0f) == 1.0f && GtHeatAlpha(GT_FD_CLEAN, 1.0f, 0.5f) == 0.5f &&
+          GtHeatAlpha(GT_FD_CLEAN, 0.6f, 0.5f) == 0.3f && GtHeatAlpha(GT_FD_CLEAN, 1.0f, 1.0f) == 0.0f &&
+          GtHeatAlpha(GT_FD_STOCK, 1.0f, 0.75f) == 1.0f, "heat alpha = its base x her opacity (v3.57: the base)");
+    Check(GtHeatSolid(GT_FD_CLEAN, 1, 0.0f) && !GtHeatSolid(GT_FD_CLEAN, 1, 0.004f) && !GtHeatSolid(GT_FD_CLEAN, 0, 0.0f) &&
+          GtHeatSolid(GT_FD_STOCK, 1, 0.5f), "the heat body stays solid only while she is not fading");
+    {   // no pop: along a whole fade (0.5 s out, 0.5 s in at 180 Hz) her opacity never jumps more than a frame's share
+        GtFade f;
+        float last = 1.0f, maxJump = 0.0f, op;
+        int k, warp = 0;
+        GtFadeStart(&f);
+        for (k = 0; k < 400 && (f.phase != GTF_IDLE || k == 0); ++k) {
+            warp |= GtFadeStep(&f, 1.0f / 180.0f);
+            op = GtFadeOp(GtFadeSee(&f));
+            if (fabsf(op - last) > maxJump) maxJump = fabsf(op - last);
+            last = op;
+        }
+        Check(warp && f.phase == GTF_IDLE && last == 1.0f && maxJump <= 2.0f / 90.0f + 1e-4f,
+              "a whole fade at 180 Hz: opacity 1 -> 0 -> 1 in steps of at most two 90ths (no pop at either end)");
+    }
+    Check(GtSoulK(GT_FD_CLEAN, 0.0f) == 1.0f && GtSoulK(GT_FD_ONE, 0.5f) == 0.5f && GtSoulK(GT_FD_CLEAN, 1.0f) == 0.0f &&
+          GtSoulK(GT_FD_STOCK, 0.5f) == 1.0f, "the soul fire x her opacity (v3.57: full)");
 }
 
 // ---- v3.44 GT344: the warp ahead
@@ -1336,6 +1404,7 @@ int main(int argc, char **argv)
     ChordRules();
     for (i = 0; i < 4; ++i) FadeRate(kHz[i]);
     FadeRules();
+    FadeDraw();  // v3.58 GT358
     Ahead();
     Pick();
     Spots();

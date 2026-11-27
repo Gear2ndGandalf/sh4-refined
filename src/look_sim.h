@@ -20,15 +20,16 @@
 // The reasons a dependent row is grey (PLAN section 3: "The description starts with the reason"), one per rule of
 // layout_data.py's DEPS, worded with the plan's row names (R1's labels; v3.53 MERGE: built from ol_words.h, so they are
 // always w2 OL1's row and value names).
-enum { LKR_GRAIN, LKR_DOF, LKR_ECHO, LKR_WIDTH, LKR_SHADOW, LKR_CAM, LKR_MARGIN, LKR_N };
+enum { LKR_GRAIN, LKR_DOF, LKR_ECHO, LKR_WIDTH, LKR_SHADOW, LKR_CAM, LKR_MARGIN, LKR_FILTER, LKR_N };  // v3.58 PV358: + LKR_FILTER
 static const char *const kLkReason[LKR_N] = {
     "Needs " OLW_L_FILM_GRAIN " on.",  // Grain Strength / Type / Colour (Film Grain = the stock Noise Effect, cfg+0x14)
-    "Needs " OLW_EFFECTS_DEPTH_OF_FIELD_L " on.",  // Blur Strength (was DoF Strength)
+    "Needs " OLW_DOF_DEPTH_OF_FIELD_L " on.",  // Blur Strength (was DoF Strength)  // v3.58 PV358: Effects > Depth of Field > Strength
     "Needs " OLW_POWERS_ECHO_DOUBLES_L " on.",  // Echo Count
     "Needs a " OLW_SOUND_SOUND_MODE_L " other than " OLW_SOUND_SOUND_MODE_V_MONO ".",  // Stereo Width (Stereo, Headphones or Surround)
     "Needs " OLW_L_SHADOWS " on.",  // Shadows > Edge / Darkness (Shadows = the stock Realtime Shadow, cfg+0x19)
     "Needs the " OLW_CAMERA_CAMERA_V_SHOULDER " camera.",  // the camera's settings (Camera = Game)
     "Needs " OLW_STEERING_WALL_ZOOM_L " on.",  // Wall Margin
+    "Needs a " OLW_EFFECTS_FILTER_L " other than " OLW_EFFECTS_FILTER_V_NONE ".",  // v3.58 PV358: Filter Strength (Filter None)
     // v3.53 MERGE: the same seven texts as w3 OL2 wrote, now from w2's names
 };
 

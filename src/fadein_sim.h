@@ -50,6 +50,7 @@ static int FiModeParse(const char *s, int *known)
         if (FiSameNoSpace(s, kFiModeName[v])) return v;
     if (FiSameNoSpace(s, "0")) return FI_MODE_OFF;
     if (FiSameNoSpace(s, "On") || FiSameNoSpace(s, "1") || FiSameNoSpace(s, "Portal")) return FI_MODE_PORTAL;
+    if (FiSameNoSpace(s, "Fade In")) return FI_MODE_FADE;  // v3.58 MN358: the Options word (typed by hand) reads as Fade
     if (known) *known = 0;
     return FI_MODE_DEFAULT;
 }
@@ -517,19 +518,21 @@ static int FiGcd(int a, int b)
     }
     return a;
 }
-static float FiSnapAt(int i, int n, unsigned seed)
+// v3.58 FI358: the window [a, b] is the caller's (FiSnapAt: v3.51's 1.5 .. 2.5 s; FiStickWindow: the sticky strands' end)
+static float FiSnapAtW(int i, int n, unsigned seed, float a, float b)
 {
     static const int kP[] = { 7, 11, 13, 17, 19, 23, 29, 31 };
     int p = 1, k, rank;
-    if (n <= 0) return FI_HOLD_SLOW_S;
+    if (n <= 0) return a;
     for (k = 0; k < (int)(sizeof kP / sizeof kP[0]); ++k)
         if (FiGcd(kP[k], n) == 1) {
             p = kP[k];
             break;
         }
     rank = (int)(((unsigned)i * (unsigned)p + seed % (unsigned)n) % (unsigned)n);
-    return FI_HOLD_SLOW_S + (FI_HOLD_END_S - FI_HOLD_SLOW_S) * ((float)rank + 0.5f) / (float)n;
+    return a + (b - a) * ((float)rank + 0.5f) / (float)n;
 }
+static float FiSnapAt(int i, int n, unsigned seed) { return FiSnapAtW(i, n, seed, FI_HOLD_SLOW_S, FI_HOLD_END_S); }
 // Refined's strand at `age` (seconds after the hold started), snapping at `at`: 0 whole (*k = 1), 1 straining (*k = the
 // width left, 1 .. 0.4), 2 snapped (*k = how far its ends whipped back, 0 .. 1), 3 gone
 static int FiStrandPhase(float age, float at, float *k)
@@ -601,5 +604,328 @@ static int FiStatsText(const FiStats *s, char *out, size_t n)
         return (int)n - 1;
     }
     return (int)o;
+}
+
+// ================================================================ v3.58 FI358: Reveal Method's portal, bigger and stickier
+// USER_FEEDBACK_v357 ("The portal parameter design looks nice, but it is smaller than the victims. Make it larger, not by
+// stretching it, but by add to the effect with more similar effects on and around it. Make stretchy tar-like substance
+// stick to the victims for a few seconds and let the portal stay open for that long too."). Plan:
+// staging/v358_feedback/w5_portal/PLAN.md. The first portal keeps v3.57's size; up to FI_PIECES_MAX more portals of the
+// same kind (the game's own grid / Refined's blot, each at most the first one's size: never one stretched piece) and two
+// more blot sets (25 blots, up to 15 drips each) are laid around it so that the whole is 1.24 x the arriving body's height;
+// Refined's sticky strands hold on to the body (its bones, else its box) for FadeInStrandSeconds after it is in, thin as
+// they stretch and age, snap one by one over the last 1.3 s, and their body ends drop off; the portal closes when they are
+// gone (the pieces around first: it shrinks to its centre). FadeInStrandSeconds 0 + FadeInPortalPieces 0 = v3.57.
+#define FI_PIECES_DEFAULT  9      // [Gameplay] FadeInPortalPieces (hidden) 0 .. 9: portals laid around the first one
+#define FI_PIECES_MAX      9
+#define FI_STICK_DEFAULT   3.0f   // [Gameplay] FadeInStrandSeconds (hidden) 0 .. 6: how long the strands hold after it is in
+#define FI_STICK_MAX       6.0f
+#define FI_STRANDS_DEFAULT 16     // [Gameplay] FadeInStrands (hidden) 0 .. 24: Refined's sticky strands (half that many
+#define FI_STRANDS_MAX     24     //   beside a ghost's own 32)
+#define FI_STICK_SNAP_S    1.3f   // the strands snap one by one over the last 1.3 s of their time
+#define FI_COVER_Y         0.62f  // the whole portal's half height = this x the body's height (1.24 x the body) ...
+#define FI_COVER_X         0.42f  // ... its half width at least this x the body's height (and 1.6 x the body's half width)
+#define FI_COVER_MAXK      3.0f   // ... never more than 3 x the first portal's half sizes
+#define FI_BODY_MIN        80.0f  // a body's height is taken within 80 .. 600 u (bones; else its type's)
+#define FI_BODY_MAX        600.0f
+#define FI_MEASURE_WAIT_S  0.35f  // no usable bones this long after the portal opened: the type's box
+#define FI_SETS_MAX        3      // blot sets: the first (around the first portal) + 2 over the whole portal
+#define FI_PIECE_CLOSE_S   1.0f   // the pieces around close over 1.0 s (the first over FI_TAR_CLOSE_S): it shrinks inward
+#define FI_STR_LOOSE       900.0f // a sticky strand stretched past this snaps at once ("stretched loose")
+#define FI_DROP_S          0.6f   // a snapped strand's body end falls off over this ...
+#define FI_DROP_G          900.0f // ... under this gravity (u / s^2, y down)
+
+static float FiStickClamp(float v)  // [Gameplay] FadeInStrandSeconds: NaN / below 0 -> the default; 0 = v3.57's timeline
+{
+    if (!(v == v) || v < 0.0f) return FI_STICK_DEFAULT;
+    return v > FI_STICK_MAX ? FI_STICK_MAX : v;
+}
+static int FiCountClamp(int v, int def, int max) { return v < 0 ? def : v > max ? max : v; }  // the two hidden counts
+// the strands' end, seconds after the hold started (it starts with the portal): FadeInSeconds (the body is in) + stick, never
+// before the hold's end; stick 0 = v3.57 (the hold's end)
+static float FiStickEnd(float fadeSec, float stick)
+{
+    const float e = fadeSec + stick;
+    if (!(stick > 0.0f) || !(e > FI_HOLD_END_S)) return FI_HOLD_END_S;
+    return e;
+}
+// where the strands snap one by one: v3.57's 1.5 .. 2.5 s, or the last FI_STICK_SNAP_S of their time
+static void FiStickWindow(float sEnd, float *a, float *b)
+{
+    float s = sEnd - FI_STICK_SNAP_S;
+    if (!(sEnd > FI_HOLD_END_S)) {
+        *a = FI_HOLD_SLOW_S, *b = FI_HOLD_END_S;
+        return;
+    }
+    if (s < FI_HOLD_SLOW_S) s = FI_HOLD_SLOW_S;
+    *a = s, *b = sEnd;
+}
+
+// ---------------------------------------------------------------- the arriving body's box
+typedef struct { float top, bottom, half, c[3]; int bones, ok; } FiBody;  // y down: top < bottom; half: its half width
+static float FiBodyH(const FiBody *b)
+{
+    const float h = b->bottom - b->top;
+    return h < FI_BODY_MIN ? FI_BODY_MIN : h > FI_BODY_MAX ? FI_BODY_MAX : h;
+}
+// from this frame's bone points (world, y down) near the work position: 0 = fewer than 3 usable ones
+static int FiBodyBones(const float (*bp)[3], int n, const float work[3], FiBody *o)
+{
+    float lo = 1.0e30f, hi = -1.0e30f, sx = 0.0f, sz = 0.0f, r = 0.0f, span;
+    int i, k = 0;
+    memset(o, 0, sizeof *o);
+    for (i = 0; i < n; ++i) {
+        const float *q = bp[i];
+        if (!(q[0] == q[0] && q[1] == q[1] && q[2] == q[2])) continue;
+        if (!(fabsf(q[0] - work[0]) < 400.0f && fabsf(q[2] - work[2]) < 400.0f && fabsf(q[1] - work[1]) < 600.0f)) continue;
+        if (q[1] < lo) lo = q[1];
+        if (q[1] > hi) hi = q[1];
+        sx += q[0], sz += q[2], ++k;
+    }
+    if (k < 3) return 0;
+    sx /= (float)k, sz /= (float)k;
+    for (i = 0; i < n; ++i) {
+        const float *q = bp[i];
+        float d;
+        if (!(q[0] == q[0] && q[1] == q[1] && q[2] == q[2])) continue;
+        if (!(fabsf(q[0] - work[0]) < 400.0f && fabsf(q[2] - work[2]) < 400.0f && fabsf(q[1] - work[1]) < 600.0f)) continue;
+        d = sqrtf((q[0] - sx) * (q[0] - sx) + (q[2] - sz) * (q[2] - sz));
+        if (d > r) r = d;
+    }
+    span = hi - lo;
+    o->top = lo - 0.12f * span;     // the crown above the head bone (34 of 307 u, sizes.md)
+    o->bottom = hi + 0.04f * span;  // the soles below the lowest bone (the toes / ankles)
+    o->half = r + 0.10f * span;     // the limbs' own girth
+    if (o->half < 0.12f * FiBodyH(o)) o->half = 0.12f * FiBodyH(o);
+    o->c[0] = sx, o->c[1] = 0.5f * (o->top + o->bottom), o->c[2] = sz;
+    o->bones = k, o->ok = 1;
+    return 1;
+}
+// the box by its type when the bones are not usable: victims and the story ghosts ~340 u, the work position 200 u above
+// the feet (KB 113); Andrew (0x0E) is bigger
+static void FiBodyType(int type, const float work[3], FiBody *o)
+{
+    const float h = type == 0x0E ? 420.0f : 340.0f;
+    memset(o, 0, sizeof *o);
+    o->bottom = work[1] + 200.0f * h / 340.0f;
+    o->top = o->bottom - h;
+    o->half = 0.18f * h;
+    o->c[0] = work[0], o->c[1] = 0.5f * (o->top + o->bottom), o->c[2] = work[2];
+    o->ok = 1;
+}
+// the whole portal's half sizes for a body (sx, sy: the first portal's): taller than the body, never smaller than the
+// first portal, never more than FI_COVER_MAXK x it
+static void FiBigTarget(const FiBody *b, float sx, float sy, float *tx, float *ty)
+{
+    const float h = FiBodyH(b);
+    float x = FI_COVER_X * h, y = FI_COVER_Y * h;
+    if (x < 1.6f * b->half) x = 1.6f * b->half;
+    if (x < sx) x = sx;
+    if (y < sy) y = sy;
+    if (x > FI_COVER_MAXK * sx) x = FI_COVER_MAXK * sx;
+    if (y > FI_COVER_MAXK * sy) y = FI_COVER_MAXK * sy;
+    *tx = x, *ty = y;
+}
+
+// ---------------------------------------------------------------- the pieces: the first portal and more around it
+// a piece: its centre in the portal's plane (u across, v down, world units from the portal's point), its size (a factor
+// of the first one's half sizes: 1 for the first, 0.5 .. 0.8 around it), when it starts to open (s), on = laid out (a
+// piece on a wall that is not on the wall is dropped by the caller)
+typedef struct { float u, v, s, open, phase; int on, slot; } FiPiece;
+typedef struct { FiPiece g[1 + FI_PIECES_MAX]; int n, nOn, sets; float tx, ty, du, dv; } FiBig;
+// the slots around the first, in the order they are taken: below (the feet), above (the head), the sides, the four
+// corners, then one more on the first itself; need: 1 = taller than the first, 2 = wider, 3 = the corners stick out, 0 = always
+static const float kFiSlot[FI_PIECES_MAX][3] = {
+    { 0.0f, 1.0f, 1 }, { 0.0f, -1.0f, 1 }, { -1.0f, 0.0f, 2 }, { 1.0f, 0.0f, 2 }, { -0.7071f, -0.7071f, 3 },
+    { 0.7071f, -0.7071f, 3 }, { -0.7071f, 0.7071f, 3 }, { 0.7071f, 0.7071f, 3 }, { 0.22f, -0.18f, 0 } };
+static int FiSlotNeeded(int need, float ru, float rv)
+{
+    if (need == 1) return rv > 1.08f;
+    if (need == 2) return ru > 1.08f;
+    if (need == 3) return 0.5f * (ru * ru + rv * rv) > 1.25f;
+    return 1;
+}
+// lay out the first portal (half sizes sx, sy) and up to maxExtra more within the target (tx, ty) centred at (du, dv)
+static void FiBigMake(FiBig *B, unsigned seed, float sx, float sy, float tx, float ty, float du, float dv, int maxExtra)
+{
+    const float ru = sx > 1.0f ? tx / sx : 1.0f, rv = sy > 1.0f ? ty / sy : 1.0f;
+    int k, extra = 0;
+    memset(B, 0, sizeof *B);
+    if (maxExtra < 0) maxExtra = 0;
+    if (maxExtra > FI_PIECES_MAX) maxExtra = FI_PIECES_MAX;
+    if (!(tx >= sx)) tx = sx;
+    if (!(ty >= sy)) ty = sy;
+    if (du > 0.5f * (tx - sx)) du = 0.5f * (tx - sx);
+    if (du < -0.5f * (tx - sx)) du = -0.5f * (tx - sx);
+    if (dv > 0.5f * (ty - sy)) dv = 0.5f * (ty - sy);
+    if (dv < -0.5f * (ty - sy)) dv = -0.5f * (ty - sy);
+    B->tx = tx, B->ty = ty, B->du = du, B->dv = dv;
+    B->g[0].u = du, B->g[0].v = dv, B->g[0].s = 1.0f, B->g[0].on = 1, B->g[0].slot = -1;
+    B->n = 1;
+    for (k = 0; k < FI_PIECES_MAX && extra < maxExtra; ++k) {
+        const unsigned h = FiHash(seed * 0x9E3779B9u + (unsigned)k * 0x632BE5ABu + 0x5A11u);
+        const float cu = kFiSlot[k][0], cv = kFiSlot[k][1];
+        const int need = (int)kFiSlot[k][2];
+        FiPiece *g;
+        float s, ru2, rv2, ju, jv;
+        if (!FiSlotNeeded(need, ru, rv)) continue;
+        if (need == 0 && !extra) continue;  // (the one on the first only with others around it)
+        g = &B->g[B->n];
+        s = need == 0 ? 0.5f : 0.55f + 0.25f * FiRnd01(h);
+        ru2 = tx - s * sx, rv2 = ty - s * sy;  // its outer edge reaches the target's
+        if (ru2 < 0.0f) ru2 = 0.0f;
+        if (rv2 < 0.0f) rv2 = 0.0f;
+        ju = (FiRnd01(h ^ 0x1u) - 0.5f) * 0.16f * s * sx;
+        jv = (FiRnd01(h ^ 0x2u) - 0.5f) * 0.16f * s * sy;
+        g->u = need == 0 ? du + cu * sx + ju : du + cu * ru2 + ju;
+        g->v = need == 0 ? dv + cv * sy + jv : dv + cv * rv2 + jv;
+        if (g->u - s * sx < du - tx) g->u = du - tx + s * sx;  // (the jitter never takes it out of the target)
+        if (g->u + s * sx > du + tx) g->u = du + tx - s * sx;
+        if (g->v - s * sy < dv - ty) g->v = dv - ty + s * sy;
+        if (g->v + s * sy > dv + ty) g->v = dv + ty - s * sy;
+        g->s = s;
+        g->open = 0.10f + 0.05f * (float)extra;  // they open one after another around the first
+        g->phase = 6.2831853f * FiRnd01(h ^ 0x3u);
+        g->on = 1, g->slot = k;
+        ++B->n, ++extra;
+    }
+    B->nOn = B->n;
+    B->sets = extra ? (extra >= 5 ? 3 : 2) : 1;
+}
+// how strong piece g is (0 .. 1) at `age` s after the portal opened, closing from `rel`
+static float FiPieceAmount(float age, float rel, const FiPiece *g, int first)
+{
+    float a, c;
+    if (first) return FiTarAmount(age, rel);
+    a = age - g->open;
+    if (!(a > 0.0f)) return 0.0f;
+    if (age < rel) return FiTarOpenAt(a);
+    c = (age - rel) / FI_PIECE_CLOSE_S;
+    if (c >= 1.0f) return 0.0f;
+    return FiTarOpenAt(rel - g->open) * (1.0f - c) * (1.0f - c);
+}
+// the effect budget: how many of n pieces around the first are kept (a fractional count: piece k of them fades with
+// FiPieceWeight); spark = budget.inc BgSparkNow() (1 / 0.6 / 0.35), deep = a level that thins bodies already
+static float FiPieceKeep(float spark, int deep, int n)
+{
+    float k = spark == spark ? spark : 1.0f;
+    if (k > 1.0f) k = 1.0f;
+    if (k < 0.35f) k = 0.35f;
+    if (deep && k > 0.35f) k = 0.35f;
+    return k * (float)(n > 0 ? n : 0);
+}
+static float FiPieceWeight(float keep, int k)  // k = 1 .. n (the order they were laid out)
+{
+    const float w = keep - (float)(k - 1);
+    return w <= 0.0f ? 0.0f : w >= 1.0f ? 1.0f : w;
+}
+// the portals' own limit (the effect budget's governor counts only Echo / After Shock / Death Presence): when their draw
+// (its CPU time, smoothed over 0.25 s) takes more than FI_SELF_SHARE of the frame, the pieces around them thin (down 1.5 /
+// s, to 35 %), and come back below 60 % of it (0.3 / s); at 60 fps the limit is 1.3 ms, at 180 fps 0.44 ms
+#define FI_SELF_SHARE 0.08f
+static float FiSelfKeepStep(float keep, float msEma, float frameMs, float dt)
+{
+    const float lim = FI_SELF_SHARE * (frameMs > 1.0f ? frameMs : 1000.0f / 60.0f);
+    if (!(keep == keep)) keep = 1.0f;
+    if (!(dt > 0.0f)) return keep;
+    if (dt > 0.1f) dt = 0.1f;
+    if (msEma > lim) keep -= 1.5f * dt;
+    else if (msEma < 0.6f * lim) keep += 0.3f * dt;
+    return keep < 0.35f ? 0.35f : keep > 1.0f ? 1.0f : keep;
+}
+// a blot set j (1 / 2: over the whole portal) is drawn with this weight (the first set always 1)
+static float FiSetWeight(float spark, int deep, int j)
+{
+    const float k = FiPieceKeep(spark, deep, 1), need = j == 1 ? 0.45f : 0.75f;
+    const float w = (k - need) / 0.2f;
+    if (j <= 0) return 1.0f;
+    return w <= 0.0f ? 0.0f : w >= 1.0f ? 1.0f : w;
+}
+// a blot's life for the game's draw (x 1/1024 there) at a weight: whole blots fade to w as the game's own curve 1 - q^2
+static float FiLifeAtWeight(float life, float w)
+{
+    float cap;
+    if (!(w < 1.0f)) return life;
+    if (!(w > 0.0f)) return -1000.0f;  // (below -FI_TAR_FADE_S: not drawn)
+    cap = -FI_TAR_FADE_S * sqrtf(1.0f - w);
+    return life < cap ? life : cap;
+}
+// 1 = the point (u, v) of the plane lies within a laid-out piece (a blot of a set over the whole portal is kept only there)
+static int FiBigCovers(const FiBig *B, float u, float v, float sx, float sy)
+{
+    int k;
+    for (k = 0; k < B->n; ++k) {
+        const FiPiece *g = &B->g[k];
+        const float a = 1.1f * g->s * sx, b = 1.1f * g->s * sy, x = u - g->u, y = v - g->v;
+        if (g->on && a > 0.0f && b > 0.0f && (x * x) / (a * a) + (y * y) / (b * b) <= 1.0f) return 1;
+    }
+    return 0;
+}
+
+// ---------------------------------------------------------------- the sticky strands
+// how wide a strand is (a factor of its first width) at `age` s after the hold started: it thins to half over its time,
+// and as it stretches (the root of its first length over its length now, at least 0.35)
+static float FiStickWidth(float age, float sEnd, float len, float len0)
+{
+    float s = sEnd > 0.0f ? age / sEnd : 1.0f, st = 1.0f;
+    if (!(s > 0.0f)) s = 0.0f;
+    if (s > 1.0f) s = 1.0f;
+    if (len0 > 1.0f && len > len0) st = sqrtf(len0 / len);
+    if (st < 0.35f) st = 0.35f;
+    return (1.0f - 0.5f * s * s * (3.0f - 2.0f * s)) * st;
+}
+static float FiStickSag(float age, float sEnd, float len)  // it sags more as it ages (tar runs down), at most 160 u
+{
+    float s = sEnd > 0.0f ? age / sEnd : 1.0f, g;
+    if (!(s > 0.0f)) s = 0.0f;
+    if (s > 1.0f) s = 1.0f;
+    g = (0.05f + 0.10f * s) * (len > 0.0f ? len : 0.0f);
+    return g > 160.0f ? 160.0f : g;
+}
+// a snapped strand's body end, t s after the snap: how far it fell (y down) and how much of it is left (1 .. 0)
+static float FiDropFall(float t) { return t > 0.0f ? 0.5f * FI_DROP_G * t * t : 0.0f; }
+static float FiDropLeft(float t)
+{
+    float q;
+    if (!(t > 0.0f)) return 1.0f;
+    q = t / FI_DROP_S;
+    return q >= 1.0f ? 0.0f : (1.0f - q) * (1.0f - q);
+}
+
+// ---------------------------------------------------------------- the portal's close line (tools\logcheck.py reads it)
+typedef struct {
+    unsigned id;
+    int type;
+    float at;                   // closed at (s after it opened)
+    int grids, gridsOf, sets, drips;   // the most pieces drawn in a frame, laid out; blot sets; their drips
+    float w, h, body;           // the whole portal (u) and the body's height
+    int bones;                  // 1 = the body from its bones, 0 its type's box, -1 never seen
+    int strGame, strOwn, ownBox, snapped, loose;
+    float stick, stickTo;       // the strands held this long after it was in; to this second after it opened
+    double ms;
+    float msMax;
+    int frames;
+} FiClose;
+// "%08X (type %02X): its tar portal closed at A s: P piece(s) (grids g of G, blot sets s, drips d), W x H u for a body B u
+// tall (R x, its bones / its type's box / not seen); strands: the ghost's own a, Refined's b (its bones / its box), held S s
+// after it was in (to T s; n snapped, m stretched loose); portal draw x ms a frame (max y, f frames)"
+static int FiCloseText(const FiClose *c, char *out, size_t n)
+{
+    int w;
+    if (!out || n < 2) return 0;
+    w = _snprintf_s(out, n, _TRUNCATE,
+                    "%08X (type %02X): its tar portal closed at %.1f s: %d piece(s) (grids %d of %d, blot sets %d, drips %d), "
+                    "%.0f x %.0f u for a body %.0f u tall (%.2f x, %s); strands: the ghost's own %d, Refined's %d (%s), held "
+                    "%.1f s after it was in (to %.1f s; %d snapped, %d stretched loose); portal draw %.3f ms a frame (max %.3f, "
+                    "%d frames)", c->id, c->type & 0xFF, c->at, c->grids + c->sets, c->grids, c->gridsOf, c->sets, c->drips,
+                    c->w, c->h, c->body, c->body > 1.0f ? c->h / c->body : 0.0f,
+                    c->bones > 0 ? "its bones" : c->bones == 0 ? "its type's box" : "not seen", c->strGame, c->strOwn,
+                    c->ownBox ? "its box" : "its bones", c->stick, c->stickTo, c->snapped, c->loose,
+                    c->frames ? c->ms / c->frames : 0.0, c->msMax, c->frames);
+    if (w < 0) {
+        out[n - 1] = 0;
+        return (int)n - 1;
+    }
+    return w;
 }
 #endif

@@ -550,14 +550,32 @@ static void HbRefRoomEnd(void)  // the room visit counted in g_hbRef ends (room 
     g_hbRefRoom = 0xFFFFFFFFu;
     g_hbBossN = 0;
 }
-static void HbRefuseNote(HbEnt *e, int why, int type, int cls, const float *pos, float dist)
+static void HbRefuseNote(HbEnt *e, int why, int type, int cls, const float *pos, float dist, const char *more)  // v3.58 EN358: + more
 {
     if (!HbRefNote(&g_hbRef, &e->refSaid, why)) return;
     ++g_hbRefTot[why];
     if (LogQuota(&g_hbRefQ, 60))
-        LogV("hud bars: no bar for %08X (type %02X) in room %lu:%lX: %s (state %X, at %.0f %.0f %.0f, %.0f from you)", e->id, type,
-             g_hbRefRoom >> 16, g_hbRefRoom & 0xFFFF, kHbRfName[why], cls, pos[0], pos[1], pos[2], dist);
+        LogV("hud bars: no bar for %08X (type %02X) in room %lu:%lX: %s%s (state %X, at %.0f %.0f %.0f, %.0f from you)", e->id, type,
+             g_hbRefRoom >> 16, g_hbRefRoom & 0xFFFF, kHbRfName[why], more ? more : "", cls, pos[0], pos[1], pos[2], dist);
 }
+// v3.58 EN358: Walter's down timers are read only where the stock code keeps them (byte-checked once, read only; no patch):
+// bit 0 the stalker's [[work+0x24]+0x94] (0x4A4930 step 1), bit 1 the final Walter's [[work+0x24]+0x80] (0x4A8690)
+static int g_hbWalterSite = -1;
+static int HbWalterSites(void)
+{
+    if (g_hbWalterSite < 0) {
+        static const Site kS1 = { 0x4A4A12, { 0xD9, 0x87, 0x94, 0x00, 0x00, 0x00 }, 6 }, kS2 = { 0x4A4A1C, { 0xD9, 0x97, 0x94, 0x00, 0x00, 0x00 }, 6 };
+        static const Site kF1 = { 0x4A8760, { 0xD8, 0xAF, 0x80, 0x00, 0x00, 0x00 }, 6 }, kF2 = { 0x4A8801, { 0xD8, 0xAF, 0x80, 0x00, 0x00, 0x00 }, 6 };
+        g_hbWalterSite = (SiteOk(&kS1) && SiteOk(&kS2) ? 1 : 0) | (SiteOk(&kF1) && SiteOk(&kF2) ? 2 : 0);
+        Log("hud bars: Walter downed keeps his bar (boss rules) with a revive bar from the game's own down timer: the stalker's "
+            "(004A4A12) %s, the final Walter's (004A8760) %s", g_hbWalterSite & 1 ? "read" : "differs from GOG v7: health bar only",
+            g_hbWalterSite & 2 ? "read" : "differs from GOG v7: health bar only");
+    }
+    return g_hbWalterSite;
+}
+static volatile LONG g_hbWalterQ;
+// v3.58 EN358: Fade In's share of an enemy's body shown now (fadein.inc, after this file; 1 = all or not fading)
+static float FiBodyShown(const BYTE *task, const BYTE *work, unsigned id);
 static HbBossNote *HbBossOf(const BYTE *task, unsigned id)
 {
     int i;
@@ -676,7 +694,7 @@ static void HbBarQuads(const HbDraw *d, float H)
         HbDiamond(x1 + 3.0f * px + sz, my, sz + 1.5f * px, HbArgb(HB_RIM, 0.8f * a));
         HbDiamond(x1 + 3.0f * px + sz, my, sz, HbArgb(HB_LOCK, 0.95f * a));
     }
-    if (d->ghost && d->revA > 0.004f) HbReviveQuads(d, x0, x1, y1, H, px);
+    if ((d->ghost || d->boss) && d->revA > 0.004f) HbReviveQuads(d, x0, x1, y1, H, px);  // v3.58 EN358: + Walter downed (a boss: revA only for him)
 }
 static int g_hbGhostLog;  // the first ghost states logged (live check of the RE)
 static void HbEnemies(int mode, const Viewport8 *vp, float dt)
@@ -697,6 +715,7 @@ static void HbEnemies(int mode, const Viewport8 *vp, float dt)
         float pos[3], anc[3], top, frac, want, h[4], sx = 0.0f, sy = 0.0f, dx, dy, dz, dist, cd = 0.0f;
         float hm[4], tx = 0.0f, ty = 0.0f, mx = 0.0f, my = 0.0f;  // v3.52 HB352: the top's and the middle's projections
         int type, cls, ghost, gs = HB_GS_STAND, gone, boss = 0, hidden = 0, seen = 0, onScreen, why, okTop, okMid;
+        int ud, walter = 0;  // v3.58 EN358: nothing draws it yet (HB_UD_*); a Walter whose downs keep his bars
         HbEnt *e;
         if (!w) continue;
         type = *(const int *)(w + 0x20);
@@ -717,8 +736,16 @@ static void HbEnemies(int mode, const Viewport8 *vp, float dt)
         // v3.52 HB352 (D2): no bar at all for an enemy the game does not draw yet (state 0 / 0x0D..0x0F: hidden, an arriving
         // ghost sliding onto the player, a placeholder) or with no place in the room; its bar's clocks go on, the anchor
         // starts afresh when it appears (hudbars_sim.h HbRefuseWhy)
-        if ((why = HbRefuseWhy(cls, pos)) != HB_RF_NONE) {
-            HbRefuseNote(e, why, type, cls, pos, dist);
+        // v3.58 EN358: nor for one the game draws nothing for yet (its actor record has no model and no draw callbacks: an
+        // event dog before story flag 0x130, a task that returns before its draw registration; hudbars_sim.h HbUndrawnWhy)
+        {
+            const int recOk = (ULONG_PTR)pr >= 0x10000;
+            ud = HbUndrawnWhy(recOk, recOk ? *(void *const *)(pr + 0x14) : NULL, recOk ? *(void *const *)(pr + 0x20) : NULL,
+                              recOk ? *(void *const *)(pr + 0x24) : NULL, recOk ? *(void *const *)(pr + 0x28) : NULL, type,
+                              EnmModeWord(t), ENM_DOGS_AWAKE);
+        }
+        if ((why = HbRefuseWhy2(cls, pos, ud)) != HB_RF_NONE) {  // v3.58 EN358: + ud (was HbRefuseWhy)
+            HbRefuseNote(e, why, type, cls, pos, dist, kHbUdName[ud]);
             HbBarStep(&e->bar, frac, 0.0f, 0, dt);
             e->bar.alpha = 0.0f, e->yOk = 0;
             if (boss) HbBossFrame(t, e->id, type, cls, 0, 0, kHbRfName[why], hp, dist);
@@ -730,6 +757,24 @@ static void HbEnemies(int mode, const Viewport8 *vp, float dt)
             cd = gw ? *(const float *)(gw + 0x98) : 0.0f;
             gs = HbGhostState(type, cls, cd, pinReq == t);
             gone = gs == HB_GS_GONE;
+        } else if (type == 0x10 && HbWalterKind(EnmModeWord(t)) != HB_WK_BODIES) {
+            // v3.58 EN358: Walter downed (HP 0 included) keeps his bar and gets the revive bar of the game's down timer
+            // (hudbars_sim.h HbWalterState); only his death or a script takes it away
+            const int wk = HbWalterKind(EnmModeWord(t)), sites = HbWalterSites();
+            const BYTE *wb = *(const BYTE *const *)(w + 0x24);
+            const int tOk = (ULONG_PTR)wb >= 0x10000 && (sites & (wk == HB_WK_FINAL ? 2 : 1)) != 0;
+            const int ai = *(const WORD *)(t + 0x410), step = *(const WORD *)(t + 0x412);
+            gs = HbWalterState(wk, cls, ai, step, hp[0], tOk ? *(const float *)(wb + (wk == HB_WK_FINAL ? 0x80 : 0x94)) : 0.0f, tOk, &cd);
+            gone = gs == HB_GS_GONE;
+            walter = 1;
+            if (gs != e->gstate && (gs == HB_GS_DOWN || gs == HB_GS_STUMBLE || e->gstate == HB_GS_DOWN) && LogQuota(&g_hbWalterQ, 40)) {
+                static const char *const kGs[] = { "standing", "rising", "stumble", "down", "pinned", "gone" };
+                LogV("hud bars: %s Walter %08X %s (class %X, AI %X step %d, hp %.0f / %.0f, down timer %.1f s): his bar %s", wk == HB_WK_FINAL ?
+                     "the final" : "the stalker", e->id, kGs[gs], cls, ai, step, hp[0], hp[1], cd, gs == HB_GS_DOWN ? "and the revive bar stay up" :
+                     gs == HB_GS_GONE ? "fades out" : "stays up");
+            }
+            e->gstate = gs;
+            HbReviveStep(&e->rev, gs, cd, dt);
         } else {
             // dead, removed, scripted, or a monster at 0 health (its death plays): the bar fades out, the lost part draining
             gone = cls == 0x0B || cls >= 0x10 || !(hp[0] > 0.0f);
@@ -791,11 +836,11 @@ static void HbEnemies(int mode, const Viewport8 *vp, float dt)
         if (onScreen && e->bar.alpha > 0.004f && n < HB_MAXE) {
             HbDraw *d = &dl[n++];
             d->x = sx, d->y = sy - H * 0.012f, d->dist = dist;
-            d->a = e->bar.alpha, d->shown = e->bar.shown, d->trail = e->bar.trail, d->heat = HbChipHeat(&e->bar);
+            d->a = HbWithBody(e->bar.alpha, FiBodyShown(t, w, e->id)), d->shown = e->bar.shown, d->trail = e->bar.trail, d->heat = HbChipHeat(&e->bar);  // v3.58 EN358: the bar appears with the body (Fade In's fade)
             d->ghost = ghost;
             d->guard = ghost && hp[4] > 0.0f ? HbClamp01(hp[3] / hp[4]) : -1.0f;
             d->rise = ghost ? e->rise : -1.0f;
-            d->revA = ghost ? e->rev.alpha : 0.0f, d->revFrac = e->rev.frac, d->seal = e->rev.seal, d->flash = e->rev.flash;
+            d->revA = ghost || walter ? e->rev.alpha : 0.0f, d->revFrac = e->rev.frac, d->seal = e->rev.seal, d->flash = e->rev.flash;  // v3.58 EN358: + Walter
             d->locked = t == lock && !gone;
             d->boss = boss;
         }
