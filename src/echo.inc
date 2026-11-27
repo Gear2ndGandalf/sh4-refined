@@ -2301,7 +2301,7 @@ static int EchoSpriteList(int look, EchoSpr *o, int max)  // every shadow's list
         memcpy(in.light, kEchoLight[g_echoColour & 3], sizeof in.light);
         in.t = g_ec.clock, in.vis = d->ok ? d->sprVis : 0.0f, in.look = look, in.idx = i, in.floorY = d->floorY;  // v3.32: sprVis
         in.flare = e->formedAt > 0.0f ? 1.0f - EchoSat((g_ec.clock - e->formedAt) / 0.4f) : 0.0f;
-        in.lite = (EchoBudLv() >= 2 && i > 0) || EchoBudLv() >= 3;  // v3.31 ECHO331; v3.35 FX335: the budget's level
+        in.lite = (EchoBudLv() >= 2 && i > 0) || EchoBudLv() >= 3 || BgSparkLite(i);  // v3.31 ECHO331; v3.35 FX335: the budget's level  // v3.56 PW356: + the high-rate spark levels
         if (d->bonesOk) memcpy(in.head, d->head, sizeof in.head);           // v3.31 ECHO331: the eyes on the head bone
         in.calm = d->bonesOk ? d->calm : 0.0f;                              // v3.32 ECHO332
         n = EchoLookBuild(&in, ev, ne, o, n, max);

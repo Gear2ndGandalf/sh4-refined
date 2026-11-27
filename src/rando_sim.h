@@ -44,13 +44,19 @@
 enum { RZI_OFF, RZI_SHUFFLE, RZI_RANDOM, RZI_N };
 // the user's answers (2026-11-25): Items Random, Keep Specials Off (candles, medallions and swords are mixed in), Room 302
 // In; round 2: Change Each Visit On
+// v3.56 RI356 (the user's QA of v3.55, improvements 12, 13, 16; the session's decisions): the same answers in the new rows:
+//   [Randomizer] Specials On / Off (was KeepSpecials, the meaning turned: Specials On = they are drawn too = KeepSpecials
+//   Off), Room302 Off / Shuffle / Random (was Out / In: In = drawn like Items), Reroll By Room / By World (was PerVisit
+//   On / Off: On = By Room; Off, one fixed draw a seed, is folded into By World). Each old value is read once and migrated.
 #define RZ_ITEMS_DEFAULT RZI_RANDOM
-#define RZ_KEEP_DEFAULT 0
-#define RZ_R302_DEFAULT 1
-#define RZ_PERVISIT_DEFAULT 1
+#define RZ_SPECIALS_DEFAULT 1        // v3.56 RI356: drawn too (v3.55's Keep Specials Off)
+#define RZ_R302_DEFAULT RZI_RANDOM   // v3.56 RI356: Random (v3.55's In with Items Random)
+enum { RZR_ROOM, RZR_WORLD, RZR_N };  // v3.56 RI356: Reroll Visits By Room / By World
+#define RZ_REROLL_DEFAULT RZR_ROOM   // v3.56 RI356 (v3.55's PerVisit On)
 static const char *const kRzItemsName[RZI_N] = { "Off", "Shuffle", "Random" };
-static const char *const kRzKeepName[2] = { "Off", "On" };
-static const char *const kRzR302Name[2] = { "Out", "In" };
+static const char *const kRzKeepName[2] = { "Off", "On" };  // (every On / Off value: Specials; Monsters' and the looks' logs)
+static const char *const kRzR302Name[RZI_N] = { "Off", "Shuffle", "Random" };  // v3.56 RI356 (was Out / In)
+static const char *const kRzRerollName[RZR_N] = { "By Room", "By World" };    // v3.56 RI356
 
 static int RzTextIs(const char *s, const char *name)  // whole text, no case, spaces around ignored
 {
@@ -77,20 +83,45 @@ static int RzItemsOfText(const char *s)
     if (RzTextIs(s, "2")) return RZI_RANDOM;
     return -1;
 }
-// KeepSpecials / PerVisit: On / Off, 1 / 0, Yes / No; -1 = anything else
+// Specials (v3.56 RI356; also v3.55's KeepSpecials / PerVisit): On / Off, 1 / 0, Yes / No; -1 = anything else
 static int RzOnOffOfText(const char *s)
 {
     if (RzTextIs(s, "On") || RzTextIs(s, "1") || RzTextIs(s, "Yes")) return 1;
     if (RzTextIs(s, "Off") || RzTextIs(s, "0") || RzTextIs(s, "No")) return 0;
     return -1;
 }
-// Room302: In / Out (and On / Off, 1 / 0); -1 = anything else
+// v3.55's Room302: In / Out (and On / Off, 1 / 0); -1 = anything else (v3.56 RI356: read only to migrate it)
 static int RzR302OfText(const char *s)
 {
     if (RzTextIs(s, "In")) return 1;
     if (RzTextIs(s, "Out")) return 0;
     return RzOnOffOfText(s);
 }
+// v3.56 RI356: [Randomizer] Room302 now: Off / Shuffle / Random (and 0 / 2); v3.55's values In / On / Yes / 1 (= drawn like
+// Items: items, the Items value in force) and Out / No (= Off) are read too, *old = 1 (the caller writes the new word once).
+// -1 = anything else.
+static int RzR302Parse(const char *s, int items, int *old)
+{
+    int v = RzItemsOfText(s);
+    *old = 0;
+    if (v >= 0 && !RzTextIs(s, "1")) return v;  // Off, Shuffle, Random, 0, 2
+    v = RzR302OfText(s);
+    if (v < 0) return -1;
+    *old = 1;
+    return v ? (items >= RZI_OFF && items < RZI_N ? items : RZ_ITEMS_DEFAULT) : RZI_OFF;
+}
+// v3.56 RI356: [Randomizer] Reroll: By Room / By World (also Room / World, ByRoom / ByWorld); -1 = anything else
+static int RzRerollOfText(const char *s)
+{
+    if (RzTextIs(s, "By Room") || RzTextIs(s, "ByRoom") || RzTextIs(s, "Room")) return RZR_ROOM;
+    if (RzTextIs(s, "By World") || RzTextIs(s, "ByWorld") || RzTextIs(s, "World")) return RZR_WORLD;
+    return -1;
+}
+// v3.56 RI356: the migrations of v3.55's keys (old value -> new value)
+static int RzSpecialsOfKeep(int keep) { return keep ? 0 : 1; }                // KeepSpecials On = they stay = Specials Off
+static int RzRerollOfPerVisit(int perVisit) { return perVisit ? RZR_ROOM : RZR_WORLD; }  // On = every visit; Off -> By World
+// v3.56 RI356: the Items mode a stage draws with: Room 302 (stages 1 / 10) has its own row now
+static int RzStageMode(int stage, int items, int r302) { return stage == 1 || stage == 0x0A ? r302 : items; }
 // Seed: a decimal 1..4294967295 (spaces around allowed); 0 = missing, 0, or not a number (the caller rolls one)
 static unsigned RzSeedOfText(const char *s)
 {
@@ -473,6 +504,7 @@ typedef struct {
     int share;                      // visit 1's shared slots take visit 0's item (Change Each Visit Off: v1's rule)
     unsigned seed, worldSalt;       // Shuffle: worldSalt = the world visit's number (0 = fixed)
     const unsigned *roomSalt;       // Random: the room's visit number by room (NULL = 0: fixed); v3.48 fix1 RZ-003: 32 bit
+    unsigned roomAll;               // v3.56 RI356: Random with roomSalt NULL: every room's visit number (By World: the world visit)
     unsigned long long owned;       // bit (item - 0x10): the weapon was obtained (Random never draws it: it would not show)
     const RzWeapons *wt;            // NULL = no weapons (the weapon spots keep their weapon)
     const unsigned char *taken;     // v3.48 fix1 RZ-001: the stage's taken bits (gPickupTaken[stage]: 50 rooms x 8 bytes),
@@ -611,7 +643,8 @@ static void RzPlanVisit(const RzPlanIn *in, int stage, int visit, const RzScan *
         int room = -1;
         for (i = 0; i < m; ++i) {
             const RzSlot *s = &v->s[ord[i]];
-            const unsigned k = RzVisitKey(RzSlotKey(in->seed, stage, s->room, s->taken), in->roomSalt ? in->roomSalt[s->room] : 0);
+            const unsigned k = RzVisitKey(RzSlotKey(in->seed, stage, s->room, s->taken), in->roomSalt ? in->roomSalt[s->room] :
+                                          in->roomAll);  // v3.56 RI356: + roomAll (was 0)
             const int wspot = s->kind == RZK_WEAPON;
             int it = 0;
             if (s->room != room) used = 0, room = s->room;

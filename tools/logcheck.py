@@ -42,6 +42,19 @@ BUDGET_ROOM = re.compile(r'^budget: room ([0-9A-F]+):([0-9A-F]+): level (\d+) no
                          r'\(target ([\d.]+)\); ([\d.]+) % of the frames late')
 BUDGET_STEP = re.compile(r'^budget: level (\d+) -> (\d+) ')
 BUDGET_IN = re.compile(r'^budget: (in|off) ')
+# v3.56 PW356: the effect budget's high-rate fallback and After Shock's over-the-shoulder fade
+BUDGET_HR_IN = re.compile(r'^budget: high rate fallback (in|off) ')
+BUDGET_HR_RULES = re.compile(r'^budget: (\d+) fps: (the high-rate rules|v3\.55\'s rules)')
+BUDGET_BLIND = re.compile(r'^budget: level (\d+) -> (\d+) \(frames run over, no CPU evidence: a blind try;')
+BUDGET_BACK = re.compile(r'^budget: level (\d+) -> (\d+) \(a blind try taken back: the frames (-?[\d.]+) % shorter')
+BUDGET_KEPT = re.compile(r'^budget: the blind step to level (\d+) is kept: the frames (-?[\d.]+) % shorter')
+BUDGET_YIELD = re.compile(r'^budget: nothing left to shed at (\d+) fps \(level (\d+)')
+BUDGET_ROOM_HR = re.compile(r'; high rate: (\d+) frame\(s\), (\d+) blind step\(s\), (\d+) kept, (\d+) taken back; the sparks at (\d+) %')
+AI_OTS_CAM = re.compile(r'^after shock: over-the-shoulder camera (on|off): ')
+AI_OTS_FADE = re.compile(r'^after shock: over-the-shoulder fade: a copy right over her keeps (\d+) % of its light; her box (\d+) x (\d+) u')
+AI_OTS_INI = re.compile(r'^after shock: \[Gameplay\] AfterImageOtsFade=(-?\d+)')
+AI_OTS_ROOM = re.compile(r'^after shock: over-the-shoulder fade in stage ([0-9A-F]+) room ([0-9A-F]+): on (\d+) frame\(s\), (\d+) copy draw\(s\) '
+                         r'dimmed, the least light (\d+) %')
 WARM_LINE = re.compile(r'^warm-up: stage ([0-9A-F]+) room ([0-9A-F]+): (.*); ([\d.]+) ms in all')
 WARM_PART = re.compile(r'(screen effects|death presence|echo|after shock) ([\d.]+) ms')
 # v3.41 DP341: Death Presence's draw gate (deathpresence_draw.inc DpGateFrame): hidden during views of another place, a load,
@@ -145,6 +158,18 @@ QL_BACK = re.compile(r'^quick load: the loaded room runs after (\d+) ms \(stage 
                      r'\(0x56E960\(-1\) from pause mode -?\d+\)(: NOT seen running)?$')
 QL_DROP = re.compile(r'^quick load: the loaded room opened a menu or a cut-scene first ')
 QL_REFUSED = re.compile(r'^quick load: refused at black: (.*?); back in the pause')
+# v3.56 PV356: the Effects page's preview (preview.inc): the settings, each pause's look layers, the page's backdrop / layer
+PV_SET = re.compile(r"^screen effects: the Effects page's preview: with no paused game (SH4 Refined's own scene|PreviewImage, else "
+                    r"SH4 Refined's own scene) \(PreviewScene=(\w+)\); a pause keeps .*?: (on|off) \(PreviewLayers=(\d)\)$")
+PV_KEPT = re.compile(r"^screen effects: the pause's look layers kept for the Effects page: heat (on|off) \((\d+) bod(?:y|ies), (\d+) "
+                     r"footprint\(s\)\), spirit (on|off) \((\d+) ghost\(s\), (\d+) soul fire\(s\), (\d+) aura sprite\(s\)\); "
+                     r"(\d+)x(\d+), (targets made|targets kept from an earlier pause) \(the preview's ([\d.]+) MB\), ([\d.]+) ms$")
+PV_NOT = re.compile(r"^screen effects: the pause's look layers not kept: (.+?) \(Thermal / Spirit Vision show ")
+PV_FAIL = re.compile(r"^screen effects: the pause's look layers (faulted|could not be copied)")
+PV_PAGE = re.compile(r"^screen effects: the Effects page's preview: (.+?) over (the paused scene \(the pause menu\)|the paused scene|"
+                     r"SH4 Refined's preview scene|the preview picture \(PreviewImage\)|the stock hallway)(?: with (.+?))?"
+                     r"( \(the layer could not be drawn\))?$")
+PV_LAID = re.compile(r"^screen effects: the preview scene laid out for (\d+)x(\d+): ")
 MU_EVENTS = (('opened from the pause', 'from the pause'), ('opened from play', 'from play'),
              ('closed, back in the pause', 'back in the pause'), ('closed, back to play', 'back to play'),
              ('closed, a save loads', 'a save loads'))
@@ -158,7 +183,7 @@ SND_START = re.compile(r"^sound: Mode (\w+) \(the game's Sound (\d+), engine (-?
 SND_FIRST = re.compile(r"^sound: first start: \[Sound\] Mode=(\w+), from the save's Option 1 Sound (-?\d+)")
 SND_BADMODE = re.compile(r'^sound: \[Sound\] Mode="(.*)" is not a mode .*?: (\w+), from the save')
 SND_DIFF = re.compile(r"^sound: the save's Sound (-?\d+) .*? differs from \[Sound\] Mode=(\w+)")
-SND_CHANGE = re.compile(r'^sound: (Mode|Stereo Width|Room Reverb|Night Mode) (\S+) -> (\S+?)(?: %)? \(([^)]*)\)')
+SND_CHANGE = re.compile(r'^sound: (Mode|Stereo Width|Room Reverb|Night Mode|Background) (\S+) -> (\S+?)(?: %)? \(([^)]*)\)')  # v3.56 SD356: + Background
 SND_BYTEFIX = re.compile(r"^sound: the Options block's Sound came in as (-?\d+)")
 SND_ENGFIX = re.compile(r'^sound: the engine was told Sound (-?\d+) but the Options say (\d+)')
 SND_DISC = re.compile(r'^sound: Options discarded: the engine back to Sound (\d+) \(it kept (-?\d+)')
@@ -167,6 +192,22 @@ SND_MIN = re.compile(r'^sound: minute: volumes 2D (\d+), 3D (\d+), streams (\d+)
                      r'(\d+) stream block\(s\) folded, (\d+) music fold\(s\)')
 SND_NOTIN = re.compile(r'^sound: (.+?): ([0-9A-F]{8}) is not the GOG v7 code')
 SND_OFF = re.compile(r'^sound: \[Sound\] Enabled=0')
+# v3.56 SD356: Background, the keep-awake signal, focus changes, the device watch (sound.inc)
+SD_BG = re.compile(r'^sound: background: \[Sound\] Background (Mute|Play) \(the buffer sites [0-9A-F /]+ (in|NOT IN)[^)]*\); '
+                   r'keep-awake (on|off)[^;]*; device watch (on|off)')
+SD_KEEP_ON = re.compile(r'^sound: keep-awake: on: a 45 Hz tone at (-?\d+\.\d) dBFS \(level (\d+) of 32767')
+SD_KEEP_NONE = re.compile(r'^sound: keep-awake: no sound device: none$')
+SD_KEEP_RE = re.compile(r'^sound: keep-awake: (?:it had stopped \(status ([0-9A-F]{8})(, the buffer was lost)?\)|GetStatus hr ([0-9A-F]{8}))')
+SD_KEEP_FAIL = re.compile(r'^sound: keep-awake: DirectSound would not make or play its buffer')  # an ANOMALY line's body
+SD_FOCUS_AWAY = re.compile(r'^sound: focus: another window is in front \(the game was in front (\d+\.\d) s\): Background (Mute|Play): ')
+SD_FOCUS_BACK = re.compile(r'^sound: focus: the game is in front again after (\d+\.\d) s behind other windows')
+SD_FOCUS_CAP = re.compile(r'^sound: focus: 40 changes logged this session')
+SD_DEV_GAME = re.compile(r'^sound: device: the game plays on "([^"]*)"(?: \((.*?)\); a change|; the device watch could not register \(hr ([0-9A-F]{8})\))')
+SD_DEV_NEW = re.compile(r'^sound: device: the default sound device changed to "([^"]*)"; restart the game to use it')
+SD_DEV_BACK = re.compile(r'^sound: device: the default sound device is the game\'s "([^"]*)" again')
+SD_DEV_STATE = re.compile(r'^sound: device: the game\'s sound device "([^"]*)" is (.+?)(: no game sound| again \()')
+SD_DEV_OFF = re.compile(r'^sound: device watch: (.+)$')
+SD_CFG = re.compile(r'^sound: \[Sound\] (Background|KeepAwakeLevel)=')
 # v3.53 OL2: the Options look (look.inc): the install line, the glyph line of each page (level 2), its ANOMALY, a key on a
 # grey row (level 2)
 LKL_IN = re.compile(r'^options look: (in|off) ')
@@ -185,6 +226,14 @@ LYL_VB_FAIL = re.compile(r'^options: layout: writing 0x525672 failed')  # (the b
 LYL_OFF = re.compile(r'^options layout: no Options pages')
 LYL_MISS = re.compile(r'^options layout: page (\d+) \((.*?)\): no (.+?) row: (.*)$')
 LYL_OPEN = re.compile(r'^options layout: open: the cycle (.+?); pages: (.*)$')
+# v3.56 MN356: every value its own line (vlines.inc), a click opens a folder row (menuclick.inc), the Extra Menu's text
+MN_VL_IN = re.compile(r'^options: value lines: (\d+) row\(s\) carry the plan\'s (\d+) value lines \((\d+) in the plan\)(.*)$')
+MN_VL_ANS = re.compile(r'^options: value lines: (.+?) / (.+?): "(.*)" \(its row code answered the row\'s line\)')
+MN_VL_MISS = re.compile(r'^options: value lines: (.+?) / (.+?) value (-?\d+) "(.*?)" has no line in the plan')
+MN_FC_SET = re.compile(r'^options: folder rows open on a mouse click (anywhere on the row|only as in v3\.55).*?\(\[Options\] FolderClick=(\d)(.*)\)$')
+MN_FC_OPEN = re.compile(r'^options: a click on page (\d+) \((.*?)\) row (\d+) \((.*?)\): its input runs')
+MN_FC_REFUSE = re.compile(r'^options: a click on page (-?\d+) row (-?\d+) not taken: (.*) \(click again\)')
+MN_EM_TEXT = re.compile(r'^extra menu: text drawn (once|with the stock pause\'s second shadow string).*\(\[ExtraMenu\] StockShadow=(\d)\)')
 # v3.37 INV337: Extended Toolbelt / Stackable Items (inventory.inc): the install line, the switches, the counters
 INV_INSTALL = re.compile(r'^inventory: Extended Toolbelt (on|off|UNAVAILABLE) .*?, Stackable Items (on|off|UNAVAILABLE) .*?'
                          r'stack guards (in|OFF)')
@@ -289,48 +338,94 @@ R3_SEED = re.compile(r'^settings: \[Room302\] (LookDownLimit|LookUpLimit|LookFee
 R3_BAD = re.compile(r'^room 302: \[Room302\] (\w+)=(.*?) is not (?:a number|one of the row.s values): (\S+) used$')
 R3_NOPAGE = re.compile(r'^room 302: (no sub-screen fade|Option 2.s Button Config record is not the stock one): no Room 302 page')
 R3_REBUILT = re.compile(r'^room 302: look: the view was rolled or past a limit')
+
+# v3.56 FR356: the rate guard (rateguard.inc) and the final room's per-tick sites (true60_final.inc)
+FRG_ON = re.compile(r'^rate guard: (on|off|not used) \(')
+FRG_TOP = re.compile(r'\(top now (\d+)\)$')
+FRG_DOWN = re.compile(r'^rate guard: (\d+) -> (\d+): the play frames took ([\d.]+) ms on average against ([\d.]+) \(([\d.]+) x\) in (\d+) '
+                      r'windows of (\d+) s in a row \(stage ([0-9A-F]+) room ([0-9A-F]+); effect budget level (\d+)\)(; stepped down from it '
+                      r'twice: not tried again this run)?; \[Window\] FrameRate stays (\d+)')
+FRG_UP = re.compile(r'^rate guard: (\d+) -> (\d+) at the room change to ([0-9A-F]+):([0-9A-F]+) ')
+FRG_RETRY = re.compile(r'^rate guard: (\d+) minutes clean at (\d+) .*: (\d+) is tried again at the next room change')
+FRG_MISS = re.compile(r'^rate guard: a (\d+) s window at (\d+) missed: ([\d.]+) ms on average against ([\d.]+) \(([\d.]+) x\)(; held: the effect '
+                      r'budget is still shedding)?')
+FRG_RESET = re.compile(r'^rate guard: the Frame Rate row chose (\d+): the guard starts again \(it held the game at (\d+)\)')
+FRG_VSYNC = re.compile(r'^rate guard: the V-Sync cap is now (\d+): the guard.s (\d+) is lifted')
+T60F_IN = re.compile(r'^true 60: (\d+)/(\d+) final-room sites follow the rate')
+T60F_BAD = re.compile(r'^true 60: ([0-9A-F]{8}) (?:\(.*\) is not stock: none of the \d+ final-room sites is used|could not be written: the '
+                      r'final-room sites are put back)')
 RG_SEED = re.compile(r'^settings: \[Gameplay\] (Regen|RegenDelay) was missing, added as "([^"]*)" \((.*)\)$')
 # v3.48 RZ348: the Randomizer (randomizer.inc): the start, the seed, the plans per world visit, the room loads, the changes
-RZ_IN = re.compile(r'^randomizer: \[Randomizer\] Items (Off|Shuffle|Random), KeepSpecials (On|Off), Room302 (In|Out), PerVisit '
-                   r'(On|Off), Seed (\d+); self-check: (-?\d+) plain pickup\(s\) and (\d+) weapon spot\(s\) in (\d+) script\(s\) '
+# v3.56 RI356: + the new keys and values (Specials, Room302 Off / Shuffle / Random, Reroll By Room / By World); the key names
+# are groups 1 and 4 (parse_rando keeps the v3.48 tuple and notes the form)
+RZ_IN = re.compile(r'^randomizer: \[Randomizer\] Items (Off|Shuffle|Random), (KeepSpecials|Specials) (On|Off), Room302 '
+                   r'(In|Out|Off|Shuffle|Random), (PerVisit|Reroll) (On|Off|By Room|By World), Seed (\d+); self-check: (-?\d+) '
+                   r'plain pickup\(s\) and (\d+) weapon spot\(s\) in (\d+) script\(s\) '
                    r'\(stock (\d+) / (\d+)\): (.+?); (\d+) weapons may move(.*?); applied at each room load')
 RZ_ROLL = re.compile(r'^randomizer: \[Randomizer\] Seed was "([^"]*)"(?: \([^)]*\))?: rolled (\d+) (and written|for this session \(not written\))')
-RZ_BADKEY = re.compile(r'^randomizer: \[Randomizer\] (Items|KeepSpecials|Room302|PerVisit) "([^"]*)" is not .+?: (\w+) \(the default\)$')
+RZ_BADKEY = re.compile(r'^randomizer: \[Randomizer\] (Items|KeepSpecials|Specials|Room302|PerVisit|Reroll) "([^"]*)" '
+                       r'(?:\(v3\.55\) )?is not .+?: (?:Specials |Reroll )?(By Room|By World|\w+) \(the default\)$')  # v3.56 RI356: + the new keys
 RZ_FIRST = re.compile(r'^randomizer: the first room load through 004F0AF8 \(stage (\d+) room (\d+)\): Items (\S+)$')
 RZ_PLAN = re.compile(r'^randomizer: stage (\d+) visit (\d): (Shuffle|Random), (\d+) of (\d+) pickup\(s\) in the pool \((\d+) weapon '
-                     r'spot\(s\)\), (\d+) changed \(seed (\d+), Keep Specials (On|Off), Room 302 (In|Out), Change Each Visit (On|Off), '
+                     r'spot\(s\)\), (\d+) changed \(seed (\d+), (?:Keep Specials|Specials) (On|Off), Room 302(?: Items)? '
+                     r'(In|Out|Off|Shuffle|Random), (?:Change Each Visit|Reroll) (On|Off|By Room|By World), '  # v3.56 RI356: + the new words
                      r'world visit (\d+)\); Holy Candle (\d+) \(stock (\d+)\), Saint Medallion (\d+) \(stock (\d+)\), Sword of Obedience '
                      r'(\d+) \(stock (\d+)\), weapons (\d+) \(stock (\d+)\)(; fewer Swords of Obedience[^;]*)?(; SOME ITEMS COULD NOT BE PLACED)?')
 RZ_ROOM = re.compile(r'^randomizer: room (\d+):(\d+) \(visit (\d), #(\d+)\): (\d+) of (\d+) pickup\(s\) changed, (\d+) weapon\(s\) '
                      r'\(Items (\w+)\)(; some words)?')
 RZ_LIST = re.compile(r'^randomizer: room (\d+):(\d+): (bit .+)$')
-RZ_SET = re.compile(r'^randomizer: (Items|KeepSpecials|Room302|PerVisit) (\w+) \(was (\w+); applies at the next room load\)$')
+RZ_SET = re.compile(r'^randomizer: (Items|KeepSpecials|Specials|Room302|PerVisit|Reroll) (By Room|By World|\w+) \(was '
+                    r'(By Room|By World|\w+); applies at the next room load\)$')  # v3.56 RI356: + Specials, Reroll
 RZ_SEEDSET = re.compile(r'^randomizer: (New Seed|Seed back to) (\d+) \(was (\d+); (saved|NOT saved); applies at the next room load\)$')
-RZ_REREAD = re.compile(r'^randomizer: \[Randomizer\] (Items|KeepSpecials|Room302|PerVisit|Seed) read again: (\S+)')
-RZ_SESS = re.compile(r'^randomizer: session: Items (\w+) \(seed (\d+), Keep Specials (On|Off), Room 302 (In|Out), Change Each Visit '
-                     r'(On|Off)\): (\d+) room load\(s\), (\d+) with pickups in the pool, (\d+) pickup\(s\) changed, (\d+) weapon\(s\) '
+RZ_REREAD = re.compile(r'^randomizer: \[Randomizer\] (Items|KeepSpecials|Specials|Room302|PerVisit|Reroll|Seed) read again: '
+                       r'(By Room|By World|\S+)')  # v3.56 RI356: + Specials, Reroll
+RZ_SESS = re.compile(r'^randomizer: session: Items (\w+) \(seed (\d+), (?:Keep Specials|Specials) (On|Off), Room 302(?: Items)? '
+                     r'(In|Out|Off|Shuffle|Random), (?:Change Each Visit|Reroll) (On|Off|By Room|By World)\): (\d+) room load\(s\), (\d+) with pickups in the pool, (\d+) pickup\(s\) changed, (\d+) weapon\(s\) '
                      r'placed, (\d+) plan\(s\), (\d+) word\(s\) left as found(.*)$')
+# v3.56 RI356: v3.55's keys migrated once, the seed line under the page's description, the world-visit rule (worldvisit.inc)
+RZ_MIG = re.compile(r'^randomizer: \[Randomizer\] (KeepSpecials|Room302|PerVisit)=(.*?) \(v3\.55\) is (Specials|Room302|Reroll)='
+                    r'(By Room|By World|\w+) now \((.+?)\): (migrated once|NOT written|for this session)')
+RZ_SEEDLINE = re.compile(r"^randomizer: the seed (\d+) is drawn under the page's description \(x (-?\d+), y (-?\d+), (\d+) "
+                         r"glyph\(s\), (the smaller size|full size: .*)\)$")
+WV_WORLD = re.compile(r'^visits: world visit ([0-9A-F]{8}) begins: stage (\d+) entered \(room (\d+); world entry (\d+) of this '
+                      r'session(, after a New Game / title load)?\)$')
+WV_LOAD = re.compile(r"^visits: room (\d+):(\d+) after a load \((.+?)\): no room or world entry; world visit ([0-9A-F]{8}) "
+                     r"(resumed|= the seed's own|goes on).*\(room entries (\d+)\)$")
+WV_SESS = re.compile(r"^visits: session: (\d+) room entr(?:y|ies), (\d+) world visit\(s\), (\d+) load\(s\) \((\d+) resumed a "
+                     r"stage's visit, (\d+) the seed's own\), (\d+) world reset\(s\), (\d+) room load\(s\) ignored \(room 0\)$")
 # v3.49 RZ349: the Randomizer's Monsters (rzmon.inc)
-RZM_VAL = r'(Off|This Room|This World|All Worlds)'  # v3.50 RM350: + All Worlds
-RZM_IN = re.compile(r'^randomizer: \[Randomizer\] Monsters ' + RZM_VAL + r'; self-check: (-?\d+) source placement\(s\) of (\d+) enemy '
+RZM_VAL = r'(Off|This Room|This World|Same World|All Worlds)'  # v3.50 RM350: + All Worlds  # v3.56 RE356: + Same World
+RZM_IN = re.compile(r'^randomizer: \[Randomizer\] (?:Monsters|Enemies) ' + RZM_VAL + r'; self-check: (-?\d+) source placement\(s\) of (\d+) enemy '
                     r'placement\(s\) in (\d+) script\(s\) \(stock (\d+) / (\d+)\): (.+?); targets (.+?) \(Gum Heads only with a crash '
-                    r'guard\); applied at each room load through 004F0AF8 \(patch-and-restore of the type / mode / y words\); save '
-                    r'filter 00465468 (.+)$')
-RZM_BADKEY = re.compile(r'^randomizer: \[Randomizer\] Monsters "([^"]*)" is not .+?: ' + RZM_VAL + r' \(the default\)$')
-RZM_SET = re.compile(r'^randomizer: Monsters ' + RZM_VAL + r' \(was ' + RZM_VAL + r'; applies at the next room load\)$')
-RZM_REREAD = re.compile(r'^randomizer: \[Randomizer\] Monsters read again: ' + RZM_VAL)
+                    r"guard(?:; victims' ghosts by the story rule)?\); applied at each room load through 004F0AF8 \(patch-and-restore of "
+                    r'the type / mode / (?:y|position) words\); save filter 00465468 (.+)$')  # v3.56 RE356: Enemies, the story rule, position
+RZM_BADKEY = re.compile(r'^randomizer: \[Randomizer\] (?:Monsters|Enemies) "([^"]*)" is not .+?: ' + RZM_VAL + r' \(the default\)$')
+RZM_SET = re.compile(r'^randomizer: (?:Monsters|Enemies) ' + RZM_VAL + r' \(was ' + RZM_VAL + r'; applies at the next room load\)$')
+RZM_REREAD = re.compile(r'^randomizer: \[Randomizer\] (?:Monsters|Enemies) read again: ' + RZM_VAL)  # v3.56 RE356: + Enemies
+# v3.56 RE356: the renamed keys read once (Monsters -> Enemies, Ghosts -> SpawnSite), the story rule, Spawn Site's monster sites
+RZ_KEYMIG = re.compile(r'^randomizer: \[Randomizer\] (Monsters|Ghosts) "([^"]*)" is now (Enemies|SpawnSite) (.+?) \(v3\.56: the row was '
+                    r'renamed(; not one of its values: the default)?; (written, the old key removed|NOT written: the old key is read '
+                    r'again at the next start)\)$')
+RZM_STORY = re.compile(r'^randomizer: monsters: story rule in stage (\d+): (.+) \(their create sets that flag; in the pool once it is set\)$')
+SS_ROOM = re.compile(r'^randomizer: spawn site: room (\d+):(\d+) \(#(\d+)\): (\d+) of (\d+) monster\(s\) at a new site, (\d+) record\(s\) '
+                     r'moved with them; floor map (\d+) cell\(s\) \(([\d.]+) ms\)(?: \(kept or refused: (.*)\))?$')
+SS_NOMAP = re.compile(r'^randomizer: spawn site: no floor map in room (\d+):(\d+) \((.*)\): its monsters keep their spots \(said once\)$')
+SS_FN = re.compile(r"^randomizer: spawn site: ([0-9A-F]{8}) is not the game's code \(another mod\?\): Spawn Site is off for this session$")
+SS_SESS = re.compile(r'^randomizer: spawn site session: (Off|On): (\d+) room load\(s\) with monsters, (\d+) monster\(s\) at a new site, '
+                     r'(\d+) kept, (\d+) record\(s\) moved; (\d+) floor map\(s\) \((\d+) cell\(s\), ([\d.]+) ms in all\), (\d+) room '
+                     r"load\(s\) without a map; (\d+) ghost\(s\) at a site in the room's box(.*)$")
 RZM_GUM = re.compile(r"^randomizer: monsters: Gum Heads (may be rolled|are never rolled) \(Playable Eileen's crash guard of the Gum "
                      r"Head's group call: 0049B70A (in|not in), 0045C3C0 (in|not in)\)$")
 RZM_CT = re.compile(r"^randomizer: monsters: the cheat table's Enemy Randomizer \(entry 7700: 0052CAA9 / 0052CB2B\) is (on|off again): "
                     r"Refined's Monsters ")
 RZM_HIT = re.compile(r'^randomizer: monsters: the hit-shape pool is the stock 100')
-RZM_FIRST = re.compile(r'^randomizer: monsters: the first room with source placements \(stage (\d+) room (\d+)\): Monsters ' + RZM_VAL + '$')
+RZM_FIRST = re.compile(r'^randomizer: monsters: the first room with source placements \(stage (\d+) room (\d+)\): (?:Monsters|Enemies) ' + RZM_VAL + '$')
 RZM_OFFDROP = re.compile(r'^randomizer: monsters: room (\d+):(\d+): (\d+) record\(s\) of monsters made as another type before are deleted')
 RZM_LEFT = re.compile(r'^randomizer: monsters: room (\d+):(\d+) left as placed \((.+)\)$')
 RZM_FILES = re.compile(r"^randomizer: monsters: room (\d+):(\d+): (.+?)'s files could not be loaded \((.*)\): its placements stay as placed$")
 RZM_SILENT = re.compile(r"^randomizer: monsters: (.+?) is no monster of stage (\d+)'s scripts: its sounds may be missing there \(allowed\)$")
 RZM_ROOM = re.compile(r"^randomizer: monsters: room (\d+):(\d+) \(visit (\d), #(\d+)\): (\d+) of (\d+) placement\(s\) changed \((This Room|"
-                      r"This World|All Worlds)\): (.*?); (\d+) kept their record's type, (\d+) record\(s\) deleted; kept as placed: (\d+) for the "
+                      r"This World|Same World|All Worlds)\): (.*?); (\d+) kept their record's type, (\d+) record\(s\) deleted; kept as placed: (\d+) for the "
                       r"bone budget, (\d+) for files, (\d+) without a floor(; some words[^;]*)?; files loaded for (\d+) type\(s\) \((\d+) KB\)"
                       # v3.50 RM350: + the game's own records adopted and why the stock type was kept (v3.49 lines end before it)
                       r"(?:; the game's own records: (\d+) adopted \((\d+) made as another type\); stock type kept: (\d+) rolled it, (\d+) "
@@ -361,10 +456,10 @@ RZM_SESS = re.compile(r"^randomizer: monsters session: " + RZM_VAL + r" \(seed (
                       r"(\d+) without a floor; files loaded (\d+) time\(s\) \((\d+) KB\); (\d+) room load\(s\) with the cheat table's "
                       r"Enemy Randomizer on; (\d+) save\(s\), (\d+) record\(s\) left out; (\d+) word\(s\) left as found(.*)$")
 # v3.49 RZ349L: the Randomizer's looks (rzlooks.inc): Eileen Outfit Off / Random, Ghosts Off / Spots
-RZL_IN = re.compile(r'^randomizer: looks: \[Randomizer\] EileenOutfit (Off|Random), Ghosts (Off|Spots) ')
-RZL_BADKEY = re.compile(r'^randomizer: \[Randomizer\] (EileenOutfit|Ghosts) "([^"]*)" is not .+?: (\w+) \(the default\)$')
+RZL_IN = re.compile(r'^randomizer: looks: \[Randomizer\] EileenOutfit (Off|Random), (?:Ghosts|SpawnSite) (Off|Spots|On) ')  # v3.56 RE356
+RZL_BADKEY = re.compile(r'^randomizer: \[Randomizer\] (EileenOutfit|Ghosts|SpawnSite) "([^"]*)" is not .+?: (\w+) \(the default\)$')
 RZL_FIRST = re.compile(r'^randomizer: looks: the first room load \(stage (\d+) room (\d+)\): Eileen Outfit (Off|Random), ([^;]*); '
-                       r'Ghosts (Off|Spots), (.*)$')
+                       r'(?:Ghosts|Spawn Site) (Off|Spots|On), (.*)$')
 RZL_DRAW = re.compile(r'^randomizer: outfit: world visit (\d+) \(stage (\d+), half (\d), at ([^)]*)\): (Dress|Nurse) \(seed (\d+), '
                       r'Change Each Visit (On|Off); (?:unlocked|every outfit): Dress, Nurse; the set outfit (\w+)\)$')  # v3.50 RL350: + every outfit
 RZL_SINGLE = re.compile(r'^randomizer: outfit: world visit (\d+) \(stage (\d+), half (\d), at ([^)]*)\): only the Dress is unlocked '
@@ -374,8 +469,8 @@ RZL_TAKE = re.compile(r'^randomizer: outfit: (\w+) chosen in the Extra Menu: kep
 RZL_GROOM = re.compile(r'^randomizer: ghosts: room (\d+):(\d+) \(#(\d+)\): (\d+) of (\d+) victim\(s\) moved \(seed (\d+), Change '
                        r'Each Visit (On|Off)\): (.*)$')
 RZL_CT = re.compile(r"^randomizer: ghosts: the cheat table's Enemy Randomizer \(0052CAA9 / 0052CB2B\) is on")
-RZL_SET = re.compile(r'^randomizer: (EileenOutfit|Ghosts) (\w+) \(was (\w+); applies at the next room load\)$')
-RZL_REREAD = re.compile(r'^randomizer: \[Randomizer\] (EileenOutfit|Ghosts) read again: (\w+)')
+RZL_SET = re.compile(r'^randomizer: (EileenOutfit|Ghosts|SpawnSite) (\w+) \(was (\w+); applies at the next room load\)$')
+RZL_REREAD = re.compile(r'^randomizer: \[Randomizer\] (EileenOutfit|Ghosts|SpawnSite) read again: (\w+)')
 # v3.50 RL350: the room draws (Change Each Visit On), the final fight's hold, the ghosts' distance / record per victim, the
 # v3.50 session line
 RZL_RDRAW = re.compile(r'^randomizer: outfit: room (\d+):(\d+) load \(world visit (\d+), room draw (\d+)\): (\w+) -> (Dress|Nurse) '
@@ -387,7 +482,7 @@ RZL_GMOVE = re.compile(r' -> (-?\d+) (-?\d+) (-?\d+) \(d (\d+)( near: the room a
 RZL_GKEPT = re.compile(r' kept \(its record: (pinned here|down here)\)')
 RZL_SESS2 = re.compile(r'^randomizer: looks session: Eileen Outfit (\w+): (\d+) world visit\(s\), (\d+) world draw\(s\) \(all draws: '
                        r'Dress (\d+), Nurse (\d+)\), (\d+) room draw\(s\) \((\d+) changed her outfit\), (\d+) back to the set outfit, '
-                       r'(\d+) chosen in the Extra Menu(.*?); Ghosts (\w+): (\d+) room load\(s\) with victims, (\d+) victim\(s\), (\d+) '
+                       r'(\d+) chosen in the Extra Menu(.*?); (?:Ghosts|Spawn Site) (\w+): (\d+) room load\(s\) with victims, (\d+) victim\(s\), (\d+) '
                        r'moved \((\d+) of them 800 or more, (\d+) record\(s\) moved\), (\d+) kept \((\d+) by a pinned or down record\), '
                        r'(\d+) left as found(.*)$')
 RZL_SESS = re.compile(r'^randomizer: looks session: Eileen Outfit (\w+): (\d+) world visit\(s\), (\d+) draw\(s\) \(Dress (\d+), Nurse '
@@ -427,6 +522,24 @@ EF_REST = re.compile(r'^enemies: follow restore: room \d+:\d+ after a load: (\d+
                      r'away\), (\d+) on their way here, (\d+) ghost\(s\) let in, (\d+) cop\(ies\) in the ledger; left out: (\d+) '
                      r'without their record \(the save filter, or gone\), (\d+) of a kind')
 EF_REST_NO = re.compile(r'^enemies: follow restore: (?:the load went on to room|Enemies Follow is off)')
+# v3.56 ER356: Enemies Return Off / By Room / By World (enemies.inc ErAtRoomLoad, ErWorldPass, EnmReviveRoom, the Tremer site
+# 0x48ACE5) and the world visit (worldvisit.inc: the world entries, the room loads after a save load); v3.30 - v3.55's On
+ER_VALUES = r'(Off|On|By Room|By World)'
+ER_MODE_IN = re.compile(r'^enemies: in \((.*?)\); .*?EnemyRevive ' + ER_VALUES + ', ')
+ER_MODE_SET = re.compile(r'^gameplay: (?:\[Gameplay\] )?EnemyRevive (?:read again: )?' + ER_VALUES + r'(?: applies now|$)')
+ER_MIGR = re.compile(r'^gameplay: EnemyRevive On \(v3\.30 - v3\.55\) is (By Room) now \(Enemies Return: Off, By Room, By World\): '
+                     r'(written to SH4Refined\.ini|read only|could not be written)')
+ER_WORLD = re.compile(r'^enemies: return: entered world (\d+) \(By World\): (\d+) room\(s\) walked, (\d+) killed monster\(s\) stand '
+                      r'again \((\d+) bod(?:y|ies) taken away, (\d+) kill bit\(s\) cleared\), (\d+) released event dog\(s\) awake at '
+                      r"their room's next load, (\d+) recorded alive left as they are, (\d+) story room\(s\) left as they are")
+ER_LOADNONE = re.compile(r'^enemies: return: room (\d+):(\d+) after a load: nothing returns \((By Room|By World): ')
+ER_TREMER = re.compile(r'^enemies: return: (\d+) killed Tremer\(s\) kept their body at a room exit this session')
+ER_TSITE = re.compile(r'^enemies: return: (?:the Tremer site is off|0048ACE0 or 004215D0 differs)')
+ER_ROOM = re.compile(r"^enemies: revive: room (\d+):(\d+): killed monsters stand again \((\d+) bod(?:y|ies) taken away, (\d+) kill "
+                     r"bit\(s\) cleared, (\d+) bod(?:y|ies) of other rooms' monsters: they stand at home\), (\d+) killed cop(?:y|ies) "
+                     r"come back")
+WV_ENTRY = re.compile(r'^world visit: entered world (\d+) at room (\d+) \(from stage (-?\d+)\): world entry (\d+) of this session$')
+WV_LOADL = re.compile(r'^world visit: room (\d+):(\d+) after a save load: no room change, no world entry')
 EF_LOST = re.compile(r'^enemies: through door \d+ from room \d+ to \d+: Enemy Pursuit (\w+): (\d+) lost track of you \((\d+) out '
                      r'of their senses, (\d+) down when you left, (\d+) did not catch up\); (\d+) more had spotted you but forgot')
 EF_VALUES = r'(Relentless|Normal|Forgetful)'
@@ -663,6 +776,17 @@ class Session:
         self.budget = None        # v3.35 FX335: 'in' / 'off'
         self.budget_rooms = []    # (stage, room, dict)
         self.budget_steps = [0, 0, 0]  # down, up, deepest level
+        self.bhr = None           # v3.56 PW356: the high-rate fallback 'in' / 'off'
+        self.bhr_rules = []       # (ts, fps, 'high' / 'v3.55')
+        self.bhr_blind = 0        # blind steps, taken back, kept, the go-ahead lines
+        self.bhr_back = []        # (ts, gain %)
+        self.bhr_kept = []        # (ts, level, gain %)
+        self.bhr_yield = []       # (ts, fps, level)
+        self.bhr_rooms = []       # (stage:room, frames, blind, kept, back, sparks %)
+        self.ots_cam = Counter()  # v3.56 PW356: After Shock's over-the-shoulder camera on / off lines
+        self.ots_fade = None      # (keep %, box w, box h) the last fade line
+        self.ots_ini = None
+        self.ots_rooms = []       # (stage:room, frames, dimmed, least %)
         self.warms = []           # (ts, stage:room, total ms, {part: ms})
         self.dpg = Counter()      # v3.41 DP341: Death Presence hidden, by reason
         self.dpg_shown = [0, 0.0, '', '']  # shown again: count, the longest hold (s), its room, its ts
@@ -770,6 +894,12 @@ class Session:
         self.rz_sets = []         # v3.48 RZ348: (ts, key, new, old / from)
         self.rz_sess = None       # v3.48 RZ348: the session line's groups
         self.rz_anom = 0          # v3.48 RZ348: its ANOMALY lines
+        self.rz_v356 = False      # v3.56 RI356: the start line has v3.56's keys (Specials, Reroll)
+        self.rz_migs = []         # v3.56 RI356: (ts, old key, old text, new key, new text, how) v3.55's keys migrated
+        self.rz_seedline = None   # v3.56 RI356: (seed, x, y, glyphs, size) the seed line under the page's description
+        self.wv_worlds = []       # v3.56 RI356: (ts, visit, stage, room, entry, after a reset?) world entries
+        self.wv_loads = []        # v3.56 RI356: (ts, stage, room, signal, visit, how, room entries) the loads' rooms
+        self.wv_sess = None       # v3.56 RI356: the visits' session line (ints)
         self.rzm = None           # v3.49 RZ349: the Monsters' start line (mode, found, kind-2, scripts, stock, stock kind-2, verdict, targets, save filter)
         self.rzm_bad = None       # v3.49 RZ349: (text, default) an unknown [Randomizer] Monsters value
         self.rzm_gum = None       # v3.49 RZ349: 'may be rolled' / 'are never rolled'
@@ -784,6 +914,14 @@ class Session:
         self.rzm_sess = None      # v3.49 RZ349: the session line's groups
         self.rzm_sess3 = None     # v3.50 RM350: the session's adopted records and reasons (adopted, changed, rolled, by record, elsewhere, none)
         self.rzm_anom = 0         # v3.49 RZ349: its ANOMALY lines (not counted in rz_anom)
+        self.rz_mig = []          # v3.56 RE356: (old key, its text, new key, value, written)
+        self.rzm_story = []       # v3.56 RE356: (stage, what)
+        self.ss_rooms = Counter()  # v3.56 RE356: Spawn Site's monster room lines summed
+        self.ss_kept = Counter()   # v3.56 RE356: the reasons (kept or refused)
+        self.ss_nomap = []        # v3.56 RE356: (stage, room, why)
+        self.ss_fn = []           # v3.56 RE356: the functions that were not stock
+        self.ss_sess = None       # v3.56 RE356: the session line's groups
+        self.ss_anom = 0          # v3.56 RE356: its ANOMALY lines
         self.rzm_ev = None        # v3.51 SN351: (event dogs, stock event dogs, roll again On / Off) at the start
         self.rzm_sess4 = None     # v3.51 SN351: (rolled again, roll again On / Off, event dogs planned, kept asleep) the session
         self.rzl = None           # v3.49 RZ349L: (EileenOutfit, Ghosts) at the start
@@ -808,6 +946,14 @@ class Session:
         self.r3_nopage = None     # v3.50 R302: why Option 4 has no Room 302 page
         self.r3_rebuilt = 0       # v3.50 R302: view rebuild lines
         self.r3_anom = 0          # v3.50 R302: its ANOMALY lines
+        self.frg = None           # v3.56 FR356: (on / off / not used, the top rate or None, ts) from the start line
+        self.frg_downs = []       # v3.56 FR356: (ts, from, to, mean, target, ratio, stage, room, budget level, locked)
+        self.frg_ups = []         # v3.56 FR356: (ts, from, to, stage, room)
+        self.frg_retry = []       # v3.56 FR356: (ts, minutes, at, higher)
+        self.frg_miss = [0, 0]    # v3.56 FR356: missed windows counted, held (the budget shedding)
+        self.frg_worst = None     # v3.56 FR356: the worst missed window (ratio, rate, mean, target, ts)
+        self.frg_resets = []      # v3.56 FR356: (ts, chosen, held at) / ('vsync', ts, cap, lifted)
+        self.t60f = None          # v3.56 FR356: (sites in, of) or ('NOT', va)
         self.rg = None            # v3.47 RG347: (in / OFF, Regen, rate, delay, who) from the install line
         self.rg_not = []          # v3.47 RG347: why it is not installed
         self.rg_pe = None         # v3.47 RG347: 'with' / 'without' SH4PE_RegenActive
@@ -852,6 +998,12 @@ class Session:
         self.ql_ms = []           # v3.52 QL352: ms from the restart to the loaded room running (the music back)
         self.ql_closed = Counter()  # v3.52 QL352: the v3.51 fallbacks by their reason
         self.ql_anom = 0          # v3.52 QL352: its ANOMALY lines
+        self.pv_set = None        # v3.56 PV356: (ts, scene / picture, PreviewLayers) from the install line
+        self.pv = Counter()       # v3.56 PV356: kept, heat, spirit, made, kept_t, notkept, fail; page shows by kind
+        self.pv_max = [0, 0, 0, 0.0]  # v3.56 PV356: the most bodies, ghosts, soul fires in a pause's layers; the slowest capture (ms)
+        self.pv_why = Counter()   # v3.56 PV356: why a pause kept no layers
+        self.pv_page = Counter()  # v3.56 PV356: (filter, what) the page showed
+        self.pv_anom = 0          # v3.56 PV356: its ANOMALY lines
         self.snd_in = None        # v3.52 SND352: (pan, volume, reverb, mono streams, mono music) from the install line, or 'off'
         self.snd_start = None     # v3.52 SND352: the first frame's start line (ts, groups)
         self.snd_first = None     # v3.52 SND352: (ts, mode, the save's byte) of the first start's migration, or a bad Mode
@@ -861,6 +1013,15 @@ class Session:
         self.snd_fix = Counter()  # v3.52 SND352: 'byte' / 'engine' / 'discard'
         self.snd_notin = []       # v3.52 SND352: sites not installed (what, va)
         self.snd_anom = 0         # v3.52 SND352: its ANOMALY lines
+        self.sd_bg = None         # v3.56 SD356: (Background, sites, keep-awake, device watch) from the install line
+        self.sd_keep = None       # v3.56 SD356: (ts, dBFS, level), or 'none' / 'FAILED'
+        self.sd_keep_re = 0       # v3.56 SD356: keep-awake restarts / status failures
+        self.sd_focus = []        # v3.56 SD356: (ts, 'away' / 'back', seconds before the change)
+        self.sd_focus_cap = False
+        self.sd_dev = None        # v3.56 SD356: (ts, the game's device, how) or (ts, name, 'NOT REGISTERED hr ...')
+        self.sd_dev_ev = []       # v3.56 SD356: (ts, 'new' / 'back' / the game device's state, name)
+        self.sd_dev_off = None    # v3.56 SD356: why there is no device watch
+        self.sd_cfg = Counter()   # v3.56 SD356: ini values read as the default
         self.ol_set = None        # v3.53 OL2: 'in' / 'off' from the Options look's install line
         self.ol_pages = OrderedDict()  # v3.53 OL2: page -> [name, the largest estimate, measured with it, ts, lines]
         self.ol_inert = Counter()  # v3.53 OL2: keys on a grey row, by row
@@ -872,6 +1033,13 @@ class Session:
         self.ly_moves = None      # v3.55 OL56: 'on' / 'off' (None: a log before v3.55), and why off
         self.ly_moves_why = ''
         self.ly_vb = None         # v3.55 OL56: 0x525672: 'in', 'bytes <hex>' (another mod), 'failed' 
+        self.mn_vl = None         # v3.56 MN356: (rows, lines, in the plan, over) from the value lines' build line
+        self.mn_vl_ans = []       # v3.56 MN356: (ts, page, row, line) a value answered with the plan's line (first a row)
+        self.mn_vl_miss = []      # v3.56 MN356: (page, row, value, word) a value with no line (a number or a range)
+        self.mn_fc = None         # v3.56 MN356: (mode, FolderClick, note) the folder click's line
+        self.mn_fc_open = []      # v3.56 MN356: (ts, page, title, row, what) a click that opened a row
+        self.mn_fc_refuse = []    # v3.56 MN356: (ts, page, row, why) a click not taken (mid-slide / fade)
+        self.mn_em_text = None    # v3.56 MN356: ('once' / 'stock', StockShadow) the Extra Menu's text
         self.hb_hide = []         # v3.38 HB338: (ts, 'on' / 'off') Hide Gauge as the curse meter saw it
         self.hb_ring = Counter()  # v3.38 HB338: 'faded out' / 'shown: <why>' counts (both rings)
         self.hb_pe_ring = None    # v3.41 CM341: (ts, 'pe' / 'refined', why) who draws the player's curse ring
@@ -892,6 +1060,12 @@ class Session:
         self.ef_mode = None       # Enemy Pursuit at the start (the install line), (None: not in the log)
         self.ef_site = None       # 'in' / 'off' / 'NOT in'
         self.ef_modes = []        # (ts, value) each change
+        # v3.56 ER356: Enemies Return and the world visit
+        self.er_mode = None       # Enemies Return at the start (the enemies install line; None: not in the log)
+        self.er_tsite = None      # 'in' / 'off' (the Tremer site, from the install line / its own line)
+        self.er_modes = []        # (ts, value) each change (the menu, the ini read again)
+        self.er = Counter()       # migr, migr_fail, rooms, r_bodies, r_bits, r_away, r_copies, worlds, w_back, w_dogs, w_story,
+                                  # loadnone, tremer (the last count), entries, loads
         self.ep = Counter()       # v3.51 EP351: in-room give-ups: rooms, give, mon, ghost, again, down, held, stock; v_* the verbose
                                   # lines (v_give, v_unsensed, v_downed, v_far, v_untouched, v_<family>)
         self.ep_site = None       # v3.51 EP351: 'in' / 'off' / 'NOT in'
@@ -1050,6 +1224,74 @@ class Session:
             return True
         return False
 
+    def parse_pv(self, ts, msg):  # v3.56 PV356: True = an Effects preview line read
+        m = PV_SET.match(msg)
+        if m:
+            self.pv_set = (ts, 'scene' if m.group(1).startswith('SH4') else 'picture', m.group(4))
+            return True
+        m = PV_KEPT.match(msg)
+        if m:
+            g = m.groups()
+            self.pv['kept'] += 1
+            self.pv['heat'] += g[0] == 'on'
+            self.pv['spirit'] += g[3] == 'on'
+            self.pv['made' if g[9] == 'targets made' else 'kept_t'] += 1
+            self.pv_max = [max(self.pv_max[0], int(g[1])), max(self.pv_max[1], int(g[4])), max(self.pv_max[2], int(g[5])),
+                           max(self.pv_max[3], float(g[11]))]
+            return True
+        m = PV_NOT.match(msg)
+        if m:
+            self.pv['notkept'] += 1
+            self.pv_why[m.group(1)] += 1
+            return True
+        if PV_FAIL.match(msg):
+            self.pv['fail'] += 1
+            return True
+        m = PV_PAGE.match(msg)
+        if m:
+            back = m.group(2)
+            what = m.group(3) or ''
+            kind = ('the scene' if back.startswith('SH4') else 'the picture' if back.startswith('the preview picture') else
+                    'the hallway' if back.startswith('the stock') else 'a pause')
+            if what.startswith("the pause's heat layer"):
+                kind += " + its heat layer"
+            elif what.startswith("the pause's spirit layer"):
+                kind += " + its spirit layer"
+            elif what:
+                kind += ' + ' + what.split(' (')[0]
+            if m.group(4):
+                kind += ' (NOT drawn)'
+            self.pv_page[(m.group(1), kind)] += 1
+            return True
+        if PV_LAID.match(msg):
+            self.pv['laid'] += 1
+            return True
+        return False
+
+    def pv_line(self):  # v3.56 PV356: None when the log has none of its lines
+        if not self.pv_set and not self.pv and not self.pv_page and not self.pv_anom:
+            return None
+        if self.pv_set:
+            line = 'effects preview: with no paused game %s; the pause layers %s at the start' % (
+                "SH4 Refined's scene" if self.pv_set[1] == 'scene' else 'PreviewImage first (Picture)',
+                'on' if self.pv_set[2] == '1' else 'off (PreviewLayers=0)')
+        else:
+            line = 'effects preview: (no start line)'
+        if self.pv['kept'] or self.pv['notkept']:
+            line += '; %d pause(s) kept layers (heat in %d, at most %d bodies; spirit in %d, at most %d ghost(s), %d soul fire(s); ' \
+                    'targets made %d, kept %d; the slowest %.2f ms)' % (
+                        self.pv['kept'], self.pv['heat'], self.pv_max[0], self.pv['spirit'], self.pv_max[1], self.pv_max[2],
+                        self.pv['made'], self.pv['kept_t'], self.pv_max[3])
+            if self.pv['notkept']:
+                line += ', %d not: %s' % (self.pv['notkept'], ', '.join('%s x%d' % (k, v) for k, v in self.pv_why.most_common(3)))
+        if self.pv_page:
+            line += '; the page showed: ' + ', '.join('%s over %s x%d' % (f, k, n) for (f, k), n in self.pv_page.most_common(8))
+        if self.pv['fail']:
+            line += '; %d failure(s)' % self.pv['fail']
+        if self.pv_anom:
+            line += '; %d ANOMALY line(s)' % self.pv_anom
+        return line
+
     def parse_mu(self, ts, msg):  # v3.51 MU351: True = a sound line of the Extra Menu's lists read
         m = MU_SET.match(msg)
         if m:
@@ -1194,7 +1436,61 @@ class Session:
             line += '; %d ANOMALY line(s)' % self.mu_anom
         return line
 
+    def parse_sd(self, ts, msg):  # v3.56 SD356: True = a Background / keep-awake / focus / device line read
+        m = SD_BG.match(msg)
+        if m:
+            self.sd_bg = m.groups()
+            return True
+        m = SD_KEEP_ON.match(msg)
+        if m:
+            self.sd_keep = (ts, m.group(1), m.group(2))
+            return True
+        if SD_KEEP_NONE.match(msg):
+            self.sd_keep = 'none'
+            return True
+        if SD_KEEP_RE.match(msg):
+            self.sd_keep_re += 1
+            return True
+        m = SD_FOCUS_AWAY.match(msg)
+        if m:
+            self.sd_focus.append((ts, 'away', float(m.group(1))))
+            return True
+        m = SD_FOCUS_BACK.match(msg)
+        if m:
+            self.sd_focus.append((ts, 'back', float(m.group(1))))
+            return True
+        if SD_FOCUS_CAP.match(msg):
+            self.sd_focus_cap = True
+            return True
+        m = SD_DEV_GAME.match(msg)
+        if m:
+            self.sd_dev = (ts, m.group(1), m.group(2) if m.group(3) is None else 'NOT REGISTERED hr ' + m.group(3))
+            return True
+        m = SD_DEV_NEW.match(msg)
+        if m:
+            self.sd_dev_ev.append((ts, 'new', m.group(1)))
+            return True
+        m = SD_DEV_BACK.match(msg)
+        if m:
+            self.sd_dev_ev.append((ts, 'back', m.group(1)))
+            return True
+        m = SD_DEV_STATE.match(msg)
+        if m:
+            self.sd_dev_ev.append((ts, m.group(2), m.group(1)))
+            return True
+        m = SD_DEV_OFF.match(msg)
+        if m:
+            self.sd_dev_off = (ts, m.group(1)[:120])
+            return True
+        m = SD_CFG.match(msg)
+        if m:
+            self.sd_cfg[m.group(1)] += 1
+            return True
+        return False
+
     def parse_snd(self, ts, msg):  # v3.52 SND352: True = a Sound line read
+        if self.parse_sd(ts, msg):  # v3.56 SD356
+            return True
         m = SND_IN.match(msg)
         if m:
             self.snd_in = m.groups()
@@ -1291,6 +1587,70 @@ class Session:
             return True
         return False
 
+    def parse_mn(self, ts, msg):  # v3.56 MN356: True = a value-line, folder-click or Extra Menu text line read
+        m = MN_VL_IN.match(msg)
+        if m:
+            self.mn_vl = (int(m.group(1)), int(m.group(2)), int(m.group(3)), 'OVER THE ROW LIMIT' in m.group(4))
+            return True
+        m = MN_VL_ANS.match(msg)
+        if m:
+            self.mn_vl_ans.append((ts, m.group(1), m.group(2), m.group(3)))
+            return True
+        m = MN_VL_MISS.match(msg)
+        if m:
+            self.mn_vl_miss.append((m.group(1), m.group(2), int(m.group(3)), m.group(4)))
+            return True
+        m = MN_FC_SET.match(msg)
+        if m:
+            self.mn_fc = ('row' if m.group(1).startswith('anywhere') else 'v3.55', int(m.group(2)), m.group(3).lstrip('; '))
+            return True
+        m = MN_FC_OPEN.match(msg)
+        if m:
+            self.mn_fc_open.append((ts, int(m.group(1)), m.group(2), int(m.group(3)), m.group(4)))
+            return True
+        m = MN_FC_REFUSE.match(msg)
+        if m:
+            self.mn_fc_refuse.append((ts, int(m.group(1)), int(m.group(2)), m.group(3)))
+            return True
+        m = MN_EM_TEXT.match(msg)
+        if m:
+            self.mn_em_text = ('once' if m.group(1) == 'once' else 'stock', int(m.group(2)))
+            return True
+        return False
+
+    def mn_line(self):  # v3.56 MN356: None when the log has none of its lines
+        if not (self.mn_vl or self.mn_vl_ans or self.mn_vl_miss or self.mn_fc or self.mn_fc_open or self.mn_fc_refuse or
+                self.mn_em_text):
+            return None
+        parts = []
+        if self.mn_vl:
+            parts.append('value lines in %d row(s) (%d lines of the plan\'s %d)%s' % (
+                self.mn_vl[0], self.mn_vl[1], self.mn_vl[2], ' OVER THE ROW LIMIT' if self.mn_vl[3] else ''))
+        else:
+            parts.append('value lines: no build line')
+        if self.mn_vl_ans:
+            parts.append('%d row(s) showed a value\'s own line where v3.55 showed the row\'s (%s%s)' % (
+                len(self.mn_vl_ans), ', '.join('%s: "%s"' % (a[2], a[3]) for a in self.mn_vl_ans[:6]),
+                ', ...' if len(self.mn_vl_ans) > 6 else ''))
+        if self.mn_vl_miss:
+            parts.append('%d value(s) kept the row\'s line (no line in the plan: %s%s)' % (
+                len(self.mn_vl_miss), ', '.join('%s %s' % (a[1], a[3]) for a in self.mn_vl_miss[:6]),
+                ', ...' if len(self.mn_vl_miss) > 6 else ''))
+        if self.mn_fc:
+            parts.append('folder rows open on a click %s (FolderClick=%d%s)' % (
+                'anywhere on the row' if self.mn_fc[0] == 'row' else 'as v3.55 (Enter)', self.mn_fc[1],
+                ('; ' + self.mn_fc[2]) if self.mn_fc[2] else ''))
+        if self.mn_fc_open or self.mn_fc_refuse:
+            moved = sum(1 for a in self.mn_fc_open if 'the cursor moved there' in a[4])
+            parts.append('%d click(s) opened a row (%d moved the cursor there)%s; %d click(s) not taken%s' % (
+                len(self.mn_fc_open), moved, (', the last %s row %d [%s]' % (self.mn_fc_open[-1][2], self.mn_fc_open[-1][3],
+                                                                          self.mn_fc_open[-1][0])) if self.mn_fc_open else '',
+                len(self.mn_fc_refuse), (' (%s [%s])' % (self.mn_fc_refuse[-1][3], self.mn_fc_refuse[-1][0])) if self.mn_fc_refuse else ''))
+        if self.mn_em_text:
+            parts.append('Extra Menu text %s' % ('drawn once (StockShadow=0)' if self.mn_em_text[0] == 'once' else
+                                                 'with the stock second shadow (StockShadow=1)'))
+        return 'options menu (v3.56): ' + '; '.join(parts)
+
     def ly_line(self):  # v3.54 OL34: None when the log has no Options layout line
         if not (self.ly_in or self.ly_off or self.ly_miss or self.ly_open):
             return None
@@ -1378,6 +1738,43 @@ class Session:
         if self.snd_anom:
             line += '; %d ANOMALY line(s)' % self.snd_anom
         return line
+
+    def sd_line(self):  # v3.56 SD356: None when the log has no Background / keep-awake / focus / device line
+        if not (self.sd_bg or self.sd_keep or self.sd_focus or self.sd_dev or self.sd_dev_ev or self.sd_dev_off or self.sd_cfg or
+                self.sd_keep_re):
+            return None
+        parts = []
+        if self.sd_bg:
+            parts.append('Background %s (buffer sites %s)' % (self.sd_bg[0], self.sd_bg[1]))
+        if self.sd_keep == 'FAILED':
+            parts.append('keep-awake FAILED (ANOMALY)')
+        elif self.sd_keep == 'none':
+            parts.append('keep-awake: no sound device')
+        elif self.sd_keep:
+            parts.append('keep-awake on at %s dBFS (level %s)  [%s]' % (self.sd_keep[1], self.sd_keep[2], self.sd_keep[0]))
+        elif self.sd_bg and self.sd_bg[2] == 'off':
+            parts.append('keep-awake off')
+        if self.sd_keep_re:
+            parts.append('keep-awake restarted / not readable %d time(s)' % self.sd_keep_re)
+        if self.sd_focus or self.sd_focus_cap:
+            away = [x for x in self.sd_focus if x[1] == 'away']
+            back = [x for x in self.sd_focus if x[1] == 'back']
+            parts.append('%d time(s) behind other windows (longest %.1f s)%s' % (
+                len(away), max([x[2] for x in back] or [0.0]), ', more not logged' if self.sd_focus_cap else ''))
+        if self.sd_dev:
+            parts.append('the game plays on "%s" (%s)  [%s]' % (self.sd_dev[1], self.sd_dev[2], self.sd_dev[0]))
+        if self.sd_dev_off:
+            parts.append('no device watch: %s  [%s]' % (self.sd_dev_off[1], self.sd_dev_off[0]))
+        if self.sd_dev_ev:
+            parts.append('%d device event(s): %s' % (len(self.sd_dev_ev), ', '.join(
+                '%s "%s" [%s]' % ('a new default' if k == 'new' else 'the default back on' if k == 'back' else 'the game\'s device ' + k, n, t)
+                for t, k, n in self.sd_dev_ev[:6])))
+            nb = [k for t, k, n in self.sd_dev_ev if k in ('new', 'back')]
+            if nb and nb[-1] == 'new':
+                parts.append('at the end another default device: a restart takes it')
+        if self.sd_cfg:
+            parts.append('ini read as the default: %s' % ', '.join(sorted(self.sd_cfg)))
+        return 'sound background: ' + '; '.join(parts)
 
     def fadein_line(self):  # v3.50 FI350: None when the log has no Fade In line
         if not (self.fi or self.fi_rooms or self.fi_sets or self.fi_bad or self.fi_fault or self.fi_starts or self.fi_letgo):
@@ -1500,6 +1897,85 @@ class Session:
                     p['v_give'], p['v_unsensed'], p['v_downed'], p['v_far'], p['v_untouched'],
                     ', %d out of sight' % p['v_sight'] if p['v_sight'] else '',  # v3.52 EP352
                     '; ' + ', '.join('%s %d' % (f, p['f_' + f]) for f in fams) if fams else ''))
+        return line
+
+    def parse_er(self, ts, msg):  # v3.56 ER356: True = an Enemies Return / world visit line read (the install line: False)
+        e = self.er
+        if msg.startswith('enemies: in ('):
+            m = ER_MODE_IN.match(msg)
+            if m:
+                self.er_mode = m.group(2)
+                self.er_tsite = 'in' if 'Tremer bodies 0048ACE5' in m.group(1) else (self.er_tsite or 'not in')
+            return False
+        if msg.startswith('gameplay: '):
+            m = ER_MIGR.match(msg)
+            if m:
+                e['migr'] += 1
+                e['migr_fail'] += not m.group(2).startswith('written')
+                return True
+            m = ER_MODE_SET.match(msg)
+            if m:
+                if not self.er_modes or self.er_modes[-1][1] != m.group(1):
+                    self.er_modes.append((ts, m.group(1)))
+            return False
+        if msg.startswith('world visit: '):
+            m = WV_ENTRY.match(msg)
+            if m:
+                e['entries'] += 1
+                return True
+            if WV_LOADL.match(msg):
+                e['loads'] += 1
+                return True
+            return True  # (the verbose ones: left the world, a room load without a room)
+        if msg.startswith('enemies: return: '):
+            m = ER_WORLD.match(msg)
+            if m:
+                g = [int(x) for x in m.groups()]
+                e['worlds'] += 1
+                e['w_back'] += g[2]
+                e['w_dogs'] += g[5]
+                e['w_story'] += g[7]
+                return True
+            if ER_LOADNONE.match(msg):
+                e['loadnone'] += 1
+                return True
+            m = ER_TREMER.match(msg)
+            if m:
+                e['tremer'] = max(e['tremer'], int(m.group(1)))
+                return True
+            if ER_TSITE.match(msg):
+                self.er_tsite = 'off'
+                return True
+            return True  # (the mode's own line, the dogs' line)
+        if msg.startswith('enemies: revive: room '):
+            m = ER_ROOM.match(msg)
+            if m:
+                g = [int(x) for x in m.groups()]
+                e['rooms'] += 1
+                e['r_bodies'] += g[2]
+                e['r_bits'] += g[3]
+                e['r_away'] += g[4]
+                e['r_copies'] += g[5]
+                return True
+        return False
+
+    def er_line(self):  # v3.56 ER356: None when the log has no Enemies Return line and it is Off (or not in the log)
+        e = self.er
+        if self.er_mode in (None, 'Off') and not self.er_modes and not any(v for k, v in e.items() if k not in ('entries', 'loads')):  # v3.56 MERGE
+            return None
+        mode = self.er_mode or 'not in the log'
+        line = 'enemies return: %s at the start%s' % (mode, ' (v3.55\'s On: read as By Room)' if mode == 'On' else '')
+        if e['migr']:
+            line += '; EnemyRevive On migrated to By Room%s' % (' (NOT written: tried again at the next start)' if e['migr_fail'] else '')
+        if self.er_modes:
+            line += '; %d change(s): %s' % (len(self.er_modes), ', '.join('%s [%s]' % (v, ts) for ts, v in self.er_modes))
+        line += '; world visits: %d entr(ies), %d load(s) (no room change)' % (e['entries'], e['loads'])
+        line += ('; By Room: %d room(s) brought back their dead (%d bod(ies), %d kill bit(s), %d of other rooms, %d cop(ies))' % (
+            e['rooms'], e['r_bodies'], e['r_bits'], e['r_away'], e['r_copies']))
+        line += ('; By World: %d world entr(ies) brought back %d killed monster(s) (%d event dog(s) marked, %d story room(s) left)' % (
+            e['worlds'], e['w_back'], e['w_dogs'], e['w_story']))
+        line += '; %d load(s) brought nothing back' % e['loadnone']
+        line += '; Tremer site %s, %d Tremer bod(ies) kept' % (self.er_tsite or 'not in the log', e['tremer'])
         return line
 
     def drop_level_line(self):  # v3.38 DR338
@@ -1802,6 +2278,43 @@ class Session:
 
     def parse_monsters(self, ts, msg):
         """v3.49 RZ349: one line of the Randomizer's Monsters; None = not one of them, else True when it was ours (no warning)."""
+        m = RZ_KEYMIG.match(msg)  # v3.56 RE356: the renamed keys  # v3.56 MERGE: RZ_KEYMIG (RI356 has its own RZ_MIG)
+        if m:
+            self.rz_mig.append((m.group(1), m.group(2), m.group(3), m.group(4), m.group(6).startswith('written')))
+            return m.group(6).startswith('written') and not m.group(5)
+        m = RZM_STORY.match(msg)  # v3.56 RE356
+        if m:
+            self.rzm_story.append((int(m.group(1)), m.group(2)))
+            return True
+        m = SS_ROOM.match(msg)  # v3.56 RE356: Spawn Site's monsters
+        if m:
+            g = m.groups()
+            r = self.ss_rooms
+            r['rooms'] += 1
+            r['moved'] += int(g[3])
+            r['n'] += int(g[4])
+            r['recs'] += int(g[5])
+            r['cells'] += int(g[6])
+            r['ms'] += float(g[7])
+            r['maps'] += int(g[6]) > 0
+            r['revisits'] += int(g[2]) > 1
+            for part in (g[8] or '').split(', '):
+                name, _, n = part.rpartition(' ')
+                if name and n.isdigit():
+                    self.ss_kept[name] += int(n)
+            return True
+        m = SS_NOMAP.match(msg)
+        if m:
+            self.ss_nomap.append((int(m.group(1)), int(m.group(2)), m.group(3)))
+            return False
+        m = SS_FN.match(msg)
+        if m:
+            self.ss_fn.append(m.group(1))
+            return False
+        m = SS_SESS.match(msg)
+        if m:
+            self.ss_sess = m.groups()
+            return True
         m = RZM_IN.match(msg)
         if m:
             g = m.groups()
@@ -1984,6 +2497,36 @@ class Session:
             line += '; %d ANOMALY line(s)' % self.rzm_anom
         return line
 
+    def spawnsite_line(self):
+        """v3.56 RE356: the Spawn Site summary line (None without any of its lines) and the renamed keys."""
+        if not (self.ss_rooms or self.ss_sess or self.ss_nomap or self.ss_fn or self.ss_anom or self.rz_mig or self.rzm_story):
+            return None
+        line = '  randomizer spawn site: '
+        parts = []
+        if self.rz_mig:
+            parts.append('ini migrated: ' + ', '.join('%s "%s" -> %s %s%s' % (o, t, n, v, '' if w else ' (NOT written)')
+                                                     for o, t, n, v, w in self.rz_mig))
+        if self.rzm_story:
+            parts.append('story rule: ' + '; '.join('stage %d: %s' % s for s in self.rzm_story[-4:]))
+        r = self.ss_rooms
+        if r:
+            parts.append('%d room load(s) with monsters (%d of them a room visited again), %d of %d monster(s) at a new site, %d '
+                         'record(s) moved; %d floor map(s), %d cell(s), %.1f ms in all' % (r['rooms'], r['revisits'], r['moved'], r['n'],
+                                                                                           r['recs'], r['maps'], r['cells'], r['ms']))
+            if self.ss_kept:
+                parts.append('kept or refused: ' + ', '.join('%s %d' % kv for kv in sorted(self.ss_kept.items(), key=lambda kv: -kv[1])))
+        if self.ss_nomap:
+            parts.append('NO floor map: ' + ', '.join('%d:%d (%s)' % x for x in self.ss_nomap[-3:]))
+        if self.ss_fn:
+            parts.append('game code NOT stock at ' + ', '.join(self.ss_fn) + ' (off)')
+        if self.ss_sess:
+            s = self.ss_sess
+            parts.append('session: %s, %s room load(s), %s moved, %s kept, %s record(s), %s map(s) (%s cells, %s ms), %s without a map, '
+                         '%s ghost(s) in the box%s' % s)
+        if self.ss_anom:
+            parts.append('%d ANOMALY line(s)' % self.ss_anom)
+        return line + '; '.join(parts)
+
     def parse_rando(self, ts, msg):
         """v3.48 RZ348: one Randomizer line; True when it was ours."""
         r = self.parse_monsters(ts, msg)  # v3.49 RZ349
@@ -1992,8 +2535,18 @@ class Session:
         m = RZ_IN.match(msg)
         if m:
             g = m.groups()  # v3.48 RZ348 r2: + PerVisit, weapon spots, the weapons that may move
-            self.rz = (g[0], g[1], g[2], int(g[4]), int(g[5]), int(g[7]), int(g[8]), g[10], g[3], int(g[6]), int(g[9]), int(g[11]))
-            return 'FAULTED' not in g[10] and 'not the stock' not in g[10]
+            # v3.56 RI356: the key names are groups 1 and 4 now; the tuple keeps v3.48's order (keep / specials, room 302, ...)
+            self.rz = (g[0], g[2], g[3], int(g[6]), int(g[7]), int(g[9]), int(g[10]), g[12], g[5], int(g[8]), int(g[11]), int(g[13]))
+            self.rz_v356 = g[1] == 'Specials'
+            return 'FAULTED' not in g[12] and 'not the stock' not in g[12]
+        m = RZ_MIG.match(msg)  # v3.56 RI356
+        if m:
+            self.rz_migs.append((ts,) + m.groups()[:4] + (m.group(6),))
+            return m.group(6) == 'migrated once'
+        m = RZ_SEEDLINE.match(msg)  # v3.56 RI356
+        if m:
+            self.rz_seedline = (int(m.group(1)), int(m.group(2)), int(m.group(3)), int(m.group(4)), m.group(5))
+            return True
         m = RZ_ROLL.match(msg)
         if m:
             self.rz_roll = (m.group(1), int(m.group(2)), m.group(3) == 'and written')
@@ -2044,6 +2597,46 @@ class Session:
             self.rz_sess = m.groups()
             return True
         return False
+
+    def parse_visits(self, ts, msg):
+        """v3.56 RI356: the world-visit rule's lines (worldvisit.inc). True = consumed."""
+        m = WV_WORLD.match(msg)
+        if m:
+            self.wv_worlds.append((ts, m.group(1), int(m.group(2)), int(m.group(3)), int(m.group(4)), bool(m.group(5))))
+            if 2 <= int(m.group(2)) <= 8:  # v3.56 MERGE: a world entry for Enemies Return's summary too (one rule, one line)
+                self.er['entries'] += 1
+            return True
+        m = WV_LOAD.match(msg)
+        if m:
+            self.wv_loads.append((ts, int(m.group(1)), int(m.group(2)), m.group(3), m.group(4), m.group(5), int(m.group(6))))
+            self.er['loads'] += 1  # v3.56 MERGE: a load's room for Enemies Return's summary too
+            return True
+        m = WV_SESS.match(msg)
+        if m:
+            self.wv_sess = tuple(int(x) for x in m.groups())
+            return True
+        return False
+
+    def visits_line(self):
+        """v3.56 RI356: the world-visit summary line (None without any of its lines)."""
+        if not (self.wv_worlds or self.wv_loads or self.wv_sess):
+            return None
+        line = '  visits: %d world visit(s) begun' % len(self.wv_worlds)
+        if self.wv_worlds:
+            line += ' (stages %s)' % ', '.join(str(w[2]) for w in self.wv_worlds[-6:])
+            resets = sum(1 for w in self.wv_worlds if w[5])
+            if resets:
+                line += ', %d after a New Game / title load' % resets
+        if self.wv_loads:
+            how = Counter(l[5] for l in self.wv_loads)
+            sig = Counter(l[3] for l in self.wv_loads)
+            line += '; %d load(s), never a room or world entry (%s; marked by %s)' % (
+                len(self.wv_loads), ', '.join('%d %s' % (n, k) for k, n in sorted(how.items())),
+                ', '.join('%s %d' % (k, n) for k, n in sorted(sig.items())))
+        if self.wv_sess:
+            v = self.wv_sess
+            line += '; session: %d room entries, %d world visit(s), %d load(s) (%d resumed, %d the seed\'s own), %d reset(s), %d room 0' % v
+        return line
 
     def parse_rzl(self, ts, msg):
         """v3.49 RZ349L: one Randomizer looks line: True (ours), False (ours, kept for the warnings), None (not ours)."""
@@ -2174,18 +2767,27 @@ class Session:
 
     def rando_line(self):
         """v3.48 RZ348: the Randomizer summary line (None without any of its lines)."""
-        if not (self.rz or self.rz_first or self.rz_plans or self.rz_rooms or self.rz_sets or self.rz_sess or self.rz_anom):
+        if not (self.rz or self.rz_first or self.rz_plans or self.rz_rooms or self.rz_sets or self.rz_sess or self.rz_anom or
+                self.rz_migs or self.rz_seedline):  # v3.56 RI356
             return None
         line = '  randomizer: '
         if self.rz:
             r = self.rz
-            line += ('Items %s (Keep Specials %s, Room 302 %s, Change Each Visit %s, seed %d) at the start; self-check %d of %d plain '
+            line += ('Items %s (%s %s, %s %s, %s %s, seed %d) at the start; self-check %d of %d plain '
                      'pickups and %d of %d weapon spots in %d scripts (%s); %d weapons may move' % (
-                         r[0], r[1], r[2], r[8], r[3], r[4], r[6], r[9], r[10], r[5], r[7], r[11]))
+                         r[0], 'Specials' if self.rz_v356 else 'Keep Specials', r[1],
+                         'Room 302 Items' if self.rz_v356 else 'Room 302', r[2],
+                         'Reroll' if self.rz_v356 else 'Change Each Visit', r[8],  # v3.56 RI356: the new names
+                         r[3], r[4], r[6], r[9], r[10], r[5], r[7], r[11]))
         else:
             line += '(no start line)'
         if self.rz_roll:
             line += '; seed rolled %d (%s)' % (self.rz_roll[1], 'written' if self.rz_roll[2] else 'NOT written')
+        if self.rz_migs:  # v3.56 RI356
+            line += '; v3.55 keys: ' + ', '.join('%s=%s -> %s=%s (%s)' % m[1:] for m in self.rz_migs)
+        if self.rz_seedline:  # v3.56 RI356
+            line += '; seed line %d glyph(s) at y %d (%s)' % (self.rz_seedline[3], self.rz_seedline[2],
+                                                           'small' if self.rz_seedline[4] == 'the smaller size' else 'FULL SIZE')
         if self.rz_bad:
             line += '; unknown ini values: ' + ', '.join('%s "%s" -> %s' % b for b in self.rz_bad)
         if self.rz_first:
@@ -2257,6 +2859,88 @@ class Session:
             self.r3_rebuilt += 1
             return True
         return False
+
+    def parse_frg(self, ts, msg):
+        """v3.56 FR356: the rate guard's and the final-room sites' lines. True = consumed."""
+        m = FRG_ON.match(msg)
+        if m:
+            t = FRG_TOP.search(msg)
+            self.frg = (m.group(1), int(t.group(1)) if t else None, ts)
+            return True
+        m = FRG_DOWN.match(msg)
+        if m:
+            g = m.groups()
+            self.frg_downs.append((ts, int(g[0]), int(g[1]), float(g[2]), float(g[3]), float(g[4]), g[7], g[8], int(g[9]), bool(g[10])))
+            return True
+        m = FRG_UP.match(msg)
+        if m:
+            self.frg_ups.append((ts, int(m.group(1)), int(m.group(2)), m.group(3), m.group(4)))
+            return True
+        m = FRG_RETRY.match(msg)
+        if m:
+            self.frg_retry.append((ts, int(m.group(1)), int(m.group(2)), int(m.group(3))))
+            return True
+        m = FRG_MISS.match(msg)
+        if m:
+            self.frg_miss[1 if m.group(6) else 0] += 1
+            w = (float(m.group(5)), int(m.group(2)), float(m.group(3)), float(m.group(4)), ts)
+            if self.frg_worst is None or w[0] > self.frg_worst[0]:
+                self.frg_worst = w
+            return True
+        m = FRG_RESET.match(msg)
+        if m:
+            self.frg_resets.append((ts, int(m.group(1)), int(m.group(2))))
+            return True
+        m = FRG_VSYNC.match(msg)
+        if m:
+            self.frg_resets.append(('vsync', ts, int(m.group(1)), int(m.group(2))))
+            return True
+        m = T60F_IN.match(msg)
+        if m:
+            self.t60f = (int(m.group(1)), int(m.group(2)))
+            return True
+        m = T60F_BAD.match(msg)
+        if m:
+            self.t60f = ('NOT', m.group(1))
+            return False  # also a warning line (the "is not stock" group)
+        return False
+
+    def frg_line(self):
+        """v3.56 FR356: the rate guard's summary line (None without any of its lines)."""
+        if not (self.frg or self.frg_downs or self.frg_ups or self.frg_retry or any(self.frg_miss) or self.t60f):
+            return None
+        line = '  rate guard: '
+        if self.frg:
+            line += '%s at the start%s [%s]' % (self.frg[0], ' (top %d)' % self.frg[1] if self.frg[1] else '', self.frg[2])
+        else:
+            line += '(no start line)'
+        if self.frg_downs:
+            line += '; %d step(s) down: %s' % (len(self.frg_downs), ', '.join(
+                '%d -> %d (%.2f ms against %.2f, %.2f x, stage %s room %s, budget level %d%s) [%s]' % (
+                    f, t, mean, tgt, r, st, rm, lv, ', locked' if lk else '', ts)
+                for ts, f, t, mean, tgt, r, st, rm, lv, lk in self.frg_downs[-4:]))
+        else:
+            line += '; no step down'
+        if self.frg_retry:
+            line += '; %d retry(ies) waited for a room change' % len(self.frg_retry)
+        if self.frg_ups:
+            line += '; %d step(s) back up: %s' % (len(self.frg_ups), ', '.join(
+                '%d -> %d at %s:%s [%s]' % (f, t, st, rm.zfill(2), ts) for ts, f, t, st, rm in self.frg_ups[-4:]))
+        if any(self.frg_miss):
+            line += '; missed 3 s windows: %d counted, %d held while the effect budget shed' % tuple(self.frg_miss)
+            if self.frg_worst:
+                line += ', the worst %.2f x at %d (%.2f ms against %.2f) [%s]' % self.frg_worst
+        for x in self.frg_resets[-3:]:
+            if x[0] == 'vsync':
+                line += '; the V-Sync cap %d lifted the guard\'s %d [%s]' % (x[2], x[3], x[1])
+            else:
+                line += '; the Frame Rate row chose %d, the guard started again (it held %d) [%s]' % (x[1], x[2], x[0])
+        if self.t60f:
+            if self.t60f[0] == 'NOT':
+                line += '; final-room sites NOT in (%s)' % self.t60f[1]
+            else:
+                line += '; final-room sites %d/%d' % self.t60f
+        return line
 
     def r302_line(self):
         """v3.50 R302: the Room 302 summary line (None without any of its lines)."""
@@ -2345,6 +3029,8 @@ class Session:
                 self.rg_anom += 1
             if body.startswith('sound: '):  # v3.52 SND352
                 self.snd_anom += 1
+                if SD_KEEP_FAIL.match(body):  # v3.56 SD356
+                    self.sd_keep = 'FAILED'
             if LKL_OVER.match(body):  # v3.53 OL2
                 self.ol_over += 1
             if LYL_VB_FAIL.match(body):  # v3.55 OL56
@@ -2353,7 +3039,12 @@ class Session:
                 self.mu_anom += 1
             if body.startswith('extra menu: Quick Load: '):  # v3.52 QL352
                 self.ql_anom += 1
-            if body.startswith('randomizer: monsters'):  # v3.49 RZ349
+            if body.startswith(('screen effects: the clean pause picture', "screen effects: the preview", "screen effects: the Effects preview",
+                                "screen effects: releasing the preview")):  # v3.56 PV356
+                self.pv_anom += 1
+            if body.startswith('randomizer: spawn site'):  # v3.56 RE356
+                self.ss_anom += 1
+            elif body.startswith('randomizer: monsters'):  # v3.49 RZ349
                 self.rzm_anom += 1
             elif body.startswith(('randomizer: outfit: ', 'randomizer: ghosts: ')):  # v3.49 RZ349L  # v3.49 MERGE: counted apart, as the Monsters' (not in rz_anom: the Items line keeps its own count)
                 self.rzl_anom += 1
@@ -2409,6 +3100,34 @@ class Session:
         if m:
             self.budget = m.group(1)
             return
+        if msg.startswith('budget: '):  # v3.56 PW356: the high-rate fallback (the step lines also count below)
+            m = BUDGET_HR_IN.match(msg)
+            if m:
+                self.bhr = m.group(1)
+                return
+            m = BUDGET_HR_RULES.match(msg)
+            if m:
+                self.bhr_rules.append((ts, int(m.group(1)), 'high' if m.group(2).startswith('the high') else 'v3.55'))
+                return
+            m = BUDGET_KEPT.match(msg)
+            if m:
+                self.bhr_kept.append((ts, int(m.group(1)), float(m.group(2))))
+                return
+            m = BUDGET_YIELD.match(msg)
+            if m:
+                self.bhr_yield.append((ts, int(m.group(1)), int(m.group(2))))
+                return
+            if BUDGET_BLIND.match(msg):
+                self.bhr_blind += 1
+            m = BUDGET_BACK.match(msg)
+            if m:
+                self.bhr_back.append((ts, float(m.group(3))))
+            m = BUDGET_ROOM_HR.search(msg)
+            if m and msg.startswith('budget: room '):
+                g = m.groups()
+                sr = msg[len('budget: room '):].split(':', 2)
+                self.bhr_rooms.append(('%s:%s' % (sr[0], sr[1].zfill(2)) if len(sr) > 1 else '?', int(g[0]), int(g[1]), int(g[2]),
+                                       int(g[3]), int(g[4])))
         m = BUDGET_STEP.match(msg)
         if m:
             a, b = int(m.group(1)), int(m.group(2))
@@ -2435,6 +3154,8 @@ class Session:
             m = EF_SET.match(msg)  # v3.50 EF350
             if m and (not self.ef_modes or self.ef_modes[-1][1] != m.group(1)):
                 self.ef_modes.append((ts, m.group(1)))
+        if self.parse_er(ts, msg):  # v3.56 ER356
+            return
         if msg.startswith('supply drops: '):  # v3.37 MN337
             m = DROP_LEVEL_IN.match(msg)  # v3.38 DR338
             if m:
@@ -2543,6 +3264,10 @@ class Session:
             m = RB_SW.match(msg) or RB_LOST.match(msg)
             if m:
                 self.rb_sw.append((ts, 'switch' if msg.startswith('read back: now') else 'lost', m.group(1)))
+                return
+        if msg.startswith(("screen effects: the Effects page's preview", "screen effects: the pause's look layers",
+                           'screen effects: the preview scene laid out')):  # v3.56 PV356
+            if self.parse_pv(ts, msg):
                 return
         if msg.startswith('screen effects: the pause picture kept on the GPU') or msg.startswith('screen effects: a frame read back'):
             m = FX_GPU.match(msg)  # v3.41 SH341
@@ -2923,6 +3648,9 @@ class Session:
         if msg.startswith('options layout: '):  # v3.54 OL34
             if self.parse_ly(ts, msg):
                 return
+        if msg.startswith(('options: value lines: ', 'options: folder rows ', 'options: a click on page ', 'extra menu: text drawn ')):
+            if self.parse_mn(ts, msg):  # v3.56 MN356
+                return
         if msg.startswith(('options look: ', 'options: page ')):  # v3.53 OL2
             if self.parse_ol(ts, msg):
                 return
@@ -3074,6 +3802,12 @@ class Session:
         if msg.startswith(('room 302', 'settings: [Room302] ')):  # v3.50 R302
             if self.parse_r302(ts, msg):
                 return
+        if msg.startswith(('rate guard: ', 'true 60: ')):  # v3.56 FR356
+            if self.parse_frg(ts, msg):
+                return
+        if msg.startswith('visits: '):  # v3.56 RI356
+            if self.parse_visits(ts, msg):
+                return
         if msg.startswith('randomizer: '):  # v3.49 RZ349L: the looks lines first (their own patterns)
             r = self.parse_rzl(ts, msg)
             if r is not None:
@@ -3184,6 +3918,23 @@ class Session:
             m = SM_R302.match(msg)
             if m:
                 self.r302_n += 1
+                return
+        if msg.startswith('after shock: '):  # v3.56 PW356: the over-the-shoulder fade
+            m = AI_OTS_CAM.match(msg)
+            if m:
+                self.ots_cam[m.group(1)] += 1
+                return
+            m = AI_OTS_FADE.match(msg)
+            if m:
+                self.ots_fade = (int(m.group(1)), int(m.group(2)), int(m.group(3)))
+                return
+            m = AI_OTS_INI.match(msg)
+            if m:
+                self.ots_ini = int(m.group(1))
+                return
+            m = AI_OTS_ROOM.match(msg)
+            if m:
+                self.ots_rooms.append(('%s:%s' % (m.group(1), m.group(2).zfill(2)), int(m.group(3)), int(m.group(4)), int(m.group(5))))
                 return
         if msg.startswith('echo: ') or msg.startswith('after shock: '):  # v3.42 SM342: the view gate
             m = SM_VIEW_HIDE.match(msg)
@@ -3327,6 +4078,24 @@ class Session:
             for s, r, x in sorted(thinned, key=lambda t: -t[2]['worst'])[:3 if not full else 20]:
                 say('    %s:%s at most level %d, %d %% of the frames thinned, effects %.1f ms mean / %.1f max (target %.1f), %.1f %% late  [%s]' % (
                     s, r, x['max'], x['thin'], x['mean'], x['worst'], x['target'], x['late'], x['ts']))
+        if self.bhr or self.bhr_rules or self.bhr_rooms or self.bhr_blind:  # v3.56 PW356: the high-rate fallback
+            hr_rooms = [x for x in self.bhr_rooms if x[1] > 0]
+            rates = ', '.join('%d fps %s [%s]' % (f, 'high-rate rules' if k == 'high' else "v3.55's rules", t) for t, f, k in self.bhr_rules[:6])
+            say('  effect budget high rate: %s; %d room line(s) at a high rate; %d blind step(s): %d kept, %d taken back; nothing left to shed %d time(s)%s%s' % (
+                self.bhr or '?', len(hr_rooms), self.bhr_blind, len(self.bhr_kept), len(self.bhr_back), len(self.bhr_yield),
+                ('; rates: ' + rates) if rates else '', ('; the last go-ahead %d fps at level %d [%s]' % (self.bhr_yield[-1][1], self.bhr_yield[-1][2],
+                                                                                                         self.bhr_yield[-1][0])) if self.bhr_yield else ''))
+            for x in sorted(hr_rooms, key=lambda t: -(t[2] + t[4]))[:3 if not full else 20]:
+                if x[2] or x[5] < 100:
+                    say('    %s: %d high-rate frame(s), %d blind step(s), %d kept, %d taken back; the sparks at %d %%' % x)
+        if self.ots_cam or self.ots_rooms or self.ots_fade or self.ots_ini is not None:  # v3.56 PW356: After Shock's OTS fade
+            dim = sum(x[2] for x in self.ots_rooms)
+            least = min([x[3] for x in self.ots_rooms] or [100])
+            say('  after shock over-the-shoulder: %s; camera on %d / off %d time(s); %d visit line(s) with the fade: %d copy draw(s) dimmed, the least light %d %%%s' % (
+                ('a copy over her keeps %d %%, her box %d x %d u' % self.ots_fade) if self.ots_fade else
+                ('AfterImageOtsFade=%d' % self.ots_ini if self.ots_ini is not None else 'the fade (no box line)'),
+                self.ots_cam['on'], self.ots_cam['off'], len(self.ots_rooms), dim, least,
+                ('; [Gameplay] AfterImageOtsFade=%d' % self.ots_ini) if self.ots_ini is not None else ''))
         if self.warms:
             w = max(self.warms, key=lambda t: t[2])
             say('  warm-up: %d time(s), %.1f ms in all; the longest %.1f ms in %s (%s)  [%s]' % (
@@ -3450,13 +4219,22 @@ class Session:
         line = self.ql_line()  # v3.52 QL352: Quick Load's paths
         if line:
             say('  ' + line)
+        line = self.pv_line()  # v3.56 PV356: the Effects page's preview (the pause layers, the scene)
+        if line:
+            say('  ' + line)
         line = self.snd_line()  # v3.52 SND352: Sound (the mode, pan law, reverb, Night Mode)
+        if line:
+            say('  ' + line)
+        line = self.sd_line()  # v3.56 SD356: Background, keep-awake, focus, the sound device
         if line:
             say('  ' + line)
         line = self.ly_line()  # v3.54 OL34: the Options layout (the pages, rows left out, each opening)
         if line:
             say('  ' + line)
         line = self.ol_line()  # v3.53 OL2: the Options look (the glyph budget per page)
+        if line:
+            say('  ' + line)
+        line = self.mn_line()  # v3.56 MN356: value lines, folder clicks, the Extra Menu's text
         if line:
             say('  ' + line)
         # v3.37 INV337: Extended Toolbelt / Stackable Items
@@ -3539,13 +4317,22 @@ class Session:
         line = self.rando_line()
         if line:
             say(line)
+        line = self.visits_line()  # v3.56 RI356: the world-visit rule (Reroll Visits, Enemies Return)
+        if line:
+            say(line)
         line = self.monsters_line()  # v3.49 RZ349: its Monsters
+        if line:
+            say(line)
+        line = self.spawnsite_line()  # v3.56 RE356: Spawn Site and the renamed keys
         if line:
             say(line)
         line = self.rzl_line()  # v3.49 RZ349L: its looks
         if line:
             say(line)
         line = self.r302_line()  # v3.50 R302: Room 302's look and walk
+        if line:
+            say(line)
+        line = self.frg_line()  # v3.56 FR356: the rate guard and the final room's sites
         if line:
             say(line)
         # v3.38 EN338: Enemies Follow
@@ -3566,6 +4353,9 @@ class Session:
         if line:
             say('  ' + line)
         line = self.ef_line()  # v3.50 EF350
+        if line:
+            say('  ' + line)
+        line = self.er_line()  # v3.56 ER356
         if line:
             say('  ' + line)
         # v3.43 FN343: the HD menu font (nothing when MenuFont = Stock)

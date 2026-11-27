@@ -429,6 +429,28 @@ static SubRange *SubFind(int i)
     return NULL;
 }
 static int SubIndex(void) { return (int)((g_subEsi - 4 - 0x1257248) / 0x14); }
+// v3.56 RI356: a plain smaller copy of the queue entries n0 .. n1 - 1 (the Randomizer page's seed line, randomizer.inc
+// RzSeedDraw): one range with no style or effect (the stock shadow, scaled), s around the canvas point (x, y). It ends with
+// the pass like every range. 0 = not possible (the hooks are not in, no free range): the text stays at full size.
+static int SubSmallText(int n0, int n1, float x, float y, float s)
+{
+    SubRange *q;
+    if (!g_subOn || n0 < 0 || n1 <= n0 || n1 > 800 || g_subRN >= SUB_RANGES || !(s > 0.2f && s <= 1.0f)) return 0;
+    q = &g_subR[g_subRN++];
+    memset(q, 0, sizeof *q);
+    q->n0 = n0;
+    q->n1 = n1;
+    q->ax = x * 1.25f;  // 640-space (557660: x * 1.25, y * 1.0714286; RE 3.1)
+    q->ay = y * 1.0714286f;
+    q->s = s;
+    q->edge = 0;        // Shadow: the stock shadow quad, its offset scaled
+    q->fx = SFX_NONE;
+    q->ex = SEX_NONE;
+    q->p = -1.0f;
+    memcpy(q->first, SUB_Q(n0), 0x14);
+    memcpy(q->last, SUB_Q(n1 - 1), 0x14);
+    return 1;
+}
 
 typedef int(__cdecl *Quad)(float, float, float, float, float, float, float, float, DWORD, DWORD);
 #define QUAD ((Quad)0x563D20)

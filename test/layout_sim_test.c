@@ -331,9 +331,9 @@ static const Interim54 kV354[] = {
     { LP_INTERFACE, { "interface/Language", "interface/Subtitles", "interface/Health Gauge", "interface/Item Icons", "grain/Film Grain",
                       "shadows/Shadows", "gameplay/Blood Colour", "interface/Enemy Health", "interface/Curse Meter", "interface/Pause Menu", "+" } },
     { LP_SUBT, { "subtitles/Size", "subtitles/Colour", "subtitles/Edge", "subtitles/Box", "subtitles/Appear", "subtitles/Vanish", "+" } },
-    { LP_MENUS, { "pause/Storage Chest", "pause/Save Game", "pause/Load Game", "pause/Quick Save", "pause/Quick Load", "pause/Eileen Outfit",
-                  "pause/Save Banks", "interface/Menu Font", "interface/Start-Up", "+" } },
-    { LP_SOUND, { "sound/Stereo Width", "sound/Room Reverb", "sound/Night Mode", "+" } },
+    { LP_MENUS, { "pause/Storage Chest", "pause/Save Game", "pause/Load Game", "pause/Quick Save", "pause/Quick Load", "pause/Eileen",
+                  "pause/Save Banks", "interface/Menu Font", "interface/Start-Up", "+" } },  // v3.56 MN356: "pause/Eileen" (was Eileen Outfit)
+    { LP_SOUND, { "sound/Stereo Width", "sound/Room Reverb", "sound/Night Mode", "sound/Background", "+" } },  // v3.56 SD356: + Background
     { LP_EFFECTS, { "effects/Film Grain", "effects/Filter", "effects/Cut-scene Filter", "effects/Bloom", "effects/Colour Grade",
                     "effects/Otherworld Lens", "effects/Depth of Field", "effects/Blur Strength", "effects/Shadows", "display/Renderer", "+" } },
     { LP_GRAIN, { "grain/Strength", "grain/Grain Type", "grain/Grain Colour", "+" } },
@@ -344,8 +344,8 @@ static const Interim54 kV354[] = {
     { LP_ITEMS, { "items/Item Shine", "items/Toolbelt", "items/Item Stacks", "items/Supply Drops", "+" } },
     { LP_ENEMIES, { "enemies/Extra Enemies", "enemies/Door Chase", "enemies/Pursuit", "enemies/Enemies Return", "enemies/Fade In", "+" } },
     { LP_POWERS, { "powers/Death Presence", "powers/After Shock", "powers/Echo Doubles", "powers/Echo Count", "powers/Ghost Teleport", "+" } },
-    { LP_RANDO, { "rando/Items", "rando/Keep Specials", "rando/Room 302 Items", "rando/Monsters", "rando/Ghosts", "rando/Eileen Outfit",
-                  "rando/Reroll Visits", "rando/Seed 1234567", "rando/New Seed", "+" } },
+    { LP_RANDO, { "rando/Items", "rando/Specials", "rando/Room 302 Items", "rando/Enemies", "rando/Spawn Site", "rando/Eileen Outfit",
+                  "rando/Reroll Visits", "+" } },  // v3.56 RI356: Specials (was Keep Specials); no Seed / New Seed rows; v3.56 RE356: Monsters -> Enemies, Ghosts -> Spawn Site
 };
 static void TestExactV354(void)
 {
@@ -390,8 +390,9 @@ int main(void)
     TestExactV354();
     // the counts of PLAN section 5 (StockMoves=1) and of v3.54 (StockMoves=0)
     {
-        static const int kPlanN[LP_MAX] = { 9, 7, 10, 7, 10, 8, 8, 8, 5, 4, 6, 9, 9, 6, 0, 6, 5, 0, 6, 10, 0, 7 };
-        static const int kV354N[LP_MAX] = { 11, 10, 11, 4, 11, 7, 7, 10, 4, 3, 6, 9, 6, 6, 0, 6, 5, 0, 6, 10, 0, 7 };
+        // v3.56 RI356: the Randomizer (page 19) 10 -> 8 rows (no Seed / New Seed rows) in both layouts; v3.56 SD356: Sound 7 -> 8 / 4 -> 5
+        static const int kPlanN[LP_MAX] = { 9, 7, 10, 8, 10, 8, 8, 8, 5, 4, 6, 9, 9, 6, 0, 6, 5, 0, 6, 8, 0, 7 };
+        static const int kV354N[LP_MAX] = { 11, 10, 11, 5, 11, 7, 7, 10, 4, 3, 6, 9, 6, 6, 0, 6, 5, 0, 6, 8, 0, 7 };
         for (lp = 0; lp < LP_MAX; ++lp) {
             CHECK(OlRowCount(kOlPage[lp].rows, 1) == kPlanN[lp], "StockMoves=1: page %d has %d rows (PLAN section 5: %d)", lp,
                   OlRowCount(kOlPage[lp].rows, 1), kPlanN[lp]);

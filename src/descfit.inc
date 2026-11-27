@@ -120,6 +120,14 @@ static int __cdecl DescShadow(int bank, int id, int x, int y) { return DescDraw(
 static int __cdecl DescText(int bank, int id, int x, int y)  // 0x52419E
 {
     const int r = DescDraw(bank, id, x, y, 0);
+    if (g_descPage == g_lpage && RzSeedShown(g_lpage)) {  // v3.56 RI356: the Randomizer page's seed, small, under the line
+        __try {
+            RzSeedDraw(x, g_descBottom);
+        } __except (EXCEPTION_EXECUTE_HANDLER) {
+            static int s_f;
+            if (!s_f++) Log("options: drawing the Randomizer's seed line faulted (logged once)");
+        }
+    }
     LkGlyphNote(*(volatile int *)0x1261BF4);  // v3.53 OL2: the page's glyphs, the queue measured after its description
     return r;
 }

@@ -744,4 +744,78 @@ static int AiCloakBuild(const float bnIn[AIB_N][3], int toesOk, const float eye[
     }
     return o->nRib;
 }
+// ---------------------------------------------------------------- v3.56 PW356: the over-the-shoulder camera's see-her fade
+// (staging/v356_feedback/w5_powers/PLAN.md; the user's v3.55 request 9: "In OTS camera, go ahead and reduce the
+// behind-player after image effect opacity so we can see the player better"). In the over-the-shoulder camera the trail
+// runs from her toward the lens, so the copies are drawn (additively, nearer than her) over her own body. Only the copies
+// that are nearer the camera than she is AND whose box on screen overlaps hers lose light, down to `minK` when one sits
+// right over her; a copy beside her on screen (a strafe, a turn, a side step) or behind her keeps its look, as the stock
+// cameras do (they are never changed). Her box is her own body's (AiOtsBox: Henry is broader than Eileen), a copy's the
+// same body at its own depth: the nearer, the larger on screen.
+#define AI_OTS_MIN_DEF 0.30f   // a copy right over her keeps 30 % of its light (hidden [Gameplay] AfterImageOtsFade, %)
+#define AI_OTS_E0      0.45f   // the overlap: 0 = the copy's centre on hers, 1 = their boxes just touch; minK up to 0.45 ...
+#define AI_OTS_E1      1.00f   // ... full light from 1
+#define AI_OTS_D0      8.0f    // nearer the camera than her by this (view depth, u): the fade starts ...
+#define AI_OTS_D1      40.0f   // ... whole from this
+#define AI_OTS_TAU_S   0.20f   // s: the camera switching in / out of over-the-shoulder fades the rule in / out (no pop)
+// her body's box: its centre (between the head bone and the ankles), half width (hips apart + 22 u: Eileen 46, Henry 58;
+// her arms swing out of the hips' line) and half height (half the head-to-ankle span + 30 u: the crown and the soles).
+// 0 when the bones are not usable.
+static int AiOtsBox(const float head[3], const float lfoot[3], const float rfoot[3], const float lhip[3], const float rhip[3],
+                    float c[3], float *W, float *H)
+{
+    float ank[3], dx, dy, dz, span, hips, w, h;
+    int j;
+    for (j = 0; j < 3; ++j) {
+        if (!(head[j] == head[j]) || !(lfoot[j] == lfoot[j]) || !(rfoot[j] == rfoot[j]) || !(lhip[j] == lhip[j]) || !(rhip[j] == rhip[j])) return 0;
+        ank[j] = 0.5f * (lfoot[j] + rfoot[j]);
+        c[j] = 0.5f * (head[j] + ank[j]);
+    }
+    dx = head[0] - ank[0], dy = head[1] - ank[1], dz = head[2] - ank[2];
+    span = sqrtf(dx * dx + dy * dy + dz * dz);
+    dx = lhip[0] - rhip[0], dy = lhip[1] - rhip[1], dz = lhip[2] - rhip[2];
+    hips = sqrtf(dx * dx + dy * dy + dz * dz);
+    if (!(span > 40.0f) || !(span < 600.0f) || !(hips < 120.0f)) return 0;
+    w = hips + 22.0f, h = 0.5f * span + 30.0f;
+    *W = w < 30.0f ? 30.0f : w > 80.0f ? 80.0f : w;
+    *H = h < 60.0f ? 60.0f : h > 240.0f ? 240.0f : h;
+    return 1;
+}
+// the light a copy centred at p keeps (minK .. 1): eye the camera, c / W / H her box (AiOtsBox)
+static float AiOtsK(const float eye[3], const float c[3], float W, float H, const float p[3], float minK)
+{
+    float f[3], r[3], u[3], v[3], dH, l, along, x, y, ex, ey, e, front, k;
+    int j;
+    if (!(minK < 1.0f)) return 1.0f;
+    if (!(minK > 0.0f)) minK = 0.0f;
+    for (j = 0; j < 3; ++j) f[j] = c[j] - eye[j], v[j] = p[j] - eye[j];
+    dH = sqrtf(f[0] * f[0] + f[1] * f[1] + f[2] * f[2]);
+    if (!(dH > 1.0f)) return 1.0f;
+    for (j = 0; j < 3; ++j) f[j] /= dH;
+    along = v[0] * f[0] + v[1] * f[1] + v[2] * f[2];
+    if (!(along > 1.0f)) return 1.0f;  // at or behind the lens: not over her on screen (the near plane cuts it)
+    front = AiSmooth(AI_OTS_D0, AI_OTS_D1, dH - along);
+    if (!(front > 0.0f)) return 1.0f;  // behind her (her body hides it) or beside her depth
+    r[0] = -f[2], r[1] = 0.0f, r[2] = f[0];  // across the view, horizontal
+    l = sqrtf(r[0] * r[0] + r[2] * r[2]);
+    if (!(l > 1e-3f)) r[0] = 1.0f, r[2] = 0.0f, l = 1.0f;  // (looking straight down: any horizontal)
+    r[0] /= l, r[2] /= l;
+    u[0] = f[1] * r[2] - f[2] * r[1], u[1] = f[2] * r[0] - f[0] * r[2], u[2] = f[0] * r[1] - f[1] * r[0];  // f x r: the screen's vertical
+    x = (v[0] * r[0] + v[1] * r[1] + v[2] * r[2]) / along;
+    y = (v[0] * u[0] + v[1] * u[1] + v[2] * u[2]) / along;
+    ex = fabsf(x) / (W / dH + W / along);
+    ey = fabsf(y) / (H / dH + H / along);
+    e = ex > ey ? ex : ey;
+    k = minK + (1.0f - minK) * AiSmooth(AI_OTS_E0, AI_OTS_E1, e);
+    return 1.0f - front * (1.0f - k);
+}
+// the rule's weight: toward 1 while the over-the-shoulder camera draws, toward 0 otherwise (AI_OTS_TAU_S, linear)
+static float AiOtsMixStep(float mix, int ots, float dt)
+{
+    const float d = dt > 0.0f && dt < 0.5f ? dt / AI_OTS_TAU_S : 0.0f;
+    if (ots) return mix + d > 1.0f ? 1.0f : mix + d;
+    return mix - d < 0.0f ? 0.0f : mix - d;
+}
+// the hidden AfterImageOtsFade (%: the light a copy right over her keeps; 100 = v3.55, no fade) -> minK
+static float AiOtsMinFromIni(int pct) { return pct < 0 ? AI_OTS_MIN_DEF : pct > 100 ? 1.0f : (float)pct / 100.0f; }
 #endif

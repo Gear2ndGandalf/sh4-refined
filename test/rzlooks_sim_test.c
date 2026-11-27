@@ -74,8 +74,9 @@ static void TestTexts(void)
     CHECK(RzgOfText("Off") == RZG_OFF && RzgOfText("SPOTS") == RZG_SPOTS && RzgOfText("1") == 1 && RzgOfText("no") == 0 &&
           RzgOfText("Rooms") == -1 && RzgOfText("Spot") == -1 && RzgOfText(NULL) == -1, "Ghosts texts");
     CHECK(RZO_DEFAULT == RZO_RANDOM && RZG_DEFAULT == RZG_SPOTS, "the spec's defaults: EileenOutfit Random, Ghosts Spots");
-    CHECK(!strcmp(kRzoName[RzoOfText(kRzoName[1])], "Random") && !strcmp(kRzgName[RzgOfText(kRzgName[1])], "Spots") &&
-          RzoOfText(kRzoName[0]) == 0 && RzgOfText(kRzgName[0]) == 0, "the names read back");
+    CHECK(!strcmp(kRzoName[RzoOfText(kRzoName[1])], "Random") && !strcmp(kRzgName[RzgOfText(kRzgName[1])], "On") &&
+          RzoOfText(kRzoName[0]) == 0 && RzgOfText(kRzgName[0]) == 0 && !strcmp(kRzgName[RzgOfText("Spots")], "On"),
+          "the names read back (v3.56 RE356: Spawn Site Off / On; the old Spots reads as On)");
     CHECK(!strcmp(RzoOutfitName(-1), "Default") && !strcmp(RzoOutfitName(0), "Dress") && !strcmp(RzoOutfitName(1), "Nurse"),
           "outfit names (eo_outfit -1 / 0 / 1)");
 }

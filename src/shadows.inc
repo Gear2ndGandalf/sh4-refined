@@ -377,6 +377,7 @@ static void __cdecl ShBeforeReset(void)
         static int s_logged;
         if (!s_logged++) LogAnomaly("shadows", "releasing our render targets before a device reset faulted (logged once)");
     }
+    PvBeforeReset();  // v3.56 PV356: the Effects preview's look layers (DEFAULT pool, as ours; guarded inside: preview.inc)
 }
 static __declspec(naked) void hkShBeforeReset(void)
 {

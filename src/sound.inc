@@ -29,6 +29,26 @@
 //           of LoadMusic 0x4092F0 -> a wrapper that notes the pack's music data and folds it in Mono)
 // Hidden keys: [Sound] Enabled (1; 0 = none of this: the stock Sound row and sound), PanLaw (Smooth / Stock), HeadphonesFloor
 // (9; 6 to 12 dB), MonoFold (1).
+// v3.56 SD356 (staging/v356_feedback/w8_sound/PLAN.md; the user's v3.55 issues 4 "no sound for a few seconds after Alt+Tab,
+// a wireless headset" and 5 "the game keeps the first sound device"):
+// - Background (Sound page, [Sound] Background = Mute / Play, default Mute): DirectSound mutes every buffer made without
+//   DSBCAPS_GLOBALFOCUS while another window is in front (the game's cooperative window is not the foreground one; Refined
+//   keeps the game running behind other windows, so its sounds go on, muted). Play adds GLOBALFOCUS at the four places the
+//   game makes a buffer (Play2D 0x4095FE, Play3D 0x409B02, PlayMusic 0x40A14C, the streams' CreateBuffer 0x40A723: one byte
+//   each, the flags' second byte 00 -> 80, byte-checked, all or nothing, listed in SH4WM_Patches, rewritten live). Sounds that
+//   start after a change follow it; the ones playing keep their focus until they end.
+// - Keep-awake (hidden [Sound] KeepAwake=1, KeepAwakeLevel=8 of 32767): one GLOBALFOCUS buffer of Refined's loops a 45 Hz
+//   tone at -72 dBFS (far below hearing) under the game's sound from the first frame, also behind other windows, so the
+//   sound device never carries a silent stream and a wireless headset does not fall asleep (and take seconds to wake when
+//   the game comes back). Checked every 2 s (restored / played again if DirectSound lost or stopped it).
+// - Focus: each change of the game's window being in front is logged with what it does to the sound (40 lines a session).
+// - Device watch (hidden [Sound] DeviceWatch=1): a thread of its own (COM, MTA, ole32 loaded at run time) registers an
+//   IMMNotificationClient and logs the device the game plays on, every change of Windows' default render device (console
+//   role: DirectSound's default) and the game's device going away or coming back; while the default is another device, the
+//   Sound Mode line reads "New sound device: restart the game to use it." Following the new device at run time
+//   ([Sound] FollowDevice) is NOT built: DirectSound binds to its device when it is made, and re-making it means re-making
+//   every buffer, 3D listener, reverb object and stream of the game's sound engine while it plays (PLAN.md: what it would
+//   take, the risks; the user decides).
 #include "sound_sim.h"
 static int QlSoundHeld(void);  // v3.52 MERGE: extramenu.inc (QL352): 1 while Quick Load from the pause holds the sound
 
@@ -60,7 +80,7 @@ static int g_sndTickOff;               // the frame-end work faulted: off for th
 static DWORD g_sndMinuteAt;
 static LONG g_snapSndMode = -1, g_snapSndWidth, g_snapSndReverb, g_snapSndNight;
 static int g_sndRowOn, g_sndMenu, g_sndPageBuilt;
-static DWORD g_rowsSnd[4 * 7 + 1];     // the Sound page: Stereo Width, Room Reverb, Night Mode, Back
+static DWORD g_rowsSnd[5 * 7 + 1];     // the Sound page: Stereo Width, Room Reverb, Night Mode, Background, Back  // v3.56 SD356: + Background
 static DWORD g_rowsSnd1[8 * 7];        // Option 1's own copy when the Menu Font row did not make one (7 rows + the end mark)
 static DWORD g_sndModeIds[SND_MODE_N], g_sndWidthIds[11], g_sndRevIds[2], g_sndNightIds[SND_NIGHT_N];
 // counters (the hooks may run on any thread the game's sound code runs on: interlocked)
@@ -72,6 +92,20 @@ static volatile LONG g_sndMonoBlocks;  // stereo stream blocks folded (the 0x40A
 static BYTE *g_sndMusicData, *g_sndMusicCopy;
 static SIZE_T g_sndMusicSize;
 static int g_sndMusicFolded;
+// v3.56 SD356: Background, keep-awake, focus, the device watch
+static int InFront(void);                   // sh4windowmod.c (the window code, after this file): the game's window is in front
+static volatile LONG g_sndBg;               // [Sound] Background: SND_BG_MUTE / SND_BG_PLAY
+static int g_sndBgOn;                       // the four buffer sites are in (the row is inert without them)
+static LONG g_snapSndBg;
+static int g_sndKeepOn = 1, g_sndKeepLevel = SND_KA_LEVEL_DEF;  // hidden [Sound] KeepAwake, KeepAwakeLevel (0 .. 64)
+static void *g_sndKeepBuf;                  // the keep-awake buffer (IDirectSoundBuffer *; the game thread only)
+static DWORD g_sndKeepAt;                   // its last status check
+static short g_sndKeepPcm[SND_KA_SAMPLES];
+static int g_sndDevWatch = 1;               // hidden [Sound] DeviceWatch
+static volatile LONG g_sndDevNote;          // 1 = the default device is not the game's, or the game's is gone (Sound Mode's line)
+static LONG g_sndDevNoteShown;
+static int g_sndFront = -1;                 // the game's window was in front at the last look (-1 = not looked yet)
+static DWORD g_sndFrontAt, g_sndFocusAt;
 
 // ---------------------------------------------------------------- texts (MSG_V52 + 0 .. 23: SND352's ids)
 enum { SNDM_T, SNDM_L_WIDTH, SNDM_L_REV, SNDM_L_NIGHT, SNDM_L_BACK, SNDM_D_MODE, SNDM_D_WIDTH, SNDM_D_REV, SNDM_D_NIGHT,
@@ -84,6 +118,17 @@ static const BYTE *SndText(int id)
     const int i = id - MSG_V52;
     return g_txtSnd[i >= 0 && i < SNDM_N ? i : SNDM_D_BACK];
 }
+// v3.56 SD356: the Background row's texts (MSG_V56 + 112 .. 127: SD356's ids)
+enum { SDM_L_BG, SDM_D_BG, SDM_V_MUTE, SDM_V_PLAY, SDM_N };
+#define SDM_BASE (MSG_V56 + 112)
+typedef char SdTextsFit[SDM_N <= 16 ? 1 : -1];
+static BYTE g_txtSd[SDM_N][192];
+static DWORD g_sndBgIds[SND_BG_N];
+static const BYTE *SdText(int id)
+{
+    const int i = id - SDM_BASE;
+    return g_txtSd[i >= 0 && i < SDM_N ? i : SDM_D_BG];
+}
 static void SndTextsDynamic(void)  // the texts that follow the settings (one id each: the row shows the current one)
 {   // v3.53 OL1: the plan's words, one line a value (PLAN section 5, Sound); the Enter part while the row opens the page
     static const char *const kModeD[SND_MODE_N] = { OLW_SOUND_SOUND_MODE_VD_MONO, OLW_SOUND_SOUND_MODE_VD_STEREO,
@@ -94,6 +139,7 @@ static void SndTextsDynamic(void)  // the texts that follow the settings (one id
     const int m = (unsigned)g_sndMode < SND_MODE_N ? (int)g_sndMode : SND_MODE_STEREO;
     const char *d = kModeD[m];
     if (!g_sndPanOn && (m == SND_MODE_STEREO || m == SND_MODE_HEADPHONES)) d = g_sndLawStock ? OLW_SND_PAN_STOCK : OLW_SND_PAN_NA;
+    if (g_sndDevNote) d = OLW_SND_DEVICE_NEW;  // v3.56 SD356: the default device is another one (or the game's is gone)
     sprintf_s(t, sizeof t, "%s%s", d, g_sndMenu ? OLW_SND_ENTER : "");
     Encode(g_txtSnd[SNDM_D_MODE], sizeof g_txtSnd[0], t);
     sprintf_s(t, sizeof t, "%d %%", (int)g_sndWidth);
@@ -106,6 +152,8 @@ static void SndTextsDynamic(void)  // the texts that follow the settings (one id
     else d = g_sndReverb ? OLW_SOUND_ROOM_REVERB_VD_ON : OLW_SOUND_ROOM_REVERB_VD_OFF;
     Encode(g_txtSnd[SNDM_D_REV], sizeof g_txtSnd[0], d);
     Encode(g_txtSnd[SNDM_D_NIGHT], sizeof g_txtSnd[0], !g_sndVolOn ? OLW_NA_SESSION : kNightD[(unsigned)g_sndNight < SND_NIGHT_N ? (int)g_sndNight : 0]);
+    Encode(g_txtSd[SDM_D_BG], sizeof g_txtSd[0], !g_sndBgOn ? OLW_NA_SESSION : g_sndBg ? OLW_SOUND_BACKGROUND_VD_PLAY
+                                                                                       : OLW_SOUND_BACKGROUND_VD_MUTE);  // v3.56 SD356
 }
 static void SndTexts(void)
 {
@@ -129,6 +177,10 @@ static void SndTexts(void)
     for (k = 0; k < 11; ++k) g_sndWidthIds[k] = MSG_V52 + SNDM_V_WIDTH;  // one text: the current width (SndTextsDynamic)
     g_sndRevIds[0] = MSG_V52 + SNDM_V_OFF, g_sndRevIds[1] = MSG_V52 + SNDM_V_ON;
     g_sndNightIds[0] = MSG_V52 + SNDM_V_OFF, g_sndNightIds[1] = MSG_V52 + SNDM_V_LOW, g_sndNightIds[2] = MSG_V52 + SNDM_V_HIGH;
+    Encode(g_txtSd[SDM_L_BG], sizeof g_txtSd[0], OLW_SOUND_BACKGROUND_L);  // v3.56 SD356
+    Encode(g_txtSd[SDM_V_MUTE], sizeof g_txtSd[0], OLW_SOUND_BACKGROUND_V_MUTE);
+    Encode(g_txtSd[SDM_V_PLAY], sizeof g_txtSd[0], OLW_SOUND_BACKGROUND_V_PLAY);
+    g_sndBgIds[SND_BG_MUTE] = SDM_BASE + SDM_V_MUTE, g_sndBgIds[SND_BG_PLAY] = SDM_BASE + SDM_V_PLAY;
     SndTextsDynamic();
 }
 
@@ -450,6 +502,81 @@ static void SndSetNight(int n, const char *why)
     SndIniWrite("NightMode", kSndNightName[n], "Night Mode");
     Log("sound: Night Mode %s -> %s (%s)%s", kSndNightName[was], kSndNightName[n], why, g_sndVolOn ? "" : " (no volume hook: no effect)");
 }
+// v3.56 SD356: Background. The flags' second byte at the four buffer sites (one byte each: a single store, so the game's
+// sound code, on the game thread, sees the old or the new flags, never a mix); Poke listed the sites at the install.
+// v3.56 MERGE (Codex SD356-001): all four or none. A site that cannot be made writable rolls back the ones already
+// changed to the previous mode's byte, and the caller keeps the previous mode (the row and the log say the old value).
+// v3.56 MERGE (Codex SD356-002): a write counts only if the byte reads back AND the page's protection is restored; the
+// rollback is checked the same way and all four bytes are read back. SndBgWrite: 1 = all four in the new mode, 0 = all
+// four back in the previous mode, -1 = a mix it could not undo (the caller turns Background off for the session).
+static BYTE *SndBgAt(int i) { return (BYTE *)(ULONG_PTR)(kSndBgSites[i].va + kSndBgSites[i].at); }
+static int SndBgPut(BYTE *p, BYTE b)
+{
+    DWORD old, back;
+    int ok;
+    if (*p == b) return 1;
+    if (!VirtualProtect(p, 1, PAGE_EXECUTE_READWRITE, &old)) return 0;
+    *(volatile BYTE *)p = b;
+    ok = VirtualProtect(p, 1, old, &back) != 0;
+    FlushInstructionCache(GetCurrentProcess(), p, 1);
+    return ok && *p == b;
+}
+static int SndBgAll(BYTE b)
+{
+    int i;
+    for (i = 0; i < 4; ++i)
+        if (*SndBgAt(i) != b) return 0;
+    return 1;
+}
+static int SndBgWrite(int play, int prev)
+{
+    int i, j;
+    for (i = 0; i < 4; ++i) {
+        BYTE *const p = SndBgAt(i);
+        const int ok = SndBgPut(p, SndBgByte(play));
+        const DWORD err = ok ? 0 : GetLastError();
+        if (ok) continue;
+        {
+            static LONG s_q;
+            if (LogQuota(&s_q, 5)) LogAnomaly("sound", "Background: %08lX could not be written cleanly (error %lu): rolling back to %s",
+                                              (unsigned long)(ULONG_PTR)p, err, kSndBgName[prev]);
+        }
+        for (j = 0; j <= i; ++j)
+            SndBgPut(SndBgAt(j), SndBgByte(prev));
+        return SndBgAll(SndBgByte(prev)) ? 0 : -1;
+    }
+    return SndBgAll(SndBgByte(play)) ? 1 : -1;
+}
+static void SndSetBg(int v, const char *why)
+{
+    const int was = (int)g_sndBg;
+    int r;
+    if (v < 0 || v >= SND_BG_N) return;
+    r = g_sndBgOn && v != was ? SndBgWrite(v, was) : 1;
+    if (r < 0) {  // v3.56 MERGE (Codex SD356-002): a mix: Background is off for the session, the sites as they are logged
+        g_sndBgOn = 0;
+        SndTextsDynamic();
+        LogAnomaly("sound", "Background: the buffer sites could not be set to %s nor rolled back to %s: now %02X %02X %02X %02X "
+                   "(%02X = Mute, %02X = Play); Background is off for this session (%s)", kSndBgName[v], kSndBgName[was],
+                   *SndBgAt(0), *SndBgAt(1), *SndBgAt(2), *SndBgAt(3), SndBgByte(0), SndBgByte(1), why);
+        return;
+    }
+    if (r == 0) {  // v3.56 MERGE (Codex SD356-001): not applied: keep the old mode
+        SndTextsDynamic();
+        Log("sound: Background stays %s (%s): the buffer sites could not be changed to %s", kSndBgName[was], why, kSndBgName[v]);
+        return;
+    }
+    InterlockedExchange(&g_sndBg, v);
+    SndTextsDynamic();
+    if (was == v) return;
+    SndIniWrite("Background", kSndBgName[v], "Background");
+    Log("sound: Background %s -> %s (%s): %s", kSndBgName[was], kSndBgName[v], why,
+        !g_sndBgOn ? "no buffer sites this session: the game's own (muted while another window is in front)"
+        : v ? "sounds that start from now on go on while another window is in front (DirectSound's global focus); the ones playing "
+              "keep theirs until they end"
+            : "sounds that start from now on are muted while another window is in front (the game's own); the ones playing keep "
+              "theirs until they end");
+}
 static void SndReadIni(void)
 {
     char t[64];
@@ -484,6 +611,17 @@ static void SndReadIni(void)
     }
     g_sndFloor = v * 100;
     g_sndMonoFold = GetPrivateProfileIntA("Sound", "MonoFold", 1, g_iniPath) != 0;  // hidden
+    IniStr("Sound", "Background", t, sizeof t);  // v3.56 SD356
+    if ((v = SndParseBg(t)) < 0) Log("sound: [Sound] Background=\"%s\" is not Mute / Play: Mute", t), v = SND_BG_MUTE;
+    g_sndBg = v;
+    g_sndKeepOn = GetPrivateProfileIntA("Sound", "KeepAwake", 1, g_iniPath) != 0;  // v3.56 SD356: hidden
+    v = GetPrivateProfileIntA("Sound", "KeepAwakeLevel", SND_KA_LEVEL_DEF, g_iniPath);  // hidden, of 32767
+    if (!SndKeepLevelOk(v)) {
+        Log("sound: [Sound] KeepAwakeLevel=%d is not 0 to %d: %d", v, SND_KA_LEVEL_MAX, SND_KA_LEVEL_DEF);
+        v = SND_KA_LEVEL_DEF;
+    }
+    g_sndKeepLevel = v;
+    g_sndDevWatch = GetPrivateProfileIntA("Sound", "DeviceWatch", 1, g_iniPath) != 0;  // hidden
 }
 
 // ---------------------------------------------------------------- install (DllMain; all or nothing per group, rollback)
@@ -587,6 +725,34 @@ static void SndInstall(void)
         SndCall(&p[0], 0x4115E8, 0xE8, hkSndLoadMusic, 5, kMusic);
         g_sndMusicOn = SndApplySet(p, 1, "Mono music fold (004115E8)");
     }
+    {   // v3.56 SD356: Background: the four places the game makes a sound buffer (whole instructions checked, one byte written)
+        SndPatch q[4];
+        int ok = 1;
+        for (i = 0; i < 4 && ok; ++i) {
+            Site s;
+            memset(&s, 0, sizeof s);
+            s.va = kSndBgSites[i].va, s.len = kSndBgSites[i].len;
+            memcpy(s.stock, kSndBgSites[i].stock, kSndBgSites[i].len);
+            if (!SiteOk(&s)) {
+                const BYTE *b = (const BYTE *)(ULONG_PTR)s.va;
+                Log("sound: Background: %08lX is not the GOG v7 code (%02X %02X %02X %02X ...; another mod?; %s): not installed, the "
+                    "game's own focus (muted while another window is in front)", s.va, b[0], b[1], b[2], b[3], kSndBgSites[i].what);
+                ok = 0;
+            }
+        }
+        if (ok) {
+            for (i = 0; i < 4; ++i) {
+                memset(&q[i], 0, sizeof q[i]);
+                q[i].va = kSndBgSites[i].va + kSndBgSites[i].at, q[i].len = 1;
+                q[i].stock[0] = kSndBgSites[i].stock[kSndBgSites[i].at];
+                q[i].b[0] = SndBgByte(g_sndBg);
+            }
+            g_sndBgOn = SndApplySet(q, 4, "Background (004095FE / 00409B02 / 0040A14C / 0040A723)");
+        }
+        Log("sound: background: [Sound] Background %s (the buffer sites 004095FE / 00409B02 / 0040A14C / 0040A723 %s); keep-awake %s; "
+            "device watch %s", kSndBgName[g_sndBg], g_sndBgOn ? "in" : "NOT IN: the game's own focus",
+            g_sndKeepOn ? "on at the first frame" : "off ([Sound] KeepAwake=0)", g_sndDevWatch ? "on at the first frame" : "off ([Sound] DeviceWatch=0)");
+    }
     SndTextsDynamic();
     Log("sound: in: pan law %s, volume hooks %s (Night Mode), Room Reverb %s, Mono fold %s (streams) / %s (music); "
         "the mode at the first frame (%s)",
@@ -646,6 +812,309 @@ static int SndProbe(void *ds, int threeD, char *out, size_t n)
               (unsigned long)res, (unsigned long)ho);
     return ok;
 }
+// ---------------------------------------------------------------- v3.56 SD356: keep-awake, focus, the device watch
+typedef HRESULT(__stdcall *SndLock_t)(void *, DWORD, DWORD, void **, DWORD *, void **, DWORD *, DWORD);
+typedef HRESULT(__stdcall *SndUnlock_t)(void *, void *, DWORD, void *, DWORD);
+typedef HRESULT(__stdcall *SndPlay_t)(void *, DWORD, DWORD, DWORD);
+typedef HRESULT(__stdcall *SndStatus_t)(void *, DWORD *);
+typedef HRESULT(__stdcall *SndRestore_t)(void *);
+// IDirectSoundBuffer: 2 Release, 9 GetStatus, 11 Lock, 12 Play, 19 Unlock, 20 Restore
+static HRESULT SndKeepFill(void *b)
+{
+    void *p1 = NULL, *p2 = NULL;
+    DWORD n1 = 0, n2 = 0;
+    HRESULT h = ((SndLock_t)SND_VTC(b, 11))(b, 0, sizeof g_sndKeepPcm, &p1, &n1, &p2, &n2, 0);
+    if (FAILED(h)) return h;
+    if (p1) memcpy(p1, g_sndKeepPcm, n1 < sizeof g_sndKeepPcm ? n1 : sizeof g_sndKeepPcm);
+    if (p2 && n1 < sizeof g_sndKeepPcm) memcpy(p2, (const BYTE *)g_sndKeepPcm + n1, n2 < sizeof g_sndKeepPcm - n1 ? n2 : sizeof g_sndKeepPcm - n1);
+    return ((SndUnlock_t)SND_VTC(b, 19))(b, p1, n1, p2, n2);
+}
+static void SndKeepStart(void *ds)  // the first frame (the game thread): one looping GLOBALFOCUS buffer of Refined's
+{
+    SndWfx w = { 1, 1, SND_KA_RATE, SND_KA_RATE * 2, 2, 16, 0 };
+    SndDesc d;
+    void *b = NULL;
+    HRESULT hc, hf = E_FAIL, hp = E_FAIL;
+    const int db10 = SndKeepLevelDb10(g_sndKeepLevel);
+    if (!g_sndKeepOn) return;
+    if (!ds) {
+        Log("sound: keep-awake: no sound device: none");
+        return;
+    }
+    SndKeepAwakeFill(g_sndKeepPcm, SND_KA_SAMPLES, g_sndKeepLevel);
+    memset(&d, 0, sizeof d);
+    d.size = sizeof d;
+    d.flags = SND_DSBCAPS_GLOBALFOCUS;  // no CTRLVOLUME: full volume; Night Mode and the pan law never see it
+    d.bytes = sizeof g_sndKeepPcm;
+    d.wfx = &w;
+    __try {
+        hc = ((SndCreate_t)SND_VTC(ds, 3))(ds, &d, &b, NULL);
+        if (SUCCEEDED(hc) && b) {
+            hf = SndKeepFill(b);
+            if (SUCCEEDED(hf)) hp = ((SndPlay_t)SND_VTC(b, 12))(b, 0, 0, 1);  // DSBPLAY_LOOPING
+        }
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        hc = E_UNEXPECTED;
+    }
+    if (FAILED(hc) || !b || FAILED(hf) || FAILED(hp)) {
+        if (b) __try { ((SndRel_t)SND_VTC(b, 2))(b); } __except (EXCEPTION_EXECUTE_HANDLER) { }
+        LogAnomaly("sound", "keep-awake: DirectSound would not make or play its buffer (create hr %08lX, fill hr %08lX, play hr %08lX): "
+                   "none this session (a wireless headset may still fall asleep behind other windows)", (unsigned long)hc,
+                   (unsigned long)hf, (unsigned long)hp);
+        return;
+    }
+    g_sndKeepBuf = b;
+    g_sndKeepAt = GetTickCount();
+    Log("sound: keep-awake: on: a 45 Hz tone at %d.%d dBFS (level %d of 32767, far below hearing) loops under the game's sound, also "
+        "while another window is in front (DirectSound's global focus): the sound device never carries a silent stream, so a "
+        "wireless headset stays awake", db10 / 10, (db10 < 0 ? -db10 : db10) % 10, g_sndKeepLevel);
+}
+static void SndKeepCheck(void)  // every 2 s (the frame end): played again when DirectSound lost or stopped it
+{
+    void *const b = g_sndKeepBuf;
+    DWORD st = 0;
+    HRESULT h, hr = S_OK, hf = S_OK, hp = S_OK;
+    static LONG s_q;
+    if (!b || GetTickCount() - g_sndKeepAt < 2000) return;
+    g_sndKeepAt = GetTickCount();
+    h = ((SndStatus_t)SND_VTC(b, 9))(b, &st);
+    if (FAILED(h)) {
+        if (LogQuota(&s_q, 10)) Log("sound: keep-awake: GetStatus hr %08lX (the device may be gone)", (unsigned long)h);
+        return;
+    }
+    if ((st & 1) && !(st & 2)) return;  // DSBSTATUS_PLAYING, not BUFFERLOST
+    if (st & 2) {
+        hr = ((SndRestore_t)SND_VTC(b, 20))(b);
+        if (SUCCEEDED(hr)) hf = SndKeepFill(b);
+    }
+    if (SUCCEEDED(hr) && SUCCEEDED(hf)) hp = ((SndPlay_t)SND_VTC(b, 12))(b, 0, 0, 1);
+    if (LogQuota(&s_q, 10))
+        Log("sound: keep-awake: it had stopped (status %08lX%s): restore hr %08lX, fill hr %08lX, play hr %08lX", (unsigned long)st,
+            st & 2 ? ", the buffer was lost" : "", (unsigned long)hr, (unsigned long)hf, (unsigned long)hp);
+}
+static void SndFocusTick(void)  // the frame end: each change of the game's window being in front, with what it does to the sound
+{
+    const DWORD now = GetTickCount();
+    int f;
+    static LONG s_q;
+    if (now - g_sndFocusAt < 250) return;
+    g_sndFocusAt = now;
+    f = InFront() ? 1 : 0;
+    if (g_sndFront < 0 || f == g_sndFront) {
+        if (g_sndFront < 0) g_sndFront = f, g_sndFrontAt = now;
+        return;
+    }
+    {
+        const DWORD ms = now - g_sndFrontAt;
+        g_sndFront = f, g_sndFrontAt = now;
+        if (!LogQuota(&s_q, 40)) {
+            if (s_q == 41) Log("sound: focus: 40 changes logged this session: the rest are not");
+            return;
+        }
+        if (!f)
+            Log("sound: focus: another window is in front (the game was in front %lu.%lu s): Background %s: %s; keep-awake %s",
+                ms / 1000, ms % 1000 / 100, kSndBgName[g_sndBg],
+                !g_sndBgOn || !g_sndBg ? "DirectSound mutes the game's sounds"
+                                       : "the game's sounds go on (those started since Background Play)",
+                g_sndKeepBuf ? "plays on (the device stays awake)" : "none");
+        else
+            Log("sound: focus: the game is in front again after %lu.%lu s behind other windows: its sounds play%s", ms / 1000,
+                ms % 1000 / 100, g_sndKeepBuf ? " (the keep-awake signal kept the device awake)" : "");
+    }
+}
+
+// The device watch: Windows' default render device (MMDevAPI), on a thread of its own (COM in the multithreaded apartment;
+// ole32 loaded at run time: build.cmd links no COM library). IMMDeviceEnumerator: 4 GetDefaultAudioEndpoint, 5 GetDevice,
+// 6 RegisterEndpointNotificationCallback; IMMDevice: 4 OpenPropertyStore, 5 GetId; IPropertyStore: 5 GetValue.
+typedef struct { GUID fmtid; DWORD pid; } SdPropKey;
+typedef struct { WORD vt, r1, r2, r3; union { WCHAR *pwsz; unsigned __int64 pad; } v; } SdPropVar;  // PROPVARIANT (16 on x86)
+typedef HRESULT(WINAPI *SdCoInit_t)(void *, DWORD);
+typedef HRESULT(WINAPI *SdCoCreate_t)(const GUID *, void *, DWORD, const GUID *, void **);
+typedef void(WINAPI *SdCoFree_t)(void *);
+typedef HRESULT(WINAPI *SdPvClear_t)(SdPropVar *);
+typedef HRESULT(__stdcall *SdDefault_t)(void *, int, int, void **);
+typedef HRESULT(__stdcall *SdGetDev_t)(void *, const WCHAR *, void **);
+typedef HRESULT(__stdcall *SdRegister_t)(void *, void *);
+typedef HRESULT(__stdcall *SdOpenProps_t)(void *, DWORD, void **);
+typedef HRESULT(__stdcall *SdGetId_t)(void *, WCHAR **);
+typedef HRESULT(__stdcall *SdGetValue_t)(void *, const SdPropKey *, SdPropVar *);
+static const GUID kSdClsidEnum = { 0xBCDE0395, 0xE52F, 0x467C, { 0x8E, 0x3D, 0xC4, 0x57, 0x92, 0x91, 0x69, 0x2E } };
+static const GUID kSdIidEnum = { 0xA95664D2, 0x9614, 0x4F35, { 0xA7, 0x46, 0xDE, 0x8D, 0xB6, 0x36, 0x17, 0xE6 } };
+static const GUID kSdIidNotify = { 0x7991EEC9, 0x7E89, 0x4D85, { 0x83, 0x90, 0x6C, 0x70, 0x3C, 0xEC, 0x60, 0xC0 } };
+static const GUID kSdIidUnknown = { 0x00000000, 0x0000, 0x0000, { 0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46 } };
+static const SdPropKey kSdFriendlyName = { { 0xA45C254E, 0xDF1C, 0x4EFD, { 0x80, 0x20, 0x67, 0xD1, 0x46, 0xA8, 0x50, 0xE0 } }, 14 };
+static SdCoFree_t g_sdCoFree;
+static SdPvClear_t g_sdPvClear;
+static CRITICAL_SECTION g_sdCs;
+static HANDLE g_sdEvt;
+static WCHAR g_sdGameId[256];       // the device the game plays on (set before the callback is registered; empty = none)
+static WCHAR g_sdNewId[256];        // the latest default (g_sdCs)
+static volatile LONG g_sdNewDefault, g_sdGameState = -1;  // a default change to look at; the game device's new state (-1 none)
+// IMMNotificationClient (one static object: AddRef / Release count nothing). These run on MMDevAPI's threads: they only
+// copy and signal; the watch thread looks names up and logs.
+typedef struct { const void *const *vtbl; } SdNotify;
+static HRESULT __stdcall SdnQi(SdNotify *s, const GUID *iid, void **out)
+{
+    if (!out) return E_POINTER;
+    if (iid && (!memcmp(iid, &kSdIidUnknown, sizeof(GUID)) || !memcmp(iid, &kSdIidNotify, sizeof(GUID)))) {
+        *out = s;
+        return S_OK;
+    }
+    *out = NULL;
+    return E_NOINTERFACE;
+}
+static ULONG __stdcall SdnAddRef(SdNotify *s) { (void)s; return 2; }
+static ULONG __stdcall SdnRelease(SdNotify *s) { (void)s; return 1; }
+static HRESULT __stdcall SdnState(SdNotify *s, const WCHAR *id, DWORD st)
+{
+    (void)s;
+    if (id && g_sdGameId[0] && !wcscmp(id, g_sdGameId)) {
+        InterlockedExchange(&g_sdGameState, (LONG)st);
+        SetEvent(g_sdEvt);
+    }
+    return S_OK;
+}
+static HRESULT __stdcall SdnAdded(SdNotify *s, const WCHAR *id) { (void)s, (void)id; return S_OK; }
+static HRESULT __stdcall SdnRemoved(SdNotify *s, const WCHAR *id) { (void)s, (void)id; return S_OK; }
+static HRESULT __stdcall SdnDefault(SdNotify *s, int flow, int role, const WCHAR *id)
+{
+    (void)s;
+    if (flow != 0 || role != 0) return S_OK;  // eRender, eConsole (DirectSound's default device)
+    EnterCriticalSection(&g_sdCs);
+    if (id) wcsncpy_s(g_sdNewId, sizeof g_sdNewId / sizeof g_sdNewId[0], id, _TRUNCATE);
+    else g_sdNewId[0] = 0;
+    LeaveCriticalSection(&g_sdCs);
+    InterlockedExchange(&g_sdNewDefault, 1);
+    SetEvent(g_sdEvt);
+    return S_OK;
+}
+static HRESULT __stdcall SdnProp(SdNotify *s, const WCHAR *id, SdPropKey key) { (void)s, (void)id, (void)key; return S_OK; }
+static const void *const kSdnVtbl[8] = { (const void *)SdnQi, (const void *)SdnAddRef, (const void *)SdnRelease, (const void *)SdnState,
+                                         (const void *)SdnAdded, (const void *)SdnRemoved, (const void *)SdnDefault, (const void *)SdnProp };
+static SdNotify g_sdNotify = { kSdnVtbl };
+static void SdName(void *en, const WCHAR *id, char *out, int n)  // a device's friendly name (ASCII), "?" when it has none
+{
+    void *dev = NULL, *ps = NULL;
+    SdPropVar pv;
+    strcpy_s(out, n, "?");
+    if (!id || !id[0]) {
+        strcpy_s(out, n, "no device");
+        return;
+    }
+    memset(&pv, 0, sizeof pv);
+    if (SUCCEEDED(((SdGetDev_t)SND_VTC(en, 5))(en, id, &dev)) && dev) {
+        if (SUCCEEDED(((SdOpenProps_t)SND_VTC(dev, 4))(dev, 0 /*STGM_READ*/, &ps)) && ps) {
+            if (SUCCEEDED(((SdGetValue_t)SND_VTC(ps, 5))(ps, &kSdFriendlyName, &pv)) && pv.vt == 31 /*VT_LPWSTR*/ && pv.v.pwsz)
+                SndDevNameAscii((const unsigned short *)pv.v.pwsz, out, n);
+            if (g_sdPvClear) g_sdPvClear(&pv);
+            ((SndRel_t)SND_VTC(ps, 2))(ps);
+        }
+        ((SndRel_t)SND_VTC(dev, 2))(dev);
+    }
+}
+static DWORD WINAPI SdThread(LPVOID haveDs)
+{
+    HMODULE ole = LoadLibraryA("ole32.dll");
+    SdCoInit_t coInit = ole ? (SdCoInit_t)GetProcAddress(ole, "CoInitializeEx") : NULL;
+    SdCoCreate_t coCreate = ole ? (SdCoCreate_t)GetProcAddress(ole, "CoCreateInstance") : NULL;
+    void *en = NULL, *dev = NULL;
+    char game[96], now[96];
+    HRESULT h;
+    int pending = 0, gone = 0;
+    g_sdCoFree = ole ? (SdCoFree_t)GetProcAddress(ole, "CoTaskMemFree") : NULL;
+    g_sdPvClear = ole ? (SdPvClear_t)GetProcAddress(ole, "PropVariantClear") : NULL;
+    if (!coInit || !coCreate || !g_sdCoFree) {
+        Log("sound: device watch: ole32.dll's COM functions are not there: no device watch");
+        return 0;
+    }
+    __try {
+        h = coInit(NULL, 0 /*COINIT_MULTITHREADED*/);
+        if (FAILED(h)) {
+            Log("sound: device watch: CoInitializeEx hr %08lX: no device watch", (unsigned long)h);
+            return 0;
+        }
+        h = coCreate(&kSdClsidEnum, NULL, 0x17 /*CLSCTX_ALL*/, &kSdIidEnum, &en);
+        if (FAILED(h) || !en) {
+            Log("sound: device watch: no MMDevice enumerator (hr %08lX): no device watch", (unsigned long)h);
+            return 0;
+        }
+        g_sdGameId[0] = 0;
+        if (haveDs && SUCCEEDED(((SdDefault_t)SND_VTC(en, 4))(en, 0, 0, &dev)) && dev) {
+            WCHAR *id = NULL;
+            if (SUCCEEDED(((SdGetId_t)SND_VTC(dev, 5))(dev, &id)) && id) {
+                wcsncpy_s(g_sdGameId, sizeof g_sdGameId / sizeof g_sdGameId[0], id, _TRUNCATE);
+                g_sdCoFree(id);
+            }
+            ((SndRel_t)SND_VTC(dev, 2))(dev);
+        }
+        SdName(en, g_sdGameId, game, sizeof game);
+        h = ((SdRegister_t)SND_VTC(en, 6))(en, &g_sdNotify);
+        if (FAILED(h)) {
+            Log("sound: device: the game plays on \"%s\"; the device watch could not register (hr %08lX): changes are not logged", game,
+                (unsigned long)h);
+            return 0;
+        }
+        Log("sound: device: the game plays on \"%s\" (%s); a change of Windows' default device is logged (DirectSound stays on the "
+            "device it started with: restart the game to use another one)", game,
+            haveDs ? "Windows' default when its sound started" : "no sound device when the game started");
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        LogAnomaly("sound", "device watch: the start faulted: no device watch");
+        return 0;
+    }
+    for (;;) {
+        LONG st;
+        WaitForSingleObject(g_sdEvt, INFINITE);
+        __try {
+            if (InterlockedExchange(&g_sdNewDefault, 0)) {
+                WCHAR id[256];
+                int isGame, k;
+                static LONG s_q;
+                EnterCriticalSection(&g_sdCs);
+                wcscpy_s(id, sizeof id / sizeof id[0], g_sdNewId);
+                LeaveCriticalSection(&g_sdCs);
+                isGame = id[0] && g_sdGameId[0] && !wcscmp(id, g_sdGameId);
+                k = SndDevStep(isGame, &pending);
+                SdName(en, id, now, sizeof now);
+                if (k != SND_DEV_SAME && LogQuota(&s_q, 20)) {
+                    if (k == SND_DEV_BACK)
+                        Log("sound: device: the default sound device is the game's \"%s\" again: nothing to do", now);
+                    else
+                        Log("sound: device: the default sound device changed to \"%s\"; restart the game to use it (the game keeps "
+                            "playing on \"%s\": DirectSound stays on the device it started with; following it live is not built)",
+                            now, game);
+                }
+            }
+            st = InterlockedExchange(&g_sdGameState, -1);
+            if (st != -1) {
+                static LONG s_q;
+                const int nowGone = st != 1;
+                if (nowGone != gone && LogQuota(&s_q, 10))
+                    Log(nowGone ? "sound: device: the game's sound device \"%s\" is %s: no game sound until it is back (restart the game "
+                                  "to use another device)"
+                                : "sound: device: the game's sound device \"%s\" is %s again (if the game stays silent, restart it)",
+                        game, SndDevStateName((unsigned long)st));
+                gone = nowGone;
+            }
+            InterlockedExchange(&g_sndDevNote, pending || gone);
+        } __except (EXCEPTION_EXECUTE_HANDLER) {
+            static LONG s_f;
+            if (LogQuota(&s_f, 3)) LogAnomaly("sound", "device watch: a change faulted while it was looked at");
+        }
+    }
+}
+static void SdStart(void *ds)  // the first frame (the game's DirectSound exists by then)
+{
+    HANDLE t;
+    if (!g_sndDevWatch) return;
+    InitializeCriticalSection(&g_sdCs);
+    g_sdEvt = CreateEventA(NULL, FALSE, FALSE, NULL);
+    t = g_sdEvt ? CreateThread(NULL, 0, SdThread, ds, 0, NULL) : NULL;
+    if (!t) {
+        Log("sound: device watch: no thread (error %lu): none", GetLastError());
+        return;
+    }
+    CloseHandle(t);
+}
 static void SndFirstFrame(void)
 {
     char spk[64] = "unknown", p3[160] = "", p2[160] = "";
@@ -703,6 +1172,8 @@ static void SndFirstFrame(void)
         g_sndMonoOn || g_sndMusicOn ? "on" : "off", spk);
     if (p3[0]) LogV("sound: reverb probe: %s; %s", p3, p2);
     g_sndMinuteAt = GetTickCount();
+    SndKeepStart(ds);  // v3.56 SD356: the keep-awake buffer
+    SdStart(ds);       // v3.56 SD356: the device watch (its own thread)
 }
 
 // ---------------------------------------------------------------- the frame end (FrameEndC, the game thread, every frame)
@@ -759,6 +1230,12 @@ static void SndFrameTick(void)
         if (GetTickCount() - g_sndMinuteAt >= 60000) {
             g_sndMinuteAt = GetTickCount();
             SndMinute();
+        }
+        SndFocusTick();  // v3.56 SD356
+        SndKeepCheck();
+        if (g_sndDevNote != g_sndDevNoteShown) {  // the device watch's thread set it: the Sound Mode line follows here
+            g_sndDevNoteShown = g_sndDevNote;
+            SndTextsDynamic();
         }
     } __except (EXCEPTION_EXECUTE_HANDLER) {
         g_sndTickOff = 1;
@@ -828,6 +1305,16 @@ static int __cdecl SndNightIn(BYTE *cfg, int count)
     return 0;
 }
 static int __cdecl SndNightDesc(void) { return MSG_V52 + SNDM_D_NIGHT; }
+static int __cdecl SndBgGet(void) { return g_sndBg ? 1 : 0; }  // v3.56 SD356: Background (inert without its sites)
+static int __cdecl SndBgIn(BYTE *cfg, int count)
+{
+    const int v = StepValue(SndBgGet(), SND_BG_N);
+    (void)cfg;
+    (void)count;
+    if (v >= 0 && g_sndBgOn) SndSetBg(v, "Options");
+    return 0;
+}
+static int __cdecl SndBgDesc(void) { return SDM_BASE + SDM_D_BG; }
 static int __cdecl SndBackDesc(void) { return MSG_V52 + SNDM_D_BACK; }
 static int __cdecl SndBackIn(BYTE *cfg, int count)  // Enter fades back to Option 1, on Sound
 {
@@ -845,13 +1332,14 @@ static void SndBuildPage(const DWORD *stockRows)
     FillRow(g_rowsSnd, SndWidthIn, SndWidthGet, g_sndWidthIds, 11, MSG_V52 + SNDM_L_WIDTH, SndWidthDesc);
     FillRow(g_rowsSnd + 7, SndRevIn, SndRevGet, g_sndRevIds, 2, MSG_V52 + SNDM_L_REV, SndRevDesc);
     FillRow(g_rowsSnd + 14, SndNightIn, SndNightGet, g_sndNightIds, SND_NIGHT_N, MSG_V52 + SNDM_L_NIGHT, SndNightDesc);
-    memcpy(g_rowsSnd + 21, stockRows + 6 * 7, 7 * 4);
-    g_rowsSnd[21 + 0] = (DWORD)(ULONG_PTR)SndBackIn;
-    g_rowsSnd[21 + 5] = MSG_V52 + SNDM_L_BACK;
-    g_rowsSnd[21 + 6] = (DWORD)(ULONG_PTR)SndBackDesc;
-    g_rowsSnd[28] = 0;
+    FillRow(g_rowsSnd + 21, SndBgIn, SndBgGet, g_sndBgIds, SND_BG_N, SDM_BASE + SDM_L_BG, SndBgDesc);  // v3.56 SD356: row 3
+    memcpy(g_rowsSnd + 28, stockRows + 6 * 7, 7 * 4);  // v3.56 SD356: Back is row 4 (was 3)
+    g_rowsSnd[28 + 0] = (DWORD)(ULONG_PTR)SndBackIn;
+    g_rowsSnd[28 + 5] = MSG_V52 + SNDM_L_BACK;
+    g_rowsSnd[28 + 6] = (DWORD)(ULONG_PTR)SndBackDesc;
+    g_rowsSnd[35] = 0;
     g_opTable[OP_SND] = g_rowsSnd;
-    g_opCount[OP_SND] = 4;
+    g_opCount[OP_SND] = 5;
     g_opTitle[OP_SND] = MSG_V52 + SNDM_T;
     g_sndPageBuilt = 1;
 }
@@ -895,11 +1383,12 @@ static int SndMenuOn(void) { return g_sndMenu; }
 static void SndSnapshot(void)
 {
     g_snapSndMode = SndModeGet(), g_snapSndWidth = g_sndWidth, g_snapSndReverb = g_sndReverb, g_snapSndNight = g_sndNight;
+    g_snapSndBg = g_sndBg;  // v3.56 SD356
 }
 static int SndChanged(void)
 {
     return g_snapOn && g_sndRowOn && (SndModeGet() != g_snapSndMode || g_sndWidth != g_snapSndWidth || g_sndReverb != g_snapSndReverb ||
-                                      g_sndNight != g_snapSndNight);
+                                      g_sndNight != g_snapSndNight || g_sndBg != g_snapSndBg);  // v3.56 SD356: + Background
 }
 static int SndRowChanged(int row)  // Option 1's row 5; -1 = not ours
 {
@@ -909,7 +1398,8 @@ static int SndRowChanged(int row)  // Option 1's row 5; -1 = not ours
 static int SndPageRowChanged(int row)
 {
     if (!g_snapOn) return 0;
-    return row == 0 ? g_sndWidth != g_snapSndWidth : row == 1 ? g_sndReverb != g_snapSndReverb : row == 2 ? g_sndNight != g_snapSndNight : 0;
+    return row == 0 ? g_sndWidth != g_snapSndWidth : row == 1 ? g_sndReverb != g_snapSndReverb : row == 2 ? g_sndNight != g_snapSndNight
+         : row == 3 ? g_sndBg != g_snapSndBg : 0;  // v3.56 SD356: row 3 Background
 }
 // DiscardOwn ("No" at "Do you want to change the options?", after the game copied its backup back and ran 0x524320, which
 // does not apply Sound): the rows back to how Options opened, and the engine to the Sound byte the backup holds
@@ -920,6 +1410,7 @@ static void SndDiscard(void)
     if (g_sndWidth != g_snapSndWidth) SndSetWidth((int)g_snapSndWidth, "Options discarded");
     if (g_sndReverb != g_snapSndReverb) SndSetReverb((int)g_snapSndReverb, "Options discarded");
     if (g_sndNight != g_snapSndNight) SndSetNight((int)g_snapSndNight, "Options discarded");
+    if (g_sndBg != g_snapSndBg) SndSetBg((int)g_snapSndBg, "Options discarded");  // v3.56 SD356
     if (SND_BYTE <= 2 && SND_CACHE != SND_BYTE) {
         Log("sound: Options discarded: the engine back to Sound %d (it kept %d, the last value passed over)", SND_BYTE, SND_CACHE);
         SND_APPLY(SND_BYTE);

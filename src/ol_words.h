@@ -17,9 +17,13 @@
 #define OLW_DISPLAY_ASPECT_RATIO_V_4_3               "4:3"  /* Display / Aspect Ratio */
 #define OLW_DISPLAY_ASPECT_RATIO_VD_4_3              "4:3: the game's own shape."  /* Display / Aspect Ratio / 4:3 */
 #define OLW_DISPLAY_ASPECT_RATIO_V_16_10             "16:10"  /* Display / Aspect Ratio */
+#define OLW_DISPLAY_ASPECT_RATIO_VD_16_10            "16:10: a little wider than 4:3."  /* Display / Aspect Ratio / 16:10 */
 #define OLW_DISPLAY_ASPECT_RATIO_V_16_9              "16:9"  /* Display / Aspect Ratio */
+#define OLW_DISPLAY_ASPECT_RATIO_VD_16_9             "16:9: widescreen, as most screens."  /* Display / Aspect Ratio / 16:9 */
 #define OLW_DISPLAY_ASPECT_RATIO_V_21_9              "21:9"  /* Display / Aspect Ratio */
+#define OLW_DISPLAY_ASPECT_RATIO_VD_21_9             "21:9: an ultrawide screen."  /* Display / Aspect Ratio / 21:9 */
 #define OLW_DISPLAY_ASPECT_RATIO_V_32_9              "32:9"  /* Display / Aspect Ratio */
+#define OLW_DISPLAY_ASPECT_RATIO_VD_32_9             "32:9: a super ultrawide screen."  /* Display / Aspect Ratio / 32:9 */
 #define OLW_DISPLAY_DISPLAY_MODE_L                   "Display Mode"  /* Display / Display Mode */
 #define OLW_DISPLAY_DISPLAY_MODE_D                   "A window, or the whole screen without a frame."  /* Display / Display Mode */
 #define OLW_DISPLAY_DISPLAY_MODE_V_WINDOWED          "Windowed"  /* Display / Display Mode */
@@ -31,9 +35,13 @@
 #define OLW_DISPLAY_MONITOR_V_MAIN                   "Main"  /* Display / Monitor */
 #define OLW_DISPLAY_MONITOR_VD_MAIN                  "Main: the screen Windows calls main."  /* Display / Monitor / Main */
 #define OLW_DISPLAY_MONITOR_V_SECOND                 "Second"  /* Display / Monitor */
+#define OLW_DISPLAY_MONITOR_VD_SECOND                "Second: the next screen Windows lists."  /* Display / Monitor / Second */
 #define OLW_DISPLAY_MONITOR_V_THIRD                  "Third"  /* Display / Monitor */
+#define OLW_DISPLAY_MONITOR_VD_THIRD                 "Third: the third screen Windows lists."  /* Display / Monitor / Third */
 #define OLW_DISPLAY_MONITOR_V_FOURTH                 "Fourth"  /* Display / Monitor */
+#define OLW_DISPLAY_MONITOR_VD_FOURTH                "Fourth: the fourth screen Windows lists."  /* Display / Monitor / Fourth */
 #define OLW_DISPLAY_MONITOR_V_DISPLAY_5              "Display 5"  /* Display / Monitor */
+#define OLW_DISPLAY_MONITOR_VD_DISPLAY_5             "Display 5: the fifth screen Windows lists."  /* Display / Monitor / Display 5 */
 #define OLW_DISPLAY_FRAME_RATE_L                     "Frame Rate"  /* Display / Frame Rate */
 #define OLW_DISPLAY_FRAME_RATE_D                     "Frames a second. 60 is smoother."  /* Display / Frame Rate */
 #define OLW_DISPLAY_FRAME_RATE_V_30                  "30"  /* Display / Frame Rate */
@@ -47,15 +55,15 @@
 #define OLW_DISPLAY_RENDERER_L                       "Renderer"  /* Display / Renderer */
 #define OLW_DISPLAY_RENDERER_D                       "How the game draws. Applies at the next start."  /* Display / Renderer */
 #define OLW_DISPLAY_RENDERER_V_DIRECT3D_11           "Direct3D 11"  /* Display / Renderer */
-#define OLW_DISPLAY_RENDERER_VD_DIRECT3D_11          "Direct3D 11 through dgVoodoo2 (default). Next start."  /* Display / Renderer / Direct3D 11 */
+#define OLW_DISPLAY_RENDERER_VD_DIRECT3D_11          "Direct3D 11: dgVoodoo2, the default. Next start."  /* Display / Renderer / Direct3D 11 */
 #define OLW_DISPLAY_RENDERER_V_DIRECT3D_12           "Direct3D 12"  /* Display / Renderer */
 #define OLW_DISPLAY_RENDERER_VD_DIRECT3D_12          "Direct3D 12: stutters entering rooms. Next start."  /* Display / Renderer / Direct3D 12 */
 #define OLW_DISPLAY_RENDERER_V_STOCK                 "Stock"  /* Display / Renderer */
-#define OLW_DISPLAY_RENDERER_VD_STOCK                "The game's own Direct3D 9. Next start."  /* Display / Renderer / Stock */
+#define OLW_DISPLAY_RENDERER_VD_STOCK                "Stock: the game's own Direct3D 9. Next start."  /* Display / Renderer / Stock */
 #define OLW_DISPLAY_RENDERER_V_CUSTOM                "Custom"  /* Display / Renderer */
-#define OLW_DISPLAY_RENDERER_VD_CUSTOM               "Your own dgVoodoo.conf: left as it is."  /* Display / Renderer / Custom */
+#define OLW_DISPLAY_RENDERER_VD_CUSTOM               "Custom: your own dgVoodoo.conf, left as it is."  /* Display / Renderer / Custom */
 #define OLW_DISPLAY_RENDERER_V_UNAVAILABLE           "Unavailable"  /* Display / Renderer */
-#define OLW_DISPLAY_RENDERER_VD_UNAVAILABLE          "Needs SH4 Graphics Plus's files."  /* Display / Renderer / Unavailable */
+#define OLW_DISPLAY_RENDERER_VD_UNAVAILABLE          "Unavailable: needs SH4 Graphics Plus's files."  /* Display / Renderer / Unavailable */
 #define OLW_DISPLAY_BRIGHTNESS_L                     "Brightness"  /* Display / Brightness */
 #define OLW_DISPLAY_BRIGHTNESS_D                     "Opens the brightness test screen."  /* Display / Brightness */
 #define OLW_DISPLAY_GAMMA_L                          "Gamma"  /* Display / Gamma */
@@ -75,7 +83,9 @@
 #define OLW_CONTROLS_VIBRATION_V_LOW                 "Low"  /* Controls / Vibration */
 #define OLW_CONTROLS_VIBRATION_VD_LOW                "Low: the game's own rumble."  /* Controls / Vibration / Low */
 #define OLW_CONTROLS_VIBRATION_V_MEDIUM              "Medium"  /* Controls / Vibration */
+#define OLW_CONTROLS_VIBRATION_VD_MEDIUM             "Medium: stronger than the game's rumble."  /* Controls / Vibration / Medium */
 #define OLW_CONTROLS_VIBRATION_V_HIGH                "High"  /* Controls / Vibration */
+#define OLW_CONTROLS_VIBRATION_VD_HIGH               "High: the strongest rumble."  /* Controls / Vibration / High */
 #define OLW_CONTROLS_ANALOG_MOVEMENT_L               "Analog Movement"  /* Controls / Analog Movement */
 #define OLW_CONTROLS_ANALOG_MOVEMENT_D               "Walk at any angle with the left stick."  /* Controls / Analog Movement */
 #define OLW_CONTROLS_ANALOG_MOVEMENT_V_OFF           "Off"  /* Controls / Analog Movement */
@@ -142,15 +152,21 @@
 #define OLW_STEERING_INVERT_TURN_L                   "Invert Turn"  /* Camera > Steering / Invert Turn */
 #define OLW_STEERING_INVERT_TURN_D                   "Turns the view the other way."  /* Camera > Steering / Invert Turn */
 #define OLW_STEERING_INVERT_TURN_V_OFF               "Off"  /* Camera > Steering / Invert Turn */
+#define OLW_STEERING_INVERT_TURN_VD_OFF              "Off: the view turns the way you push."  /* Camera > Steering / Invert Turn / Off */
 #define OLW_STEERING_INVERT_TURN_V_ON                "On"  /* Camera > Steering / Invert Turn */
+#define OLW_STEERING_INVERT_TURN_VD_ON               "On: the view turns the other way."  /* Camera > Steering / Invert Turn / On */
 #define OLW_STEERING_INVERT_TILT_L                   "Invert Tilt"  /* Camera > Steering / Invert Tilt */
 #define OLW_STEERING_INVERT_TILT_D                   "Tilts the view the other way."  /* Camera > Steering / Invert Tilt */
 #define OLW_STEERING_INVERT_TILT_V_OFF               "Off"  /* Camera > Steering / Invert Tilt */
+#define OLW_STEERING_INVERT_TILT_VD_OFF              "Off: the view tilts the way you push."  /* Camera > Steering / Invert Tilt / Off */
 #define OLW_STEERING_INVERT_TILT_V_ON                "On"  /* Camera > Steering / Invert Tilt */
+#define OLW_STEERING_INVERT_TILT_VD_ON               "On: the view tilts the other way."  /* Camera > Steering / Invert Tilt / On */
 #define OLW_STEERING_WALL_ZOOM_L                     "Wall Zoom"  /* Camera > Steering / Wall Zoom */
 #define OLW_STEERING_WALL_ZOOM_D                     "Moves in instead of through walls."  /* Camera > Steering / Wall Zoom */
 #define OLW_STEERING_WALL_ZOOM_V_OFF                 "Off"  /* Camera > Steering / Wall Zoom */
+#define OLW_STEERING_WALL_ZOOM_VD_OFF                "Off: the camera may go through walls."  /* Camera > Steering / Wall Zoom / Off */
 #define OLW_STEERING_WALL_ZOOM_V_ON                  "On"  /* Camera > Steering / Wall Zoom */
+#define OLW_STEERING_WALL_ZOOM_VD_ON                 "On: the camera moves in at walls."  /* Camera > Steering / Wall Zoom / On */
 #define OLW_STEERING_WALL_MARGIN_L                   "Wall Margin"  /* Camera > Steering / Wall Margin */
 #define OLW_STEERING_WALL_MARGIN_D                   "Gap kept from walls (Wall Zoom on)."  /* Camera > Steering / Wall Margin */
 #define OLW_STEERING_WALL_MARGIN_V_50                "50"  /* Camera > Steering / Wall Margin */
@@ -166,6 +182,7 @@
 #define OLW_ROOM302_LOOK_DOWN_L                      "Look Down"  /* Controls > Room 302 / Look Down */
 #define OLW_ROOM302_LOOK_DOWN_D                      "How far down you can look. Game: 50."  /* Controls > Room 302 / Look Down */
 #define OLW_ROOM302_LOOK_DOWN_V_GAME                 "Game"  /* Controls > Room 302 / Look Down */
+#define OLW_ROOM302_LOOK_DOWN_VD_GAME                "Game: the game's own 50 degrees."  /* Controls > Room 302 / Look Down / Game */
 #define OLW_ROOM302_LOOK_DOWN_V_60                   "60"  /* Controls > Room 302 / Look Down */
 #define OLW_ROOM302_LOOK_DOWN_V_65                   "65"  /* Controls > Room 302 / Look Down */
 #define OLW_ROOM302_LOOK_DOWN_V_70                   "70"  /* Controls > Room 302 / Look Down */
@@ -175,6 +192,7 @@
 #define OLW_ROOM302_LOOK_UP_L                        "Look Up"  /* Controls > Room 302 / Look Up */
 #define OLW_ROOM302_LOOK_UP_D                        "How far up you can look. Game: 25."  /* Controls > Room 302 / Look Up */
 #define OLW_ROOM302_LOOK_UP_V_GAME                   "Game"  /* Controls > Room 302 / Look Up */
+#define OLW_ROOM302_LOOK_UP_VD_GAME                  "Game: the game's own 25 degrees."  /* Controls > Room 302 / Look Up / Game */
 #define OLW_ROOM302_LOOK_UP_V_35                     "35"  /* Controls > Room 302 / Look Up */
 #define OLW_ROOM302_LOOK_UP_V_45                     "45"  /* Controls > Room 302 / Look Up */
 #define OLW_ROOM302_LOOK_UP_V_60                     "60"  /* Controls > Room 302 / Look Up */
@@ -184,6 +202,7 @@
 #define OLW_ROOM302_LOOK_SMOOTHING_L                 "Look Smoothing"  /* Controls > Room 302 / Look Smoothing */
 #define OLW_ROOM302_LOOK_SMOOTHING_D                 "Eases turning. Off: the game's own."  /* Controls > Room 302 / Look Smoothing */
 #define OLW_ROOM302_LOOK_SMOOTHING_V_OFF             "Off"  /* Controls > Room 302 / Look Smoothing */
+#define OLW_ROOM302_LOOK_SMOOTHING_VD_OFF            "Off: the game's own look, no easing."  /* Controls > Room 302 / Look Smoothing / Off */
 #define OLW_ROOM302_LOOK_SMOOTHING_V_0_5             "0.5"  /* Controls > Room 302 / Look Smoothing */
 #define OLW_ROOM302_LOOK_SMOOTHING_V_1               "1"  /* Controls > Room 302 / Look Smoothing */
 #define OLW_ROOM302_LOOK_SMOOTHING_V_1_5             "1.5"  /* Controls > Room 302 / Look Smoothing */
@@ -213,6 +232,7 @@
 #define OLW_ROOM302_WALK_SPEED_V_0_5                 "0.5"  /* Controls > Room 302 / Walk Speed */
 #define OLW_ROOM302_WALK_SPEED_V_0_65                "0.65"  /* Controls > Room 302 / Walk Speed */
 #define OLW_ROOM302_WALK_SPEED_V_GAME                "Game"  /* Controls > Room 302 / Walk Speed */
+#define OLW_ROOM302_WALK_SPEED_VD_GAME               "Game: the game's own walking speed."  /* Controls > Room 302 / Walk Speed / Game */
 #define OLW_ROOM302_WALK_SPEED_V_1_2                 "1.2"  /* Controls > Room 302 / Walk Speed */
 #define OLW_INTERFACE_LANGUAGE_L                     "Language"  /* Interface / Language */
 #define OLW_INTERFACE_LANGUAGE_D                     "Language of the game's text."  /* Interface / Language */
@@ -276,71 +296,113 @@
 #define OLW_SUBTITLES_SIZE_L                         "Size"  /* Interface > Subtitles / Size */
 #define OLW_SUBTITLES_SIZE_D                         "Text size; long lines are fitted."  /* Interface > Subtitles / Size */
 #define OLW_SUBTITLES_SIZE_V_SMALL                   "Small"  /* Interface > Subtitles / Size */
+#define OLW_SUBTITLES_SIZE_VD_SMALL                  "Small: smaller than the game's."  /* Interface > Subtitles / Size / Small */
 #define OLW_SUBTITLES_SIZE_V_NORMAL                  "Normal"  /* Interface > Subtitles / Size */
+#define OLW_SUBTITLES_SIZE_VD_NORMAL                 "Normal: the game's own size."  /* Interface > Subtitles / Size / Normal */
 #define OLW_SUBTITLES_SIZE_V_LARGE                   "Large"  /* Interface > Subtitles / Size */
+#define OLW_SUBTITLES_SIZE_VD_LARGE                  "Large: bigger than the game's."  /* Interface > Subtitles / Size / Large */
 #define OLW_SUBTITLES_SIZE_V_HUGE                    "Huge"  /* Interface > Subtitles / Size */
+#define OLW_SUBTITLES_SIZE_VD_HUGE                   "Huge: the biggest; long lines are fitted."  /* Interface > Subtitles / Size / Huge */
 #define OLW_SUBTITLES_COLOUR_L                       "Colour"  /* Interface > Subtitles / Colour */
 #define OLW_SUBTITLES_COLOUR_D                       "Text colour."  /* Interface > Subtitles / Colour */
 #define OLW_SUBTITLES_COLOUR_V_WHITE                 "White"  /* Interface > Subtitles / Colour */
+#define OLW_SUBTITLES_COLOUR_VD_WHITE                "White: the game's own colour."  /* Interface > Subtitles / Colour / White */
 #define OLW_SUBTITLES_COLOUR_V_YELLOW                "Yellow"  /* Interface > Subtitles / Colour */
+#define OLW_SUBTITLES_COLOUR_VD_YELLOW               "Yellow: yellow text."  /* Interface > Subtitles / Colour / Yellow */
 #define OLW_SUBTITLES_COLOUR_V_CYAN                  "Cyan"  /* Interface > Subtitles / Colour */
+#define OLW_SUBTITLES_COLOUR_VD_CYAN                 "Cyan: cyan text."  /* Interface > Subtitles / Colour / Cyan */
 #define OLW_SUBTITLES_COLOUR_V_GREEN                 "Green"  /* Interface > Subtitles / Colour */
+#define OLW_SUBTITLES_COLOUR_VD_GREEN                "Green: green text."  /* Interface > Subtitles / Colour / Green */
 #define OLW_SUBTITLES_COLOUR_V_RED                   "Red"  /* Interface > Subtitles / Colour */
+#define OLW_SUBTITLES_COLOUR_VD_RED                  "Red: red text."  /* Interface > Subtitles / Colour / Red */
 #define OLW_SUBTITLES_COLOUR_V_PINK                  "Pink"  /* Interface > Subtitles / Colour */
+#define OLW_SUBTITLES_COLOUR_VD_PINK                 "Pink: pink text."  /* Interface > Subtitles / Colour / Pink */
 #define OLW_SUBTITLES_COLOUR_V_ORANGE                "Orange"  /* Interface > Subtitles / Colour */
+#define OLW_SUBTITLES_COLOUR_VD_ORANGE               "Orange: orange text."  /* Interface > Subtitles / Colour / Orange */
 #define OLW_SUBTITLES_COLOUR_V_AMBER                 "Amber"  /* Interface > Subtitles / Colour */
+#define OLW_SUBTITLES_COLOUR_VD_AMBER                "Amber: amber text."  /* Interface > Subtitles / Colour / Amber */
 #define OLW_SUBTITLES_COLOUR_V_ICE_BLUE              "Ice Blue"  /* Interface > Subtitles / Colour */
+#define OLW_SUBTITLES_COLOUR_VD_ICE_BLUE             "Ice Blue: pale blue text."  /* Interface > Subtitles / Colour / Ice Blue */
 #define OLW_SUBTITLES_EDGE_L                         "Edge"  /* Interface > Subtitles / Edge */
 #define OLW_SUBTITLES_EDGE_D                         "Shadow or outline round the letters."  /* Interface > Subtitles / Edge */
 #define OLW_SUBTITLES_EDGE_V_SHADOW                  "Shadow"  /* Interface > Subtitles / Edge */
+#define OLW_SUBTITLES_EDGE_VD_SHADOW                 "Shadow: the game's own drop shadow."  /* Interface > Subtitles / Edge / Shadow */
 #define OLW_SUBTITLES_EDGE_V_NONE                    "None"  /* Interface > Subtitles / Edge */
+#define OLW_SUBTITLES_EDGE_VD_NONE                   "None: no edge round the letters."  /* Interface > Subtitles / Edge / None */
 #define OLW_SUBTITLES_EDGE_V_OUTLINE                 "Outline"  /* Interface > Subtitles / Edge */
+#define OLW_SUBTITLES_EDGE_VD_OUTLINE                "Outline: a dark ring round each letter."  /* Interface > Subtitles / Edge / Outline */
 #define OLW_SUBTITLES_EDGE_V_BOTH                    "Both"  /* Interface > Subtitles / Edge */
 #define OLW_SUBTITLES_EDGE_VD_BOTH                   "Both: outline and shadow."  /* Interface > Subtitles / Edge / Both */
 #define OLW_SUBTITLES_BOX_L                          "Box"  /* Interface > Subtitles / Box */
 #define OLW_SUBTITLES_BOX_D                          "A dark box behind the line."  /* Interface > Subtitles / Box */
 #define OLW_SUBTITLES_BOX_V_NONE                     "None"  /* Interface > Subtitles / Box */
+#define OLW_SUBTITLES_BOX_VD_NONE                    "None: no box, as the game."  /* Interface > Subtitles / Box / None */
 #define OLW_SUBTITLES_BOX_V_TRANSLUCENT              "Translucent"  /* Interface > Subtitles / Box */
+#define OLW_SUBTITLES_BOX_VD_TRANSLUCENT             "Translucent: a see-through dark box."  /* Interface > Subtitles / Box / Translucent */
 #define OLW_SUBTITLES_BOX_V_SOLID                    "Solid"  /* Interface > Subtitles / Box */
+#define OLW_SUBTITLES_BOX_VD_SOLID                   "Solid: a solid dark box."  /* Interface > Subtitles / Box / Solid */
 #define OLW_SUBTITLES_APPEAR_L                       "Appear"  /* Interface > Subtitles / Appear */
 #define OLW_SUBTITLES_APPEAR_D                       "How a line comes in."  /* Interface > Subtitles / Appear */
 #define OLW_SUBTITLES_APPEAR_V_NONE                  "None"  /* Interface > Subtitles / Appear */
+#define OLW_SUBTITLES_APPEAR_VD_NONE                 "None: the line shows at once."  /* Interface > Subtitles / Appear / None */
 #define OLW_SUBTITLES_APPEAR_V_TYPEWRITER            "Typewriter"  /* Interface > Subtitles / Appear */
+#define OLW_SUBTITLES_APPEAR_VD_TYPEWRITER           "Typewriter: letter by letter, with a cursor."  /* Interface > Subtitles / Appear / Typewriter */
 #define OLW_SUBTITLES_APPEAR_V_FADE_IN               "Fade In"  /* Interface > Subtitles / Appear */
+#define OLW_SUBTITLES_APPEAR_VD_FADE_IN              "Fade In: the whole line fades in."  /* Interface > Subtitles / Appear / Fade In */
 #define OLW_SUBTITLES_APPEAR_V_WAVE                  "Wave"  /* Interface > Subtitles / Appear */
+#define OLW_SUBTITLES_APPEAR_VD_WAVE                 "Wave: the letters ripple up and down."  /* Interface > Subtitles / Appear / Wave */
 #define OLW_SUBTITLES_APPEAR_V_GLITCH                "Glitch"  /* Interface > Subtitles / Appear */
+#define OLW_SUBTITLES_APPEAR_VD_GLITCH               "Glitch: bursts of blocks with colour fringes."  /* Interface > Subtitles / Appear / Glitch */
 #define OLW_SUBTITLES_APPEAR_V_BLOOD_DRIP            "Blood Drip"  /* Interface > Subtitles / Appear */
+#define OLW_SUBTITLES_APPEAR_VD_BLOOD_DRIP           "Blood Drip: blood soaks the letters and drips."  /* Interface > Subtitles / Appear / Blood Drip */
 #define OLW_SUBTITLES_APPEAR_V_EMBERS                "Embers"  /* Interface > Subtitles / Appear */
+#define OLW_SUBTITLES_APPEAR_VD_EMBERS               "Embers: glowing embers rise round the line."  /* Interface > Subtitles / Appear / Embers */
 #define OLW_SUBTITLES_VANISH_L                       "Vanish"  /* Interface > Subtitles / Vanish */
 #define OLW_SUBTITLES_VANISH_D                       "How a line goes out."  /* Interface > Subtitles / Vanish */
 #define OLW_SUBTITLES_VANISH_V_NONE                  "None"  /* Interface > Subtitles / Vanish */
+#define OLW_SUBTITLES_VANISH_VD_NONE                 "None: the line goes at once."  /* Interface > Subtitles / Vanish / None */
 #define OLW_SUBTITLES_VANISH_V_FADE_OUT              "Fade Out"  /* Interface > Subtitles / Vanish */
+#define OLW_SUBTITLES_VANISH_VD_FADE_OUT             "Fade Out: the line fades out."  /* Interface > Subtitles / Vanish / Fade Out */
 #define OLW_SUBTITLES_VANISH_V_BURN_OUT              "Burn Out"  /* Interface > Subtitles / Vanish */
+#define OLW_SUBTITLES_VANISH_VD_BURN_OUT             "Burn Out: the line burns away in embers."  /* Interface > Subtitles / Vanish / Burn Out */
 #define OLW_SUBTITLES_VANISH_V_PAPER_PEEL            "Paper Peel"  /* Interface > Subtitles / Vanish */
+#define OLW_SUBTITLES_VANISH_VD_PAPER_PEEL           "Paper Peel: the line peels off like paper."  /* Interface > Subtitles / Vanish / Paper Peel */
 #define OLW_PAUSE_STORAGE_CHEST_L                    "Storage Chest"  /* Interface > Pause Menu / Storage Chest */
 #define OLW_PAUSE_STORAGE_CHEST_D                    "The item box, from the pause."  /* Interface > Pause Menu / Storage Chest */
 #define OLW_PAUSE_STORAGE_CHEST_V_HIDDEN             "Hidden"  /* Interface > Pause Menu / Storage Chest */
+#define OLW_PAUSE_STORAGE_CHEST_VD_HIDDEN            "Hidden: the pause menu does not list it."  /* Interface > Pause Menu / Storage Chest / Hidden */
 #define OLW_PAUSE_STORAGE_CHEST_V_SHOWN              "Shown"  /* Interface > Pause Menu / Storage Chest */
+#define OLW_PAUSE_STORAGE_CHEST_VD_SHOWN             "Shown: the pause Extra Menu lists it."  /* Interface > Pause Menu / Storage Chest / Shown */
 #define OLW_PAUSE_SAVE_GAME_L                        "Save Game"  /* Interface > Pause Menu / Save Game */
 #define OLW_PAUSE_SAVE_GAME_D                        "Save anywhere, from the pause."  /* Interface > Pause Menu / Save Game */
 #define OLW_PAUSE_SAVE_GAME_V_HIDDEN                 "Hidden"  /* Interface > Pause Menu / Save Game */
+#define OLW_PAUSE_SAVE_GAME_VD_HIDDEN                "Hidden: the pause menu does not list it."  /* Interface > Pause Menu / Save Game / Hidden */
 #define OLW_PAUSE_SAVE_GAME_V_SHOWN                  "Shown"  /* Interface > Pause Menu / Save Game */
+#define OLW_PAUSE_SAVE_GAME_VD_SHOWN                 "Shown: the pause Extra Menu lists it."  /* Interface > Pause Menu / Save Game / Shown */
 #define OLW_PAUSE_LOAD_GAME_L                        "Load Game"  /* Interface > Pause Menu / Load Game */
 #define OLW_PAUSE_LOAD_GAME_D                        "Load a save, from the pause."  /* Interface > Pause Menu / Load Game */
 #define OLW_PAUSE_LOAD_GAME_V_HIDDEN                 "Hidden"  /* Interface > Pause Menu / Load Game */
+#define OLW_PAUSE_LOAD_GAME_VD_HIDDEN                "Hidden: the pause menu does not list it."  /* Interface > Pause Menu / Load Game / Hidden */
 #define OLW_PAUSE_LOAD_GAME_V_SHOWN                  "Shown"  /* Interface > Pause Menu / Load Game */
+#define OLW_PAUSE_LOAD_GAME_VD_SHOWN                 "Shown: the pause Extra Menu lists it."  /* Interface > Pause Menu / Load Game / Shown */
 #define OLW_PAUSE_QUICK_SAVE_L                       "Quick Save"  /* Interface > Pause Menu / Quick Save */
 #define OLW_PAUSE_QUICK_SAVE_D                       "A quick save, like F5."  /* Interface > Pause Menu / Quick Save */
 #define OLW_PAUSE_QUICK_SAVE_V_HIDDEN                "Hidden"  /* Interface > Pause Menu / Quick Save */
+#define OLW_PAUSE_QUICK_SAVE_VD_HIDDEN               "Hidden: the pause menu does not list it."  /* Interface > Pause Menu / Quick Save / Hidden */
 #define OLW_PAUSE_QUICK_SAVE_V_SHOWN                 "Shown"  /* Interface > Pause Menu / Quick Save */
+#define OLW_PAUSE_QUICK_SAVE_VD_SHOWN                "Shown: the pause Extra Menu lists it."  /* Interface > Pause Menu / Quick Save / Shown */
 #define OLW_PAUSE_QUICK_LOAD_L                       "Quick Load"  /* Interface > Pause Menu / Quick Load */
 #define OLW_PAUSE_QUICK_LOAD_D                       "The newest quick save, like F9."  /* Interface > Pause Menu / Quick Load */
 #define OLW_PAUSE_QUICK_LOAD_V_HIDDEN                "Hidden"  /* Interface > Pause Menu / Quick Load */
+#define OLW_PAUSE_QUICK_LOAD_VD_HIDDEN               "Hidden: the pause menu does not list it."  /* Interface > Pause Menu / Quick Load / Hidden */
 #define OLW_PAUSE_QUICK_LOAD_V_SHOWN                 "Shown"  /* Interface > Pause Menu / Quick Load */
-#define OLW_PAUSE_EILEEN_OUTFIT_L                    "Eileen Outfit"  /* Interface > Pause Menu / Eileen Outfit */
-#define OLW_PAUSE_EILEEN_OUTFIT_D                    "Companion Eileen's outfit, from the pause."  /* Interface > Pause Menu / Eileen Outfit */
-#define OLW_PAUSE_EILEEN_OUTFIT_V_HIDDEN             "Hidden"  /* Interface > Pause Menu / Eileen Outfit */
-#define OLW_PAUSE_EILEEN_OUTFIT_V_SHOWN              "Shown"  /* Interface > Pause Menu / Eileen Outfit */
+#define OLW_PAUSE_QUICK_LOAD_VD_SHOWN                "Shown: the pause Extra Menu lists it."  /* Interface > Pause Menu / Quick Load / Shown */
+#define OLW_PAUSE_EILEEN_L                           "Eileen"  /* Interface > Pause Menu / Eileen */
+#define OLW_PAUSE_EILEEN_D                           "Companion Eileen's outfit, from the pause."  /* Interface > Pause Menu / Eileen */
+#define OLW_PAUSE_EILEEN_V_HIDDEN                    "Hidden"  /* Interface > Pause Menu / Eileen */
+#define OLW_PAUSE_EILEEN_VD_HIDDEN                   "Hidden: the pause menu does not list it."  /* Interface > Pause Menu / Eileen / Hidden */
+#define OLW_PAUSE_EILEEN_V_SHOWN                     "Shown"  /* Interface > Pause Menu / Eileen */
+#define OLW_PAUSE_EILEEN_VD_SHOWN                    "Shown: the pause Extra Menu lists it."  /* Interface > Pause Menu / Eileen / Shown */
 #define OLW_PAUSE_SAVE_BANKS_L                       "Save Banks"  /* Interface > Pause Menu / Save Banks */
 #define OLW_PAUSE_SAVE_BANKS_D                       "More save files: Q / E switch banks."  /* Interface > Pause Menu / Save Banks */
 #define OLW_PAUSE_SAVE_BANKS_V_OFF                   "Off"  /* Interface > Pause Menu / Save Banks */
@@ -381,6 +443,12 @@
 #define OLW_SOUND_NIGHT_MODE_VD_LOW                  "Low: loud sounds a little quieter."  /* Sound / Night Mode / Low */
 #define OLW_SOUND_NIGHT_MODE_V_HIGH                  "High"  /* Sound / Night Mode */
 #define OLW_SOUND_NIGHT_MODE_VD_HIGH                 "High: much quieter peaks, for late nights."  /* Sound / Night Mode / High */
+#define OLW_SOUND_BACKGROUND_L                       "Background"  /* Sound / Background */
+#define OLW_SOUND_BACKGROUND_D                       "Sound while another window is in front."  /* Sound / Background */
+#define OLW_SOUND_BACKGROUND_V_MUTE                  "Mute"  /* Sound / Background */
+#define OLW_SOUND_BACKGROUND_VD_MUTE                 "Mute: silent while another window is in front."  /* Sound / Background / Mute */
+#define OLW_SOUND_BACKGROUND_V_PLAY                  "Play"  /* Sound / Background */
+#define OLW_SOUND_BACKGROUND_VD_PLAY                 "Play: you still hear the game behind other windows."  /* Sound / Background / Play */
 #define OLW_EFFECTS_FILM_GRAIN_L                     "Film Grain"  /* Effects / Film Grain */
 #define OLW_EFFECTS_FILM_GRAIN_D                     "Grain over the picture."  /* Effects / Film Grain */
 #define OLW_EFFECTS_FILTER_L                         "Filter"  /* Effects / Filter */
@@ -414,10 +482,15 @@
 #define OLW_EFFECTS_BLOOM_L                          "Bloom"  /* Effects / Bloom */
 #define OLW_EFFECTS_BLOOM_D                          "Bright lights glow."  /* Effects / Bloom */
 #define OLW_EFFECTS_BLOOM_V_OFF                      "Off"  /* Effects / Bloom */
+#define OLW_EFFECTS_BLOOM_VD_OFF                     "Off: no glow."  /* Effects / Bloom / Off */
 #define OLW_EFFECTS_BLOOM_V_LOW                      "Low"  /* Effects / Bloom */
+#define OLW_EFFECTS_BLOOM_VD_LOW                     "Low: a soft glow round lights."  /* Effects / Bloom / Low */
 #define OLW_EFFECTS_BLOOM_V_MEDIUM                   "Medium"  /* Effects / Bloom */
+#define OLW_EFFECTS_BLOOM_VD_MEDIUM                  "Medium: a clear glow round lights."  /* Effects / Bloom / Medium */
 #define OLW_EFFECTS_BLOOM_V_HIGH                     "High"  /* Effects / Bloom */
+#define OLW_EFFECTS_BLOOM_VD_HIGH                    "High: a strong glow; bright areas stay readable."  /* Effects / Bloom / High */
 #define OLW_EFFECTS_BLOOM_V_ULTRA                    "Ultra"  /* Effects / Bloom */
+#define OLW_EFFECTS_BLOOM_VD_ULTRA                   "Ultra: a haze round every light."  /* Effects / Bloom / Ultra */
 #define OLW_EFFECTS_COLOUR_GRADE_L                   "Colour Grade"  /* Effects / Colour Grade */
 #define OLW_EFFECTS_COLOUR_GRADE_D                   "A colour mood for the scene."  /* Effects / Colour Grade */
 #define OLW_EFFECTS_COLOUR_GRADE_V_OFF               "Off"  /* Effects / Colour Grade */
@@ -439,6 +512,7 @@
 #define OLW_EFFECTS_DEPTH_OF_FIELD_L                 "Depth of Field"  /* Effects / Depth of Field */
 #define OLW_EFFECTS_DEPTH_OF_FIELD_D                 "Blur by distance from the player."  /* Effects / Depth of Field */
 #define OLW_EFFECTS_DEPTH_OF_FIELD_V_OFF             "Off"  /* Effects / Depth of Field */
+#define OLW_EFFECTS_DEPTH_OF_FIELD_VD_OFF            "Off: everything stays sharp."  /* Effects / Depth of Field / Off */
 #define OLW_EFFECTS_DEPTH_OF_FIELD_V_CUT_SCENES      "Cut-scenes"  /* Effects / Depth of Field */
 #define OLW_EFFECTS_DEPTH_OF_FIELD_VD_CUT_SCENES     "Cut-scenes: only in cut-scenes."  /* Effects / Depth of Field / Cut-scenes */
 #define OLW_EFFECTS_DEPTH_OF_FIELD_V_ALWAYS          "Always"  /* Effects / Depth of Field */
@@ -446,43 +520,69 @@
 #define OLW_EFFECTS_BLUR_STRENGTH_L                  "Blur Strength"  /* Effects / Blur Strength */
 #define OLW_EFFECTS_BLUR_STRENGTH_D                  "How strong the depth of field is."  /* Effects / Blur Strength */
 #define OLW_EFFECTS_BLUR_STRENGTH_V_LOW              "Low"  /* Effects / Blur Strength */
+#define OLW_EFFECTS_BLUR_STRENGTH_VD_LOW             "Low: a gentle blur, far away only."  /* Effects / Blur Strength / Low */
 #define OLW_EFFECTS_BLUR_STRENGTH_V_MEDIUM           "Medium"  /* Effects / Blur Strength */
+#define OLW_EFFECTS_BLUR_STRENGTH_VD_MEDIUM          "Medium: a clear blur behind you."  /* Effects / Blur Strength / Medium */
 #define OLW_EFFECTS_BLUR_STRENGTH_V_HIGH             "High"  /* Effects / Blur Strength */
+#define OLW_EFFECTS_BLUR_STRENGTH_VD_HIGH            "High: a strong blur."  /* Effects / Blur Strength / High */
 #define OLW_EFFECTS_SHADOWS_L                        "Shadows"  /* Effects / Shadows */
 #define OLW_EFFECTS_SHADOWS_D                        "Shadows, their edge and darkness."  /* Effects / Shadows */
 #define OLW_GRAIN_FILM_GRAIN_L                       "Film Grain"  /* Effects > Film Grain / Film Grain */
 #define OLW_GRAIN_FILM_GRAIN_D                       "Grain on or off."  /* Effects > Film Grain / Film Grain */
 #define OLW_GRAIN_FILM_GRAIN_V_OFF                   "Off"  /* Effects > Film Grain / Film Grain */
+#define OLW_GRAIN_FILM_GRAIN_VD_OFF                  "Off: a clean picture, no grain."  /* Effects > Film Grain / Film Grain / Off */
 #define OLW_GRAIN_FILM_GRAIN_V_ON                    "On"  /* Effects > Film Grain / Film Grain */
+#define OLW_GRAIN_FILM_GRAIN_VD_ON                   "On: grain over the picture, as the game."  /* Effects > Film Grain / Film Grain / On */
 #define OLW_GRAIN_STRENGTH_L                         "Strength"  /* Effects > Film Grain / Strength */
 #define OLW_GRAIN_STRENGTH_D                         "How much grain. Normal is the game's."  /* Effects > Film Grain / Strength */
 #define OLW_GRAIN_STRENGTH_V_LOW                     "Low"  /* Effects > Film Grain / Strength */
+#define OLW_GRAIN_STRENGTH_VD_LOW                    "Low: half the game's grain."  /* Effects > Film Grain / Strength / Low */
 #define OLW_GRAIN_STRENGTH_V_NORMAL                  "Normal"  /* Effects > Film Grain / Strength */
+#define OLW_GRAIN_STRENGTH_VD_NORMAL                 "Normal: the game's own amount."  /* Effects > Film Grain / Strength / Normal */
 #define OLW_GRAIN_STRENGTH_V_HIGH                    "High"  /* Effects > Film Grain / Strength */
+#define OLW_GRAIN_STRENGTH_VD_HIGH                   "High: half again the game's grain."  /* Effects > Film Grain / Strength / High */
 #define OLW_GRAIN_STRENGTH_V_VERY_HIGH               "Very High"  /* Effects > Film Grain / Strength */
+#define OLW_GRAIN_STRENGTH_VD_VERY_HIGH              "Very High: twice the game's grain."  /* Effects > Film Grain / Strength / Very High */
 #define OLW_GRAIN_GRAIN_TYPE_L                       "Grain Type"  /* Effects > Film Grain / Grain Type */
 #define OLW_GRAIN_GRAIN_TYPE_D                       "The grain's look. Stock is the game's."  /* Effects > Film Grain / Grain Type */
 #define OLW_GRAIN_GRAIN_TYPE_V_STOCK                 "Stock"  /* Effects > Film Grain / Grain Type */
+#define OLW_GRAIN_GRAIN_TYPE_VD_STOCK                "Stock: the game's own grain."  /* Effects > Film Grain / Grain Type / Stock */
 #define OLW_GRAIN_GRAIN_TYPE_V_FINE                  "Fine"  /* Effects > Film Grain / Grain Type */
+#define OLW_GRAIN_GRAIN_TYPE_VD_FINE                 "Fine: small, even grain."  /* Effects > Film Grain / Grain Type / Fine */
 #define OLW_GRAIN_GRAIN_TYPE_V_COARSE                "Coarse"  /* Effects > Film Grain / Grain Type */
+#define OLW_GRAIN_GRAIN_TYPE_VD_COARSE               "Coarse: big, rough grain."  /* Effects > Film Grain / Grain Type / Coarse */
 #define OLW_GRAIN_GRAIN_TYPE_V_FILM                  "Film"  /* Effects > Film Grain / Grain Type */
+#define OLW_GRAIN_GRAIN_TYPE_VD_FILM                 "Film: grain with dust and specks."  /* Effects > Film Grain / Grain Type / Film */
 #define OLW_GRAIN_GRAIN_TYPE_V_VHS                   "VHS"  /* Effects > Film Grain / Grain Type */
+#define OLW_GRAIN_GRAIN_TYPE_VD_VHS                  "VHS: a tape's line noise."  /* Effects > Film Grain / Grain Type / VHS */
 #define OLW_GRAIN_GRAIN_TYPE_V_SCAN_ROLL             "Scan Roll"  /* Effects > Film Grain / Grain Type */
+#define OLW_GRAIN_GRAIN_TYPE_VD_SCAN_ROLL            "Scan Roll: a band rolls over now and then."  /* Effects > Film Grain / Grain Type / Scan Roll */
 #define OLW_GRAIN_GRAIN_TYPE_V_RAIN                  "Rain"  /* Effects > Film Grain / Grain Type */
+#define OLW_GRAIN_GRAIN_TYPE_VD_RAIN                 "Rain: drops on the lens."  /* Effects > Film Grain / Grain Type / Rain */
 #define OLW_GRAIN_GRAIN_COLOUR_L                     "Grain Colour"  /* Effects > Film Grain / Grain Colour */
 #define OLW_GRAIN_GRAIN_COLOUR_D                     "The grain's colour. Stock: each type's own."  /* Effects > Film Grain / Grain Colour */
 #define OLW_GRAIN_GRAIN_COLOUR_V_STOCK               "Stock"  /* Effects > Film Grain / Grain Colour */
+#define OLW_GRAIN_GRAIN_COLOUR_VD_STOCK              "Stock: each grain type's own colour."  /* Effects > Film Grain / Grain Colour / Stock */
 #define OLW_GRAIN_GRAIN_COLOUR_V_MONO                "Mono"  /* Effects > Film Grain / Grain Colour */
+#define OLW_GRAIN_GRAIN_COLOUR_VD_MONO               "Mono: grey grain."  /* Effects > Film Grain / Grain Colour / Mono */
 #define OLW_GRAIN_GRAIN_COLOUR_V_FULL_COLOUR         "Full Colour"  /* Effects > Film Grain / Grain Colour */
+#define OLW_GRAIN_GRAIN_COLOUR_VD_FULL_COLOUR        "Full Colour: grain in every colour."  /* Effects > Film Grain / Grain Colour / Full Colour */
 #define OLW_GRAIN_GRAIN_COLOUR_V_RED                 "Red"  /* Effects > Film Grain / Grain Colour */
+#define OLW_GRAIN_GRAIN_COLOUR_VD_RED                "Red: red grain."  /* Effects > Film Grain / Grain Colour / Red */
 #define OLW_GRAIN_GRAIN_COLOUR_V_GREEN               "Green"  /* Effects > Film Grain / Grain Colour */
+#define OLW_GRAIN_GRAIN_COLOUR_VD_GREEN              "Green: green grain."  /* Effects > Film Grain / Grain Colour / Green */
 #define OLW_GRAIN_GRAIN_COLOUR_V_BLUE                "Blue"  /* Effects > Film Grain / Grain Colour */
+#define OLW_GRAIN_GRAIN_COLOUR_VD_BLUE               "Blue: blue grain."  /* Effects > Film Grain / Grain Colour / Blue */
 #define OLW_GRAIN_GRAIN_COLOUR_V_AMBER               "Amber"  /* Effects > Film Grain / Grain Colour */
+#define OLW_GRAIN_GRAIN_COLOUR_VD_AMBER              "Amber: amber grain."  /* Effects > Film Grain / Grain Colour / Amber */
 #define OLW_GRAIN_GRAIN_COLOUR_V_SEPIA               "Sepia"  /* Effects > Film Grain / Grain Colour */
+#define OLW_GRAIN_GRAIN_COLOUR_VD_SEPIA              "Sepia: brown grain."  /* Effects > Film Grain / Grain Colour / Sepia */
 #define OLW_SHADOWS_SHADOWS_L                        "Shadows"  /* Effects > Shadows / Shadows */
 #define OLW_SHADOWS_SHADOWS_D                        "Real-time shadows on or off."  /* Effects > Shadows / Shadows */
 #define OLW_SHADOWS_SHADOWS_V_OFF                    "Off"  /* Effects > Shadows / Shadows */
+#define OLW_SHADOWS_SHADOWS_VD_OFF                   "Off: no real-time shadows."  /* Effects > Shadows / Shadows / Off */
 #define OLW_SHADOWS_SHADOWS_V_ON                     "On"  /* Effects > Shadows / Shadows */
+#define OLW_SHADOWS_SHADOWS_VD_ON                    "On: real-time shadows, as the game."  /* Effects > Shadows / Shadows / On */
 #define OLW_SHADOWS_EDGE_L                           "Edge"  /* Effects > Shadows / Edge */
 #define OLW_SHADOWS_EDGE_D                           "The shadows' edge. Left of the line: the game's."  /* Effects > Shadows / Edge */
 #define OLW_SHADOWS_EDGE_V_STOCK                     "Stock"  /* Effects > Shadows / Edge */
@@ -512,20 +612,33 @@
 #define OLW_GAMEPLAY_BLOOD_COLOUR_L                  "Blood Colour"  /* Gameplay / Blood Colour */
 #define OLW_GAMEPLAY_BLOOD_COLOUR_D                  "The colour of all blood."  /* Gameplay / Blood Colour */
 #define OLW_GAMEPLAY_BLOOD_COLOUR_V_RED              "Red"  /* Gameplay / Blood Colour */
+#define OLW_GAMEPLAY_BLOOD_COLOUR_VD_RED             "Red: the game's own blood."  /* Gameplay / Blood Colour / Red */
 #define OLW_GAMEPLAY_BLOOD_COLOUR_V_GREEN            "Green"  /* Gameplay / Blood Colour */
+#define OLW_GAMEPLAY_BLOOD_COLOUR_VD_GREEN           "Green: green blood."  /* Gameplay / Blood Colour / Green */
 #define OLW_GAMEPLAY_BLOOD_COLOUR_V_PURPLE           "Purple"  /* Gameplay / Blood Colour */
+#define OLW_GAMEPLAY_BLOOD_COLOUR_VD_PURPLE          "Purple: purple blood."  /* Gameplay / Blood Colour / Purple */
 #define OLW_GAMEPLAY_BLOOD_COLOUR_V_YELLOW           "Yellow"  /* Gameplay / Blood Colour */
+#define OLW_GAMEPLAY_BLOOD_COLOUR_VD_YELLOW          "Yellow: yellow blood."  /* Gameplay / Blood Colour / Yellow */
 #define OLW_GAMEPLAY_BLOOD_COLOUR_V_ORANGE           "Orange"  /* Gameplay / Blood Colour */
+#define OLW_GAMEPLAY_BLOOD_COLOUR_VD_ORANGE          "Orange: orange blood."  /* Gameplay / Blood Colour / Orange */
 #define OLW_GAMEPLAY_BLOOD_COLOUR_V_PINK             "Pink"  /* Gameplay / Blood Colour */
+#define OLW_GAMEPLAY_BLOOD_COLOUR_VD_PINK            "Pink: pink blood."  /* Gameplay / Blood Colour / Pink */
 #define OLW_GAMEPLAY_BLOOD_COLOUR_V_BLUE             "Blue"  /* Gameplay / Blood Colour */
+#define OLW_GAMEPLAY_BLOOD_COLOUR_VD_BLUE            "Blue: blue blood."  /* Gameplay / Blood Colour / Blue */
 #define OLW_GAMEPLAY_BLOOD_COLOUR_V_CYAN             "Cyan"  /* Gameplay / Blood Colour */
+#define OLW_GAMEPLAY_BLOOD_COLOUR_VD_CYAN            "Cyan: cyan blood."  /* Gameplay / Blood Colour / Cyan */
 #define OLW_GAMEPLAY_BLOOD_COLOUR_V_WHITE            "White"  /* Gameplay / Blood Colour */
+#define OLW_GAMEPLAY_BLOOD_COLOUR_VD_WHITE           "White: white blood."  /* Gameplay / Blood Colour / White */
 #define OLW_GAMEPLAY_BLOOD_COLOUR_V_BLACK            "Black"  /* Gameplay / Blood Colour */
+#define OLW_GAMEPLAY_BLOOD_COLOUR_VD_BLACK           "Black: black blood."  /* Gameplay / Blood Colour / Black */
 #define OLW_PLAYER_MOVE_SPEED_L                      "Move Speed"  /* Gameplay > Player / Move Speed */
 #define OLW_PLAYER_MOVE_SPEED_D                      "How fast the player walks and runs."  /* Gameplay > Player / Move Speed */
 #define OLW_PLAYER_MOVE_SPEED_V_NORMAL               "Normal"  /* Gameplay > Player / Move Speed */
+#define OLW_PLAYER_MOVE_SPEED_VD_NORMAL              "Normal: the game's own speed."  /* Gameplay > Player / Move Speed / Normal */
 #define OLW_PLAYER_MOVE_SPEED_V_X1_25                "x1.25"  /* Gameplay > Player / Move Speed */
+#define OLW_PLAYER_MOVE_SPEED_VD_X1_25               "x1.25: a quarter faster."  /* Gameplay > Player / Move Speed / x1.25 */
 #define OLW_PLAYER_MOVE_SPEED_V_X1_5                 "x1.5"  /* Gameplay > Player / Move Speed */
+#define OLW_PLAYER_MOVE_SPEED_VD_X1_5                "x1.5: half again as fast."  /* Gameplay > Player / Move Speed / x1.5 */
 #define OLW_PLAYER_MOVE_SPEED_V_X2                   "x2"  /* Gameplay > Player / Move Speed */
 #define OLW_PLAYER_MOVE_SPEED_VD_X2                  "x2: may slip through thin walls."  /* Gameplay > Player / Move Speed / x2 */
 #define OLW_PLAYER_REGENERATION_L                    "Regeneration"  /* Gameplay > Player / Regeneration */
@@ -541,9 +654,13 @@
 #define OLW_PLAYER_MEDALLION_L                       "Medallion"  /* Gameplay > Player / Medallion */
 #define OLW_PLAYER_MEDALLION_D                       "How long the Saint Medallion lasts."  /* Gameplay > Player / Medallion */
 #define OLW_PLAYER_MEDALLION_V_NORMAL                "Normal"  /* Gameplay > Player / Medallion */
+#define OLW_PLAYER_MEDALLION_VD_NORMAL               "Normal: it wears as in the game."  /* Gameplay > Player / Medallion / Normal */
 #define OLW_PLAYER_MEDALLION_V_X2                    "x2"  /* Gameplay > Player / Medallion */
+#define OLW_PLAYER_MEDALLION_VD_X2                   "x2: lasts twice as long."  /* Gameplay > Player / Medallion / x2 */
 #define OLW_PLAYER_MEDALLION_V_X3                    "x3"  /* Gameplay > Player / Medallion */
+#define OLW_PLAYER_MEDALLION_VD_X3                   "x3: lasts three times as long."  /* Gameplay > Player / Medallion / x3 */
 #define OLW_PLAYER_MEDALLION_V_X4                    "x4"  /* Gameplay > Player / Medallion */
+#define OLW_PLAYER_MEDALLION_VD_X4                   "x4: lasts four times as long."  /* Gameplay > Player / Medallion / x4 */
 #define OLW_PLAYER_GRAB_ESCAPE_L                     "Grab Escape"  /* Gameplay > Player / Grab Escape */
 #define OLW_PLAYER_GRAB_ESCAPE_D                     "Break free of grabs sooner."  /* Gameplay > Player / Grab Escape */
 #define OLW_PLAYER_GRAB_ESCAPE_V_STOCK               "Stock"  /* Gameplay > Player / Grab Escape */
@@ -555,6 +672,7 @@
 #define OLW_PLAYER_NO_CLIP_L                         "No Clip"  /* Gameplay > Player / No Clip */
 #define OLW_PLAYER_NO_CLIP_D                         "Walk through walls (not in Room 302)."  /* Gameplay > Player / No Clip */
 #define OLW_PLAYER_NO_CLIP_V_OFF                     "Off"  /* Gameplay > Player / No Clip */
+#define OLW_PLAYER_NO_CLIP_VD_OFF                    "Off: walls stop you, as the game."  /* Gameplay > Player / No Clip / Off */
 #define OLW_PLAYER_NO_CLIP_V_ON                      "On"  /* Gameplay > Player / No Clip */
 #define OLW_PLAYER_NO_CLIP_VD_ON                     "On: through walls; stairs still carry you."  /* Gameplay > Player / No Clip / On */
 #define OLW_PLAYER_NO_CLIP_V_FLY                     "Fly"  /* Gameplay > Player / No Clip */
@@ -562,11 +680,13 @@
 #define OLW_COMBAT_ONE_HIT_KILL_L                    "One-Hit Kill"  /* Gameplay > Combat / One-Hit Kill */
 #define OLW_COMBAT_ONE_HIT_KILL_D                    "Your hits kill monsters; ghosts fall."  /* Gameplay > Combat / One-Hit Kill */
 #define OLW_COMBAT_ONE_HIT_KILL_V_OFF                "Off"  /* Gameplay > Combat / One-Hit Kill */
+#define OLW_COMBAT_ONE_HIT_KILL_VD_OFF               "Off: normal damage."  /* Gameplay > Combat / One-Hit Kill / Off */
 #define OLW_COMBAT_ONE_HIT_KILL_V_ON                 "On"  /* Gameplay > Combat / One-Hit Kill */
 #define OLW_COMBAT_ONE_HIT_KILL_VD_ON                "On: bosses still take normal damage."  /* Gameplay > Combat / One-Hit Kill / On */
 #define OLW_COMBAT_DARK_PACT_L                       "Dark Pact"  /* Gameplay > Combat / Dark Pact */
 #define OLW_COMBAT_DARK_PACT_D                       "Hit harder, get hurt more."  /* Gameplay > Combat / Dark Pact */
 #define OLW_COMBAT_DARK_PACT_V_OFF                   "Off"  /* Gameplay > Combat / Dark Pact */
+#define OLW_COMBAT_DARK_PACT_VD_OFF                  "Off: normal damage both ways."  /* Gameplay > Combat / Dark Pact / Off */
 #define OLW_COMBAT_DARK_PACT_V_PACT                  "Pact"  /* Gameplay > Combat / Dark Pact */
 #define OLW_COMBAT_DARK_PACT_VD_PACT                 "Pact: x1.5 both ways."  /* Gameplay > Combat / Dark Pact / Pact */
 #define OLW_COMBAT_DARK_PACT_V_BLOOD                 "Blood"  /* Gameplay > Combat / Dark Pact */
@@ -574,17 +694,25 @@
 #define OLW_COMBAT_QUICK_CHARGE_L                    "Quick Charge"  /* Gameplay > Combat / Quick Charge */
 #define OLW_COMBAT_QUICK_CHARGE_D                    "Charged swings fill faster."  /* Gameplay > Combat / Quick Charge */
 #define OLW_COMBAT_QUICK_CHARGE_V_OFF                "Off"  /* Gameplay > Combat / Quick Charge */
+#define OLW_COMBAT_QUICK_CHARGE_VD_OFF               "Off: the game's own charge speed."  /* Gameplay > Combat / Quick Charge / Off */
 #define OLW_COMBAT_QUICK_CHARGE_V_1_5X               "1.5x"  /* Gameplay > Combat / Quick Charge */
+#define OLW_COMBAT_QUICK_CHARGE_VD_1_5X              "1.5x: charged swings fill 1.5 times faster."  /* Gameplay > Combat / Quick Charge / 1.5x */
 #define OLW_COMBAT_QUICK_CHARGE_V_2X                 "2x"  /* Gameplay > Combat / Quick Charge */
+#define OLW_COMBAT_QUICK_CHARGE_VD_2X                "2x: charged swings fill twice as fast."  /* Gameplay > Combat / Quick Charge / 2x */
 #define OLW_COMBAT_QUICK_CHARGE_V_3X                 "3x"  /* Gameplay > Combat / Quick Charge */
+#define OLW_COMBAT_QUICK_CHARGE_VD_3X                "3x: charged swings fill three times as fast."  /* Gameplay > Combat / Quick Charge / 3x */
 #define OLW_COMBAT_LIFE_STEAL_L                      "Life Steal"  /* Gameplay > Combat / Life Steal */
 #define OLW_COMBAT_LIFE_STEAL_D                      "Hits on monsters heal you."  /* Gameplay > Combat / Life Steal */
 #define OLW_COMBAT_LIFE_STEAL_V_OFF                  "Off"  /* Gameplay > Combat / Life Steal */
+#define OLW_COMBAT_LIFE_STEAL_VD_OFF                 "Off: hits do not heal you."  /* Gameplay > Combat / Life Steal / Off */
 #define OLW_COMBAT_LIFE_STEAL_V_5                    "5 %"  /* Gameplay > Combat / Life Steal */
+#define OLW_COMBAT_LIFE_STEAL_VD_5                   "5 %: heal 5 % of your damage to monsters."  /* Gameplay > Combat / Life Steal / 5 % */
 #define OLW_COMBAT_LIFE_STEAL_V_10                   "10 %"  /* Gameplay > Combat / Life Steal */
+#define OLW_COMBAT_LIFE_STEAL_VD_10                  "10 %: heal 10 % of your damage to monsters."  /* Gameplay > Combat / Life Steal / 10 % */
 #define OLW_COMBAT_AMMO_SAVER_L                      "Ammo Saver"  /* Gameplay > Combat / Ammo Saver */
 #define OLW_COMBAT_AMMO_SAVER_D                      "Spares pistol and revolver rounds."  /* Gameplay > Combat / Ammo Saver */
 #define OLW_COMBAT_AMMO_SAVER_V_NORMAL               "Normal"  /* Gameplay > Combat / Ammo Saver */
+#define OLW_COMBAT_AMMO_SAVER_VD_NORMAL              "Normal: every shot uses a round."  /* Gameplay > Combat / Ammo Saver / Normal */
 #define OLW_COMBAT_AMMO_SAVER_V_SAVER                "Saver"  /* Gameplay > Combat / Ammo Saver */
 #define OLW_COMBAT_AMMO_SAVER_VD_SAVER               "Saver: every other shot is free."  /* Gameplay > Combat / Ammo Saver / Saver */
 #define OLW_COMBAT_AMMO_SAVER_V_ENDLESS              "Endless"  /* Gameplay > Combat / Ammo Saver */
@@ -604,11 +732,13 @@
 #define OLW_ITEMS_ITEM_STACKS_L                      "Item Stacks"  /* Gameplay > Items / Item Stacks */
 #define OLW_ITEMS_ITEM_STACKS_D                      "Same items share a slot, up to 99."  /* Gameplay > Items / Item Stacks */
 #define OLW_ITEMS_ITEM_STACKS_V_OFF                  "Off"  /* Gameplay > Items / Item Stacks */
+#define OLW_ITEMS_ITEM_STACKS_VD_OFF                 "Off: one item a slot, as the game."  /* Gameplay > Items / Item Stacks / Off */
 #define OLW_ITEMS_ITEM_STACKS_V_ON                   "On"  /* Gameplay > Items / Item Stacks */
 #define OLW_ITEMS_ITEM_STACKS_VD_ON                  "On: pickups, gifts and the chest stack."  /* Gameplay > Items / Item Stacks / On */
 #define OLW_ITEMS_SUPPLY_DROPS_L                     "Supply Drops"  /* Gameplay > Items / Supply Drops */
 #define OLW_ITEMS_SUPPLY_DROPS_D                     "Kills sometimes leave an item."  /* Gameplay > Items / Supply Drops */
 #define OLW_ITEMS_SUPPLY_DROPS_V_OFF                 "Off"  /* Gameplay > Items / Supply Drops */
+#define OLW_ITEMS_SUPPLY_DROPS_VD_OFF                "Off: kills leave nothing, as the game."  /* Gameplay > Items / Supply Drops / Off */
 #define OLW_ITEMS_SUPPLY_DROPS_V_RARE                "Rare"  /* Gameplay > Items / Supply Drops */
 #define OLW_ITEMS_SUPPLY_DROPS_VD_RARE               "Rare: about 1 kill in 16."  /* Gameplay > Items / Supply Drops / Rare */
 #define OLW_ITEMS_SUPPLY_DROPS_V_NORMAL              "Normal"  /* Gameplay > Items / Supply Drops */
@@ -618,15 +748,23 @@
 #define OLW_ENEMIES_EXTRA_ENEMIES_L                  "Extra Enemies"  /* Gameplay > Enemies / Extra Enemies */
 #define OLW_ENEMIES_EXTRA_ENEMIES_D                  "More of every monster and ghost."  /* Gameplay > Enemies / Extra Enemies */
 #define OLW_ENEMIES_EXTRA_ENEMIES_V_OFF              "Off"  /* Gameplay > Enemies / Extra Enemies */
+#define OLW_ENEMIES_EXTRA_ENEMIES_VD_OFF             "Off: the game's own numbers. Next room."  /* Gameplay > Enemies / Extra Enemies / Off */
 #define OLW_ENEMIES_EXTRA_ENEMIES_V_X2               "x2"  /* Gameplay > Enemies / Extra Enemies */
+#define OLW_ENEMIES_EXTRA_ENEMIES_VD_X2              "x2: twice as many. Next room."  /* Gameplay > Enemies / Extra Enemies / x2 */
 #define OLW_ENEMIES_EXTRA_ENEMIES_V_X3               "x3"  /* Gameplay > Enemies / Extra Enemies */
+#define OLW_ENEMIES_EXTRA_ENEMIES_VD_X3              "x3: three times as many. Next room."  /* Gameplay > Enemies / Extra Enemies / x3 */
 #define OLW_ENEMIES_EXTRA_ENEMIES_V_X4               "x4"  /* Gameplay > Enemies / Extra Enemies */
+#define OLW_ENEMIES_EXTRA_ENEMIES_VD_X4              "x4: four times as many. Next room."  /* Gameplay > Enemies / Extra Enemies / x4 */
 #define OLW_ENEMIES_DOOR_CHASE_L                     "Door Chase"  /* Gameplay > Enemies / Door Chase */
 #define OLW_ENEMIES_DOOR_CHASE_D                     "Who follows you through doors."  /* Gameplay > Enemies / Door Chase */
 #define OLW_ENEMIES_DOOR_CHASE_V_OFF                 "Off"  /* Gameplay > Enemies / Door Chase */
+#define OLW_ENEMIES_DOOR_CHASE_VD_OFF                "Off: nobody follows, as the game."  /* Gameplay > Enemies / Door Chase / Off */
 #define OLW_ENEMIES_DOOR_CHASE_V_MONSTERS            "Monsters"  /* Gameplay > Enemies / Door Chase */
+#define OLW_ENEMIES_DOOR_CHASE_VD_MONSTERS           "Monsters: monsters follow you."  /* Gameplay > Enemies / Door Chase / Monsters */
 #define OLW_ENEMIES_DOOR_CHASE_V_VICTIMS             "Victims"  /* Gameplay > Enemies / Door Chase */
+#define OLW_ENEMIES_DOOR_CHASE_VD_VICTIMS            "Victims: victims' ghosts follow you."  /* Gameplay > Enemies / Door Chase / Victims */
 #define OLW_ENEMIES_DOOR_CHASE_V_BOTH                "Both"  /* Gameplay > Enemies / Door Chase */
+#define OLW_ENEMIES_DOOR_CHASE_VD_BOTH               "Both: monsters and victims' ghosts follow."  /* Gameplay > Enemies / Door Chase / Both */
 #define OLW_ENEMIES_PURSUIT_L                        "Pursuit"  /* Gameplay > Enemies / Pursuit */
 #define OLW_ENEMIES_PURSUIT_D                        "How long they keep chasing."  /* Gameplay > Enemies / Pursuit */
 #define OLW_ENEMIES_PURSUIT_V_RELENTLESS             "Relentless"  /* Gameplay > Enemies / Pursuit */
@@ -636,9 +774,13 @@
 #define OLW_ENEMIES_PURSUIT_V_FORGETFUL              "Forgetful"  /* Gameplay > Enemies / Pursuit */
 #define OLW_ENEMIES_PURSUIT_VD_FORGETFUL             "Forgetful: unseen 4 s, they give up."  /* Gameplay > Enemies / Pursuit / Forgetful */
 #define OLW_ENEMIES_ENEMIES_RETURN_L                 "Enemies Return"  /* Gameplay > Enemies / Enemies Return */
-#define OLW_ENEMIES_ENEMIES_RETURN_D                 "Killed monsters return when you leave."  /* Gameplay > Enemies / Enemies Return */
+#define OLW_ENEMIES_ENEMIES_RETURN_D                 "When killed monsters come back."  /* Gameplay > Enemies / Enemies Return */
 #define OLW_ENEMIES_ENEMIES_RETURN_V_OFF             "Off"  /* Gameplay > Enemies / Enemies Return */
-#define OLW_ENEMIES_ENEMIES_RETURN_V_ON              "On"  /* Gameplay > Enemies / Enemies Return */
+#define OLW_ENEMIES_ENEMIES_RETURN_VD_OFF            "Off: as the game; some stay dead for good."  /* Gameplay > Enemies / Enemies Return / Off */
+#define OLW_ENEMIES_ENEMIES_RETURN_V_BY_ROOM         "By Room"  /* Gameplay > Enemies / Enemies Return */
+#define OLW_ENEMIES_ENEMIES_RETURN_VD_BY_ROOM        "By Room: back each time you enter their room."  /* Gameplay > Enemies / Enemies Return / By Room */
+#define OLW_ENEMIES_ENEMIES_RETURN_V_BY_WORLD        "By World"  /* Gameplay > Enemies / Enemies Return */
+#define OLW_ENEMIES_ENEMIES_RETURN_VD_BY_WORLD       "By World: back when you enter the world again."  /* Gameplay > Enemies / Enemies Return / By World */
 #define OLW_ENEMIES_FADE_IN_L                        "Fade In"  /* Gameplay > Enemies / Fade In */
 #define OLW_ENEMIES_FADE_IN_D                        "How monsters and ghosts appear."  /* Gameplay > Enemies / Fade In */
 #define OLW_ENEMIES_FADE_IN_V_OFF                    "Off"  /* Gameplay > Enemies / Fade In */
@@ -650,6 +792,7 @@
 #define OLW_POWERS_DEATH_PRESENCE_L                  "Death Presence"  /* Gameplay > Powers / Death Presence */
 #define OLW_POWERS_DEATH_PRESENCE_D                  "A dark fog round you drains all life."  /* Gameplay > Powers / Death Presence */
 #define OLW_POWERS_DEATH_PRESENCE_V_OFF              "Off"  /* Gameplay > Powers / Death Presence */
+#define OLW_POWERS_DEATH_PRESENCE_VD_OFF             "Off: no fog."  /* Gameplay > Powers / Death Presence / Off */
 #define OLW_POWERS_DEATH_PRESENCE_V_WEAK             "Weak"  /* Gameplay > Powers / Death Presence */
 #define OLW_POWERS_DEATH_PRESENCE_VD_WEAK            "Weak: small; 2-8 % health a second."  /* Gameplay > Powers / Death Presence / Weak */
 #define OLW_POWERS_DEATH_PRESENCE_V_STRONG           "Strong"  /* Gameplay > Powers / Death Presence */
@@ -657,6 +800,7 @@
 #define OLW_POWERS_AFTER_SHOCK_L                     "After Shock"  /* Gameplay > Powers / After Shock */
 #define OLW_POWERS_AFTER_SHOCK_D                     "Electric copies trail you, tasing foes."  /* Gameplay > Powers / After Shock */
 #define OLW_POWERS_AFTER_SHOCK_V_OFF                 "Off"  /* Gameplay > Powers / After Shock */
+#define OLW_POWERS_AFTER_SHOCK_VD_OFF                "Off: no copies."  /* Gameplay > Powers / After Shock / Off */
 #define OLW_POWERS_AFTER_SHOCK_V_SHORT               "Short"  /* Gameplay > Powers / After Shock */
 #define OLW_POWERS_AFTER_SHOCK_VD_SHORT              "Short: 3 copies over 0.2 s."  /* Gameplay > Powers / After Shock / Short */
 #define OLW_POWERS_AFTER_SHOCK_V_MEDIUM              "Medium"  /* Gameplay > Powers / After Shock */
@@ -666,6 +810,7 @@
 #define OLW_POWERS_ECHO_DOUBLES_L                    "Echo Doubles"  /* Gameplay > Powers / Echo Doubles */
 #define OLW_POWERS_ECHO_DOUBLES_D                    "Shadow copies of you fight beside you."  /* Gameplay > Powers / Echo Doubles */
 #define OLW_POWERS_ECHO_DOUBLES_V_OFF                "Off"  /* Gameplay > Powers / Echo Doubles */
+#define OLW_POWERS_ECHO_DOUBLES_VD_OFF               "Off: no doubles."  /* Gameplay > Powers / Echo Doubles / Off */
 #define OLW_POWERS_ECHO_DOUBLES_V_COPY               "Copy"  /* Gameplay > Powers / Echo Doubles */
 #define OLW_POWERS_ECHO_DOUBLES_VD_COPY              "Copy: they repeat your moves, late."  /* Gameplay > Powers / Echo Doubles / Copy */
 #define OLW_POWERS_ECHO_DOUBLES_V_CAST               "Cast"  /* Gameplay > Powers / Echo Doubles */
@@ -673,8 +818,11 @@
 #define OLW_POWERS_ECHO_COUNT_L                      "Echo Count"  /* Gameplay > Powers / Echo Count */
 #define OLW_POWERS_ECHO_COUNT_D                      "How many shadow doubles."  /* Gameplay > Powers / Echo Count */
 #define OLW_POWERS_ECHO_COUNT_V_1                    "1"  /* Gameplay > Powers / Echo Count */
+#define OLW_POWERS_ECHO_COUNT_VD_1                   "1: one shadow double."  /* Gameplay > Powers / Echo Count / 1 */
 #define OLW_POWERS_ECHO_COUNT_V_2                    "2"  /* Gameplay > Powers / Echo Count */
+#define OLW_POWERS_ECHO_COUNT_VD_2                   "2: two shadow doubles."  /* Gameplay > Powers / Echo Count / 2 */
 #define OLW_POWERS_ECHO_COUNT_V_3                    "3"  /* Gameplay > Powers / Echo Count */
+#define OLW_POWERS_ECHO_COUNT_VD_3                   "3: three shadow doubles."  /* Gameplay > Powers / Echo Count / 3 */
 #define OLW_POWERS_GHOST_TELEPORT_L                  "Ghost Teleport"  /* Gameplay > Powers / Ghost Teleport */
 #define OLW_POWERS_GHOST_TELEPORT_D                  "Run + Action warps you."  /* Gameplay > Powers / Ghost Teleport */
 #define OLW_POWERS_GHOST_TELEPORT_V_OFF              "Off"  /* Gameplay > Powers / Ghost Teleport */
@@ -682,74 +830,53 @@
 #define OLW_POWERS_GHOST_TELEPORT_V_ON               "On"  /* Gameplay > Powers / Ghost Teleport */
 #define OLW_POWERS_GHOST_TELEPORT_VD_ON              "On: behind the enemy you face, or ahead."  /* Gameplay > Powers / Ghost Teleport / On */
 #define OLW_RANDO_ITEMS_L                            "Items"  /* Gameplay > Randomizer / Items */
-#define OLW_RANDO_ITEMS_D                            "Where pickups come from. Next room."  /* Gameplay > Randomizer / Items */
+#define OLW_RANDO_ITEMS_D                            "Where pickups come from."  /* Gameplay > Randomizer / Items */
 #define OLW_RANDO_ITEMS_V_OFF                        "Off"  /* Gameplay > Randomizer / Items */
 #define OLW_RANDO_ITEMS_VD_OFF                       "Off: as the game places them."  /* Gameplay > Randomizer / Items / Off */
-#define OLW_RANDO_ITEMS_VDT_OFF                      "Off: as the game places them. Next room."  /* R1: Gameplay > Randomizer / Items / Off + the tag */
 #define OLW_RANDO_ITEMS_V_SHUFFLE                    "Shuffle"  /* Gameplay > Randomizer / Items */
 #define OLW_RANDO_ITEMS_VD_SHUFFLE                   "Shuffle: a world's items swap spots."  /* Gameplay > Randomizer / Items / Shuffle */
-#define OLW_RANDO_ITEMS_VDT_SHUFFLE                  "Shuffle: a world's items swap spots. Next room."  /* R1: Gameplay > Randomizer / Items / Shuffle + the tag */
 #define OLW_RANDO_ITEMS_V_RANDOM                     "Random"  /* Gameplay > Randomizer / Items */
 #define OLW_RANDO_ITEMS_VD_RANDOM                    "Random: every spot draws an item."  /* Gameplay > Randomizer / Items / Random */
-#define OLW_RANDO_ITEMS_VDT_RANDOM                   "Random: every spot draws an item. Next room."  /* R1: Gameplay > Randomizer / Items / Random + the tag */
-#define OLW_RANDO_KEEP_SPECIALS_L                    "Keep Specials"  /* Gameplay > Randomizer / Keep Specials */
-#define OLW_RANDO_KEEP_SPECIALS_D                    "Candles, Medallions, Swords stay put."  /* Gameplay > Randomizer / Keep Specials */
-#define OLW_RANDO_KEEP_SPECIALS_DT                   "Candles, Medallions, Swords stay put. Next room."  /* R1: Gameplay > Randomizer / Keep Specials + the tag */
-#define OLW_RANDO_KEEP_SPECIALS_V_OFF                "Off"  /* Gameplay > Randomizer / Keep Specials */
-#define OLW_RANDO_KEEP_SPECIALS_VD_OFF               "Off: they mix in too."  /* Gameplay > Randomizer / Keep Specials / Off */
-#define OLW_RANDO_KEEP_SPECIALS_VDT_OFF              "Off: they mix in too. Next room."  /* R1: Gameplay > Randomizer / Keep Specials / Off + the tag */
-#define OLW_RANDO_KEEP_SPECIALS_V_ON                 "On"  /* Gameplay > Randomizer / Keep Specials */
-#define OLW_RANDO_KEEP_SPECIALS_VD_ON                "On: they stay in place."  /* Gameplay > Randomizer / Keep Specials / On */
-#define OLW_RANDO_KEEP_SPECIALS_VDT_ON               "On: they stay in place. Next room."  /* R1: Gameplay > Randomizer / Keep Specials / On + the tag */
+#define OLW_RANDO_SPECIALS_L                         "Specials"  /* Gameplay > Randomizer / Specials */
+#define OLW_RANDO_SPECIALS_D                         "Candles, Medallions, Swords; key items never move."  /* Gameplay > Randomizer / Specials */
+#define OLW_RANDO_SPECIALS_V_OFF                     "Off"  /* Gameplay > Randomizer / Specials */
+#define OLW_RANDO_SPECIALS_VD_OFF                    "Off: they stay where the game puts them."  /* Gameplay > Randomizer / Specials / Off */
+#define OLW_RANDO_SPECIALS_V_ON                      "On"  /* Gameplay > Randomizer / Specials */
+#define OLW_RANDO_SPECIALS_VD_ON                     "On: they are drawn too. Key items never move."  /* Gameplay > Randomizer / Specials / On */
 #define OLW_RANDO_ROOM_302_ITEMS_L                   "Room 302 Items"  /* Gameplay > Randomizer / Room 302 Items */
-#define OLW_RANDO_ROOM_302_ITEMS_D                   "Room 302's pickups change too."  /* Gameplay > Randomizer / Room 302 Items */
-#define OLW_RANDO_ROOM_302_ITEMS_DT                  "Room 302's pickups change too. Next room."  /* R1: Gameplay > Randomizer / Room 302 Items + the tag */
-#define OLW_RANDO_ROOM_302_ITEMS_V_STAY              "Stay"  /* Gameplay > Randomizer / Room 302 Items */
-#define OLW_RANDO_ROOM_302_ITEMS_VD_STAY             "Stay: Room 302 keeps its pickups."  /* Gameplay > Randomizer / Room 302 Items / Stay */
-#define OLW_RANDO_ROOM_302_ITEMS_VDT_STAY            "Stay: Room 302 keeps its pickups. Next room."  /* R1: Gameplay > Randomizer / Room 302 Items / Stay + the tag */
-#define OLW_RANDO_ROOM_302_ITEMS_V_CHANGE            "Change"  /* Gameplay > Randomizer / Room 302 Items */
-#define OLW_RANDO_ROOM_302_ITEMS_VD_CHANGE           "Change: they are drawn too."  /* Gameplay > Randomizer / Room 302 Items / Change */
-#define OLW_RANDO_ROOM_302_ITEMS_VDT_CHANGE          "Change: they are drawn too. Next room."  /* R1: Gameplay > Randomizer / Room 302 Items / Change + the tag */
-#define OLW_RANDO_MONSTERS_L                         "Monsters"  /* Gameplay > Randomizer / Monsters */
-#define OLW_RANDO_MONSTERS_D                         "Which monster each one becomes."  /* Gameplay > Randomizer / Monsters */
-#define OLW_RANDO_MONSTERS_DT                        "Which monster each one becomes. Next room."  /* R1: Gameplay > Randomizer / Monsters + the tag */
-#define OLW_RANDO_MONSTERS_V_OFF                     "Off"  /* Gameplay > Randomizer / Monsters */
-#define OLW_RANDO_MONSTERS_V_THIS_ROOM               "This Room"  /* Gameplay > Randomizer / Monsters */
-#define OLW_RANDO_MONSTERS_VD_THIS_ROOM              "This Room: types this room loads."  /* Gameplay > Randomizer / Monsters / This Room */
-#define OLW_RANDO_MONSTERS_VDT_THIS_ROOM             "This Room: types this room loads. Next room."  /* R1: Gameplay > Randomizer / Monsters / This Room + the tag */
-#define OLW_RANDO_MONSTERS_V_THIS_WORLD              "This World"  /* Gameplay > Randomizer / Monsters */
-#define OLW_RANDO_MONSTERS_VD_THIS_WORLD             "This World: types of this world."  /* Gameplay > Randomizer / Monsters / This World */
-#define OLW_RANDO_MONSTERS_VDT_THIS_WORLD            "This World: types of this world. Next room."  /* R1: Gameplay > Randomizer / Monsters / This World + the tag */
-#define OLW_RANDO_MONSTERS_V_ALL_WORLDS              "All Worlds"  /* Gameplay > Randomizer / Monsters */
-#define OLW_RANDO_MONSTERS_VD_ALL_WORLDS             "All Worlds: any world's types."  /* Gameplay > Randomizer / Monsters / All Worlds */
-#define OLW_RANDO_MONSTERS_VDT_ALL_WORLDS            "All Worlds: any world's types. Next room."  /* R1: Gameplay > Randomizer / Monsters / All Worlds + the tag */
-#define OLW_RANDO_GHOSTS_L                           "Ghosts"  /* Gameplay > Randomizer / Ghosts */
-#define OLW_RANDO_GHOSTS_D                           "Victims' ghosts start elsewhere."  /* Gameplay > Randomizer / Ghosts */
-#define OLW_RANDO_GHOSTS_DT                          "Victims' ghosts start elsewhere. Next room."  /* R1: Gameplay > Randomizer / Ghosts + the tag */
-#define OLW_RANDO_GHOSTS_V_OFF                       "Off"  /* Gameplay > Randomizer / Ghosts */
-#define OLW_RANDO_GHOSTS_V_SPOTS                     "Spots"  /* Gameplay > Randomizer / Ghosts */
-#define OLW_RANDO_GHOSTS_VD_SPOTS                    "Spots: a new spot in their room."  /* Gameplay > Randomizer / Ghosts / Spots */
-#define OLW_RANDO_GHOSTS_VDT_SPOTS                   "Spots: a new spot in their room. Next room."  /* R1: Gameplay > Randomizer / Ghosts / Spots + the tag */
+#define OLW_RANDO_ROOM_302_ITEMS_D                   "Room 302's own pickups."  /* Gameplay > Randomizer / Room 302 Items */
+#define OLW_RANDO_ROOM_302_ITEMS_V_OFF               "Off"  /* Gameplay > Randomizer / Room 302 Items */
+#define OLW_RANDO_ROOM_302_ITEMS_VD_OFF              "Off: Room 302 keeps the game's pickups."  /* Gameplay > Randomizer / Room 302 Items / Off */
+#define OLW_RANDO_ROOM_302_ITEMS_V_SHUFFLE           "Shuffle"  /* Gameplay > Randomizer / Room 302 Items */
+#define OLW_RANDO_ROOM_302_ITEMS_VD_SHUFFLE          "Shuffle: Room 302's own pickups swap spots."  /* Gameplay > Randomizer / Room 302 Items / Shuffle */
+#define OLW_RANDO_ROOM_302_ITEMS_V_RANDOM            "Random"  /* Gameplay > Randomizer / Room 302 Items */
+#define OLW_RANDO_ROOM_302_ITEMS_VD_RANDOM           "Random: each spot draws an item."  /* Gameplay > Randomizer / Room 302 Items / Random */
+#define OLW_RANDO_ENEMIES_L                          "Enemies"  /* Gameplay > Randomizer / Enemies */
+#define OLW_RANDO_ENEMIES_D                          "Monsters become other monsters or ghosts."  /* Gameplay > Randomizer / Enemies */
+#define OLW_RANDO_ENEMIES_V_OFF                      "Off"  /* Gameplay > Randomizer / Enemies */
+#define OLW_RANDO_ENEMIES_VD_OFF                     "Off: as the game places them."  /* Gameplay > Randomizer / Enemies / Off */
+#define OLW_RANDO_ENEMIES_V_SAME_WORLD               "Same World"  /* Gameplay > Randomizer / Enemies */
+#define OLW_RANDO_ENEMIES_VD_SAME_WORLD              "Same World: this world's enemies."  /* Gameplay > Randomizer / Enemies / Same World */
+#define OLW_RANDO_ENEMIES_V_ALL_WORLDS               "All Worlds"  /* Gameplay > Randomizer / Enemies */
+#define OLW_RANDO_ENEMIES_VD_ALL_WORLDS              "All Worlds: any world's enemies."  /* Gameplay > Randomizer / Enemies / All Worlds */
+#define OLW_RANDO_SPAWN_SITE_L                       "Spawn Site"  /* Gameplay > Randomizer / Spawn Site */
+#define OLW_RANDO_SPAWN_SITE_D                       "Where each enemy starts in its room."  /* Gameplay > Randomizer / Spawn Site */
+#define OLW_RANDO_SPAWN_SITE_V_OFF                   "Off"  /* Gameplay > Randomizer / Spawn Site */
+#define OLW_RANDO_SPAWN_SITE_VD_OFF                  "Off: where the game puts them."  /* Gameplay > Randomizer / Spawn Site / Off */
+#define OLW_RANDO_SPAWN_SITE_V_ON                    "On"  /* Gameplay > Randomizer / Spawn Site */
+#define OLW_RANDO_SPAWN_SITE_VD_ON                   "On: a random spot in their room."  /* Gameplay > Randomizer / Spawn Site / On */
 #define OLW_RANDO_EILEEN_OUTFIT_L                    "Eileen Outfit"  /* Gameplay > Randomizer / Eileen Outfit */
 #define OLW_RANDO_EILEEN_OUTFIT_D                    "Companion Eileen's outfit per room."  /* Gameplay > Randomizer / Eileen Outfit */
-#define OLW_RANDO_EILEEN_OUTFIT_DT                   "Companion Eileen's outfit per room. Next room."  /* R1: Gameplay > Randomizer / Eileen Outfit + the tag */
 #define OLW_RANDO_EILEEN_OUTFIT_V_OFF                "Off"  /* Gameplay > Randomizer / Eileen Outfit */
+#define OLW_RANDO_EILEEN_OUTFIT_VD_OFF               "Off: the outfit the game gives her."  /* Gameplay > Randomizer / Eileen Outfit / Off */
 #define OLW_RANDO_EILEEN_OUTFIT_V_RANDOM             "Random"  /* Gameplay > Randomizer / Eileen Outfit */
 #define OLW_RANDO_EILEEN_OUTFIT_VD_RANDOM            "Random: Dress or Nurse, new each room."  /* Gameplay > Randomizer / Eileen Outfit / Random */
-#define OLW_RANDO_EILEEN_OUTFIT_VDT_RANDOM           "Random: Dress or Nurse, new each room. Next room."  /* R1: Gameplay > Randomizer / Eileen Outfit / Random + the tag */
 #define OLW_RANDO_REROLL_VISITS_L                    "Reroll Visits"  /* Gameplay > Randomizer / Reroll Visits */
-#define OLW_RANDO_REROLL_VISITS_D                    "A new draw every visit."  /* Gameplay > Randomizer / Reroll Visits */
-#define OLW_RANDO_REROLL_VISITS_DT                   "A new draw every visit. Next room."  /* R1: Gameplay > Randomizer / Reroll Visits + the tag */
-#define OLW_RANDO_REROLL_VISITS_V_OFF                "Off"  /* Gameplay > Randomizer / Reroll Visits */
-#define OLW_RANDO_REROLL_VISITS_VD_OFF               "Off: a room keeps its draw for this seed."  /* Gameplay > Randomizer / Reroll Visits / Off */
-#define OLW_RANDO_REROLL_VISITS_VDT_OFF              "Off: a room keeps its draw for this seed. Next room."  /* R1: Gameplay > Randomizer / Reroll Visits / Off + the tag */
-#define OLW_RANDO_REROLL_VISITS_V_ON                 "On"  /* Gameplay > Randomizer / Reroll Visits */
-#define OLW_RANDO_REROLL_VISITS_VD_ON                "On: every visit draws again."  /* Gameplay > Randomizer / Reroll Visits / On */
-#define OLW_RANDO_REROLL_VISITS_VDT_ON               "On: every visit draws again. Next room."  /* R1: Gameplay > Randomizer / Reroll Visits / On + the tag */
-#define OLW_RANDO_SEED_1234567_L                     "Seed 1234567"  /* Gameplay > Randomizer / Seed 1234567 */
-#define OLW_RANDO_SEED_1234567_D                     "Every draw comes from this number."  /* Gameplay > Randomizer / Seed 1234567 */
-#define OLW_RANDO_NEW_SEED_L                         "New Seed"  /* Gameplay > Randomizer / New Seed */
-#define OLW_RANDO_NEW_SEED_D                         "Enter rolls a new seed. Next room."  /* Gameplay > Randomizer / New Seed */
+#define OLW_RANDO_REROLL_VISITS_D                    "When a new draw comes. Loads never draw."  /* Gameplay > Randomizer / Reroll Visits */
+#define OLW_RANDO_REROLL_VISITS_V_BY_ROOM            "By Room"  /* Gameplay > Randomizer / Reroll Visits */
+#define OLW_RANDO_REROLL_VISITS_VD_BY_ROOM           "By Room: a new draw each time you enter a room."  /* Gameplay > Randomizer / Reroll Visits / By Room */
+#define OLW_RANDO_REROLL_VISITS_V_BY_WORLD           "By World"  /* Gameplay > Randomizer / Reroll Visits */
+#define OLW_RANDO_REROLL_VISITS_VD_BY_WORLD          "By World: a new draw each time you enter a world."  /* Gameplay > Randomizer / Reroll Visits / By World */
 #define OLW_T_DISPLAY                                "Display"  /* R1 */
 #define OLW_T_CONTROLS                               "Controls"  /* R1 */
 #define OLW_T_INTERFACE                              "Interface"  /* R1 */
@@ -789,6 +916,7 @@
 #define OLW_SND_PAN_NA                               "The game's own steep pan (see SH4Refined.log)."  /* R1 */
 #define OLW_SND_WIDTH_STOCK                          "PanLaw=Stock: the game's own pan; no width."  /* R1 */
 #define OLW_SND_REV_NOPROBE                          "DirectSound has no reverb here (see SH4Refined.log)."  /* R1 */
+#define OLW_SND_DEVICE_NEW                           "New sound device: restart the game to use it."  /* R1 */
 #define OLW_FONT_MISSING                             "Font not loaded (see SH4Refined.log): stock shown."  /* R1 */
 #define OLW_FONT_FAILED                              "HD font failed (see SH4Refined.log): next start."  /* R1 */
 #define OLW_REND_16BIT                               "16-bit Direct3D 11: more lag, AMD only. Next start."  /* R1 */
@@ -847,9 +975,13 @@
     X('V', OLW_DISPLAY_ASPECT_RATIO_V_4_3, "OLW_DISPLAY_ASPECT_RATIO_V_4_3") \
     X('D', OLW_DISPLAY_ASPECT_RATIO_VD_4_3, "OLW_DISPLAY_ASPECT_RATIO_VD_4_3") \
     X('V', OLW_DISPLAY_ASPECT_RATIO_V_16_10, "OLW_DISPLAY_ASPECT_RATIO_V_16_10") \
+    X('D', OLW_DISPLAY_ASPECT_RATIO_VD_16_10, "OLW_DISPLAY_ASPECT_RATIO_VD_16_10") \
     X('V', OLW_DISPLAY_ASPECT_RATIO_V_16_9, "OLW_DISPLAY_ASPECT_RATIO_V_16_9") \
+    X('D', OLW_DISPLAY_ASPECT_RATIO_VD_16_9, "OLW_DISPLAY_ASPECT_RATIO_VD_16_9") \
     X('V', OLW_DISPLAY_ASPECT_RATIO_V_21_9, "OLW_DISPLAY_ASPECT_RATIO_V_21_9") \
+    X('D', OLW_DISPLAY_ASPECT_RATIO_VD_21_9, "OLW_DISPLAY_ASPECT_RATIO_VD_21_9") \
     X('V', OLW_DISPLAY_ASPECT_RATIO_V_32_9, "OLW_DISPLAY_ASPECT_RATIO_V_32_9") \
+    X('D', OLW_DISPLAY_ASPECT_RATIO_VD_32_9, "OLW_DISPLAY_ASPECT_RATIO_VD_32_9") \
     X('L', OLW_DISPLAY_DISPLAY_MODE_L, "OLW_DISPLAY_DISPLAY_MODE_L") \
     X('D', OLW_DISPLAY_DISPLAY_MODE_D, "OLW_DISPLAY_DISPLAY_MODE_D") \
     X('V', OLW_DISPLAY_DISPLAY_MODE_V_WINDOWED, "OLW_DISPLAY_DISPLAY_MODE_V_WINDOWED") \
@@ -861,9 +993,13 @@
     X('V', OLW_DISPLAY_MONITOR_V_MAIN, "OLW_DISPLAY_MONITOR_V_MAIN") \
     X('D', OLW_DISPLAY_MONITOR_VD_MAIN, "OLW_DISPLAY_MONITOR_VD_MAIN") \
     X('V', OLW_DISPLAY_MONITOR_V_SECOND, "OLW_DISPLAY_MONITOR_V_SECOND") \
+    X('D', OLW_DISPLAY_MONITOR_VD_SECOND, "OLW_DISPLAY_MONITOR_VD_SECOND") \
     X('V', OLW_DISPLAY_MONITOR_V_THIRD, "OLW_DISPLAY_MONITOR_V_THIRD") \
+    X('D', OLW_DISPLAY_MONITOR_VD_THIRD, "OLW_DISPLAY_MONITOR_VD_THIRD") \
     X('V', OLW_DISPLAY_MONITOR_V_FOURTH, "OLW_DISPLAY_MONITOR_V_FOURTH") \
+    X('D', OLW_DISPLAY_MONITOR_VD_FOURTH, "OLW_DISPLAY_MONITOR_VD_FOURTH") \
     X('V', OLW_DISPLAY_MONITOR_V_DISPLAY_5, "OLW_DISPLAY_MONITOR_V_DISPLAY_5") \
+    X('D', OLW_DISPLAY_MONITOR_VD_DISPLAY_5, "OLW_DISPLAY_MONITOR_VD_DISPLAY_5") \
     X('L', OLW_DISPLAY_FRAME_RATE_L, "OLW_DISPLAY_FRAME_RATE_L") \
     X('D', OLW_DISPLAY_FRAME_RATE_D, "OLW_DISPLAY_FRAME_RATE_D") \
     X('V', OLW_DISPLAY_FRAME_RATE_V_30, "OLW_DISPLAY_FRAME_RATE_V_30") \
@@ -905,7 +1041,9 @@
     X('V', OLW_CONTROLS_VIBRATION_V_LOW, "OLW_CONTROLS_VIBRATION_V_LOW") \
     X('D', OLW_CONTROLS_VIBRATION_VD_LOW, "OLW_CONTROLS_VIBRATION_VD_LOW") \
     X('V', OLW_CONTROLS_VIBRATION_V_MEDIUM, "OLW_CONTROLS_VIBRATION_V_MEDIUM") \
+    X('D', OLW_CONTROLS_VIBRATION_VD_MEDIUM, "OLW_CONTROLS_VIBRATION_VD_MEDIUM") \
     X('V', OLW_CONTROLS_VIBRATION_V_HIGH, "OLW_CONTROLS_VIBRATION_V_HIGH") \
+    X('D', OLW_CONTROLS_VIBRATION_VD_HIGH, "OLW_CONTROLS_VIBRATION_VD_HIGH") \
     X('L', OLW_CONTROLS_ANALOG_MOVEMENT_L, "OLW_CONTROLS_ANALOG_MOVEMENT_L") \
     X('D', OLW_CONTROLS_ANALOG_MOVEMENT_D, "OLW_CONTROLS_ANALOG_MOVEMENT_D") \
     X('V', OLW_CONTROLS_ANALOG_MOVEMENT_V_OFF, "OLW_CONTROLS_ANALOG_MOVEMENT_V_OFF") \
@@ -972,15 +1110,21 @@
     X('L', OLW_STEERING_INVERT_TURN_L, "OLW_STEERING_INVERT_TURN_L") \
     X('D', OLW_STEERING_INVERT_TURN_D, "OLW_STEERING_INVERT_TURN_D") \
     X('V', OLW_STEERING_INVERT_TURN_V_OFF, "OLW_STEERING_INVERT_TURN_V_OFF") \
+    X('D', OLW_STEERING_INVERT_TURN_VD_OFF, "OLW_STEERING_INVERT_TURN_VD_OFF") \
     X('V', OLW_STEERING_INVERT_TURN_V_ON, "OLW_STEERING_INVERT_TURN_V_ON") \
+    X('D', OLW_STEERING_INVERT_TURN_VD_ON, "OLW_STEERING_INVERT_TURN_VD_ON") \
     X('L', OLW_STEERING_INVERT_TILT_L, "OLW_STEERING_INVERT_TILT_L") \
     X('D', OLW_STEERING_INVERT_TILT_D, "OLW_STEERING_INVERT_TILT_D") \
     X('V', OLW_STEERING_INVERT_TILT_V_OFF, "OLW_STEERING_INVERT_TILT_V_OFF") \
+    X('D', OLW_STEERING_INVERT_TILT_VD_OFF, "OLW_STEERING_INVERT_TILT_VD_OFF") \
     X('V', OLW_STEERING_INVERT_TILT_V_ON, "OLW_STEERING_INVERT_TILT_V_ON") \
+    X('D', OLW_STEERING_INVERT_TILT_VD_ON, "OLW_STEERING_INVERT_TILT_VD_ON") \
     X('L', OLW_STEERING_WALL_ZOOM_L, "OLW_STEERING_WALL_ZOOM_L") \
     X('D', OLW_STEERING_WALL_ZOOM_D, "OLW_STEERING_WALL_ZOOM_D") \
     X('V', OLW_STEERING_WALL_ZOOM_V_OFF, "OLW_STEERING_WALL_ZOOM_V_OFF") \
+    X('D', OLW_STEERING_WALL_ZOOM_VD_OFF, "OLW_STEERING_WALL_ZOOM_VD_OFF") \
     X('V', OLW_STEERING_WALL_ZOOM_V_ON, "OLW_STEERING_WALL_ZOOM_V_ON") \
+    X('D', OLW_STEERING_WALL_ZOOM_VD_ON, "OLW_STEERING_WALL_ZOOM_VD_ON") \
     X('L', OLW_STEERING_WALL_MARGIN_L, "OLW_STEERING_WALL_MARGIN_L") \
     X('D', OLW_STEERING_WALL_MARGIN_D, "OLW_STEERING_WALL_MARGIN_D") \
     X('V', OLW_STEERING_WALL_MARGIN_V_50, "OLW_STEERING_WALL_MARGIN_V_50") \
@@ -996,6 +1140,7 @@
     X('L', OLW_ROOM302_LOOK_DOWN_L, "OLW_ROOM302_LOOK_DOWN_L") \
     X('D', OLW_ROOM302_LOOK_DOWN_D, "OLW_ROOM302_LOOK_DOWN_D") \
     X('V', OLW_ROOM302_LOOK_DOWN_V_GAME, "OLW_ROOM302_LOOK_DOWN_V_GAME") \
+    X('D', OLW_ROOM302_LOOK_DOWN_VD_GAME, "OLW_ROOM302_LOOK_DOWN_VD_GAME") \
     X('V', OLW_ROOM302_LOOK_DOWN_V_60, "OLW_ROOM302_LOOK_DOWN_V_60") \
     X('V', OLW_ROOM302_LOOK_DOWN_V_65, "OLW_ROOM302_LOOK_DOWN_V_65") \
     X('V', OLW_ROOM302_LOOK_DOWN_V_70, "OLW_ROOM302_LOOK_DOWN_V_70") \
@@ -1005,6 +1150,7 @@
     X('L', OLW_ROOM302_LOOK_UP_L, "OLW_ROOM302_LOOK_UP_L") \
     X('D', OLW_ROOM302_LOOK_UP_D, "OLW_ROOM302_LOOK_UP_D") \
     X('V', OLW_ROOM302_LOOK_UP_V_GAME, "OLW_ROOM302_LOOK_UP_V_GAME") \
+    X('D', OLW_ROOM302_LOOK_UP_VD_GAME, "OLW_ROOM302_LOOK_UP_VD_GAME") \
     X('V', OLW_ROOM302_LOOK_UP_V_35, "OLW_ROOM302_LOOK_UP_V_35") \
     X('V', OLW_ROOM302_LOOK_UP_V_45, "OLW_ROOM302_LOOK_UP_V_45") \
     X('V', OLW_ROOM302_LOOK_UP_V_60, "OLW_ROOM302_LOOK_UP_V_60") \
@@ -1014,6 +1160,7 @@
     X('L', OLW_ROOM302_LOOK_SMOOTHING_L, "OLW_ROOM302_LOOK_SMOOTHING_L") \
     X('D', OLW_ROOM302_LOOK_SMOOTHING_D, "OLW_ROOM302_LOOK_SMOOTHING_D") \
     X('V', OLW_ROOM302_LOOK_SMOOTHING_V_OFF, "OLW_ROOM302_LOOK_SMOOTHING_V_OFF") \
+    X('D', OLW_ROOM302_LOOK_SMOOTHING_VD_OFF, "OLW_ROOM302_LOOK_SMOOTHING_VD_OFF") \
     X('V', OLW_ROOM302_LOOK_SMOOTHING_V_0_5, "OLW_ROOM302_LOOK_SMOOTHING_V_0_5") \
     X('V', OLW_ROOM302_LOOK_SMOOTHING_V_1, "OLW_ROOM302_LOOK_SMOOTHING_V_1") \
     X('V', OLW_ROOM302_LOOK_SMOOTHING_V_1_5, "OLW_ROOM302_LOOK_SMOOTHING_V_1_5") \
@@ -1043,6 +1190,7 @@
     X('V', OLW_ROOM302_WALK_SPEED_V_0_5, "OLW_ROOM302_WALK_SPEED_V_0_5") \
     X('V', OLW_ROOM302_WALK_SPEED_V_0_65, "OLW_ROOM302_WALK_SPEED_V_0_65") \
     X('V', OLW_ROOM302_WALK_SPEED_V_GAME, "OLW_ROOM302_WALK_SPEED_V_GAME") \
+    X('D', OLW_ROOM302_WALK_SPEED_VD_GAME, "OLW_ROOM302_WALK_SPEED_VD_GAME") \
     X('V', OLW_ROOM302_WALK_SPEED_V_1_2, "OLW_ROOM302_WALK_SPEED_V_1_2") \
     X('L', OLW_INTERFACE_LANGUAGE_L, "OLW_INTERFACE_LANGUAGE_L") \
     X('D', OLW_INTERFACE_LANGUAGE_D, "OLW_INTERFACE_LANGUAGE_D") \
@@ -1106,71 +1254,113 @@
     X('L', OLW_SUBTITLES_SIZE_L, "OLW_SUBTITLES_SIZE_L") \
     X('D', OLW_SUBTITLES_SIZE_D, "OLW_SUBTITLES_SIZE_D") \
     X('V', OLW_SUBTITLES_SIZE_V_SMALL, "OLW_SUBTITLES_SIZE_V_SMALL") \
+    X('D', OLW_SUBTITLES_SIZE_VD_SMALL, "OLW_SUBTITLES_SIZE_VD_SMALL") \
     X('V', OLW_SUBTITLES_SIZE_V_NORMAL, "OLW_SUBTITLES_SIZE_V_NORMAL") \
+    X('D', OLW_SUBTITLES_SIZE_VD_NORMAL, "OLW_SUBTITLES_SIZE_VD_NORMAL") \
     X('V', OLW_SUBTITLES_SIZE_V_LARGE, "OLW_SUBTITLES_SIZE_V_LARGE") \
+    X('D', OLW_SUBTITLES_SIZE_VD_LARGE, "OLW_SUBTITLES_SIZE_VD_LARGE") \
     X('V', OLW_SUBTITLES_SIZE_V_HUGE, "OLW_SUBTITLES_SIZE_V_HUGE") \
+    X('D', OLW_SUBTITLES_SIZE_VD_HUGE, "OLW_SUBTITLES_SIZE_VD_HUGE") \
     X('L', OLW_SUBTITLES_COLOUR_L, "OLW_SUBTITLES_COLOUR_L") \
     X('D', OLW_SUBTITLES_COLOUR_D, "OLW_SUBTITLES_COLOUR_D") \
     X('V', OLW_SUBTITLES_COLOUR_V_WHITE, "OLW_SUBTITLES_COLOUR_V_WHITE") \
+    X('D', OLW_SUBTITLES_COLOUR_VD_WHITE, "OLW_SUBTITLES_COLOUR_VD_WHITE") \
     X('V', OLW_SUBTITLES_COLOUR_V_YELLOW, "OLW_SUBTITLES_COLOUR_V_YELLOW") \
+    X('D', OLW_SUBTITLES_COLOUR_VD_YELLOW, "OLW_SUBTITLES_COLOUR_VD_YELLOW") \
     X('V', OLW_SUBTITLES_COLOUR_V_CYAN, "OLW_SUBTITLES_COLOUR_V_CYAN") \
+    X('D', OLW_SUBTITLES_COLOUR_VD_CYAN, "OLW_SUBTITLES_COLOUR_VD_CYAN") \
     X('V', OLW_SUBTITLES_COLOUR_V_GREEN, "OLW_SUBTITLES_COLOUR_V_GREEN") \
+    X('D', OLW_SUBTITLES_COLOUR_VD_GREEN, "OLW_SUBTITLES_COLOUR_VD_GREEN") \
     X('V', OLW_SUBTITLES_COLOUR_V_RED, "OLW_SUBTITLES_COLOUR_V_RED") \
+    X('D', OLW_SUBTITLES_COLOUR_VD_RED, "OLW_SUBTITLES_COLOUR_VD_RED") \
     X('V', OLW_SUBTITLES_COLOUR_V_PINK, "OLW_SUBTITLES_COLOUR_V_PINK") \
+    X('D', OLW_SUBTITLES_COLOUR_VD_PINK, "OLW_SUBTITLES_COLOUR_VD_PINK") \
     X('V', OLW_SUBTITLES_COLOUR_V_ORANGE, "OLW_SUBTITLES_COLOUR_V_ORANGE") \
+    X('D', OLW_SUBTITLES_COLOUR_VD_ORANGE, "OLW_SUBTITLES_COLOUR_VD_ORANGE") \
     X('V', OLW_SUBTITLES_COLOUR_V_AMBER, "OLW_SUBTITLES_COLOUR_V_AMBER") \
+    X('D', OLW_SUBTITLES_COLOUR_VD_AMBER, "OLW_SUBTITLES_COLOUR_VD_AMBER") \
     X('V', OLW_SUBTITLES_COLOUR_V_ICE_BLUE, "OLW_SUBTITLES_COLOUR_V_ICE_BLUE") \
+    X('D', OLW_SUBTITLES_COLOUR_VD_ICE_BLUE, "OLW_SUBTITLES_COLOUR_VD_ICE_BLUE") \
     X('L', OLW_SUBTITLES_EDGE_L, "OLW_SUBTITLES_EDGE_L") \
     X('D', OLW_SUBTITLES_EDGE_D, "OLW_SUBTITLES_EDGE_D") \
     X('V', OLW_SUBTITLES_EDGE_V_SHADOW, "OLW_SUBTITLES_EDGE_V_SHADOW") \
+    X('D', OLW_SUBTITLES_EDGE_VD_SHADOW, "OLW_SUBTITLES_EDGE_VD_SHADOW") \
     X('V', OLW_SUBTITLES_EDGE_V_NONE, "OLW_SUBTITLES_EDGE_V_NONE") \
+    X('D', OLW_SUBTITLES_EDGE_VD_NONE, "OLW_SUBTITLES_EDGE_VD_NONE") \
     X('V', OLW_SUBTITLES_EDGE_V_OUTLINE, "OLW_SUBTITLES_EDGE_V_OUTLINE") \
+    X('D', OLW_SUBTITLES_EDGE_VD_OUTLINE, "OLW_SUBTITLES_EDGE_VD_OUTLINE") \
     X('V', OLW_SUBTITLES_EDGE_V_BOTH, "OLW_SUBTITLES_EDGE_V_BOTH") \
     X('D', OLW_SUBTITLES_EDGE_VD_BOTH, "OLW_SUBTITLES_EDGE_VD_BOTH") \
     X('L', OLW_SUBTITLES_BOX_L, "OLW_SUBTITLES_BOX_L") \
     X('D', OLW_SUBTITLES_BOX_D, "OLW_SUBTITLES_BOX_D") \
     X('V', OLW_SUBTITLES_BOX_V_NONE, "OLW_SUBTITLES_BOX_V_NONE") \
+    X('D', OLW_SUBTITLES_BOX_VD_NONE, "OLW_SUBTITLES_BOX_VD_NONE") \
     X('V', OLW_SUBTITLES_BOX_V_TRANSLUCENT, "OLW_SUBTITLES_BOX_V_TRANSLUCENT") \
+    X('D', OLW_SUBTITLES_BOX_VD_TRANSLUCENT, "OLW_SUBTITLES_BOX_VD_TRANSLUCENT") \
     X('V', OLW_SUBTITLES_BOX_V_SOLID, "OLW_SUBTITLES_BOX_V_SOLID") \
+    X('D', OLW_SUBTITLES_BOX_VD_SOLID, "OLW_SUBTITLES_BOX_VD_SOLID") \
     X('L', OLW_SUBTITLES_APPEAR_L, "OLW_SUBTITLES_APPEAR_L") \
     X('D', OLW_SUBTITLES_APPEAR_D, "OLW_SUBTITLES_APPEAR_D") \
     X('V', OLW_SUBTITLES_APPEAR_V_NONE, "OLW_SUBTITLES_APPEAR_V_NONE") \
+    X('D', OLW_SUBTITLES_APPEAR_VD_NONE, "OLW_SUBTITLES_APPEAR_VD_NONE") \
     X('V', OLW_SUBTITLES_APPEAR_V_TYPEWRITER, "OLW_SUBTITLES_APPEAR_V_TYPEWRITER") \
+    X('D', OLW_SUBTITLES_APPEAR_VD_TYPEWRITER, "OLW_SUBTITLES_APPEAR_VD_TYPEWRITER") \
     X('V', OLW_SUBTITLES_APPEAR_V_FADE_IN, "OLW_SUBTITLES_APPEAR_V_FADE_IN") \
+    X('D', OLW_SUBTITLES_APPEAR_VD_FADE_IN, "OLW_SUBTITLES_APPEAR_VD_FADE_IN") \
     X('V', OLW_SUBTITLES_APPEAR_V_WAVE, "OLW_SUBTITLES_APPEAR_V_WAVE") \
+    X('D', OLW_SUBTITLES_APPEAR_VD_WAVE, "OLW_SUBTITLES_APPEAR_VD_WAVE") \
     X('V', OLW_SUBTITLES_APPEAR_V_GLITCH, "OLW_SUBTITLES_APPEAR_V_GLITCH") \
+    X('D', OLW_SUBTITLES_APPEAR_VD_GLITCH, "OLW_SUBTITLES_APPEAR_VD_GLITCH") \
     X('V', OLW_SUBTITLES_APPEAR_V_BLOOD_DRIP, "OLW_SUBTITLES_APPEAR_V_BLOOD_DRIP") \
+    X('D', OLW_SUBTITLES_APPEAR_VD_BLOOD_DRIP, "OLW_SUBTITLES_APPEAR_VD_BLOOD_DRIP") \
     X('V', OLW_SUBTITLES_APPEAR_V_EMBERS, "OLW_SUBTITLES_APPEAR_V_EMBERS") \
+    X('D', OLW_SUBTITLES_APPEAR_VD_EMBERS, "OLW_SUBTITLES_APPEAR_VD_EMBERS") \
     X('L', OLW_SUBTITLES_VANISH_L, "OLW_SUBTITLES_VANISH_L") \
     X('D', OLW_SUBTITLES_VANISH_D, "OLW_SUBTITLES_VANISH_D") \
     X('V', OLW_SUBTITLES_VANISH_V_NONE, "OLW_SUBTITLES_VANISH_V_NONE") \
+    X('D', OLW_SUBTITLES_VANISH_VD_NONE, "OLW_SUBTITLES_VANISH_VD_NONE") \
     X('V', OLW_SUBTITLES_VANISH_V_FADE_OUT, "OLW_SUBTITLES_VANISH_V_FADE_OUT") \
+    X('D', OLW_SUBTITLES_VANISH_VD_FADE_OUT, "OLW_SUBTITLES_VANISH_VD_FADE_OUT") \
     X('V', OLW_SUBTITLES_VANISH_V_BURN_OUT, "OLW_SUBTITLES_VANISH_V_BURN_OUT") \
+    X('D', OLW_SUBTITLES_VANISH_VD_BURN_OUT, "OLW_SUBTITLES_VANISH_VD_BURN_OUT") \
     X('V', OLW_SUBTITLES_VANISH_V_PAPER_PEEL, "OLW_SUBTITLES_VANISH_V_PAPER_PEEL") \
+    X('D', OLW_SUBTITLES_VANISH_VD_PAPER_PEEL, "OLW_SUBTITLES_VANISH_VD_PAPER_PEEL") \
     X('L', OLW_PAUSE_STORAGE_CHEST_L, "OLW_PAUSE_STORAGE_CHEST_L") \
     X('D', OLW_PAUSE_STORAGE_CHEST_D, "OLW_PAUSE_STORAGE_CHEST_D") \
     X('V', OLW_PAUSE_STORAGE_CHEST_V_HIDDEN, "OLW_PAUSE_STORAGE_CHEST_V_HIDDEN") \
+    X('D', OLW_PAUSE_STORAGE_CHEST_VD_HIDDEN, "OLW_PAUSE_STORAGE_CHEST_VD_HIDDEN") \
     X('V', OLW_PAUSE_STORAGE_CHEST_V_SHOWN, "OLW_PAUSE_STORAGE_CHEST_V_SHOWN") \
+    X('D', OLW_PAUSE_STORAGE_CHEST_VD_SHOWN, "OLW_PAUSE_STORAGE_CHEST_VD_SHOWN") \
     X('L', OLW_PAUSE_SAVE_GAME_L, "OLW_PAUSE_SAVE_GAME_L") \
     X('D', OLW_PAUSE_SAVE_GAME_D, "OLW_PAUSE_SAVE_GAME_D") \
     X('V', OLW_PAUSE_SAVE_GAME_V_HIDDEN, "OLW_PAUSE_SAVE_GAME_V_HIDDEN") \
+    X('D', OLW_PAUSE_SAVE_GAME_VD_HIDDEN, "OLW_PAUSE_SAVE_GAME_VD_HIDDEN") \
     X('V', OLW_PAUSE_SAVE_GAME_V_SHOWN, "OLW_PAUSE_SAVE_GAME_V_SHOWN") \
+    X('D', OLW_PAUSE_SAVE_GAME_VD_SHOWN, "OLW_PAUSE_SAVE_GAME_VD_SHOWN") \
     X('L', OLW_PAUSE_LOAD_GAME_L, "OLW_PAUSE_LOAD_GAME_L") \
     X('D', OLW_PAUSE_LOAD_GAME_D, "OLW_PAUSE_LOAD_GAME_D") \
     X('V', OLW_PAUSE_LOAD_GAME_V_HIDDEN, "OLW_PAUSE_LOAD_GAME_V_HIDDEN") \
+    X('D', OLW_PAUSE_LOAD_GAME_VD_HIDDEN, "OLW_PAUSE_LOAD_GAME_VD_HIDDEN") \
     X('V', OLW_PAUSE_LOAD_GAME_V_SHOWN, "OLW_PAUSE_LOAD_GAME_V_SHOWN") \
+    X('D', OLW_PAUSE_LOAD_GAME_VD_SHOWN, "OLW_PAUSE_LOAD_GAME_VD_SHOWN") \
     X('L', OLW_PAUSE_QUICK_SAVE_L, "OLW_PAUSE_QUICK_SAVE_L") \
     X('D', OLW_PAUSE_QUICK_SAVE_D, "OLW_PAUSE_QUICK_SAVE_D") \
     X('V', OLW_PAUSE_QUICK_SAVE_V_HIDDEN, "OLW_PAUSE_QUICK_SAVE_V_HIDDEN") \
+    X('D', OLW_PAUSE_QUICK_SAVE_VD_HIDDEN, "OLW_PAUSE_QUICK_SAVE_VD_HIDDEN") \
     X('V', OLW_PAUSE_QUICK_SAVE_V_SHOWN, "OLW_PAUSE_QUICK_SAVE_V_SHOWN") \
+    X('D', OLW_PAUSE_QUICK_SAVE_VD_SHOWN, "OLW_PAUSE_QUICK_SAVE_VD_SHOWN") \
     X('L', OLW_PAUSE_QUICK_LOAD_L, "OLW_PAUSE_QUICK_LOAD_L") \
     X('D', OLW_PAUSE_QUICK_LOAD_D, "OLW_PAUSE_QUICK_LOAD_D") \
     X('V', OLW_PAUSE_QUICK_LOAD_V_HIDDEN, "OLW_PAUSE_QUICK_LOAD_V_HIDDEN") \
+    X('D', OLW_PAUSE_QUICK_LOAD_VD_HIDDEN, "OLW_PAUSE_QUICK_LOAD_VD_HIDDEN") \
     X('V', OLW_PAUSE_QUICK_LOAD_V_SHOWN, "OLW_PAUSE_QUICK_LOAD_V_SHOWN") \
-    X('L', OLW_PAUSE_EILEEN_OUTFIT_L, "OLW_PAUSE_EILEEN_OUTFIT_L") \
-    X('D', OLW_PAUSE_EILEEN_OUTFIT_D, "OLW_PAUSE_EILEEN_OUTFIT_D") \
-    X('V', OLW_PAUSE_EILEEN_OUTFIT_V_HIDDEN, "OLW_PAUSE_EILEEN_OUTFIT_V_HIDDEN") \
-    X('V', OLW_PAUSE_EILEEN_OUTFIT_V_SHOWN, "OLW_PAUSE_EILEEN_OUTFIT_V_SHOWN") \
+    X('D', OLW_PAUSE_QUICK_LOAD_VD_SHOWN, "OLW_PAUSE_QUICK_LOAD_VD_SHOWN") \
+    X('L', OLW_PAUSE_EILEEN_L, "OLW_PAUSE_EILEEN_L") \
+    X('D', OLW_PAUSE_EILEEN_D, "OLW_PAUSE_EILEEN_D") \
+    X('V', OLW_PAUSE_EILEEN_V_HIDDEN, "OLW_PAUSE_EILEEN_V_HIDDEN") \
+    X('D', OLW_PAUSE_EILEEN_VD_HIDDEN, "OLW_PAUSE_EILEEN_VD_HIDDEN") \
+    X('V', OLW_PAUSE_EILEEN_V_SHOWN, "OLW_PAUSE_EILEEN_V_SHOWN") \
+    X('D', OLW_PAUSE_EILEEN_VD_SHOWN, "OLW_PAUSE_EILEEN_VD_SHOWN") \
     X('L', OLW_PAUSE_SAVE_BANKS_L, "OLW_PAUSE_SAVE_BANKS_L") \
     X('D', OLW_PAUSE_SAVE_BANKS_D, "OLW_PAUSE_SAVE_BANKS_D") \
     X('V', OLW_PAUSE_SAVE_BANKS_V_OFF, "OLW_PAUSE_SAVE_BANKS_V_OFF") \
@@ -1211,6 +1401,12 @@
     X('D', OLW_SOUND_NIGHT_MODE_VD_LOW, "OLW_SOUND_NIGHT_MODE_VD_LOW") \
     X('V', OLW_SOUND_NIGHT_MODE_V_HIGH, "OLW_SOUND_NIGHT_MODE_V_HIGH") \
     X('D', OLW_SOUND_NIGHT_MODE_VD_HIGH, "OLW_SOUND_NIGHT_MODE_VD_HIGH") \
+    X('L', OLW_SOUND_BACKGROUND_L, "OLW_SOUND_BACKGROUND_L") \
+    X('D', OLW_SOUND_BACKGROUND_D, "OLW_SOUND_BACKGROUND_D") \
+    X('V', OLW_SOUND_BACKGROUND_V_MUTE, "OLW_SOUND_BACKGROUND_V_MUTE") \
+    X('D', OLW_SOUND_BACKGROUND_VD_MUTE, "OLW_SOUND_BACKGROUND_VD_MUTE") \
+    X('V', OLW_SOUND_BACKGROUND_V_PLAY, "OLW_SOUND_BACKGROUND_V_PLAY") \
+    X('D', OLW_SOUND_BACKGROUND_VD_PLAY, "OLW_SOUND_BACKGROUND_VD_PLAY") \
     X('L', OLW_EFFECTS_FILM_GRAIN_L, "OLW_EFFECTS_FILM_GRAIN_L") \
     X('D', OLW_EFFECTS_FILM_GRAIN_D, "OLW_EFFECTS_FILM_GRAIN_D") \
     X('L', OLW_EFFECTS_FILTER_L, "OLW_EFFECTS_FILTER_L") \
@@ -1244,10 +1440,15 @@
     X('L', OLW_EFFECTS_BLOOM_L, "OLW_EFFECTS_BLOOM_L") \
     X('D', OLW_EFFECTS_BLOOM_D, "OLW_EFFECTS_BLOOM_D") \
     X('V', OLW_EFFECTS_BLOOM_V_OFF, "OLW_EFFECTS_BLOOM_V_OFF") \
+    X('D', OLW_EFFECTS_BLOOM_VD_OFF, "OLW_EFFECTS_BLOOM_VD_OFF") \
     X('V', OLW_EFFECTS_BLOOM_V_LOW, "OLW_EFFECTS_BLOOM_V_LOW") \
+    X('D', OLW_EFFECTS_BLOOM_VD_LOW, "OLW_EFFECTS_BLOOM_VD_LOW") \
     X('V', OLW_EFFECTS_BLOOM_V_MEDIUM, "OLW_EFFECTS_BLOOM_V_MEDIUM") \
+    X('D', OLW_EFFECTS_BLOOM_VD_MEDIUM, "OLW_EFFECTS_BLOOM_VD_MEDIUM") \
     X('V', OLW_EFFECTS_BLOOM_V_HIGH, "OLW_EFFECTS_BLOOM_V_HIGH") \
+    X('D', OLW_EFFECTS_BLOOM_VD_HIGH, "OLW_EFFECTS_BLOOM_VD_HIGH") \
     X('V', OLW_EFFECTS_BLOOM_V_ULTRA, "OLW_EFFECTS_BLOOM_V_ULTRA") \
+    X('D', OLW_EFFECTS_BLOOM_VD_ULTRA, "OLW_EFFECTS_BLOOM_VD_ULTRA") \
     X('L', OLW_EFFECTS_COLOUR_GRADE_L, "OLW_EFFECTS_COLOUR_GRADE_L") \
     X('D', OLW_EFFECTS_COLOUR_GRADE_D, "OLW_EFFECTS_COLOUR_GRADE_D") \
     X('V', OLW_EFFECTS_COLOUR_GRADE_V_OFF, "OLW_EFFECTS_COLOUR_GRADE_V_OFF") \
@@ -1269,6 +1470,7 @@
     X('L', OLW_EFFECTS_DEPTH_OF_FIELD_L, "OLW_EFFECTS_DEPTH_OF_FIELD_L") \
     X('D', OLW_EFFECTS_DEPTH_OF_FIELD_D, "OLW_EFFECTS_DEPTH_OF_FIELD_D") \
     X('V', OLW_EFFECTS_DEPTH_OF_FIELD_V_OFF, "OLW_EFFECTS_DEPTH_OF_FIELD_V_OFF") \
+    X('D', OLW_EFFECTS_DEPTH_OF_FIELD_VD_OFF, "OLW_EFFECTS_DEPTH_OF_FIELD_VD_OFF") \
     X('V', OLW_EFFECTS_DEPTH_OF_FIELD_V_CUT_SCENES, "OLW_EFFECTS_DEPTH_OF_FIELD_V_CUT_SCENES") \
     X('D', OLW_EFFECTS_DEPTH_OF_FIELD_VD_CUT_SCENES, "OLW_EFFECTS_DEPTH_OF_FIELD_VD_CUT_SCENES") \
     X('V', OLW_EFFECTS_DEPTH_OF_FIELD_V_ALWAYS, "OLW_EFFECTS_DEPTH_OF_FIELD_V_ALWAYS") \
@@ -1276,43 +1478,69 @@
     X('L', OLW_EFFECTS_BLUR_STRENGTH_L, "OLW_EFFECTS_BLUR_STRENGTH_L") \
     X('D', OLW_EFFECTS_BLUR_STRENGTH_D, "OLW_EFFECTS_BLUR_STRENGTH_D") \
     X('V', OLW_EFFECTS_BLUR_STRENGTH_V_LOW, "OLW_EFFECTS_BLUR_STRENGTH_V_LOW") \
+    X('D', OLW_EFFECTS_BLUR_STRENGTH_VD_LOW, "OLW_EFFECTS_BLUR_STRENGTH_VD_LOW") \
     X('V', OLW_EFFECTS_BLUR_STRENGTH_V_MEDIUM, "OLW_EFFECTS_BLUR_STRENGTH_V_MEDIUM") \
+    X('D', OLW_EFFECTS_BLUR_STRENGTH_VD_MEDIUM, "OLW_EFFECTS_BLUR_STRENGTH_VD_MEDIUM") \
     X('V', OLW_EFFECTS_BLUR_STRENGTH_V_HIGH, "OLW_EFFECTS_BLUR_STRENGTH_V_HIGH") \
+    X('D', OLW_EFFECTS_BLUR_STRENGTH_VD_HIGH, "OLW_EFFECTS_BLUR_STRENGTH_VD_HIGH") \
     X('L', OLW_EFFECTS_SHADOWS_L, "OLW_EFFECTS_SHADOWS_L") \
     X('D', OLW_EFFECTS_SHADOWS_D, "OLW_EFFECTS_SHADOWS_D") \
     X('L', OLW_GRAIN_FILM_GRAIN_L, "OLW_GRAIN_FILM_GRAIN_L") \
     X('D', OLW_GRAIN_FILM_GRAIN_D, "OLW_GRAIN_FILM_GRAIN_D") \
     X('V', OLW_GRAIN_FILM_GRAIN_V_OFF, "OLW_GRAIN_FILM_GRAIN_V_OFF") \
+    X('D', OLW_GRAIN_FILM_GRAIN_VD_OFF, "OLW_GRAIN_FILM_GRAIN_VD_OFF") \
     X('V', OLW_GRAIN_FILM_GRAIN_V_ON, "OLW_GRAIN_FILM_GRAIN_V_ON") \
+    X('D', OLW_GRAIN_FILM_GRAIN_VD_ON, "OLW_GRAIN_FILM_GRAIN_VD_ON") \
     X('L', OLW_GRAIN_STRENGTH_L, "OLW_GRAIN_STRENGTH_L") \
     X('D', OLW_GRAIN_STRENGTH_D, "OLW_GRAIN_STRENGTH_D") \
     X('V', OLW_GRAIN_STRENGTH_V_LOW, "OLW_GRAIN_STRENGTH_V_LOW") \
+    X('D', OLW_GRAIN_STRENGTH_VD_LOW, "OLW_GRAIN_STRENGTH_VD_LOW") \
     X('V', OLW_GRAIN_STRENGTH_V_NORMAL, "OLW_GRAIN_STRENGTH_V_NORMAL") \
+    X('D', OLW_GRAIN_STRENGTH_VD_NORMAL, "OLW_GRAIN_STRENGTH_VD_NORMAL") \
     X('V', OLW_GRAIN_STRENGTH_V_HIGH, "OLW_GRAIN_STRENGTH_V_HIGH") \
+    X('D', OLW_GRAIN_STRENGTH_VD_HIGH, "OLW_GRAIN_STRENGTH_VD_HIGH") \
     X('V', OLW_GRAIN_STRENGTH_V_VERY_HIGH, "OLW_GRAIN_STRENGTH_V_VERY_HIGH") \
+    X('D', OLW_GRAIN_STRENGTH_VD_VERY_HIGH, "OLW_GRAIN_STRENGTH_VD_VERY_HIGH") \
     X('L', OLW_GRAIN_GRAIN_TYPE_L, "OLW_GRAIN_GRAIN_TYPE_L") \
     X('D', OLW_GRAIN_GRAIN_TYPE_D, "OLW_GRAIN_GRAIN_TYPE_D") \
     X('V', OLW_GRAIN_GRAIN_TYPE_V_STOCK, "OLW_GRAIN_GRAIN_TYPE_V_STOCK") \
+    X('D', OLW_GRAIN_GRAIN_TYPE_VD_STOCK, "OLW_GRAIN_GRAIN_TYPE_VD_STOCK") \
     X('V', OLW_GRAIN_GRAIN_TYPE_V_FINE, "OLW_GRAIN_GRAIN_TYPE_V_FINE") \
+    X('D', OLW_GRAIN_GRAIN_TYPE_VD_FINE, "OLW_GRAIN_GRAIN_TYPE_VD_FINE") \
     X('V', OLW_GRAIN_GRAIN_TYPE_V_COARSE, "OLW_GRAIN_GRAIN_TYPE_V_COARSE") \
+    X('D', OLW_GRAIN_GRAIN_TYPE_VD_COARSE, "OLW_GRAIN_GRAIN_TYPE_VD_COARSE") \
     X('V', OLW_GRAIN_GRAIN_TYPE_V_FILM, "OLW_GRAIN_GRAIN_TYPE_V_FILM") \
+    X('D', OLW_GRAIN_GRAIN_TYPE_VD_FILM, "OLW_GRAIN_GRAIN_TYPE_VD_FILM") \
     X('V', OLW_GRAIN_GRAIN_TYPE_V_VHS, "OLW_GRAIN_GRAIN_TYPE_V_VHS") \
+    X('D', OLW_GRAIN_GRAIN_TYPE_VD_VHS, "OLW_GRAIN_GRAIN_TYPE_VD_VHS") \
     X('V', OLW_GRAIN_GRAIN_TYPE_V_SCAN_ROLL, "OLW_GRAIN_GRAIN_TYPE_V_SCAN_ROLL") \
+    X('D', OLW_GRAIN_GRAIN_TYPE_VD_SCAN_ROLL, "OLW_GRAIN_GRAIN_TYPE_VD_SCAN_ROLL") \
     X('V', OLW_GRAIN_GRAIN_TYPE_V_RAIN, "OLW_GRAIN_GRAIN_TYPE_V_RAIN") \
+    X('D', OLW_GRAIN_GRAIN_TYPE_VD_RAIN, "OLW_GRAIN_GRAIN_TYPE_VD_RAIN") \
     X('L', OLW_GRAIN_GRAIN_COLOUR_L, "OLW_GRAIN_GRAIN_COLOUR_L") \
     X('D', OLW_GRAIN_GRAIN_COLOUR_D, "OLW_GRAIN_GRAIN_COLOUR_D") \
     X('V', OLW_GRAIN_GRAIN_COLOUR_V_STOCK, "OLW_GRAIN_GRAIN_COLOUR_V_STOCK") \
+    X('D', OLW_GRAIN_GRAIN_COLOUR_VD_STOCK, "OLW_GRAIN_GRAIN_COLOUR_VD_STOCK") \
     X('V', OLW_GRAIN_GRAIN_COLOUR_V_MONO, "OLW_GRAIN_GRAIN_COLOUR_V_MONO") \
+    X('D', OLW_GRAIN_GRAIN_COLOUR_VD_MONO, "OLW_GRAIN_GRAIN_COLOUR_VD_MONO") \
     X('V', OLW_GRAIN_GRAIN_COLOUR_V_FULL_COLOUR, "OLW_GRAIN_GRAIN_COLOUR_V_FULL_COLOUR") \
+    X('D', OLW_GRAIN_GRAIN_COLOUR_VD_FULL_COLOUR, "OLW_GRAIN_GRAIN_COLOUR_VD_FULL_COLOUR") \
     X('V', OLW_GRAIN_GRAIN_COLOUR_V_RED, "OLW_GRAIN_GRAIN_COLOUR_V_RED") \
+    X('D', OLW_GRAIN_GRAIN_COLOUR_VD_RED, "OLW_GRAIN_GRAIN_COLOUR_VD_RED") \
     X('V', OLW_GRAIN_GRAIN_COLOUR_V_GREEN, "OLW_GRAIN_GRAIN_COLOUR_V_GREEN") \
+    X('D', OLW_GRAIN_GRAIN_COLOUR_VD_GREEN, "OLW_GRAIN_GRAIN_COLOUR_VD_GREEN") \
     X('V', OLW_GRAIN_GRAIN_COLOUR_V_BLUE, "OLW_GRAIN_GRAIN_COLOUR_V_BLUE") \
+    X('D', OLW_GRAIN_GRAIN_COLOUR_VD_BLUE, "OLW_GRAIN_GRAIN_COLOUR_VD_BLUE") \
     X('V', OLW_GRAIN_GRAIN_COLOUR_V_AMBER, "OLW_GRAIN_GRAIN_COLOUR_V_AMBER") \
+    X('D', OLW_GRAIN_GRAIN_COLOUR_VD_AMBER, "OLW_GRAIN_GRAIN_COLOUR_VD_AMBER") \
     X('V', OLW_GRAIN_GRAIN_COLOUR_V_SEPIA, "OLW_GRAIN_GRAIN_COLOUR_V_SEPIA") \
+    X('D', OLW_GRAIN_GRAIN_COLOUR_VD_SEPIA, "OLW_GRAIN_GRAIN_COLOUR_VD_SEPIA") \
     X('L', OLW_SHADOWS_SHADOWS_L, "OLW_SHADOWS_SHADOWS_L") \
     X('D', OLW_SHADOWS_SHADOWS_D, "OLW_SHADOWS_SHADOWS_D") \
     X('V', OLW_SHADOWS_SHADOWS_V_OFF, "OLW_SHADOWS_SHADOWS_V_OFF") \
+    X('D', OLW_SHADOWS_SHADOWS_VD_OFF, "OLW_SHADOWS_SHADOWS_VD_OFF") \
     X('V', OLW_SHADOWS_SHADOWS_V_ON, "OLW_SHADOWS_SHADOWS_V_ON") \
+    X('D', OLW_SHADOWS_SHADOWS_VD_ON, "OLW_SHADOWS_SHADOWS_VD_ON") \
     X('L', OLW_SHADOWS_EDGE_L, "OLW_SHADOWS_EDGE_L") \
     X('D', OLW_SHADOWS_EDGE_D, "OLW_SHADOWS_EDGE_D") \
     X('V', OLW_SHADOWS_EDGE_V_STOCK, "OLW_SHADOWS_EDGE_V_STOCK") \
@@ -1342,20 +1570,33 @@
     X('L', OLW_GAMEPLAY_BLOOD_COLOUR_L, "OLW_GAMEPLAY_BLOOD_COLOUR_L") \
     X('D', OLW_GAMEPLAY_BLOOD_COLOUR_D, "OLW_GAMEPLAY_BLOOD_COLOUR_D") \
     X('V', OLW_GAMEPLAY_BLOOD_COLOUR_V_RED, "OLW_GAMEPLAY_BLOOD_COLOUR_V_RED") \
+    X('D', OLW_GAMEPLAY_BLOOD_COLOUR_VD_RED, "OLW_GAMEPLAY_BLOOD_COLOUR_VD_RED") \
     X('V', OLW_GAMEPLAY_BLOOD_COLOUR_V_GREEN, "OLW_GAMEPLAY_BLOOD_COLOUR_V_GREEN") \
+    X('D', OLW_GAMEPLAY_BLOOD_COLOUR_VD_GREEN, "OLW_GAMEPLAY_BLOOD_COLOUR_VD_GREEN") \
     X('V', OLW_GAMEPLAY_BLOOD_COLOUR_V_PURPLE, "OLW_GAMEPLAY_BLOOD_COLOUR_V_PURPLE") \
+    X('D', OLW_GAMEPLAY_BLOOD_COLOUR_VD_PURPLE, "OLW_GAMEPLAY_BLOOD_COLOUR_VD_PURPLE") \
     X('V', OLW_GAMEPLAY_BLOOD_COLOUR_V_YELLOW, "OLW_GAMEPLAY_BLOOD_COLOUR_V_YELLOW") \
+    X('D', OLW_GAMEPLAY_BLOOD_COLOUR_VD_YELLOW, "OLW_GAMEPLAY_BLOOD_COLOUR_VD_YELLOW") \
     X('V', OLW_GAMEPLAY_BLOOD_COLOUR_V_ORANGE, "OLW_GAMEPLAY_BLOOD_COLOUR_V_ORANGE") \
+    X('D', OLW_GAMEPLAY_BLOOD_COLOUR_VD_ORANGE, "OLW_GAMEPLAY_BLOOD_COLOUR_VD_ORANGE") \
     X('V', OLW_GAMEPLAY_BLOOD_COLOUR_V_PINK, "OLW_GAMEPLAY_BLOOD_COLOUR_V_PINK") \
+    X('D', OLW_GAMEPLAY_BLOOD_COLOUR_VD_PINK, "OLW_GAMEPLAY_BLOOD_COLOUR_VD_PINK") \
     X('V', OLW_GAMEPLAY_BLOOD_COLOUR_V_BLUE, "OLW_GAMEPLAY_BLOOD_COLOUR_V_BLUE") \
+    X('D', OLW_GAMEPLAY_BLOOD_COLOUR_VD_BLUE, "OLW_GAMEPLAY_BLOOD_COLOUR_VD_BLUE") \
     X('V', OLW_GAMEPLAY_BLOOD_COLOUR_V_CYAN, "OLW_GAMEPLAY_BLOOD_COLOUR_V_CYAN") \
+    X('D', OLW_GAMEPLAY_BLOOD_COLOUR_VD_CYAN, "OLW_GAMEPLAY_BLOOD_COLOUR_VD_CYAN") \
     X('V', OLW_GAMEPLAY_BLOOD_COLOUR_V_WHITE, "OLW_GAMEPLAY_BLOOD_COLOUR_V_WHITE") \
+    X('D', OLW_GAMEPLAY_BLOOD_COLOUR_VD_WHITE, "OLW_GAMEPLAY_BLOOD_COLOUR_VD_WHITE") \
     X('V', OLW_GAMEPLAY_BLOOD_COLOUR_V_BLACK, "OLW_GAMEPLAY_BLOOD_COLOUR_V_BLACK") \
+    X('D', OLW_GAMEPLAY_BLOOD_COLOUR_VD_BLACK, "OLW_GAMEPLAY_BLOOD_COLOUR_VD_BLACK") \
     X('L', OLW_PLAYER_MOVE_SPEED_L, "OLW_PLAYER_MOVE_SPEED_L") \
     X('D', OLW_PLAYER_MOVE_SPEED_D, "OLW_PLAYER_MOVE_SPEED_D") \
     X('V', OLW_PLAYER_MOVE_SPEED_V_NORMAL, "OLW_PLAYER_MOVE_SPEED_V_NORMAL") \
+    X('D', OLW_PLAYER_MOVE_SPEED_VD_NORMAL, "OLW_PLAYER_MOVE_SPEED_VD_NORMAL") \
     X('V', OLW_PLAYER_MOVE_SPEED_V_X1_25, "OLW_PLAYER_MOVE_SPEED_V_X1_25") \
+    X('D', OLW_PLAYER_MOVE_SPEED_VD_X1_25, "OLW_PLAYER_MOVE_SPEED_VD_X1_25") \
     X('V', OLW_PLAYER_MOVE_SPEED_V_X1_5, "OLW_PLAYER_MOVE_SPEED_V_X1_5") \
+    X('D', OLW_PLAYER_MOVE_SPEED_VD_X1_5, "OLW_PLAYER_MOVE_SPEED_VD_X1_5") \
     X('V', OLW_PLAYER_MOVE_SPEED_V_X2, "OLW_PLAYER_MOVE_SPEED_V_X2") \
     X('D', OLW_PLAYER_MOVE_SPEED_VD_X2, "OLW_PLAYER_MOVE_SPEED_VD_X2") \
     X('L', OLW_PLAYER_REGENERATION_L, "OLW_PLAYER_REGENERATION_L") \
@@ -1371,9 +1612,13 @@
     X('L', OLW_PLAYER_MEDALLION_L, "OLW_PLAYER_MEDALLION_L") \
     X('D', OLW_PLAYER_MEDALLION_D, "OLW_PLAYER_MEDALLION_D") \
     X('V', OLW_PLAYER_MEDALLION_V_NORMAL, "OLW_PLAYER_MEDALLION_V_NORMAL") \
+    X('D', OLW_PLAYER_MEDALLION_VD_NORMAL, "OLW_PLAYER_MEDALLION_VD_NORMAL") \
     X('V', OLW_PLAYER_MEDALLION_V_X2, "OLW_PLAYER_MEDALLION_V_X2") \
+    X('D', OLW_PLAYER_MEDALLION_VD_X2, "OLW_PLAYER_MEDALLION_VD_X2") \
     X('V', OLW_PLAYER_MEDALLION_V_X3, "OLW_PLAYER_MEDALLION_V_X3") \
+    X('D', OLW_PLAYER_MEDALLION_VD_X3, "OLW_PLAYER_MEDALLION_VD_X3") \
     X('V', OLW_PLAYER_MEDALLION_V_X4, "OLW_PLAYER_MEDALLION_V_X4") \
+    X('D', OLW_PLAYER_MEDALLION_VD_X4, "OLW_PLAYER_MEDALLION_VD_X4") \
     X('L', OLW_PLAYER_GRAB_ESCAPE_L, "OLW_PLAYER_GRAB_ESCAPE_L") \
     X('D', OLW_PLAYER_GRAB_ESCAPE_D, "OLW_PLAYER_GRAB_ESCAPE_D") \
     X('V', OLW_PLAYER_GRAB_ESCAPE_V_STOCK, "OLW_PLAYER_GRAB_ESCAPE_V_STOCK") \
@@ -1385,6 +1630,7 @@
     X('L', OLW_PLAYER_NO_CLIP_L, "OLW_PLAYER_NO_CLIP_L") \
     X('D', OLW_PLAYER_NO_CLIP_D, "OLW_PLAYER_NO_CLIP_D") \
     X('V', OLW_PLAYER_NO_CLIP_V_OFF, "OLW_PLAYER_NO_CLIP_V_OFF") \
+    X('D', OLW_PLAYER_NO_CLIP_VD_OFF, "OLW_PLAYER_NO_CLIP_VD_OFF") \
     X('V', OLW_PLAYER_NO_CLIP_V_ON, "OLW_PLAYER_NO_CLIP_V_ON") \
     X('D', OLW_PLAYER_NO_CLIP_VD_ON, "OLW_PLAYER_NO_CLIP_VD_ON") \
     X('V', OLW_PLAYER_NO_CLIP_V_FLY, "OLW_PLAYER_NO_CLIP_V_FLY") \
@@ -1392,11 +1638,13 @@
     X('L', OLW_COMBAT_ONE_HIT_KILL_L, "OLW_COMBAT_ONE_HIT_KILL_L") \
     X('D', OLW_COMBAT_ONE_HIT_KILL_D, "OLW_COMBAT_ONE_HIT_KILL_D") \
     X('V', OLW_COMBAT_ONE_HIT_KILL_V_OFF, "OLW_COMBAT_ONE_HIT_KILL_V_OFF") \
+    X('D', OLW_COMBAT_ONE_HIT_KILL_VD_OFF, "OLW_COMBAT_ONE_HIT_KILL_VD_OFF") \
     X('V', OLW_COMBAT_ONE_HIT_KILL_V_ON, "OLW_COMBAT_ONE_HIT_KILL_V_ON") \
     X('D', OLW_COMBAT_ONE_HIT_KILL_VD_ON, "OLW_COMBAT_ONE_HIT_KILL_VD_ON") \
     X('L', OLW_COMBAT_DARK_PACT_L, "OLW_COMBAT_DARK_PACT_L") \
     X('D', OLW_COMBAT_DARK_PACT_D, "OLW_COMBAT_DARK_PACT_D") \
     X('V', OLW_COMBAT_DARK_PACT_V_OFF, "OLW_COMBAT_DARK_PACT_V_OFF") \
+    X('D', OLW_COMBAT_DARK_PACT_VD_OFF, "OLW_COMBAT_DARK_PACT_VD_OFF") \
     X('V', OLW_COMBAT_DARK_PACT_V_PACT, "OLW_COMBAT_DARK_PACT_V_PACT") \
     X('D', OLW_COMBAT_DARK_PACT_VD_PACT, "OLW_COMBAT_DARK_PACT_VD_PACT") \
     X('V', OLW_COMBAT_DARK_PACT_V_BLOOD, "OLW_COMBAT_DARK_PACT_V_BLOOD") \
@@ -1404,17 +1652,25 @@
     X('L', OLW_COMBAT_QUICK_CHARGE_L, "OLW_COMBAT_QUICK_CHARGE_L") \
     X('D', OLW_COMBAT_QUICK_CHARGE_D, "OLW_COMBAT_QUICK_CHARGE_D") \
     X('V', OLW_COMBAT_QUICK_CHARGE_V_OFF, "OLW_COMBAT_QUICK_CHARGE_V_OFF") \
+    X('D', OLW_COMBAT_QUICK_CHARGE_VD_OFF, "OLW_COMBAT_QUICK_CHARGE_VD_OFF") \
     X('V', OLW_COMBAT_QUICK_CHARGE_V_1_5X, "OLW_COMBAT_QUICK_CHARGE_V_1_5X") \
+    X('D', OLW_COMBAT_QUICK_CHARGE_VD_1_5X, "OLW_COMBAT_QUICK_CHARGE_VD_1_5X") \
     X('V', OLW_COMBAT_QUICK_CHARGE_V_2X, "OLW_COMBAT_QUICK_CHARGE_V_2X") \
+    X('D', OLW_COMBAT_QUICK_CHARGE_VD_2X, "OLW_COMBAT_QUICK_CHARGE_VD_2X") \
     X('V', OLW_COMBAT_QUICK_CHARGE_V_3X, "OLW_COMBAT_QUICK_CHARGE_V_3X") \
+    X('D', OLW_COMBAT_QUICK_CHARGE_VD_3X, "OLW_COMBAT_QUICK_CHARGE_VD_3X") \
     X('L', OLW_COMBAT_LIFE_STEAL_L, "OLW_COMBAT_LIFE_STEAL_L") \
     X('D', OLW_COMBAT_LIFE_STEAL_D, "OLW_COMBAT_LIFE_STEAL_D") \
     X('V', OLW_COMBAT_LIFE_STEAL_V_OFF, "OLW_COMBAT_LIFE_STEAL_V_OFF") \
+    X('D', OLW_COMBAT_LIFE_STEAL_VD_OFF, "OLW_COMBAT_LIFE_STEAL_VD_OFF") \
     X('V', OLW_COMBAT_LIFE_STEAL_V_5, "OLW_COMBAT_LIFE_STEAL_V_5") \
+    X('D', OLW_COMBAT_LIFE_STEAL_VD_5, "OLW_COMBAT_LIFE_STEAL_VD_5") \
     X('V', OLW_COMBAT_LIFE_STEAL_V_10, "OLW_COMBAT_LIFE_STEAL_V_10") \
+    X('D', OLW_COMBAT_LIFE_STEAL_VD_10, "OLW_COMBAT_LIFE_STEAL_VD_10") \
     X('L', OLW_COMBAT_AMMO_SAVER_L, "OLW_COMBAT_AMMO_SAVER_L") \
     X('D', OLW_COMBAT_AMMO_SAVER_D, "OLW_COMBAT_AMMO_SAVER_D") \
     X('V', OLW_COMBAT_AMMO_SAVER_V_NORMAL, "OLW_COMBAT_AMMO_SAVER_V_NORMAL") \
+    X('D', OLW_COMBAT_AMMO_SAVER_VD_NORMAL, "OLW_COMBAT_AMMO_SAVER_VD_NORMAL") \
     X('V', OLW_COMBAT_AMMO_SAVER_V_SAVER, "OLW_COMBAT_AMMO_SAVER_V_SAVER") \
     X('D', OLW_COMBAT_AMMO_SAVER_VD_SAVER, "OLW_COMBAT_AMMO_SAVER_VD_SAVER") \
     X('V', OLW_COMBAT_AMMO_SAVER_V_ENDLESS, "OLW_COMBAT_AMMO_SAVER_V_ENDLESS") \
@@ -1434,11 +1690,13 @@
     X('L', OLW_ITEMS_ITEM_STACKS_L, "OLW_ITEMS_ITEM_STACKS_L") \
     X('D', OLW_ITEMS_ITEM_STACKS_D, "OLW_ITEMS_ITEM_STACKS_D") \
     X('V', OLW_ITEMS_ITEM_STACKS_V_OFF, "OLW_ITEMS_ITEM_STACKS_V_OFF") \
+    X('D', OLW_ITEMS_ITEM_STACKS_VD_OFF, "OLW_ITEMS_ITEM_STACKS_VD_OFF") \
     X('V', OLW_ITEMS_ITEM_STACKS_V_ON, "OLW_ITEMS_ITEM_STACKS_V_ON") \
     X('D', OLW_ITEMS_ITEM_STACKS_VD_ON, "OLW_ITEMS_ITEM_STACKS_VD_ON") \
     X('L', OLW_ITEMS_SUPPLY_DROPS_L, "OLW_ITEMS_SUPPLY_DROPS_L") \
     X('D', OLW_ITEMS_SUPPLY_DROPS_D, "OLW_ITEMS_SUPPLY_DROPS_D") \
     X('V', OLW_ITEMS_SUPPLY_DROPS_V_OFF, "OLW_ITEMS_SUPPLY_DROPS_V_OFF") \
+    X('D', OLW_ITEMS_SUPPLY_DROPS_VD_OFF, "OLW_ITEMS_SUPPLY_DROPS_VD_OFF") \
     X('V', OLW_ITEMS_SUPPLY_DROPS_V_RARE, "OLW_ITEMS_SUPPLY_DROPS_V_RARE") \
     X('D', OLW_ITEMS_SUPPLY_DROPS_VD_RARE, "OLW_ITEMS_SUPPLY_DROPS_VD_RARE") \
     X('V', OLW_ITEMS_SUPPLY_DROPS_V_NORMAL, "OLW_ITEMS_SUPPLY_DROPS_V_NORMAL") \
@@ -1448,15 +1706,23 @@
     X('L', OLW_ENEMIES_EXTRA_ENEMIES_L, "OLW_ENEMIES_EXTRA_ENEMIES_L") \
     X('D', OLW_ENEMIES_EXTRA_ENEMIES_D, "OLW_ENEMIES_EXTRA_ENEMIES_D") \
     X('V', OLW_ENEMIES_EXTRA_ENEMIES_V_OFF, "OLW_ENEMIES_EXTRA_ENEMIES_V_OFF") \
+    X('D', OLW_ENEMIES_EXTRA_ENEMIES_VD_OFF, "OLW_ENEMIES_EXTRA_ENEMIES_VD_OFF") \
     X('V', OLW_ENEMIES_EXTRA_ENEMIES_V_X2, "OLW_ENEMIES_EXTRA_ENEMIES_V_X2") \
+    X('D', OLW_ENEMIES_EXTRA_ENEMIES_VD_X2, "OLW_ENEMIES_EXTRA_ENEMIES_VD_X2") \
     X('V', OLW_ENEMIES_EXTRA_ENEMIES_V_X3, "OLW_ENEMIES_EXTRA_ENEMIES_V_X3") \
+    X('D', OLW_ENEMIES_EXTRA_ENEMIES_VD_X3, "OLW_ENEMIES_EXTRA_ENEMIES_VD_X3") \
     X('V', OLW_ENEMIES_EXTRA_ENEMIES_V_X4, "OLW_ENEMIES_EXTRA_ENEMIES_V_X4") \
+    X('D', OLW_ENEMIES_EXTRA_ENEMIES_VD_X4, "OLW_ENEMIES_EXTRA_ENEMIES_VD_X4") \
     X('L', OLW_ENEMIES_DOOR_CHASE_L, "OLW_ENEMIES_DOOR_CHASE_L") \
     X('D', OLW_ENEMIES_DOOR_CHASE_D, "OLW_ENEMIES_DOOR_CHASE_D") \
     X('V', OLW_ENEMIES_DOOR_CHASE_V_OFF, "OLW_ENEMIES_DOOR_CHASE_V_OFF") \
+    X('D', OLW_ENEMIES_DOOR_CHASE_VD_OFF, "OLW_ENEMIES_DOOR_CHASE_VD_OFF") \
     X('V', OLW_ENEMIES_DOOR_CHASE_V_MONSTERS, "OLW_ENEMIES_DOOR_CHASE_V_MONSTERS") \
+    X('D', OLW_ENEMIES_DOOR_CHASE_VD_MONSTERS, "OLW_ENEMIES_DOOR_CHASE_VD_MONSTERS") \
     X('V', OLW_ENEMIES_DOOR_CHASE_V_VICTIMS, "OLW_ENEMIES_DOOR_CHASE_V_VICTIMS") \
+    X('D', OLW_ENEMIES_DOOR_CHASE_VD_VICTIMS, "OLW_ENEMIES_DOOR_CHASE_VD_VICTIMS") \
     X('V', OLW_ENEMIES_DOOR_CHASE_V_BOTH, "OLW_ENEMIES_DOOR_CHASE_V_BOTH") \
+    X('D', OLW_ENEMIES_DOOR_CHASE_VD_BOTH, "OLW_ENEMIES_DOOR_CHASE_VD_BOTH") \
     X('L', OLW_ENEMIES_PURSUIT_L, "OLW_ENEMIES_PURSUIT_L") \
     X('D', OLW_ENEMIES_PURSUIT_D, "OLW_ENEMIES_PURSUIT_D") \
     X('V', OLW_ENEMIES_PURSUIT_V_RELENTLESS, "OLW_ENEMIES_PURSUIT_V_RELENTLESS") \
@@ -1468,7 +1734,11 @@
     X('L', OLW_ENEMIES_ENEMIES_RETURN_L, "OLW_ENEMIES_ENEMIES_RETURN_L") \
     X('D', OLW_ENEMIES_ENEMIES_RETURN_D, "OLW_ENEMIES_ENEMIES_RETURN_D") \
     X('V', OLW_ENEMIES_ENEMIES_RETURN_V_OFF, "OLW_ENEMIES_ENEMIES_RETURN_V_OFF") \
-    X('V', OLW_ENEMIES_ENEMIES_RETURN_V_ON, "OLW_ENEMIES_ENEMIES_RETURN_V_ON") \
+    X('D', OLW_ENEMIES_ENEMIES_RETURN_VD_OFF, "OLW_ENEMIES_ENEMIES_RETURN_VD_OFF") \
+    X('V', OLW_ENEMIES_ENEMIES_RETURN_V_BY_ROOM, "OLW_ENEMIES_ENEMIES_RETURN_V_BY_ROOM") \
+    X('D', OLW_ENEMIES_ENEMIES_RETURN_VD_BY_ROOM, "OLW_ENEMIES_ENEMIES_RETURN_VD_BY_ROOM") \
+    X('V', OLW_ENEMIES_ENEMIES_RETURN_V_BY_WORLD, "OLW_ENEMIES_ENEMIES_RETURN_V_BY_WORLD") \
+    X('D', OLW_ENEMIES_ENEMIES_RETURN_VD_BY_WORLD, "OLW_ENEMIES_ENEMIES_RETURN_VD_BY_WORLD") \
     X('L', OLW_ENEMIES_FADE_IN_L, "OLW_ENEMIES_FADE_IN_L") \
     X('D', OLW_ENEMIES_FADE_IN_D, "OLW_ENEMIES_FADE_IN_D") \
     X('V', OLW_ENEMIES_FADE_IN_V_OFF, "OLW_ENEMIES_FADE_IN_V_OFF") \
@@ -1480,6 +1750,7 @@
     X('L', OLW_POWERS_DEATH_PRESENCE_L, "OLW_POWERS_DEATH_PRESENCE_L") \
     X('D', OLW_POWERS_DEATH_PRESENCE_D, "OLW_POWERS_DEATH_PRESENCE_D") \
     X('V', OLW_POWERS_DEATH_PRESENCE_V_OFF, "OLW_POWERS_DEATH_PRESENCE_V_OFF") \
+    X('D', OLW_POWERS_DEATH_PRESENCE_VD_OFF, "OLW_POWERS_DEATH_PRESENCE_VD_OFF") \
     X('V', OLW_POWERS_DEATH_PRESENCE_V_WEAK, "OLW_POWERS_DEATH_PRESENCE_V_WEAK") \
     X('D', OLW_POWERS_DEATH_PRESENCE_VD_WEAK, "OLW_POWERS_DEATH_PRESENCE_VD_WEAK") \
     X('V', OLW_POWERS_DEATH_PRESENCE_V_STRONG, "OLW_POWERS_DEATH_PRESENCE_V_STRONG") \
@@ -1487,6 +1758,7 @@
     X('L', OLW_POWERS_AFTER_SHOCK_L, "OLW_POWERS_AFTER_SHOCK_L") \
     X('D', OLW_POWERS_AFTER_SHOCK_D, "OLW_POWERS_AFTER_SHOCK_D") \
     X('V', OLW_POWERS_AFTER_SHOCK_V_OFF, "OLW_POWERS_AFTER_SHOCK_V_OFF") \
+    X('D', OLW_POWERS_AFTER_SHOCK_VD_OFF, "OLW_POWERS_AFTER_SHOCK_VD_OFF") \
     X('V', OLW_POWERS_AFTER_SHOCK_V_SHORT, "OLW_POWERS_AFTER_SHOCK_V_SHORT") \
     X('D', OLW_POWERS_AFTER_SHOCK_VD_SHORT, "OLW_POWERS_AFTER_SHOCK_VD_SHORT") \
     X('V', OLW_POWERS_AFTER_SHOCK_V_MEDIUM, "OLW_POWERS_AFTER_SHOCK_V_MEDIUM") \
@@ -1496,6 +1768,7 @@
     X('L', OLW_POWERS_ECHO_DOUBLES_L, "OLW_POWERS_ECHO_DOUBLES_L") \
     X('D', OLW_POWERS_ECHO_DOUBLES_D, "OLW_POWERS_ECHO_DOUBLES_D") \
     X('V', OLW_POWERS_ECHO_DOUBLES_V_OFF, "OLW_POWERS_ECHO_DOUBLES_V_OFF") \
+    X('D', OLW_POWERS_ECHO_DOUBLES_VD_OFF, "OLW_POWERS_ECHO_DOUBLES_VD_OFF") \
     X('V', OLW_POWERS_ECHO_DOUBLES_V_COPY, "OLW_POWERS_ECHO_DOUBLES_V_COPY") \
     X('D', OLW_POWERS_ECHO_DOUBLES_VD_COPY, "OLW_POWERS_ECHO_DOUBLES_VD_COPY") \
     X('V', OLW_POWERS_ECHO_DOUBLES_V_CAST, "OLW_POWERS_ECHO_DOUBLES_V_CAST") \
@@ -1503,8 +1776,11 @@
     X('L', OLW_POWERS_ECHO_COUNT_L, "OLW_POWERS_ECHO_COUNT_L") \
     X('D', OLW_POWERS_ECHO_COUNT_D, "OLW_POWERS_ECHO_COUNT_D") \
     X('V', OLW_POWERS_ECHO_COUNT_V_1, "OLW_POWERS_ECHO_COUNT_V_1") \
+    X('D', OLW_POWERS_ECHO_COUNT_VD_1, "OLW_POWERS_ECHO_COUNT_VD_1") \
     X('V', OLW_POWERS_ECHO_COUNT_V_2, "OLW_POWERS_ECHO_COUNT_V_2") \
+    X('D', OLW_POWERS_ECHO_COUNT_VD_2, "OLW_POWERS_ECHO_COUNT_VD_2") \
     X('V', OLW_POWERS_ECHO_COUNT_V_3, "OLW_POWERS_ECHO_COUNT_V_3") \
+    X('D', OLW_POWERS_ECHO_COUNT_VD_3, "OLW_POWERS_ECHO_COUNT_VD_3") \
     X('L', OLW_POWERS_GHOST_TELEPORT_L, "OLW_POWERS_GHOST_TELEPORT_L") \
     X('D', OLW_POWERS_GHOST_TELEPORT_D, "OLW_POWERS_GHOST_TELEPORT_D") \
     X('V', OLW_POWERS_GHOST_TELEPORT_V_OFF, "OLW_POWERS_GHOST_TELEPORT_V_OFF") \
@@ -1515,71 +1791,50 @@
     X('D', OLW_RANDO_ITEMS_D, "OLW_RANDO_ITEMS_D") \
     X('V', OLW_RANDO_ITEMS_V_OFF, "OLW_RANDO_ITEMS_V_OFF") \
     X('D', OLW_RANDO_ITEMS_VD_OFF, "OLW_RANDO_ITEMS_VD_OFF") \
-    X('D', OLW_RANDO_ITEMS_VDT_OFF, "OLW_RANDO_ITEMS_VDT_OFF") \
     X('V', OLW_RANDO_ITEMS_V_SHUFFLE, "OLW_RANDO_ITEMS_V_SHUFFLE") \
     X('D', OLW_RANDO_ITEMS_VD_SHUFFLE, "OLW_RANDO_ITEMS_VD_SHUFFLE") \
-    X('D', OLW_RANDO_ITEMS_VDT_SHUFFLE, "OLW_RANDO_ITEMS_VDT_SHUFFLE") \
     X('V', OLW_RANDO_ITEMS_V_RANDOM, "OLW_RANDO_ITEMS_V_RANDOM") \
     X('D', OLW_RANDO_ITEMS_VD_RANDOM, "OLW_RANDO_ITEMS_VD_RANDOM") \
-    X('D', OLW_RANDO_ITEMS_VDT_RANDOM, "OLW_RANDO_ITEMS_VDT_RANDOM") \
-    X('L', OLW_RANDO_KEEP_SPECIALS_L, "OLW_RANDO_KEEP_SPECIALS_L") \
-    X('D', OLW_RANDO_KEEP_SPECIALS_D, "OLW_RANDO_KEEP_SPECIALS_D") \
-    X('D', OLW_RANDO_KEEP_SPECIALS_DT, "OLW_RANDO_KEEP_SPECIALS_DT") \
-    X('V', OLW_RANDO_KEEP_SPECIALS_V_OFF, "OLW_RANDO_KEEP_SPECIALS_V_OFF") \
-    X('D', OLW_RANDO_KEEP_SPECIALS_VD_OFF, "OLW_RANDO_KEEP_SPECIALS_VD_OFF") \
-    X('D', OLW_RANDO_KEEP_SPECIALS_VDT_OFF, "OLW_RANDO_KEEP_SPECIALS_VDT_OFF") \
-    X('V', OLW_RANDO_KEEP_SPECIALS_V_ON, "OLW_RANDO_KEEP_SPECIALS_V_ON") \
-    X('D', OLW_RANDO_KEEP_SPECIALS_VD_ON, "OLW_RANDO_KEEP_SPECIALS_VD_ON") \
-    X('D', OLW_RANDO_KEEP_SPECIALS_VDT_ON, "OLW_RANDO_KEEP_SPECIALS_VDT_ON") \
+    X('L', OLW_RANDO_SPECIALS_L, "OLW_RANDO_SPECIALS_L") \
+    X('D', OLW_RANDO_SPECIALS_D, "OLW_RANDO_SPECIALS_D") \
+    X('V', OLW_RANDO_SPECIALS_V_OFF, "OLW_RANDO_SPECIALS_V_OFF") \
+    X('D', OLW_RANDO_SPECIALS_VD_OFF, "OLW_RANDO_SPECIALS_VD_OFF") \
+    X('V', OLW_RANDO_SPECIALS_V_ON, "OLW_RANDO_SPECIALS_V_ON") \
+    X('D', OLW_RANDO_SPECIALS_VD_ON, "OLW_RANDO_SPECIALS_VD_ON") \
     X('L', OLW_RANDO_ROOM_302_ITEMS_L, "OLW_RANDO_ROOM_302_ITEMS_L") \
     X('D', OLW_RANDO_ROOM_302_ITEMS_D, "OLW_RANDO_ROOM_302_ITEMS_D") \
-    X('D', OLW_RANDO_ROOM_302_ITEMS_DT, "OLW_RANDO_ROOM_302_ITEMS_DT") \
-    X('V', OLW_RANDO_ROOM_302_ITEMS_V_STAY, "OLW_RANDO_ROOM_302_ITEMS_V_STAY") \
-    X('D', OLW_RANDO_ROOM_302_ITEMS_VD_STAY, "OLW_RANDO_ROOM_302_ITEMS_VD_STAY") \
-    X('D', OLW_RANDO_ROOM_302_ITEMS_VDT_STAY, "OLW_RANDO_ROOM_302_ITEMS_VDT_STAY") \
-    X('V', OLW_RANDO_ROOM_302_ITEMS_V_CHANGE, "OLW_RANDO_ROOM_302_ITEMS_V_CHANGE") \
-    X('D', OLW_RANDO_ROOM_302_ITEMS_VD_CHANGE, "OLW_RANDO_ROOM_302_ITEMS_VD_CHANGE") \
-    X('D', OLW_RANDO_ROOM_302_ITEMS_VDT_CHANGE, "OLW_RANDO_ROOM_302_ITEMS_VDT_CHANGE") \
-    X('L', OLW_RANDO_MONSTERS_L, "OLW_RANDO_MONSTERS_L") \
-    X('D', OLW_RANDO_MONSTERS_D, "OLW_RANDO_MONSTERS_D") \
-    X('D', OLW_RANDO_MONSTERS_DT, "OLW_RANDO_MONSTERS_DT") \
-    X('V', OLW_RANDO_MONSTERS_V_OFF, "OLW_RANDO_MONSTERS_V_OFF") \
-    X('V', OLW_RANDO_MONSTERS_V_THIS_ROOM, "OLW_RANDO_MONSTERS_V_THIS_ROOM") \
-    X('D', OLW_RANDO_MONSTERS_VD_THIS_ROOM, "OLW_RANDO_MONSTERS_VD_THIS_ROOM") \
-    X('D', OLW_RANDO_MONSTERS_VDT_THIS_ROOM, "OLW_RANDO_MONSTERS_VDT_THIS_ROOM") \
-    X('V', OLW_RANDO_MONSTERS_V_THIS_WORLD, "OLW_RANDO_MONSTERS_V_THIS_WORLD") \
-    X('D', OLW_RANDO_MONSTERS_VD_THIS_WORLD, "OLW_RANDO_MONSTERS_VD_THIS_WORLD") \
-    X('D', OLW_RANDO_MONSTERS_VDT_THIS_WORLD, "OLW_RANDO_MONSTERS_VDT_THIS_WORLD") \
-    X('V', OLW_RANDO_MONSTERS_V_ALL_WORLDS, "OLW_RANDO_MONSTERS_V_ALL_WORLDS") \
-    X('D', OLW_RANDO_MONSTERS_VD_ALL_WORLDS, "OLW_RANDO_MONSTERS_VD_ALL_WORLDS") \
-    X('D', OLW_RANDO_MONSTERS_VDT_ALL_WORLDS, "OLW_RANDO_MONSTERS_VDT_ALL_WORLDS") \
-    X('L', OLW_RANDO_GHOSTS_L, "OLW_RANDO_GHOSTS_L") \
-    X('D', OLW_RANDO_GHOSTS_D, "OLW_RANDO_GHOSTS_D") \
-    X('D', OLW_RANDO_GHOSTS_DT, "OLW_RANDO_GHOSTS_DT") \
-    X('V', OLW_RANDO_GHOSTS_V_OFF, "OLW_RANDO_GHOSTS_V_OFF") \
-    X('V', OLW_RANDO_GHOSTS_V_SPOTS, "OLW_RANDO_GHOSTS_V_SPOTS") \
-    X('D', OLW_RANDO_GHOSTS_VD_SPOTS, "OLW_RANDO_GHOSTS_VD_SPOTS") \
-    X('D', OLW_RANDO_GHOSTS_VDT_SPOTS, "OLW_RANDO_GHOSTS_VDT_SPOTS") \
+    X('V', OLW_RANDO_ROOM_302_ITEMS_V_OFF, "OLW_RANDO_ROOM_302_ITEMS_V_OFF") \
+    X('D', OLW_RANDO_ROOM_302_ITEMS_VD_OFF, "OLW_RANDO_ROOM_302_ITEMS_VD_OFF") \
+    X('V', OLW_RANDO_ROOM_302_ITEMS_V_SHUFFLE, "OLW_RANDO_ROOM_302_ITEMS_V_SHUFFLE") \
+    X('D', OLW_RANDO_ROOM_302_ITEMS_VD_SHUFFLE, "OLW_RANDO_ROOM_302_ITEMS_VD_SHUFFLE") \
+    X('V', OLW_RANDO_ROOM_302_ITEMS_V_RANDOM, "OLW_RANDO_ROOM_302_ITEMS_V_RANDOM") \
+    X('D', OLW_RANDO_ROOM_302_ITEMS_VD_RANDOM, "OLW_RANDO_ROOM_302_ITEMS_VD_RANDOM") \
+    X('L', OLW_RANDO_ENEMIES_L, "OLW_RANDO_ENEMIES_L") \
+    X('D', OLW_RANDO_ENEMIES_D, "OLW_RANDO_ENEMIES_D") \
+    X('V', OLW_RANDO_ENEMIES_V_OFF, "OLW_RANDO_ENEMIES_V_OFF") \
+    X('D', OLW_RANDO_ENEMIES_VD_OFF, "OLW_RANDO_ENEMIES_VD_OFF") \
+    X('V', OLW_RANDO_ENEMIES_V_SAME_WORLD, "OLW_RANDO_ENEMIES_V_SAME_WORLD") \
+    X('D', OLW_RANDO_ENEMIES_VD_SAME_WORLD, "OLW_RANDO_ENEMIES_VD_SAME_WORLD") \
+    X('V', OLW_RANDO_ENEMIES_V_ALL_WORLDS, "OLW_RANDO_ENEMIES_V_ALL_WORLDS") \
+    X('D', OLW_RANDO_ENEMIES_VD_ALL_WORLDS, "OLW_RANDO_ENEMIES_VD_ALL_WORLDS") \
+    X('L', OLW_RANDO_SPAWN_SITE_L, "OLW_RANDO_SPAWN_SITE_L") \
+    X('D', OLW_RANDO_SPAWN_SITE_D, "OLW_RANDO_SPAWN_SITE_D") \
+    X('V', OLW_RANDO_SPAWN_SITE_V_OFF, "OLW_RANDO_SPAWN_SITE_V_OFF") \
+    X('D', OLW_RANDO_SPAWN_SITE_VD_OFF, "OLW_RANDO_SPAWN_SITE_VD_OFF") \
+    X('V', OLW_RANDO_SPAWN_SITE_V_ON, "OLW_RANDO_SPAWN_SITE_V_ON") \
+    X('D', OLW_RANDO_SPAWN_SITE_VD_ON, "OLW_RANDO_SPAWN_SITE_VD_ON") \
     X('L', OLW_RANDO_EILEEN_OUTFIT_L, "OLW_RANDO_EILEEN_OUTFIT_L") \
     X('D', OLW_RANDO_EILEEN_OUTFIT_D, "OLW_RANDO_EILEEN_OUTFIT_D") \
-    X('D', OLW_RANDO_EILEEN_OUTFIT_DT, "OLW_RANDO_EILEEN_OUTFIT_DT") \
     X('V', OLW_RANDO_EILEEN_OUTFIT_V_OFF, "OLW_RANDO_EILEEN_OUTFIT_V_OFF") \
+    X('D', OLW_RANDO_EILEEN_OUTFIT_VD_OFF, "OLW_RANDO_EILEEN_OUTFIT_VD_OFF") \
     X('V', OLW_RANDO_EILEEN_OUTFIT_V_RANDOM, "OLW_RANDO_EILEEN_OUTFIT_V_RANDOM") \
     X('D', OLW_RANDO_EILEEN_OUTFIT_VD_RANDOM, "OLW_RANDO_EILEEN_OUTFIT_VD_RANDOM") \
-    X('D', OLW_RANDO_EILEEN_OUTFIT_VDT_RANDOM, "OLW_RANDO_EILEEN_OUTFIT_VDT_RANDOM") \
     X('L', OLW_RANDO_REROLL_VISITS_L, "OLW_RANDO_REROLL_VISITS_L") \
     X('D', OLW_RANDO_REROLL_VISITS_D, "OLW_RANDO_REROLL_VISITS_D") \
-    X('D', OLW_RANDO_REROLL_VISITS_DT, "OLW_RANDO_REROLL_VISITS_DT") \
-    X('V', OLW_RANDO_REROLL_VISITS_V_OFF, "OLW_RANDO_REROLL_VISITS_V_OFF") \
-    X('D', OLW_RANDO_REROLL_VISITS_VD_OFF, "OLW_RANDO_REROLL_VISITS_VD_OFF") \
-    X('D', OLW_RANDO_REROLL_VISITS_VDT_OFF, "OLW_RANDO_REROLL_VISITS_VDT_OFF") \
-    X('V', OLW_RANDO_REROLL_VISITS_V_ON, "OLW_RANDO_REROLL_VISITS_V_ON") \
-    X('D', OLW_RANDO_REROLL_VISITS_VD_ON, "OLW_RANDO_REROLL_VISITS_VD_ON") \
-    X('D', OLW_RANDO_REROLL_VISITS_VDT_ON, "OLW_RANDO_REROLL_VISITS_VDT_ON") \
-    X('L', OLW_RANDO_SEED_1234567_L, "OLW_RANDO_SEED_1234567_L") \
-    X('D', OLW_RANDO_SEED_1234567_D, "OLW_RANDO_SEED_1234567_D") \
-    X('L', OLW_RANDO_NEW_SEED_L, "OLW_RANDO_NEW_SEED_L") \
-    X('D', OLW_RANDO_NEW_SEED_D, "OLW_RANDO_NEW_SEED_D") \
+    X('V', OLW_RANDO_REROLL_VISITS_V_BY_ROOM, "OLW_RANDO_REROLL_VISITS_V_BY_ROOM") \
+    X('D', OLW_RANDO_REROLL_VISITS_VD_BY_ROOM, "OLW_RANDO_REROLL_VISITS_VD_BY_ROOM") \
+    X('V', OLW_RANDO_REROLL_VISITS_V_BY_WORLD, "OLW_RANDO_REROLL_VISITS_V_BY_WORLD") \
+    X('D', OLW_RANDO_REROLL_VISITS_VD_BY_WORLD, "OLW_RANDO_REROLL_VISITS_VD_BY_WORLD") \
     X('T', OLW_T_DISPLAY, "OLW_T_DISPLAY") \
     X('T', OLW_T_CONTROLS, "OLW_T_CONTROLS") \
     X('T', OLW_T_INTERFACE, "OLW_T_INTERFACE") \
@@ -1619,6 +1874,7 @@
     X('D', OLW_SND_PAN_NA, "OLW_SND_PAN_NA") \
     X('D', OLW_SND_WIDTH_STOCK, "OLW_SND_WIDTH_STOCK") \
     X('D', OLW_SND_REV_NOPROBE, "OLW_SND_REV_NOPROBE") \
+    X('D', OLW_SND_DEVICE_NEW, "OLW_SND_DEVICE_NEW") \
     X('D', OLW_FONT_MISSING, "OLW_FONT_MISSING") \
     X('D', OLW_FONT_FAILED, "OLW_FONT_FAILED") \
     X('D', OLW_REND_16BIT, "OLW_REND_16BIT") \
@@ -1681,7 +1937,7 @@ enum {
     OLM_PAUSE_LOAD_GAME,  /* Interface > Pause Menu > Load Game: [ExtraMenu] Load */
     OLM_PAUSE_QUICK_SAVE,  /* Interface > Pause Menu > Quick Save: [ExtraMenu] QuickSave */
     OLM_PAUSE_QUICK_LOAD,  /* Interface > Pause Menu > Quick Load: [ExtraMenu] QuickLoad */
-    OLM_PAUSE_EILEEN_OUTFIT,  /* Interface > Pause Menu > Eileen Outfit: [ExtraMenu] Eileen */
+    OLM_PAUSE_EILEEN,  /* Interface > Pause Menu > Eileen: [ExtraMenu] Eileen */
     OLM_EFFECTS_FILTER,  /* Effects > Filter: [ScreenEffects] Filter */
     OLM_GRAIN_FILM_GRAIN,  /* Effects > Film Grain > Film Grain: cfg+0x14 */
     OLM_SHADOWS_SHADOWS,  /* Effects > Shadows > Shadows: cfg+0x19 */
@@ -1690,7 +1946,6 @@ enum {
     OLM_ENEMIES_DOOR_CHASE,  /* Gameplay > Enemies > Door Chase: [Gameplay] EnemyFollow */
     OLM_ENEMIES_FADE_IN,  /* Gameplay > Enemies > Fade In: [Gameplay] FadeIn */
     OLM_POWERS_ECHO_DOUBLES,  /* Gameplay > Powers > Echo Doubles: [Gameplay] Echo */
-    OLM_RANDO_ROOM_302_ITEMS,  /* Gameplay > Randomizer > Room 302 Items: [Randomizer] Room302 */
     OLM_N };
 typedef struct { int map; const char *ini, *show; } OlMapEntry;
 // v3.54 OL34: the plan's pages (id, title, parent id; "" = a top page), its page cycle and every row but Back / Exit
@@ -1783,7 +2038,7 @@ typedef struct { int map; const char *ini, *show; } OlMapEntry;
     X("pause", "Load Game", 'v', "") \
     X("pause", "Quick Save", 'v', "") \
     X("pause", "Quick Load", 'v', "") \
-    X("pause", "Eileen Outfit", 'v', "") \
+    X("pause", "Eileen", 'v', "") \
     X("pause", "Save Banks", 'v', "") \
     X("sound", "Sound Mode", 'v', "") \
     X("sound", "Music Volume", 'b', "") \
@@ -1791,6 +2046,7 @@ typedef struct { int map; const char *ini, *show; } OlMapEntry;
     X("sound", "Stereo Width", 'v', "") \
     X("sound", "Room Reverb", 'v', "") \
     X("sound", "Night Mode", 'v', "") \
+    X("sound", "Background", 'v', "") \
     X("effects", "Film Grain", 'f', "grain") \
     X("effects", "Filter", 'v', "") \
     X("effects", "Cut-scene Filter", 'v', "") \
@@ -1839,14 +2095,301 @@ typedef struct { int map; const char *ini, *show; } OlMapEntry;
     X("powers", "Echo Count", 'v', "") \
     X("powers", "Ghost Teleport", 'v', "") \
     X("rando", "Items", 'v', "") \
-    X("rando", "Keep Specials", 'v', "") \
+    X("rando", "Specials", 'v', "") \
     X("rando", "Room 302 Items", 'v', "") \
-    X("rando", "Monsters", 'v', "") \
-    X("rando", "Ghosts", 'v', "") \
+    X("rando", "Enemies", 'v', "") \
+    X("rando", "Spawn Site", 'v', "") \
     X("rando", "Eileen Outfit", 'v', "") \
     X("rando", "Reroll Visits", 'v', "") \
-    X("rando", "Seed 1234567", 'i', "") \
-    X("rando", "New Seed", 'a', "") \
+
+// v3.56 MN356: the value lines by row (page id, row name, the row's line, the value's screen word, the value's line), for
+// src\vlines.inc (a value whose row code still answers the row's line gets its own) and test\vlines_test.c
+#define OL_PLAN_VLINES(X) \
+    X("display", "Aspect Ratio", OLW_DISPLAY_ASPECT_RATIO_D, OLW_DISPLAY_ASPECT_RATIO_V_4_3, OLW_DISPLAY_ASPECT_RATIO_VD_4_3) \
+    X("display", "Aspect Ratio", OLW_DISPLAY_ASPECT_RATIO_D, OLW_DISPLAY_ASPECT_RATIO_V_16_10, OLW_DISPLAY_ASPECT_RATIO_VD_16_10) \
+    X("display", "Aspect Ratio", OLW_DISPLAY_ASPECT_RATIO_D, OLW_DISPLAY_ASPECT_RATIO_V_16_9, OLW_DISPLAY_ASPECT_RATIO_VD_16_9) \
+    X("display", "Aspect Ratio", OLW_DISPLAY_ASPECT_RATIO_D, OLW_DISPLAY_ASPECT_RATIO_V_21_9, OLW_DISPLAY_ASPECT_RATIO_VD_21_9) \
+    X("display", "Aspect Ratio", OLW_DISPLAY_ASPECT_RATIO_D, OLW_DISPLAY_ASPECT_RATIO_V_32_9, OLW_DISPLAY_ASPECT_RATIO_VD_32_9) \
+    X("display", "Display Mode", OLW_DISPLAY_DISPLAY_MODE_D, OLW_DISPLAY_DISPLAY_MODE_V_WINDOWED, OLW_DISPLAY_DISPLAY_MODE_VD_WINDOWED) \
+    X("display", "Display Mode", OLW_DISPLAY_DISPLAY_MODE_D, OLW_DISPLAY_DISPLAY_MODE_V_BORDERLESS, OLW_DISPLAY_DISPLAY_MODE_VD_BORDERLESS) \
+    X("display", "Monitor", OLW_DISPLAY_MONITOR_D, OLW_DISPLAY_MONITOR_V_MAIN, OLW_DISPLAY_MONITOR_VD_MAIN) \
+    X("display", "Monitor", OLW_DISPLAY_MONITOR_D, OLW_DISPLAY_MONITOR_V_SECOND, OLW_DISPLAY_MONITOR_VD_SECOND) \
+    X("display", "Monitor", OLW_DISPLAY_MONITOR_D, OLW_DISPLAY_MONITOR_V_THIRD, OLW_DISPLAY_MONITOR_VD_THIRD) \
+    X("display", "Monitor", OLW_DISPLAY_MONITOR_D, OLW_DISPLAY_MONITOR_V_FOURTH, OLW_DISPLAY_MONITOR_VD_FOURTH) \
+    X("display", "Monitor", OLW_DISPLAY_MONITOR_D, OLW_DISPLAY_MONITOR_V_DISPLAY_5, OLW_DISPLAY_MONITOR_VD_DISPLAY_5) \
+    X("display", "Frame Rate", OLW_DISPLAY_FRAME_RATE_D, OLW_DISPLAY_FRAME_RATE_V_30, OLW_DISPLAY_FRAME_RATE_VD_30) \
+    X("display", "Frame Rate", OLW_DISPLAY_FRAME_RATE_D, OLW_DISPLAY_FRAME_RATE_V_60, OLW_DISPLAY_FRAME_RATE_VD_60) \
+    X("display", "Frame Rate", OLW_DISPLAY_FRAME_RATE_D, OLW_DISPLAY_FRAME_RATE_V_120, OLW_DISPLAY_FRAME_RATE_VD_120) \
+    X("display", "Frame Rate", OLW_DISPLAY_FRAME_RATE_D, OLW_DISPLAY_FRAME_RATE_V_180, OLW_DISPLAY_FRAME_RATE_VD_180) \
+    X("display", "Renderer", OLW_DISPLAY_RENDERER_D, OLW_DISPLAY_RENDERER_V_DIRECT3D_11, OLW_DISPLAY_RENDERER_VD_DIRECT3D_11) \
+    X("display", "Renderer", OLW_DISPLAY_RENDERER_D, OLW_DISPLAY_RENDERER_V_DIRECT3D_12, OLW_DISPLAY_RENDERER_VD_DIRECT3D_12) \
+    X("display", "Renderer", OLW_DISPLAY_RENDERER_D, OLW_DISPLAY_RENDERER_V_STOCK, OLW_DISPLAY_RENDERER_VD_STOCK) \
+    X("display", "Renderer", OLW_DISPLAY_RENDERER_D, OLW_DISPLAY_RENDERER_V_CUSTOM, OLW_DISPLAY_RENDERER_VD_CUSTOM) \
+    X("display", "Renderer", OLW_DISPLAY_RENDERER_D, OLW_DISPLAY_RENDERER_V_UNAVAILABLE, OLW_DISPLAY_RENDERER_VD_UNAVAILABLE) \
+    X("controls", "Default Speed", OLW_CONTROLS_DEFAULT_SPEED_D, OLW_CONTROLS_DEFAULT_SPEED_V_WALK, OLW_CONTROLS_DEFAULT_SPEED_VD_WALK) \
+    X("controls", "Default Speed", OLW_CONTROLS_DEFAULT_SPEED_D, OLW_CONTROLS_DEFAULT_SPEED_V_RUN, OLW_CONTROLS_DEFAULT_SPEED_VD_RUN) \
+    X("controls", "Vibration", OLW_CONTROLS_VIBRATION_D, OLW_CONTROLS_VIBRATION_V_OFF, OLW_CONTROLS_VIBRATION_VD_OFF) \
+    X("controls", "Vibration", OLW_CONTROLS_VIBRATION_D, OLW_CONTROLS_VIBRATION_V_LOW, OLW_CONTROLS_VIBRATION_VD_LOW) \
+    X("controls", "Vibration", OLW_CONTROLS_VIBRATION_D, OLW_CONTROLS_VIBRATION_V_MEDIUM, OLW_CONTROLS_VIBRATION_VD_MEDIUM) \
+    X("controls", "Vibration", OLW_CONTROLS_VIBRATION_D, OLW_CONTROLS_VIBRATION_V_HIGH, OLW_CONTROLS_VIBRATION_VD_HIGH) \
+    X("controls", "Analog Movement", OLW_CONTROLS_ANALOG_MOVEMENT_D, OLW_CONTROLS_ANALOG_MOVEMENT_V_OFF, OLW_CONTROLS_ANALOG_MOVEMENT_VD_OFF) \
+    X("controls", "Analog Movement", OLW_CONTROLS_ANALOG_MOVEMENT_D, OLW_CONTROLS_ANALOG_MOVEMENT_V_ON, OLW_CONTROLS_ANALOG_MOVEMENT_VD_ON) \
+    X("camera", "Field of View", OLW_CAMERA_FIELD_OF_VIEW_D, OLW_CAMERA_FIELD_OF_VIEW_V_DEFAULT, OLW_CAMERA_FIELD_OF_VIEW_VD_DEFAULT) \
+    X("camera", "Camera", OLW_CAMERA_CAMERA_D, OLW_CAMERA_CAMERA_V_GAME, OLW_CAMERA_CAMERA_VD_GAME) \
+    X("camera", "Camera", OLW_CAMERA_CAMERA_D, OLW_CAMERA_CAMERA_V_SHOULDER, OLW_CAMERA_CAMERA_VD_SHOULDER) \
+    X("camera", "Fixed Angles", OLW_CAMERA_FIXED_ANGLES_D, OLW_CAMERA_FIXED_ANGLES_V_OFF, OLW_CAMERA_FIXED_ANGLES_VD_OFF) \
+    X("camera", "Fixed Angles", OLW_CAMERA_FIXED_ANGLES_D, OLW_CAMERA_FIXED_ANGLES_V_ON, OLW_CAMERA_FIXED_ANGLES_VD_ON) \
+    X("steering", "Invert Turn", OLW_STEERING_INVERT_TURN_D, OLW_STEERING_INVERT_TURN_V_OFF, OLW_STEERING_INVERT_TURN_VD_OFF) \
+    X("steering", "Invert Turn", OLW_STEERING_INVERT_TURN_D, OLW_STEERING_INVERT_TURN_V_ON, OLW_STEERING_INVERT_TURN_VD_ON) \
+    X("steering", "Invert Tilt", OLW_STEERING_INVERT_TILT_D, OLW_STEERING_INVERT_TILT_V_OFF, OLW_STEERING_INVERT_TILT_VD_OFF) \
+    X("steering", "Invert Tilt", OLW_STEERING_INVERT_TILT_D, OLW_STEERING_INVERT_TILT_V_ON, OLW_STEERING_INVERT_TILT_VD_ON) \
+    X("steering", "Wall Zoom", OLW_STEERING_WALL_ZOOM_D, OLW_STEERING_WALL_ZOOM_V_OFF, OLW_STEERING_WALL_ZOOM_VD_OFF) \
+    X("steering", "Wall Zoom", OLW_STEERING_WALL_ZOOM_D, OLW_STEERING_WALL_ZOOM_V_ON, OLW_STEERING_WALL_ZOOM_VD_ON) \
+    X("room302", "Field of View", OLW_ROOM302_FIELD_OF_VIEW_D, OLW_ROOM302_FIELD_OF_VIEW_V_DEFAULT, OLW_ROOM302_FIELD_OF_VIEW_VD_DEFAULT) \
+    X("room302", "Look Down", OLW_ROOM302_LOOK_DOWN_D, OLW_ROOM302_LOOK_DOWN_V_GAME, OLW_ROOM302_LOOK_DOWN_VD_GAME) \
+    X("room302", "Look Up", OLW_ROOM302_LOOK_UP_D, OLW_ROOM302_LOOK_UP_V_GAME, OLW_ROOM302_LOOK_UP_VD_GAME) \
+    X("room302", "Look Smoothing", OLW_ROOM302_LOOK_SMOOTHING_D, OLW_ROOM302_LOOK_SMOOTHING_V_OFF, OLW_ROOM302_LOOK_SMOOTHING_VD_OFF) \
+    X("room302", "Invert Look", OLW_ROOM302_INVERT_LOOK_D, OLW_ROOM302_INVERT_LOOK_V_OFF, OLW_ROOM302_INVERT_LOOK_VD_OFF) \
+    X("room302", "Invert Look", OLW_ROOM302_INVERT_LOOK_D, OLW_ROOM302_INVERT_LOOK_V_ON, OLW_ROOM302_INVERT_LOOK_VD_ON) \
+    X("room302", "Head Bob", OLW_ROOM302_HEAD_BOB_D, OLW_ROOM302_HEAD_BOB_V_OFF, OLW_ROOM302_HEAD_BOB_VD_OFF) \
+    X("room302", "Head Bob", OLW_ROOM302_HEAD_BOB_D, OLW_ROOM302_HEAD_BOB_V_SLIGHT, OLW_ROOM302_HEAD_BOB_VD_SLIGHT) \
+    X("room302", "Head Bob", OLW_ROOM302_HEAD_BOB_D, OLW_ROOM302_HEAD_BOB_V_FULL, OLW_ROOM302_HEAD_BOB_VD_FULL) \
+    X("room302", "Left / Right", OLW_ROOM302_LEFT_RIGHT_D, OLW_ROOM302_LEFT_RIGHT_V_TURN, OLW_ROOM302_LEFT_RIGHT_VD_TURN) \
+    X("room302", "Left / Right", OLW_ROOM302_LEFT_RIGHT_D, OLW_ROOM302_LEFT_RIGHT_V_STRAFE, OLW_ROOM302_LEFT_RIGHT_VD_STRAFE) \
+    X("room302", "Walk Speed", OLW_ROOM302_WALK_SPEED_D, OLW_ROOM302_WALK_SPEED_V_GAME, OLW_ROOM302_WALK_SPEED_VD_GAME) \
+    X("interface", "Health Gauge", OLW_INTERFACE_HEALTH_GAUGE_D, OLW_INTERFACE_HEALTH_GAUGE_V_ALWAYS, OLW_INTERFACE_HEALTH_GAUGE_VD_ALWAYS) \
+    X("interface", "Health Gauge", OLW_INTERFACE_HEALTH_GAUGE_D, OLW_INTERFACE_HEALTH_GAUGE_V_AUTO_HIDE, OLW_INTERFACE_HEALTH_GAUGE_VD_AUTO_HIDE) \
+    X("interface", "Item Icons", OLW_INTERFACE_ITEM_ICONS_D, OLW_INTERFACE_ITEM_ICONS_V_ALWAYS, OLW_INTERFACE_ITEM_ICONS_VD_ALWAYS) \
+    X("interface", "Item Icons", OLW_INTERFACE_ITEM_ICONS_D, OLW_INTERFACE_ITEM_ICONS_V_AUTO_HIDE, OLW_INTERFACE_ITEM_ICONS_VD_AUTO_HIDE) \
+    X("interface", "Enemy Health", OLW_INTERFACE_ENEMY_HEALTH_D, OLW_INTERFACE_ENEMY_HEALTH_V_OFF, OLW_INTERFACE_ENEMY_HEALTH_VD_OFF) \
+    X("interface", "Enemy Health", OLW_INTERFACE_ENEMY_HEALTH_D, OLW_INTERFACE_ENEMY_HEALTH_V_TARGET, OLW_INTERFACE_ENEMY_HEALTH_VD_TARGET) \
+    X("interface", "Enemy Health", OLW_INTERFACE_ENEMY_HEALTH_D, OLW_INTERFACE_ENEMY_HEALTH_V_ALL_NEAR, OLW_INTERFACE_ENEMY_HEALTH_VD_ALL_NEAR) \
+    X("interface", "Curse Meter", OLW_INTERFACE_CURSE_METER_D, OLW_INTERFACE_CURSE_METER_V_OFF, OLW_INTERFACE_CURSE_METER_VD_OFF) \
+    X("interface", "Curse Meter", OLW_INTERFACE_CURSE_METER_D, OLW_INTERFACE_CURSE_METER_V_ON, OLW_INTERFACE_CURSE_METER_VD_ON) \
+    X("interface", "Menu Font", OLW_INTERFACE_MENU_FONT_D, OLW_INTERFACE_MENU_FONT_V_STOCK, OLW_INTERFACE_MENU_FONT_VD_STOCK) \
+    X("interface", "Menu Font", OLW_INTERFACE_MENU_FONT_D, OLW_INTERFACE_MENU_FONT_V_EB_GARAMOND, OLW_INTERFACE_MENU_FONT_VD_EB_GARAMOND) \
+    X("interface", "Menu Font", OLW_INTERFACE_MENU_FONT_D, OLW_INTERFACE_MENU_FONT_V_CORMORANT, OLW_INTERFACE_MENU_FONT_VD_CORMORANT) \
+    X("interface", "Menu Font", OLW_INTERFACE_MENU_FONT_D, OLW_INTERFACE_MENU_FONT_V_CRIMSON, OLW_INTERFACE_MENU_FONT_VD_CRIMSON) \
+    X("interface", "Menu Font", OLW_INTERFACE_MENU_FONT_D, OLW_INTERFACE_MENU_FONT_V_CUSTOM, OLW_INTERFACE_MENU_FONT_VD_CUSTOM) \
+    X("interface", "Start-Up", OLW_INTERFACE_START_UP_D, OLW_INTERFACE_START_UP_V_FULL, OLW_INTERFACE_START_UP_VD_FULL) \
+    X("interface", "Start-Up", OLW_INTERFACE_START_UP_D, OLW_INTERFACE_START_UP_V_SKIP_LOGOS, OLW_INTERFACE_START_UP_VD_SKIP_LOGOS) \
+    X("interface", "Start-Up", OLW_INTERFACE_START_UP_D, OLW_INTERFACE_START_UP_V_FAST, OLW_INTERFACE_START_UP_VD_FAST) \
+    X("subtitles", "Subtitles", OLW_SUBTITLES_SUBTITLES_D, OLW_SUBTITLES_SUBTITLES_V_OFF, OLW_SUBTITLES_SUBTITLES_VD_OFF) \
+    X("subtitles", "Subtitles", OLW_SUBTITLES_SUBTITLES_D, OLW_SUBTITLES_SUBTITLES_V_ON, OLW_SUBTITLES_SUBTITLES_VD_ON) \
+    X("subtitles", "Size", OLW_SUBTITLES_SIZE_D, OLW_SUBTITLES_SIZE_V_SMALL, OLW_SUBTITLES_SIZE_VD_SMALL) \
+    X("subtitles", "Size", OLW_SUBTITLES_SIZE_D, OLW_SUBTITLES_SIZE_V_NORMAL, OLW_SUBTITLES_SIZE_VD_NORMAL) \
+    X("subtitles", "Size", OLW_SUBTITLES_SIZE_D, OLW_SUBTITLES_SIZE_V_LARGE, OLW_SUBTITLES_SIZE_VD_LARGE) \
+    X("subtitles", "Size", OLW_SUBTITLES_SIZE_D, OLW_SUBTITLES_SIZE_V_HUGE, OLW_SUBTITLES_SIZE_VD_HUGE) \
+    X("subtitles", "Colour", OLW_SUBTITLES_COLOUR_D, OLW_SUBTITLES_COLOUR_V_WHITE, OLW_SUBTITLES_COLOUR_VD_WHITE) \
+    X("subtitles", "Colour", OLW_SUBTITLES_COLOUR_D, OLW_SUBTITLES_COLOUR_V_YELLOW, OLW_SUBTITLES_COLOUR_VD_YELLOW) \
+    X("subtitles", "Colour", OLW_SUBTITLES_COLOUR_D, OLW_SUBTITLES_COLOUR_V_CYAN, OLW_SUBTITLES_COLOUR_VD_CYAN) \
+    X("subtitles", "Colour", OLW_SUBTITLES_COLOUR_D, OLW_SUBTITLES_COLOUR_V_GREEN, OLW_SUBTITLES_COLOUR_VD_GREEN) \
+    X("subtitles", "Colour", OLW_SUBTITLES_COLOUR_D, OLW_SUBTITLES_COLOUR_V_RED, OLW_SUBTITLES_COLOUR_VD_RED) \
+    X("subtitles", "Colour", OLW_SUBTITLES_COLOUR_D, OLW_SUBTITLES_COLOUR_V_PINK, OLW_SUBTITLES_COLOUR_VD_PINK) \
+    X("subtitles", "Colour", OLW_SUBTITLES_COLOUR_D, OLW_SUBTITLES_COLOUR_V_ORANGE, OLW_SUBTITLES_COLOUR_VD_ORANGE) \
+    X("subtitles", "Colour", OLW_SUBTITLES_COLOUR_D, OLW_SUBTITLES_COLOUR_V_AMBER, OLW_SUBTITLES_COLOUR_VD_AMBER) \
+    X("subtitles", "Colour", OLW_SUBTITLES_COLOUR_D, OLW_SUBTITLES_COLOUR_V_ICE_BLUE, OLW_SUBTITLES_COLOUR_VD_ICE_BLUE) \
+    X("subtitles", "Edge", OLW_SUBTITLES_EDGE_D, OLW_SUBTITLES_EDGE_V_SHADOW, OLW_SUBTITLES_EDGE_VD_SHADOW) \
+    X("subtitles", "Edge", OLW_SUBTITLES_EDGE_D, OLW_SUBTITLES_EDGE_V_NONE, OLW_SUBTITLES_EDGE_VD_NONE) \
+    X("subtitles", "Edge", OLW_SUBTITLES_EDGE_D, OLW_SUBTITLES_EDGE_V_OUTLINE, OLW_SUBTITLES_EDGE_VD_OUTLINE) \
+    X("subtitles", "Edge", OLW_SUBTITLES_EDGE_D, OLW_SUBTITLES_EDGE_V_BOTH, OLW_SUBTITLES_EDGE_VD_BOTH) \
+    X("subtitles", "Box", OLW_SUBTITLES_BOX_D, OLW_SUBTITLES_BOX_V_NONE, OLW_SUBTITLES_BOX_VD_NONE) \
+    X("subtitles", "Box", OLW_SUBTITLES_BOX_D, OLW_SUBTITLES_BOX_V_TRANSLUCENT, OLW_SUBTITLES_BOX_VD_TRANSLUCENT) \
+    X("subtitles", "Box", OLW_SUBTITLES_BOX_D, OLW_SUBTITLES_BOX_V_SOLID, OLW_SUBTITLES_BOX_VD_SOLID) \
+    X("subtitles", "Appear", OLW_SUBTITLES_APPEAR_D, OLW_SUBTITLES_APPEAR_V_NONE, OLW_SUBTITLES_APPEAR_VD_NONE) \
+    X("subtitles", "Appear", OLW_SUBTITLES_APPEAR_D, OLW_SUBTITLES_APPEAR_V_TYPEWRITER, OLW_SUBTITLES_APPEAR_VD_TYPEWRITER) \
+    X("subtitles", "Appear", OLW_SUBTITLES_APPEAR_D, OLW_SUBTITLES_APPEAR_V_FADE_IN, OLW_SUBTITLES_APPEAR_VD_FADE_IN) \
+    X("subtitles", "Appear", OLW_SUBTITLES_APPEAR_D, OLW_SUBTITLES_APPEAR_V_WAVE, OLW_SUBTITLES_APPEAR_VD_WAVE) \
+    X("subtitles", "Appear", OLW_SUBTITLES_APPEAR_D, OLW_SUBTITLES_APPEAR_V_GLITCH, OLW_SUBTITLES_APPEAR_VD_GLITCH) \
+    X("subtitles", "Appear", OLW_SUBTITLES_APPEAR_D, OLW_SUBTITLES_APPEAR_V_BLOOD_DRIP, OLW_SUBTITLES_APPEAR_VD_BLOOD_DRIP) \
+    X("subtitles", "Appear", OLW_SUBTITLES_APPEAR_D, OLW_SUBTITLES_APPEAR_V_EMBERS, OLW_SUBTITLES_APPEAR_VD_EMBERS) \
+    X("subtitles", "Vanish", OLW_SUBTITLES_VANISH_D, OLW_SUBTITLES_VANISH_V_NONE, OLW_SUBTITLES_VANISH_VD_NONE) \
+    X("subtitles", "Vanish", OLW_SUBTITLES_VANISH_D, OLW_SUBTITLES_VANISH_V_FADE_OUT, OLW_SUBTITLES_VANISH_VD_FADE_OUT) \
+    X("subtitles", "Vanish", OLW_SUBTITLES_VANISH_D, OLW_SUBTITLES_VANISH_V_BURN_OUT, OLW_SUBTITLES_VANISH_VD_BURN_OUT) \
+    X("subtitles", "Vanish", OLW_SUBTITLES_VANISH_D, OLW_SUBTITLES_VANISH_V_PAPER_PEEL, OLW_SUBTITLES_VANISH_VD_PAPER_PEEL) \
+    X("pause", "Storage Chest", OLW_PAUSE_STORAGE_CHEST_D, OLW_PAUSE_STORAGE_CHEST_V_HIDDEN, OLW_PAUSE_STORAGE_CHEST_VD_HIDDEN) \
+    X("pause", "Storage Chest", OLW_PAUSE_STORAGE_CHEST_D, OLW_PAUSE_STORAGE_CHEST_V_SHOWN, OLW_PAUSE_STORAGE_CHEST_VD_SHOWN) \
+    X("pause", "Save Game", OLW_PAUSE_SAVE_GAME_D, OLW_PAUSE_SAVE_GAME_V_HIDDEN, OLW_PAUSE_SAVE_GAME_VD_HIDDEN) \
+    X("pause", "Save Game", OLW_PAUSE_SAVE_GAME_D, OLW_PAUSE_SAVE_GAME_V_SHOWN, OLW_PAUSE_SAVE_GAME_VD_SHOWN) \
+    X("pause", "Load Game", OLW_PAUSE_LOAD_GAME_D, OLW_PAUSE_LOAD_GAME_V_HIDDEN, OLW_PAUSE_LOAD_GAME_VD_HIDDEN) \
+    X("pause", "Load Game", OLW_PAUSE_LOAD_GAME_D, OLW_PAUSE_LOAD_GAME_V_SHOWN, OLW_PAUSE_LOAD_GAME_VD_SHOWN) \
+    X("pause", "Quick Save", OLW_PAUSE_QUICK_SAVE_D, OLW_PAUSE_QUICK_SAVE_V_HIDDEN, OLW_PAUSE_QUICK_SAVE_VD_HIDDEN) \
+    X("pause", "Quick Save", OLW_PAUSE_QUICK_SAVE_D, OLW_PAUSE_QUICK_SAVE_V_SHOWN, OLW_PAUSE_QUICK_SAVE_VD_SHOWN) \
+    X("pause", "Quick Load", OLW_PAUSE_QUICK_LOAD_D, OLW_PAUSE_QUICK_LOAD_V_HIDDEN, OLW_PAUSE_QUICK_LOAD_VD_HIDDEN) \
+    X("pause", "Quick Load", OLW_PAUSE_QUICK_LOAD_D, OLW_PAUSE_QUICK_LOAD_V_SHOWN, OLW_PAUSE_QUICK_LOAD_VD_SHOWN) \
+    X("pause", "Eileen", OLW_PAUSE_EILEEN_D, OLW_PAUSE_EILEEN_V_HIDDEN, OLW_PAUSE_EILEEN_VD_HIDDEN) \
+    X("pause", "Eileen", OLW_PAUSE_EILEEN_D, OLW_PAUSE_EILEEN_V_SHOWN, OLW_PAUSE_EILEEN_VD_SHOWN) \
+    X("pause", "Save Banks", OLW_PAUSE_SAVE_BANKS_D, OLW_PAUSE_SAVE_BANKS_V_OFF, OLW_PAUSE_SAVE_BANKS_VD_OFF) \
+    X("pause", "Save Banks", OLW_PAUSE_SAVE_BANKS_D, OLW_PAUSE_SAVE_BANKS_V_ON, OLW_PAUSE_SAVE_BANKS_VD_ON) \
+    X("sound", "Sound Mode", OLW_SOUND_SOUND_MODE_D, OLW_SOUND_SOUND_MODE_V_MONO, OLW_SOUND_SOUND_MODE_VD_MONO) \
+    X("sound", "Sound Mode", OLW_SOUND_SOUND_MODE_D, OLW_SOUND_SOUND_MODE_V_STEREO, OLW_SOUND_SOUND_MODE_VD_STEREO) \
+    X("sound", "Sound Mode", OLW_SOUND_SOUND_MODE_D, OLW_SOUND_SOUND_MODE_V_HEADPHONES, OLW_SOUND_SOUND_MODE_VD_HEADPHONES) \
+    X("sound", "Sound Mode", OLW_SOUND_SOUND_MODE_D, OLW_SOUND_SOUND_MODE_V_SURROUND, OLW_SOUND_SOUND_MODE_VD_SURROUND) \
+    X("sound", "Stereo Width", OLW_SOUND_STEREO_WIDTH_D, OLW_SOUND_STEREO_WIDTH_V_100, OLW_SOUND_STEREO_WIDTH_VD_100) \
+    X("sound", "Room Reverb", OLW_SOUND_ROOM_REVERB_D, OLW_SOUND_ROOM_REVERB_V_OFF, OLW_SOUND_ROOM_REVERB_VD_OFF) \
+    X("sound", "Room Reverb", OLW_SOUND_ROOM_REVERB_D, OLW_SOUND_ROOM_REVERB_V_ON, OLW_SOUND_ROOM_REVERB_VD_ON) \
+    X("sound", "Night Mode", OLW_SOUND_NIGHT_MODE_D, OLW_SOUND_NIGHT_MODE_V_OFF, OLW_SOUND_NIGHT_MODE_VD_OFF) \
+    X("sound", "Night Mode", OLW_SOUND_NIGHT_MODE_D, OLW_SOUND_NIGHT_MODE_V_LOW, OLW_SOUND_NIGHT_MODE_VD_LOW) \
+    X("sound", "Night Mode", OLW_SOUND_NIGHT_MODE_D, OLW_SOUND_NIGHT_MODE_V_HIGH, OLW_SOUND_NIGHT_MODE_VD_HIGH) \
+    X("sound", "Background", OLW_SOUND_BACKGROUND_D, OLW_SOUND_BACKGROUND_V_MUTE, OLW_SOUND_BACKGROUND_VD_MUTE) \
+    X("sound", "Background", OLW_SOUND_BACKGROUND_D, OLW_SOUND_BACKGROUND_V_PLAY, OLW_SOUND_BACKGROUND_VD_PLAY) \
+    X("effects", "Filter", OLW_EFFECTS_FILTER_D, OLW_EFFECTS_FILTER_V_NONE, OLW_EFFECTS_FILTER_VD_NONE) \
+    X("effects", "Filter", OLW_EFFECTS_FILTER_D, OLW_EFFECTS_FILTER_V_CRT, OLW_EFFECTS_FILTER_VD_CRT) \
+    X("effects", "Filter", OLW_EFFECTS_FILTER_D, OLW_EFFECTS_FILTER_V_VIVID, OLW_EFFECTS_FILTER_VD_VIVID) \
+    X("effects", "Filter", OLW_EFFECTS_FILTER_D, OLW_EFFECTS_FILTER_V_SEPIA, OLW_EFFECTS_FILTER_VD_SEPIA) \
+    X("effects", "Filter", OLW_EFFECTS_FILTER_D, OLW_EFFECTS_FILTER_V_OLD_FILM, OLW_EFFECTS_FILTER_VD_OLD_FILM) \
+    X("effects", "Filter", OLW_EFFECTS_FILTER_D, OLW_EFFECTS_FILTER_V_NIGHT_VISION, OLW_EFFECTS_FILTER_VD_NIGHT_VISION) \
+    X("effects", "Filter", OLW_EFFECTS_FILTER_D, OLW_EFFECTS_FILTER_V_NIGHT_MONO, OLW_EFFECTS_FILTER_VD_NIGHT_MONO) \
+    X("effects", "Filter", OLW_EFFECTS_FILTER_D, OLW_EFFECTS_FILTER_V_THERMAL, OLW_EFFECTS_FILTER_VD_THERMAL) \
+    X("effects", "Filter", OLW_EFFECTS_FILTER_D, OLW_EFFECTS_FILTER_V_SPIRIT_VISION, OLW_EFFECTS_FILTER_VD_SPIRIT_VISION) \
+    X("effects", "Filter", OLW_EFFECTS_FILTER_D, OLW_EFFECTS_FILTER_V_VIGNETTE, OLW_EFFECTS_FILTER_VD_VIGNETTE) \
+    X("effects", "Cut-scene Filter", OLW_EFFECTS_CUT_SCENE_FILTER_D, OLW_EFFECTS_CUT_SCENE_FILTER_V_ON, OLW_EFFECTS_CUT_SCENE_FILTER_VD_ON) \
+    X("effects", "Cut-scene Filter", OLW_EFFECTS_CUT_SCENE_FILTER_D, OLW_EFFECTS_CUT_SCENE_FILTER_V_OFF, OLW_EFFECTS_CUT_SCENE_FILTER_VD_OFF) \
+    X("effects", "Bloom", OLW_EFFECTS_BLOOM_D, OLW_EFFECTS_BLOOM_V_OFF, OLW_EFFECTS_BLOOM_VD_OFF) \
+    X("effects", "Bloom", OLW_EFFECTS_BLOOM_D, OLW_EFFECTS_BLOOM_V_LOW, OLW_EFFECTS_BLOOM_VD_LOW) \
+    X("effects", "Bloom", OLW_EFFECTS_BLOOM_D, OLW_EFFECTS_BLOOM_V_MEDIUM, OLW_EFFECTS_BLOOM_VD_MEDIUM) \
+    X("effects", "Bloom", OLW_EFFECTS_BLOOM_D, OLW_EFFECTS_BLOOM_V_HIGH, OLW_EFFECTS_BLOOM_VD_HIGH) \
+    X("effects", "Bloom", OLW_EFFECTS_BLOOM_D, OLW_EFFECTS_BLOOM_V_ULTRA, OLW_EFFECTS_BLOOM_VD_ULTRA) \
+    X("effects", "Colour Grade", OLW_EFFECTS_COLOUR_GRADE_D, OLW_EFFECTS_COLOUR_GRADE_V_OFF, OLW_EFFECTS_COLOUR_GRADE_VD_OFF) \
+    X("effects", "Colour Grade", OLW_EFFECTS_COLOUR_GRADE_D, OLW_EFFECTS_COLOUR_GRADE_V_PS2, OLW_EFFECTS_COLOUR_GRADE_VD_PS2) \
+    X("effects", "Colour Grade", OLW_EFFECTS_COLOUR_GRADE_D, OLW_EFFECTS_COLOUR_GRADE_V_OTHERWORLD, OLW_EFFECTS_COLOUR_GRADE_VD_OTHERWORLD) \
+    X("effects", "Colour Grade", OLW_EFFECTS_COLOUR_GRADE_D, OLW_EFFECTS_COLOUR_GRADE_V_APARTMENT, OLW_EFFECTS_COLOUR_GRADE_VD_APARTMENT) \
+    X("effects", "Colour Grade", OLW_EFFECTS_COLOUR_GRADE_D, OLW_EFFECTS_COLOUR_GRADE_V_BLEACH, OLW_EFFECTS_COLOUR_GRADE_VD_BLEACH) \
+    X("effects", "Otherworld Lens", OLW_EFFECTS_OTHERWORLD_LENS_D, OLW_EFFECTS_OTHERWORLD_LENS_V_OFF, OLW_EFFECTS_OTHERWORLD_LENS_VD_OFF) \
+    X("effects", "Otherworld Lens", OLW_EFFECTS_OTHERWORLD_LENS_D, OLW_EFFECTS_OTHERWORLD_LENS_V_ON, OLW_EFFECTS_OTHERWORLD_LENS_VD_ON) \
+    X("effects", "Depth of Field", OLW_EFFECTS_DEPTH_OF_FIELD_D, OLW_EFFECTS_DEPTH_OF_FIELD_V_OFF, OLW_EFFECTS_DEPTH_OF_FIELD_VD_OFF) \
+    X("effects", "Depth of Field", OLW_EFFECTS_DEPTH_OF_FIELD_D, OLW_EFFECTS_DEPTH_OF_FIELD_V_CUT_SCENES, OLW_EFFECTS_DEPTH_OF_FIELD_VD_CUT_SCENES) \
+    X("effects", "Depth of Field", OLW_EFFECTS_DEPTH_OF_FIELD_D, OLW_EFFECTS_DEPTH_OF_FIELD_V_ALWAYS, OLW_EFFECTS_DEPTH_OF_FIELD_VD_ALWAYS) \
+    X("effects", "Blur Strength", OLW_EFFECTS_BLUR_STRENGTH_D, OLW_EFFECTS_BLUR_STRENGTH_V_LOW, OLW_EFFECTS_BLUR_STRENGTH_VD_LOW) \
+    X("effects", "Blur Strength", OLW_EFFECTS_BLUR_STRENGTH_D, OLW_EFFECTS_BLUR_STRENGTH_V_MEDIUM, OLW_EFFECTS_BLUR_STRENGTH_VD_MEDIUM) \
+    X("effects", "Blur Strength", OLW_EFFECTS_BLUR_STRENGTH_D, OLW_EFFECTS_BLUR_STRENGTH_V_HIGH, OLW_EFFECTS_BLUR_STRENGTH_VD_HIGH) \
+    X("grain", "Film Grain", OLW_GRAIN_FILM_GRAIN_D, OLW_GRAIN_FILM_GRAIN_V_OFF, OLW_GRAIN_FILM_GRAIN_VD_OFF) \
+    X("grain", "Film Grain", OLW_GRAIN_FILM_GRAIN_D, OLW_GRAIN_FILM_GRAIN_V_ON, OLW_GRAIN_FILM_GRAIN_VD_ON) \
+    X("grain", "Strength", OLW_GRAIN_STRENGTH_D, OLW_GRAIN_STRENGTH_V_LOW, OLW_GRAIN_STRENGTH_VD_LOW) \
+    X("grain", "Strength", OLW_GRAIN_STRENGTH_D, OLW_GRAIN_STRENGTH_V_NORMAL, OLW_GRAIN_STRENGTH_VD_NORMAL) \
+    X("grain", "Strength", OLW_GRAIN_STRENGTH_D, OLW_GRAIN_STRENGTH_V_HIGH, OLW_GRAIN_STRENGTH_VD_HIGH) \
+    X("grain", "Strength", OLW_GRAIN_STRENGTH_D, OLW_GRAIN_STRENGTH_V_VERY_HIGH, OLW_GRAIN_STRENGTH_VD_VERY_HIGH) \
+    X("grain", "Grain Type", OLW_GRAIN_GRAIN_TYPE_D, OLW_GRAIN_GRAIN_TYPE_V_STOCK, OLW_GRAIN_GRAIN_TYPE_VD_STOCK) \
+    X("grain", "Grain Type", OLW_GRAIN_GRAIN_TYPE_D, OLW_GRAIN_GRAIN_TYPE_V_FINE, OLW_GRAIN_GRAIN_TYPE_VD_FINE) \
+    X("grain", "Grain Type", OLW_GRAIN_GRAIN_TYPE_D, OLW_GRAIN_GRAIN_TYPE_V_COARSE, OLW_GRAIN_GRAIN_TYPE_VD_COARSE) \
+    X("grain", "Grain Type", OLW_GRAIN_GRAIN_TYPE_D, OLW_GRAIN_GRAIN_TYPE_V_FILM, OLW_GRAIN_GRAIN_TYPE_VD_FILM) \
+    X("grain", "Grain Type", OLW_GRAIN_GRAIN_TYPE_D, OLW_GRAIN_GRAIN_TYPE_V_VHS, OLW_GRAIN_GRAIN_TYPE_VD_VHS) \
+    X("grain", "Grain Type", OLW_GRAIN_GRAIN_TYPE_D, OLW_GRAIN_GRAIN_TYPE_V_SCAN_ROLL, OLW_GRAIN_GRAIN_TYPE_VD_SCAN_ROLL) \
+    X("grain", "Grain Type", OLW_GRAIN_GRAIN_TYPE_D, OLW_GRAIN_GRAIN_TYPE_V_RAIN, OLW_GRAIN_GRAIN_TYPE_VD_RAIN) \
+    X("grain", "Grain Colour", OLW_GRAIN_GRAIN_COLOUR_D, OLW_GRAIN_GRAIN_COLOUR_V_STOCK, OLW_GRAIN_GRAIN_COLOUR_VD_STOCK) \
+    X("grain", "Grain Colour", OLW_GRAIN_GRAIN_COLOUR_D, OLW_GRAIN_GRAIN_COLOUR_V_MONO, OLW_GRAIN_GRAIN_COLOUR_VD_MONO) \
+    X("grain", "Grain Colour", OLW_GRAIN_GRAIN_COLOUR_D, OLW_GRAIN_GRAIN_COLOUR_V_FULL_COLOUR, OLW_GRAIN_GRAIN_COLOUR_VD_FULL_COLOUR) \
+    X("grain", "Grain Colour", OLW_GRAIN_GRAIN_COLOUR_D, OLW_GRAIN_GRAIN_COLOUR_V_RED, OLW_GRAIN_GRAIN_COLOUR_VD_RED) \
+    X("grain", "Grain Colour", OLW_GRAIN_GRAIN_COLOUR_D, OLW_GRAIN_GRAIN_COLOUR_V_GREEN, OLW_GRAIN_GRAIN_COLOUR_VD_GREEN) \
+    X("grain", "Grain Colour", OLW_GRAIN_GRAIN_COLOUR_D, OLW_GRAIN_GRAIN_COLOUR_V_BLUE, OLW_GRAIN_GRAIN_COLOUR_VD_BLUE) \
+    X("grain", "Grain Colour", OLW_GRAIN_GRAIN_COLOUR_D, OLW_GRAIN_GRAIN_COLOUR_V_AMBER, OLW_GRAIN_GRAIN_COLOUR_VD_AMBER) \
+    X("grain", "Grain Colour", OLW_GRAIN_GRAIN_COLOUR_D, OLW_GRAIN_GRAIN_COLOUR_V_SEPIA, OLW_GRAIN_GRAIN_COLOUR_VD_SEPIA) \
+    X("shadows", "Shadows", OLW_SHADOWS_SHADOWS_D, OLW_SHADOWS_SHADOWS_V_OFF, OLW_SHADOWS_SHADOWS_VD_OFF) \
+    X("shadows", "Shadows", OLW_SHADOWS_SHADOWS_D, OLW_SHADOWS_SHADOWS_V_ON, OLW_SHADOWS_SHADOWS_VD_ON) \
+    X("shadows", "Edge", OLW_SHADOWS_EDGE_D, OLW_SHADOWS_EDGE_V_STOCK, OLW_SHADOWS_EDGE_VD_STOCK) \
+    X("shadows", "Edge", OLW_SHADOWS_EDGE_D, OLW_SHADOWS_EDGE_V_SOFT, OLW_SHADOWS_EDGE_VD_SOFT) \
+    X("gameplay", "Blood Colour", OLW_GAMEPLAY_BLOOD_COLOUR_D, OLW_GAMEPLAY_BLOOD_COLOUR_V_RED, OLW_GAMEPLAY_BLOOD_COLOUR_VD_RED) \
+    X("gameplay", "Blood Colour", OLW_GAMEPLAY_BLOOD_COLOUR_D, OLW_GAMEPLAY_BLOOD_COLOUR_V_GREEN, OLW_GAMEPLAY_BLOOD_COLOUR_VD_GREEN) \
+    X("gameplay", "Blood Colour", OLW_GAMEPLAY_BLOOD_COLOUR_D, OLW_GAMEPLAY_BLOOD_COLOUR_V_PURPLE, OLW_GAMEPLAY_BLOOD_COLOUR_VD_PURPLE) \
+    X("gameplay", "Blood Colour", OLW_GAMEPLAY_BLOOD_COLOUR_D, OLW_GAMEPLAY_BLOOD_COLOUR_V_YELLOW, OLW_GAMEPLAY_BLOOD_COLOUR_VD_YELLOW) \
+    X("gameplay", "Blood Colour", OLW_GAMEPLAY_BLOOD_COLOUR_D, OLW_GAMEPLAY_BLOOD_COLOUR_V_ORANGE, OLW_GAMEPLAY_BLOOD_COLOUR_VD_ORANGE) \
+    X("gameplay", "Blood Colour", OLW_GAMEPLAY_BLOOD_COLOUR_D, OLW_GAMEPLAY_BLOOD_COLOUR_V_PINK, OLW_GAMEPLAY_BLOOD_COLOUR_VD_PINK) \
+    X("gameplay", "Blood Colour", OLW_GAMEPLAY_BLOOD_COLOUR_D, OLW_GAMEPLAY_BLOOD_COLOUR_V_BLUE, OLW_GAMEPLAY_BLOOD_COLOUR_VD_BLUE) \
+    X("gameplay", "Blood Colour", OLW_GAMEPLAY_BLOOD_COLOUR_D, OLW_GAMEPLAY_BLOOD_COLOUR_V_CYAN, OLW_GAMEPLAY_BLOOD_COLOUR_VD_CYAN) \
+    X("gameplay", "Blood Colour", OLW_GAMEPLAY_BLOOD_COLOUR_D, OLW_GAMEPLAY_BLOOD_COLOUR_V_WHITE, OLW_GAMEPLAY_BLOOD_COLOUR_VD_WHITE) \
+    X("gameplay", "Blood Colour", OLW_GAMEPLAY_BLOOD_COLOUR_D, OLW_GAMEPLAY_BLOOD_COLOUR_V_BLACK, OLW_GAMEPLAY_BLOOD_COLOUR_VD_BLACK) \
+    X("player", "Move Speed", OLW_PLAYER_MOVE_SPEED_D, OLW_PLAYER_MOVE_SPEED_V_NORMAL, OLW_PLAYER_MOVE_SPEED_VD_NORMAL) \
+    X("player", "Move Speed", OLW_PLAYER_MOVE_SPEED_D, OLW_PLAYER_MOVE_SPEED_V_X1_25, OLW_PLAYER_MOVE_SPEED_VD_X1_25) \
+    X("player", "Move Speed", OLW_PLAYER_MOVE_SPEED_D, OLW_PLAYER_MOVE_SPEED_V_X1_5, OLW_PLAYER_MOVE_SPEED_VD_X1_5) \
+    X("player", "Move Speed", OLW_PLAYER_MOVE_SPEED_D, OLW_PLAYER_MOVE_SPEED_V_X2, OLW_PLAYER_MOVE_SPEED_VD_X2) \
+    X("player", "Regeneration", OLW_PLAYER_REGENERATION_D, OLW_PLAYER_REGENERATION_V_OFF, OLW_PLAYER_REGENERATION_VD_OFF) \
+    X("player", "Regeneration", OLW_PLAYER_REGENERATION_D, OLW_PLAYER_REGENERATION_V_X1, OLW_PLAYER_REGENERATION_VD_X1) \
+    X("player", "Regeneration", OLW_PLAYER_REGENERATION_D, OLW_PLAYER_REGENERATION_V_X1_25, OLW_PLAYER_REGENERATION_VD_X1_25) \
+    X("player", "Regeneration", OLW_PLAYER_REGENERATION_D, OLW_PLAYER_REGENERATION_V_X2, OLW_PLAYER_REGENERATION_VD_X2) \
+    X("player", "Medallion", OLW_PLAYER_MEDALLION_D, OLW_PLAYER_MEDALLION_V_NORMAL, OLW_PLAYER_MEDALLION_VD_NORMAL) \
+    X("player", "Medallion", OLW_PLAYER_MEDALLION_D, OLW_PLAYER_MEDALLION_V_X2, OLW_PLAYER_MEDALLION_VD_X2) \
+    X("player", "Medallion", OLW_PLAYER_MEDALLION_D, OLW_PLAYER_MEDALLION_V_X3, OLW_PLAYER_MEDALLION_VD_X3) \
+    X("player", "Medallion", OLW_PLAYER_MEDALLION_D, OLW_PLAYER_MEDALLION_V_X4, OLW_PLAYER_MEDALLION_VD_X4) \
+    X("player", "Grab Escape", OLW_PLAYER_GRAB_ESCAPE_D, OLW_PLAYER_GRAB_ESCAPE_V_STOCK, OLW_PLAYER_GRAB_ESCAPE_VD_STOCK) \
+    X("player", "Grab Escape", OLW_PLAYER_GRAB_ESCAPE_D, OLW_PLAYER_GRAB_ESCAPE_V_QUICK, OLW_PLAYER_GRAB_ESCAPE_VD_QUICK) \
+    X("player", "Grab Escape", OLW_PLAYER_GRAB_ESCAPE_D, OLW_PLAYER_GRAB_ESCAPE_V_INSTANT, OLW_PLAYER_GRAB_ESCAPE_VD_INSTANT) \
+    X("player", "No Clip", OLW_PLAYER_NO_CLIP_D, OLW_PLAYER_NO_CLIP_V_OFF, OLW_PLAYER_NO_CLIP_VD_OFF) \
+    X("player", "No Clip", OLW_PLAYER_NO_CLIP_D, OLW_PLAYER_NO_CLIP_V_ON, OLW_PLAYER_NO_CLIP_VD_ON) \
+    X("player", "No Clip", OLW_PLAYER_NO_CLIP_D, OLW_PLAYER_NO_CLIP_V_FLY, OLW_PLAYER_NO_CLIP_VD_FLY) \
+    X("combat", "One-Hit Kill", OLW_COMBAT_ONE_HIT_KILL_D, OLW_COMBAT_ONE_HIT_KILL_V_OFF, OLW_COMBAT_ONE_HIT_KILL_VD_OFF) \
+    X("combat", "One-Hit Kill", OLW_COMBAT_ONE_HIT_KILL_D, OLW_COMBAT_ONE_HIT_KILL_V_ON, OLW_COMBAT_ONE_HIT_KILL_VD_ON) \
+    X("combat", "Dark Pact", OLW_COMBAT_DARK_PACT_D, OLW_COMBAT_DARK_PACT_V_OFF, OLW_COMBAT_DARK_PACT_VD_OFF) \
+    X("combat", "Dark Pact", OLW_COMBAT_DARK_PACT_D, OLW_COMBAT_DARK_PACT_V_PACT, OLW_COMBAT_DARK_PACT_VD_PACT) \
+    X("combat", "Dark Pact", OLW_COMBAT_DARK_PACT_D, OLW_COMBAT_DARK_PACT_V_BLOOD, OLW_COMBAT_DARK_PACT_VD_BLOOD) \
+    X("combat", "Quick Charge", OLW_COMBAT_QUICK_CHARGE_D, OLW_COMBAT_QUICK_CHARGE_V_OFF, OLW_COMBAT_QUICK_CHARGE_VD_OFF) \
+    X("combat", "Quick Charge", OLW_COMBAT_QUICK_CHARGE_D, OLW_COMBAT_QUICK_CHARGE_V_1_5X, OLW_COMBAT_QUICK_CHARGE_VD_1_5X) \
+    X("combat", "Quick Charge", OLW_COMBAT_QUICK_CHARGE_D, OLW_COMBAT_QUICK_CHARGE_V_2X, OLW_COMBAT_QUICK_CHARGE_VD_2X) \
+    X("combat", "Quick Charge", OLW_COMBAT_QUICK_CHARGE_D, OLW_COMBAT_QUICK_CHARGE_V_3X, OLW_COMBAT_QUICK_CHARGE_VD_3X) \
+    X("combat", "Life Steal", OLW_COMBAT_LIFE_STEAL_D, OLW_COMBAT_LIFE_STEAL_V_OFF, OLW_COMBAT_LIFE_STEAL_VD_OFF) \
+    X("combat", "Life Steal", OLW_COMBAT_LIFE_STEAL_D, OLW_COMBAT_LIFE_STEAL_V_5, OLW_COMBAT_LIFE_STEAL_VD_5) \
+    X("combat", "Life Steal", OLW_COMBAT_LIFE_STEAL_D, OLW_COMBAT_LIFE_STEAL_V_10, OLW_COMBAT_LIFE_STEAL_VD_10) \
+    X("combat", "Ammo Saver", OLW_COMBAT_AMMO_SAVER_D, OLW_COMBAT_AMMO_SAVER_V_NORMAL, OLW_COMBAT_AMMO_SAVER_VD_NORMAL) \
+    X("combat", "Ammo Saver", OLW_COMBAT_AMMO_SAVER_D, OLW_COMBAT_AMMO_SAVER_V_SAVER, OLW_COMBAT_AMMO_SAVER_VD_SAVER) \
+    X("combat", "Ammo Saver", OLW_COMBAT_AMMO_SAVER_D, OLW_COMBAT_AMMO_SAVER_V_ENDLESS, OLW_COMBAT_AMMO_SAVER_VD_ENDLESS) \
+    X("items", "Item Shine", OLW_ITEMS_ITEM_SHINE_D, OLW_ITEMS_ITEM_SHINE_V_OFF, OLW_ITEMS_ITEM_SHINE_VD_OFF) \
+    X("items", "Item Shine", OLW_ITEMS_ITEM_SHINE_D, OLW_ITEMS_ITEM_SHINE_V_ON, OLW_ITEMS_ITEM_SHINE_VD_ON) \
+    X("items", "Toolbelt", OLW_ITEMS_TOOLBELT_D, OLW_ITEMS_TOOLBELT_V_10_ITEMS, OLW_ITEMS_TOOLBELT_VD_10_ITEMS) \
+    X("items", "Toolbelt", OLW_ITEMS_TOOLBELT_D, OLW_ITEMS_TOOLBELT_V_20_ITEMS, OLW_ITEMS_TOOLBELT_VD_20_ITEMS) \
+    X("items", "Item Stacks", OLW_ITEMS_ITEM_STACKS_D, OLW_ITEMS_ITEM_STACKS_V_OFF, OLW_ITEMS_ITEM_STACKS_VD_OFF) \
+    X("items", "Item Stacks", OLW_ITEMS_ITEM_STACKS_D, OLW_ITEMS_ITEM_STACKS_V_ON, OLW_ITEMS_ITEM_STACKS_VD_ON) \
+    X("items", "Supply Drops", OLW_ITEMS_SUPPLY_DROPS_D, OLW_ITEMS_SUPPLY_DROPS_V_OFF, OLW_ITEMS_SUPPLY_DROPS_VD_OFF) \
+    X("items", "Supply Drops", OLW_ITEMS_SUPPLY_DROPS_D, OLW_ITEMS_SUPPLY_DROPS_V_RARE, OLW_ITEMS_SUPPLY_DROPS_VD_RARE) \
+    X("items", "Supply Drops", OLW_ITEMS_SUPPLY_DROPS_D, OLW_ITEMS_SUPPLY_DROPS_V_NORMAL, OLW_ITEMS_SUPPLY_DROPS_VD_NORMAL) \
+    X("items", "Supply Drops", OLW_ITEMS_SUPPLY_DROPS_D, OLW_ITEMS_SUPPLY_DROPS_V_ABUNDANT, OLW_ITEMS_SUPPLY_DROPS_VD_ABUNDANT) \
+    X("enemies", "Extra Enemies", OLW_ENEMIES_EXTRA_ENEMIES_D, OLW_ENEMIES_EXTRA_ENEMIES_V_OFF, OLW_ENEMIES_EXTRA_ENEMIES_VD_OFF) \
+    X("enemies", "Extra Enemies", OLW_ENEMIES_EXTRA_ENEMIES_D, OLW_ENEMIES_EXTRA_ENEMIES_V_X2, OLW_ENEMIES_EXTRA_ENEMIES_VD_X2) \
+    X("enemies", "Extra Enemies", OLW_ENEMIES_EXTRA_ENEMIES_D, OLW_ENEMIES_EXTRA_ENEMIES_V_X3, OLW_ENEMIES_EXTRA_ENEMIES_VD_X3) \
+    X("enemies", "Extra Enemies", OLW_ENEMIES_EXTRA_ENEMIES_D, OLW_ENEMIES_EXTRA_ENEMIES_V_X4, OLW_ENEMIES_EXTRA_ENEMIES_VD_X4) \
+    X("enemies", "Door Chase", OLW_ENEMIES_DOOR_CHASE_D, OLW_ENEMIES_DOOR_CHASE_V_OFF, OLW_ENEMIES_DOOR_CHASE_VD_OFF) \
+    X("enemies", "Door Chase", OLW_ENEMIES_DOOR_CHASE_D, OLW_ENEMIES_DOOR_CHASE_V_MONSTERS, OLW_ENEMIES_DOOR_CHASE_VD_MONSTERS) \
+    X("enemies", "Door Chase", OLW_ENEMIES_DOOR_CHASE_D, OLW_ENEMIES_DOOR_CHASE_V_VICTIMS, OLW_ENEMIES_DOOR_CHASE_VD_VICTIMS) \
+    X("enemies", "Door Chase", OLW_ENEMIES_DOOR_CHASE_D, OLW_ENEMIES_DOOR_CHASE_V_BOTH, OLW_ENEMIES_DOOR_CHASE_VD_BOTH) \
+    X("enemies", "Pursuit", OLW_ENEMIES_PURSUIT_D, OLW_ENEMIES_PURSUIT_V_RELENTLESS, OLW_ENEMIES_PURSUIT_VD_RELENTLESS) \
+    X("enemies", "Pursuit", OLW_ENEMIES_PURSUIT_D, OLW_ENEMIES_PURSUIT_V_NORMAL, OLW_ENEMIES_PURSUIT_VD_NORMAL) \
+    X("enemies", "Pursuit", OLW_ENEMIES_PURSUIT_D, OLW_ENEMIES_PURSUIT_V_FORGETFUL, OLW_ENEMIES_PURSUIT_VD_FORGETFUL) \
+    X("enemies", "Enemies Return", OLW_ENEMIES_ENEMIES_RETURN_D, OLW_ENEMIES_ENEMIES_RETURN_V_OFF, OLW_ENEMIES_ENEMIES_RETURN_VD_OFF) \
+    X("enemies", "Enemies Return", OLW_ENEMIES_ENEMIES_RETURN_D, OLW_ENEMIES_ENEMIES_RETURN_V_BY_ROOM, OLW_ENEMIES_ENEMIES_RETURN_VD_BY_ROOM) \
+    X("enemies", "Enemies Return", OLW_ENEMIES_ENEMIES_RETURN_D, OLW_ENEMIES_ENEMIES_RETURN_V_BY_WORLD, OLW_ENEMIES_ENEMIES_RETURN_VD_BY_WORLD) \
+    X("enemies", "Fade In", OLW_ENEMIES_FADE_IN_D, OLW_ENEMIES_FADE_IN_V_OFF, OLW_ENEMIES_FADE_IN_VD_OFF) \
+    X("enemies", "Fade In", OLW_ENEMIES_FADE_IN_D, OLW_ENEMIES_FADE_IN_V_FADE, OLW_ENEMIES_FADE_IN_VD_FADE) \
+    X("enemies", "Fade In", OLW_ENEMIES_FADE_IN_D, OLW_ENEMIES_FADE_IN_V_PORTAL, OLW_ENEMIES_FADE_IN_VD_PORTAL) \
+    X("powers", "Death Presence", OLW_POWERS_DEATH_PRESENCE_D, OLW_POWERS_DEATH_PRESENCE_V_OFF, OLW_POWERS_DEATH_PRESENCE_VD_OFF) \
+    X("powers", "Death Presence", OLW_POWERS_DEATH_PRESENCE_D, OLW_POWERS_DEATH_PRESENCE_V_WEAK, OLW_POWERS_DEATH_PRESENCE_VD_WEAK) \
+    X("powers", "Death Presence", OLW_POWERS_DEATH_PRESENCE_D, OLW_POWERS_DEATH_PRESENCE_V_STRONG, OLW_POWERS_DEATH_PRESENCE_VD_STRONG) \
+    X("powers", "After Shock", OLW_POWERS_AFTER_SHOCK_D, OLW_POWERS_AFTER_SHOCK_V_OFF, OLW_POWERS_AFTER_SHOCK_VD_OFF) \
+    X("powers", "After Shock", OLW_POWERS_AFTER_SHOCK_D, OLW_POWERS_AFTER_SHOCK_V_SHORT, OLW_POWERS_AFTER_SHOCK_VD_SHORT) \
+    X("powers", "After Shock", OLW_POWERS_AFTER_SHOCK_D, OLW_POWERS_AFTER_SHOCK_V_MEDIUM, OLW_POWERS_AFTER_SHOCK_VD_MEDIUM) \
+    X("powers", "After Shock", OLW_POWERS_AFTER_SHOCK_D, OLW_POWERS_AFTER_SHOCK_V_LONG, OLW_POWERS_AFTER_SHOCK_VD_LONG) \
+    X("powers", "Echo Doubles", OLW_POWERS_ECHO_DOUBLES_D, OLW_POWERS_ECHO_DOUBLES_V_OFF, OLW_POWERS_ECHO_DOUBLES_VD_OFF) \
+    X("powers", "Echo Doubles", OLW_POWERS_ECHO_DOUBLES_D, OLW_POWERS_ECHO_DOUBLES_V_COPY, OLW_POWERS_ECHO_DOUBLES_VD_COPY) \
+    X("powers", "Echo Doubles", OLW_POWERS_ECHO_DOUBLES_D, OLW_POWERS_ECHO_DOUBLES_V_CAST, OLW_POWERS_ECHO_DOUBLES_VD_CAST) \
+    X("powers", "Echo Count", OLW_POWERS_ECHO_COUNT_D, OLW_POWERS_ECHO_COUNT_V_1, OLW_POWERS_ECHO_COUNT_VD_1) \
+    X("powers", "Echo Count", OLW_POWERS_ECHO_COUNT_D, OLW_POWERS_ECHO_COUNT_V_2, OLW_POWERS_ECHO_COUNT_VD_2) \
+    X("powers", "Echo Count", OLW_POWERS_ECHO_COUNT_D, OLW_POWERS_ECHO_COUNT_V_3, OLW_POWERS_ECHO_COUNT_VD_3) \
+    X("powers", "Ghost Teleport", OLW_POWERS_GHOST_TELEPORT_D, OLW_POWERS_GHOST_TELEPORT_V_OFF, OLW_POWERS_GHOST_TELEPORT_VD_OFF) \
+    X("powers", "Ghost Teleport", OLW_POWERS_GHOST_TELEPORT_D, OLW_POWERS_GHOST_TELEPORT_V_ON, OLW_POWERS_GHOST_TELEPORT_VD_ON) \
+    X("rando", "Items", OLW_RANDO_ITEMS_D, OLW_RANDO_ITEMS_V_OFF, OLW_RANDO_ITEMS_VD_OFF) \
+    X("rando", "Items", OLW_RANDO_ITEMS_D, OLW_RANDO_ITEMS_V_SHUFFLE, OLW_RANDO_ITEMS_VD_SHUFFLE) \
+    X("rando", "Items", OLW_RANDO_ITEMS_D, OLW_RANDO_ITEMS_V_RANDOM, OLW_RANDO_ITEMS_VD_RANDOM) \
+    X("rando", "Specials", OLW_RANDO_SPECIALS_D, OLW_RANDO_SPECIALS_V_OFF, OLW_RANDO_SPECIALS_VD_OFF) \
+    X("rando", "Specials", OLW_RANDO_SPECIALS_D, OLW_RANDO_SPECIALS_V_ON, OLW_RANDO_SPECIALS_VD_ON) \
+    X("rando", "Room 302 Items", OLW_RANDO_ROOM_302_ITEMS_D, OLW_RANDO_ROOM_302_ITEMS_V_OFF, OLW_RANDO_ROOM_302_ITEMS_VD_OFF) \
+    X("rando", "Room 302 Items", OLW_RANDO_ROOM_302_ITEMS_D, OLW_RANDO_ROOM_302_ITEMS_V_SHUFFLE, OLW_RANDO_ROOM_302_ITEMS_VD_SHUFFLE) \
+    X("rando", "Room 302 Items", OLW_RANDO_ROOM_302_ITEMS_D, OLW_RANDO_ROOM_302_ITEMS_V_RANDOM, OLW_RANDO_ROOM_302_ITEMS_VD_RANDOM) \
+    X("rando", "Enemies", OLW_RANDO_ENEMIES_D, OLW_RANDO_ENEMIES_V_OFF, OLW_RANDO_ENEMIES_VD_OFF) \
+    X("rando", "Enemies", OLW_RANDO_ENEMIES_D, OLW_RANDO_ENEMIES_V_SAME_WORLD, OLW_RANDO_ENEMIES_VD_SAME_WORLD) \
+    X("rando", "Enemies", OLW_RANDO_ENEMIES_D, OLW_RANDO_ENEMIES_V_ALL_WORLDS, OLW_RANDO_ENEMIES_VD_ALL_WORLDS) \
+    X("rando", "Spawn Site", OLW_RANDO_SPAWN_SITE_D, OLW_RANDO_SPAWN_SITE_V_OFF, OLW_RANDO_SPAWN_SITE_VD_OFF) \
+    X("rando", "Spawn Site", OLW_RANDO_SPAWN_SITE_D, OLW_RANDO_SPAWN_SITE_V_ON, OLW_RANDO_SPAWN_SITE_VD_ON) \
+    X("rando", "Eileen Outfit", OLW_RANDO_EILEEN_OUTFIT_D, OLW_RANDO_EILEEN_OUTFIT_V_OFF, OLW_RANDO_EILEEN_OUTFIT_VD_OFF) \
+    X("rando", "Eileen Outfit", OLW_RANDO_EILEEN_OUTFIT_D, OLW_RANDO_EILEEN_OUTFIT_V_RANDOM, OLW_RANDO_EILEEN_OUTFIT_VD_RANDOM) \
+    X("rando", "Reroll Visits", OLW_RANDO_REROLL_VISITS_D, OLW_RANDO_REROLL_VISITS_V_BY_ROOM, OLW_RANDO_REROLL_VISITS_VD_BY_ROOM) \
+    X("rando", "Reroll Visits", OLW_RANDO_REROLL_VISITS_D, OLW_RANDO_REROLL_VISITS_V_BY_WORLD, OLW_RANDO_REROLL_VISITS_VD_BY_WORLD) \
 
 static const OlMapEntry kOlMap[] = {
     { OLM_CONTROLS_DEFAULT_SPEED, "0", "Walk" },
@@ -1878,8 +2421,8 @@ static const OlMapEntry kOlMap[] = {
     { OLM_PAUSE_QUICK_SAVE, "1", "Shown" },
     { OLM_PAUSE_QUICK_LOAD, "0", "Hidden" },
     { OLM_PAUSE_QUICK_LOAD, "1", "Shown" },
-    { OLM_PAUSE_EILEEN_OUTFIT, "0", "Hidden" },
-    { OLM_PAUSE_EILEEN_OUTFIT, "1", "Shown" },
+    { OLM_PAUSE_EILEEN, "0", "Hidden" },
+    { OLM_PAUSE_EILEEN, "1", "Shown" },
     { OLM_EFFECTS_FILTER, "Night Vision Mono", "Night Mono" },
     { OLM_GRAIN_FILM_GRAIN, "0", "Off" },
     { OLM_GRAIN_FILM_GRAIN, "1", "On" },
@@ -1893,8 +2436,6 @@ static const OlMapEntry kOlMap[] = {
     { OLM_ENEMIES_FADE_IN, "Fade + Portal", "Portal" },
     { OLM_POWERS_ECHO_DOUBLES, "Shadow Copy", "Copy" },
     { OLM_POWERS_ECHO_DOUBLES, "Shadow Cast", "Cast" },
-    { OLM_RANDO_ROOM_302_ITEMS, "Out", "Stay" },
-    { OLM_RANDO_ROOM_302_ITEMS, "In", "Change" },
 };
 #define OL_MAP_N ((int)(sizeof kOlMap / sizeof kOlMap[0]))
 static int OlSame(const char *a, const char *b)  // case-blind, as the ini reads (GetPrivateProfileString + _stricmp)

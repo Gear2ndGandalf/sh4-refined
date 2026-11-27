@@ -23,6 +23,7 @@ enum { GP_MOVE, GP_MED, GP_REGEN, GP_OHK, GP_DP, GP_AI, GP_ECHO, GP_ECHON, GP_CO
 // PLAYER PACK: Ammo Saver, Dark Pact, Grab Breaker, Quick Charge (v3.43 QC343: was Tireless), Life Steal (playercheats.inc, included at the end of this
 // file; the pure rules are pc_rules.h). Their rows follow this file's on the Player page; their texts are MSG_PC0..
 #include "pc_rules.h"
+#include "enmreturn_sim.h"  // v3.56 ER356: Enemies Return's values (ErParse: the old On), enemies.inc applies them
 static const BYTE *PcText(int id);
 static void PcFillRow(DWORD *r, int k);
 static void PcSnapshot(void);
@@ -364,7 +365,7 @@ static void BloodInstall(void)
 }
 
 // ---------------------------------------------------------------- Option 5 pages: settings
-static const int kGpCount[GP_N] = { 4, 4, 4, 2, 3, 4, 3, 3, 4, 4, 4, 2 };  // v3.49 EF349: Enemies Follow 3 -> 4 (+ Victims Only)  // v3.38 DR338: Supply Drops 3 -> 4 (+ Rare)  // v3.30 MERGE: AS330 After Shock 2 -> 4; ECHO330 Echo 4 -> 3, + Echo Count 3; EN330 + Revive 2  // the values a press steps through (v3.29 AFTERIMAGE: + 2; v3.30 ECHO: + 4)  // v3.31 ENEMIES: + 4, 3  // SUPPLY DROPS: + 3
+static const int kGpCount[GP_N] = { 4, 4, 4, 2, 3, 4, 3, 3, 4, 4, 4, 3 };  // v3.56 ER356: Enemies Return 2 -> 3 (Off / By Room / By World)  // v3.49 EF349: Enemies Follow 3 -> 4 (+ Victims Only)  // v3.38 DR338: Supply Drops 3 -> 4 (+ Rare)  // v3.30 MERGE: AS330 After Shock 2 -> 4; ECHO330 Echo 4 -> 3, + Echo Count 3; EN330 + Revive 2  // the values a press steps through (v3.29 AFTERIMAGE: + 2; v3.30 ECHO: + 4)  // v3.31 ENEMIES: + 4, 3  // SUPPLY DROPS: + 3
 static const char *const kGpIniKey[GP_N] = { "MoveSpeed", "MedallionDurability", NULL, "OneHitKill", "DeathPresence",
                                              "AfterImage",  // v3.29 AFTERIMAGE
                                              "Echo",  // v3.30 ECHO: + Echo
@@ -384,7 +385,7 @@ static const char *const kGpName[GP_N][GP_VMAX] = {
     { "Off", "x2", "x3", "x4" },                  // v3.31 ENEMIES: Enemy Copies
     { "Off", "Monsters", "Victims", "Monsters + Victims" },  // v3.31 ENEMIES: Enemies Follow (a long value: GpLongValW)  // v3.49 EF349: + Victims Only (enemies_sim.h ENM_FOLLOW_*, the same order)  // v3.50 EF350: "Victims Only" -> "Victims" (the old text reads: GpLegacyValue)
     { "Off", "Rare", "Normal", "Abundant" },  // SUPPLY DROPS (v3.38 DR338: + Rare, Generous -> Abundant; drops.inc kDropLevelName, same order)
-    { "Off", "On" },  // v3.30 EN330: Revive Enemies
+    { "Off", "By Room", "By World" },  // v3.30 EN330: Revive Enemies  // v3.56 ER356: Off / On -> Off / By Room / By World (enmreturn_sim.h kErName, the same order; v3.55's On reads as By Room)
 };
 // v3.53 OL1: the plan's names (Movement Speed -> Move Speed, Medallion Durability -> Medallion, Enemy Copies -> Extra
 // Enemies, Enemies Follow -> Door Chase, Revive Enemies -> Enemies Return); the ini keys stay kGpIniKey
@@ -616,7 +617,12 @@ static int g_enmCopiesReady, g_enmFollowReady;  // v3.31 ENEMIES: enemies.inc (i
 static int __cdecl GpDescCopies(void) { return g_enmCopiesReady ? MSG_GP0 + GPM_D0 + GP_COPIES : MSG_GP0 + GPM_DPNA; }  // v3.31 ENEMIES
 static int __cdecl GpDescFollow(void) { return g_enmFollowReady ? MSG_GP0 + GPM_D0 + GP_FOLLOW : MSG_GP0 + GPM_DPNA; }  // v3.31 ENEMIES
 static int g_enmReviveReady;  // v3.30 EN330: enemies.inc (its room load hook is in)
-static int __cdecl GpDescRevive(void) { return g_enmReviveReady ? MSG_GP0 + GPM_D0 + GP_REVIVE : MSG_GP0 + GPM_DPNA; }  // v3.30 EN330
+static int __cdecl GpDescRevive(void)  // v3.30 EN330  // v3.56 ER356: one line per value (the layout's pool: OLT_ER_VD_*)
+{
+    const int v = (int)g_gp[GP_REVIVE];
+    if (!g_enmReviveReady) return MSG_GP0 + GPM_DPNA;
+    return v == 1 ? MSG_V53 + OLT_ER_VD_ROOM : v == 2 ? MSG_V53 + OLT_ER_VD_WORLD : MSG_V53 + OLT_ER_VD_OFF;
+}
 static int g_dropReady;  // SUPPLY DROPS: drops.inc is installed (else the row says it is unavailable)
 static int __cdecl GpDescDrop(void)  // SUPPLY DROPS: one line per value (Off: what it is) (v3.29 merge: GpDesc5 -> GpDescDrop)
 {
@@ -633,7 +639,7 @@ static int __cdecl GpBackIn(BYTE *cfg, int count)
 {
     (void)cfg;
     (void)count;
-    if (!((Fn2)0x4F84A0)(0, 0x11)) return 0;
+    if (!FcClickOk()) return 0;  // v3.56 MN356: Enter, or a click on the row (was Enter only)
     InterlockedExchange(&g_subReq, REQ_BACK);
     ((Fn1)0x56CC40)(0x9C42);  // the stock confirm sound (0x5261CB)
     return SubPageExit();
@@ -641,7 +647,7 @@ static int __cdecl GpBackIn(BYTE *cfg, int count)
 // Option 5's Player / Enemies rows: Enter opens the page (fade route only: the rows exist only with g_subScreenOn)
 static int GpOpen(int lp)
 {
-    if (!g_subScreenOn || !((Fn2)0x4F84A0)(0, 0x11)) return 0;
+    if (!g_subScreenOn || !FcClickOk()) return 0;  // v3.56 MN356: Enter, or a click on the row (was Enter only: issue 1)
     InterlockedExchange(&g_subReq, REQ_OPEN | lp);
     ((Fn1)0x56CC40)(0xA411);  // the stock sub-screen sound (Button Config, 52495B)
     return SubPageExit();
@@ -812,7 +818,7 @@ static void GpTexts(void)
         size_t i;
         strcpy_s(lower, sizeof lower, kBldName[v]);
         for (i = 0; lower[i]; ++i) lower[i] = (char)tolower((unsigned char)lower[i]);
-        sprintf_s(d, sizeof d, "Makes blood colour %s.", lower);
+        sprintf_s(d, sizeof d, "%s: %s blood.", kBldName[v], lower);  // v3.56 MN356: house style "Value: ..." (was "Makes blood colour %s."; layout_data.py's lines)
         Encode(g_txtGp[GPM_BLDV + v - 3], 56, kBldName[v]);
         Encode(g_txtGp[GPM_BLDD + v - 3], 56, d);
     }
@@ -842,6 +848,10 @@ static void GpLegacyValue(int k, char *buf, size_t n)
     } else if (k == GP_DROP && DropIniAlias(buf, n) && !s_dropLogged++) {  // v3.38 DR338
         Log("gameplay: SupplyDrops Generous (v3.29 - v3.37) reads as Abundant (Supply Drops: Off, Rare, Normal or Abundant; "
             "the same chances)");
+    } else if (k == GP_REVIVE) {  // v3.56 ER356: v3.30 - v3.55's On = By Room (GpReadIni writes it back once and logs it)
+        int legacy;
+        const int v = ErParse(buf, &legacy);
+        if (legacy) strcpy_s(buf, n, kGpName[GP_REVIVE][v]);
     }
 }
 // [Gameplay] read again when SH4Refined.ini changes (items.inc SpIniPoll, once a second, game thread). The menu's own
@@ -896,12 +906,20 @@ static void GpReadIni(void)
     char buf[32];
     int k, v;
     for (k = 0; k < GP_N; ++k) {
+        int erLegacy = 0;  // v3.56 ER356
         if (!kGpIniKey[k]) continue;
         IniStr("Gameplay", kGpIniKey[k], buf, sizeof buf);
+        if (k == GP_REVIVE) ErParse(buf, &erLegacy);  // v3.56 ER356: v3.30 - v3.55's EnemyRevive=On
         GpLegacyValue(k, buf, sizeof buf);  // v3.30 MERGE: AS330 After-image On, ECHO330 old Echo names
         for (v = kGpCount[k] - 1; v > 0 && _stricmp(buf, kGpName[k][v]); --v) {}
         g_gp[k] = v;  // unknown text = the first value (Normal / Off)
         GpApply(k, v);
+        if (erLegacy) {  // v3.56 ER356: migrated once (the file says By Room from then on; under the ini fallback read only)
+            const int ok = !g_iniFallback && WritePrivateProfileStringA("Gameplay", kGpIniKey[k], kGpName[k][v], g_iniPath);
+            Log("gameplay: EnemyRevive On (v3.30 - v3.55) is %s now (Enemies Return: Off, By Room, By World): %s", kGpName[k][v],
+                ok ? "written to SH4Refined.ini" : g_iniFallback ? "read only (the ini fallback)"
+                                                  : "could not be written to SH4Refined.ini (used for this start; tried again at the next)");
+        }
     }
     sprintf_s(g_peIni, sizeof g_peIni, "%sSH4PlayableEileen.ini", g_dir);
     {

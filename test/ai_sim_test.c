@@ -13,6 +13,9 @@
 // a fill as wide as her body there), every fill fades to ~0 at her outline (the strand profile at the measured outline,
 // front and side, both bodies, stand / walk / run), both chain ends unlit, the outlines kept unlit for Thermal, no bright rim
 // (the brightest point at a run), the same picture at the same game time at 30 / 60 / 120 / 180 Hz.
+// v3.56 PW356 (section 10): the over-the-shoulder see-her fade (AiOtsBox / AiOtsK / AiOtsMixStep / AiOtsMinFromIni): both
+// bodies' boxes, single copies in front of / behind / beside her, a running trail over her shoulder at 8 yaws (Henry and
+// Eileen), the same trail from a side camera, the weight's fade at 60 / 180 Hz, the ini value.
 // Build and run: test\build_ai_test.cmd (cl /O2 x86, as build.cmd).
 #define _CRT_SECURE_NO_WARNINGS
 #include <stdio.h>
@@ -599,6 +602,160 @@ static void Section9(void)
     Check(outl && lit == 0, "no cloak: Thermal's hot points still have her unlit outline points (every outline has points, none lit)");
 }
 
+
+// ---------------------------------------------------------------- v3.56 PW356 (section 10): the over-the-shoulder see-her fade
+// her box from her bones (Eileen: hips 24 u apart, head bone 307 u, ankles 26 u above the floor; Henry: 36, 317, 24), the
+// fade of a copy by where it is drawn (between the camera and her and over her on screen: down to minK; beside her or
+// behind her: none), a running trail seen over her shoulder (the near copies over her fade, the ones beside or past the
+// camera keep their light), the same trail from a side camera (none fades), Henry's broader box, the weight's fade at
+// 60 / 180 Hz, the ini value.
+static void OtsBones(int henry, const float at[3], float yaw, float head[3], float lf[3], float rf[3], float lh[3], float rh[3])
+{
+    const float hy = henry ? -317.0f : -307.3f, ay = henry ? -24.0f : -26.3f, hip = henry ? 18.0f : 12.05f, hipY = henry ? -186.0f : -178.2f;
+    const float cx = cosf(yaw), cz = -sinf(yaw);  // her right (across her facing: forward is (sin, 0, cos))
+    head[0] = at[0], head[1] = at[1] + hy, head[2] = at[2];
+    lf[0] = at[0] - cx * 10.0f, lf[1] = at[1] + ay, lf[2] = at[2] - cz * 10.0f;
+    rf[0] = at[0] + cx * 10.0f, rf[1] = at[1] + ay, rf[2] = at[2] + cz * 10.0f;
+    lh[0] = at[0] - cx * hip, lh[1] = at[1] + hipY, lh[2] = at[2] - cz * hip;
+    rh[0] = at[0] + cx * hip, rh[1] = at[1] + hipY, rh[2] = at[2] + cz * hip;
+}
+static void Section10(void)
+{
+    const float org[3] = { 0.0f, 0.0f, 0.0f };
+    float head[3], lf[3], rf[3], lh[3], rh[3], c[3], W, H, We, He, Wh, Hh, k, prev;
+    char b[256];
+    int body, i, ok, mono, bad;
+    // the boxes
+    OtsBones(0, org, 0.0f, head, lf, rf, lh, rh);
+    ok = AiOtsBox(head, lf, rf, lh, rh, c, &We, &He);
+    sprintf(b, "ots: Eileen's box %.1f x %.1f u (hips 24.1 + 22 = 46 half, half the head-ankle span + 30 = 170.5), centre y %.1f", 2 * We, 2 * He, c[1]);
+    Check(ok && fabsf(We - 46.1f) < 0.5f && fabsf(He - 170.5f) < 0.5f && fabsf(c[1] + 166.8f) < 0.5f, b);
+    OtsBones(1, org, 0.0f, head, lf, rf, lh, rh);
+    ok = AiOtsBox(head, lf, rf, lh, rh, c, &Wh, &Hh);
+    sprintf(b, "ots: Henry's box %.1f x %.1f u (broader: hips 36)", 2 * Wh, 2 * Hh);
+    Check(ok && fabsf(Wh - 58.0f) < 0.5f && fabsf(Hh - 176.5f) < 0.5f && Wh > We + 10.0f, b);
+    {
+        volatile float z0 = 0.0f;
+        head[1] = z0 / z0;
+    }
+    Check(!AiOtsBox(head, lf, rf, lh, rh, c, &W, &H), "ots: a non-finite bone: no box (no fade this frame)");
+    OtsBones(0, org, 0.0f, head, lf, rf, lh, rh);
+    lf[1] = rf[1] = head[1] + 10.0f;
+    Check(!AiOtsBox(head, lf, rf, lh, rh, c, &W, &H), "ots: a collapsed skeleton (head at the ankles): no box");
+    // single copies: camera 220 u behind her (+z forward), 40 u to the right, at her chest height
+    {
+        const float eye[3] = { 40.0f, -230.0f, -220.0f }, her[3] = { 0.0f, -166.8f, 0.0f };
+        float p[3];
+        p[0] = 0.0f, p[1] = -166.8f, p[2] = -80.0f;  // on her path, 80 u behind her: between the camera and her, over her
+        k = AiOtsK(eye, her, We, He, p, 0.3f);
+        sprintf(b, "ots: a copy 80 u behind her on her path keeps %.2f (0.30 .. 0.40)", k);
+        Check(k >= 0.3f - 1e-4f && k <= 0.40f, b);
+        p[2] = 60.0f;  // ahead of her (farther from the camera): her body hides it, untouched
+        Check(AiOtsK(eye, her, We, He, p, 0.3f) == 1.0f, "ots: a copy farther than her: untouched");
+        p[2] = -260.0f;  // behind the camera
+        Check(AiOtsK(eye, her, We, He, p, 0.3f) == 1.0f, "ots: a copy behind the lens: untouched");
+        p[2] = -3.0f;  // at her depth (an about-turn's fold)
+        Check(AiOtsK(eye, her, We, He, p, 0.3f) > 0.95f, "ots: a copy at her own depth: (nearly) untouched");
+        p[2] = -80.0f;
+        Check(AiOtsK(eye, her, We, He, p, 1.0f) == 1.0f && AiOtsK(eye, her, We, He, p, 0.0f) < 0.1f, "ots: minK 1 = no fade, minK 0 = dark over her");
+        mono = 1, prev = 0.0f, bad = 0;
+        for (i = 0; i <= 60; ++i) {  // sliding the copy sideways at 80 u behind her: from minK to full, never back down
+            p[0] = 10.0f * (float)i;
+            k = AiOtsK(eye, her, We, He, p, 0.3f);
+            if (k < prev - 1e-5f) mono = 0;
+            if (!(k >= 0.3f - 1e-4f && k <= 1.0f)) bad = 1;
+            prev = k;
+        }
+        sprintf(b, "ots: a copy slid sideways brightens steadily to full (%.2f at 600 u)", prev);
+        Check(mono && !bad && prev == 1.0f, b);
+        p[0] = 90.0f, p[2] = -80.0f;  // a copy just outside Eileen's box on screen but inside Henry's
+        {
+            const float ke = AiOtsK(eye, her, We, He, p, 0.3f), kh = AiOtsK(eye, her, Wh, Hh, p, 0.3f);
+            sprintf(b, "ots: the same copy beside her: Eileen %.2f, Henry (broader) %.2f", ke, kh);
+            Check(kh < ke - 0.02f, b);
+        }
+    }
+    // a running trail seen over her shoulder, both bodies, every yaw: the near copies over her fade, past the lens none
+    for (body = 0; body < 2; ++body) {
+        int y, faded = 0, kept = 0, wrong = 0, total = 0;
+        for (y = 0; y < 8; ++y) {
+            const float yaw = 0.785398f * (float)y, fx = sinf(yaw), fz = cosf(yaw), rx = cosf(yaw), rz = -sinf(yaw);
+            float bh[3], blf[3], brf[3], blh[3], brh[3], bc[3], bw, bhh, eye[3];
+            int n;
+            OtsBones(body, org, yaw, bh, blf, brf, blh, brh);
+            if (!AiOtsBox(bh, blf, brf, blh, brh, bc, &bw, &bhh)) { ++wrong; continue; }
+            eye[0] = -fx * 220.0f + rx * 40.0f, eye[1] = -230.0f, eye[2] = -fz * 220.0f + rz * 40.0f;
+            for (n = 1; n <= 9; ++n) {  // Long: 8 copies over 0.6 s at 400 u/s: 30 .. 240 u back along her path; + one past the lens
+                const float back = n <= 8 ? 30.0f * (float)n : 270.0f;
+                float at[3], ch[3], clf[3], crf[3], clh[3], crh[3], cc[3], cw, chh;
+                at[0] = -fx * back, at[1] = 0.0f, at[2] = -fz * back;
+                OtsBones(body, at, yaw, ch, clf, crf, clh, crh);
+                if (!AiOtsBox(ch, clf, crf, clh, crh, cc, &cw, &chh)) { ++wrong; continue; }
+                k = AiOtsK(eye, bc, bw, bhh, cc, 0.3f);
+                ++total;
+                if (back < 160.0f) faded += k < 0.6f, wrong += !(k < 0.6f);  // between the lens and her, over her
+                else if (back > 250.0f) kept += k == 1.0f, wrong += k != 1.0f;  // past the lens (a copy right at it covers the screen: it fades)
+            }
+        }
+        sprintf(b, "ots: %s's running trail over her shoulder, 8 yaws: %d copies between the lens and her fade, %d past the lens kept, %d wrong of %d",
+                body ? "Henry" : "Eileen", faded, kept, wrong, total);
+        Check(wrong == 0 && faded == 8 * 5 && kept == 8 * 1, b);
+    }
+    {   // camera.inc's default over-the-shoulder camera (Distance 800, Side 0, Height 330): the whole Long trail lies between
+        // it and her: every copy over her dims (the nearest, inside her body's depth ramp, less)
+        float eye[3], bh[3], blf[3], brf[3], blh[3], brh[3], bc[3], bw, bhh, kmax = 0.0f;
+        int n, dim = 0;
+        for (body = 0; body < 2; ++body) {
+            OtsBones(body, org, 0.0f, bh, blf, brf, blh, brh);
+            AiOtsBox(bh, blf, brf, blh, brh, bc, &bw, &bhh);
+            eye[0] = 0.0f, eye[1] = -360.0f, eye[2] = -800.0f;
+            for (n = 1; n <= 8; ++n) {
+                float at[3], ch[3], clf[3], crf[3], clh[3], crh[3], cc[3], cw, chh;
+                at[0] = 0.0f, at[1] = 0.0f, at[2] = -30.0f * (float)n;
+                OtsBones(body, at, 0.0f, ch, clf, crf, clh, crh);
+                AiOtsBox(ch, clf, crf, clh, crh, cc, &cw, &chh);
+                k = AiOtsK(eye, bc, bw, bhh, cc, 0.3f);
+                dim += k < 0.55f;
+                if (n >= 2 && k > kmax) kmax = k;
+            }
+        }
+        sprintf(b, "ots: the default camera (800 back, 330 up): %d of 16 copies (both bodies) dimmed under 0.55, copies 2..8 at most %.2f", dim, kmax);
+        Check(dim >= 14 && kmax <= 0.31f, b);
+    }
+    {   // the same trail from a stock side camera 600 u to her right: no copy is in front of her, none fades
+        float eye[3], bh[3], blf[3], brf[3], blh[3], brh[3], bc[3], bw, bhh;
+        int n, dim = 0;
+        OtsBones(0, org, 0.0f, bh, blf, brf, blh, brh);
+        AiOtsBox(bh, blf, brf, blh, brh, bc, &bw, &bhh);
+        eye[0] = 600.0f, eye[1] = -300.0f, eye[2] = 0.0f;
+        for (n = 1; n <= 8; ++n) {
+            float at[3], ch[3], clf[3], crf[3], clh[3], crh[3], cc[3], cw, chh;
+            at[0] = 0.0f, at[1] = 0.0f, at[2] = -30.0f * (float)n;
+            OtsBones(0, at, 0.0f, ch, clf, crf, clh, crh);
+            AiOtsBox(ch, clf, crf, clh, crh, cc, &cw, &chh);
+            dim += AiOtsK(eye, bc, bw, bhh, cc, 0.3f) < 0.98f;
+        }
+        sprintf(b, "ots: the trail seen from the side: %d of 8 copies would dim (the rule is not applied there anyway)", dim);
+        Check(dim == 0, b);
+    }
+    {   // the weight: 0 -> 1 in 0.2 s at 60 and 180 Hz, back the same; a hitch or no time: no step
+        static const int kHz[2] = { 60, 180 };
+        int r;
+        for (r = 0; r < 2; ++r) {
+            float m = 0.0f, t = 0.0f;
+            while (m < 1.0f && t < 1.0f) m = AiOtsMixStep(m, 1, 1.0f / (float)kHz[r]), t += 1.0f / (float)kHz[r];
+            sprintf(b, "ots: %d Hz: the rule fades in over %.3f s", kHz[r], t);
+            Check(fabsf(t - AI_OTS_TAU_S) <= 1.0f / (float)kHz[r] + 1e-4f, b);
+            t = 0.0f;
+            while (m > 0.0f && t < 1.0f) m = AiOtsMixStep(m, 0, 1.0f / (float)kHz[r]), t += 1.0f / (float)kHz[r];
+            Check(fabsf(t - AI_OTS_TAU_S) <= 1.0f / (float)kHz[r] + 1e-4f, "ots: ... and out the same");
+        }
+        Check(AiOtsMixStep(0.4f, 1, 0.0f) == 0.4f && AiOtsMixStep(0.4f, 1, 0.7f) == 0.4f, "ots: no time / a hitch: the weight holds");
+    }
+    Check(AiOtsMinFromIni(-1) == AI_OTS_MIN_DEF && AiOtsMinFromIni(0) == 0.0f && AiOtsMinFromIni(45) == 0.45f && AiOtsMinFromIni(100) == 1.0f &&
+          AiOtsMinFromIni(250) == 1.0f, "ots: AfterImageOtsFade: absent 30 %, 0 .. 100 %, over 100 = no fade");
+}
+
 int main(void)
 {
     static const int kHz[6] = { 30, 60, 120, 144, 180, 240 };
@@ -853,6 +1010,7 @@ int main(void)
     Section7();
     Section8();  // v3.34 FX334
     Section9();  // v3.35 FX335
+    Section10();  // v3.56 PW356
     printf("%s (%d failed)\n", g_fail ? "FAILED" : "all passed", g_fail);
     return g_fail ? 1 : 0;
 }

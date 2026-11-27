@@ -1,6 +1,6 @@
 # SH4 Refined
 
-**Current version: v3.55.0 (play-tested 2026-11-26: everything passed; see Versions below)**
+**Current version: v3.56.0 (new, not yet tested in game; v3.55.0 was play-tested 2026-11-26 and passed; see Versions below)**
 
 SH4 Refined is a fan-made enhancement mod for the PC version of **Silent Hill 4: The Room** sold by GOG. It is a
 single `winmm.dll` that the game loads from its own folder: no loader, no installer and no changes to the game's exe
@@ -32,6 +32,8 @@ randomizer, all switched from new pages in the game's own Options menu and saved
 **Sound**
 - Options > Sound: Mono, Stereo (a smooth pan law), Headphones or Surround (3D), the game's Music and Effects
   volumes, Stereo Width, the game's room reverb (off in the PC port, back on) and Night Mode.
+- Background: Mute (the game's own) or Play (heard while another window is in front); an inaudible keep-awake signal
+  so wireless headsets do not fall asleep while the game is quiet.
 
 **Shadows**
 - A Shadows page with soft shadow edges, shadow darkness and a split-view preview, for every real-time shadow the game
@@ -53,7 +55,7 @@ randomizer, all switched from new pages in the game's own Options menu and saved
 **Gameplay options** (all Off by default)
 - Player: Movement Speed, Medallion Durability, Regeneration, Ammo Saver, Dark Pact, Grab Breaker, Quick Charge,
   Life Steal, Curse Meter.
-- Enemies: One-Hit Kill, Enemy Copies, Enemies Follow (Monsters, Victims or both; followers stay with you across a
+- Enemies: Enemies Return (Off / By Room / By World), One-Hit Kill, Enemy Copies, Enemies Follow (Monsters, Victims or both; followers stay with you across a
   save and load), Enemy Pursuit (enemies can lose track of you), Fade In (monsters and ghosts fade in, arriving
   ghosts through a blood-red portal), Enemy Health Bars, Supply Drops, Revive Enemies.
 - Special: Death Presence (a draining fog around you), After Shock (electric after-images), Echo Doubles (shadow
@@ -64,8 +66,9 @@ randomizer, all switched from new pages in the game's own Options menu and saved
 **Randomizer**
 - Item and weapon pickups: Shuffle or Random, Keep Specials, Room 302 in or out, new items each visit, a seed you can
   replay.
-- Monsters: each enemy rolls its own type from this room's, this world's or all worlds' monsters, also in rooms your
-  save has visited; story and boss spawns never change.
+- Enemies: each enemy rolls its own type from this world's or all worlds' monsters and victims' ghosts; story,
+  boss, wheelchair and wall-monster spawns never change. Spawn Site: enemies start somewhere else in their room.
+- Specials (Candles, Medallions, Swords) and Room 302 Items (Off / Shuffle / Random); Reroll By Room or By World.
 - Eileen's outfit (the companion, room by room) and victim ghosts' starting spots.
 - Nothing randomized is written into your saves.
 
@@ -123,7 +126,14 @@ Python tools need Python 3 (some previews use NumPy, Pillow and SciPy). Build no
 ## Versions
 
 The current version is named at the top of this page. Every release, newest changes included, is described in the
-history of [docs/FULL_README.md](docs/FULL_README.md#history). v3.55.0 (with v3.53.0 and v3.54.0, which were not
+history of [docs/FULL_README.md](docs/FULL_README.md#history). v3.56.0 answers the v3.55 play test: folder rows open
+with one click, every value has its own description, the Effects preview shows Thermal and Spirit Vision (and draws its
+own scene from the title menu), the final boss room's device turns at the right speed at every frame rate, a guard
+steps the frame rate down when the PC cannot hold it, Enemies Return By Room / By World, the randomizer's Specials,
+Room 302 Items, Enemies, Spawn Site and Reroll rows, After Shock fainter in front of the over-the-shoulder camera, and
+the sound Background row. It has passed its tests and code review but not yet a play test. To stay on the tested
+v3.55.0, take the repository as of the commit "SH4 Refined v3.55.0 (not yet tested in game)" (tested since).
+v3.55.0 (with v3.53.0 and v3.54.0, which were not
 released on their own) reorganises the whole Options menu into six themed pages, the game's own rows included, with
 shorter names and descriptions, folders, greyed rows and a clickable page strip; no setting or save changes. It has
 passed its play test (2026-11-26). v3.52.0 adds the sound options, Bloom levels, Depth of

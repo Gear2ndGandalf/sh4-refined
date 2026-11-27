@@ -966,6 +966,11 @@ static int DpHerTrail(void *dev, int level, const float pp[3])
         nE = (strong ? DpTrV(4, 6) : DpTrV(2, 3)) + (int)(DpTrV(2.0f, 3.0f) * R + 0.5f);
         nA = (strong ? 2 : 1) + (int)(R + 0.5f);
         nW = 1 + (int)(R + 0.5f);
+        {   // v3.56 PW356: the effect budget's high-rate spark share thins the fire on her path (each footprint keeps 1 tongue
+            // at the least; the footprints themselves, her path, stay)
+            const float sk = BgSparkNow();
+            nT = BgThinN(nT, sk, 1, NULL), nE = BgThinN(nE, sk, 0, NULL), nA = BgThinN(nA, sk, 0, NULL), nW = BgThinN(nW, sk, 0, NULL);
+        }
         {   // the smouldering footprint: black, gone over 1.0-2.6 s; glowing cracks cooling over 0.15-1.5 s
             const DWORD k = q->id * 911u + 5u;
             const float rot = (FxRnd(k) - 0.5f) * 0.35f, cs = cosf(rot), sn = sinf(rot);
@@ -1369,13 +1374,13 @@ static int DpWispCmp(const void *a, const void *b)
     const float x = ((const DpWispQ *)a)->depth, y = ((const DpWispQ *)b)->depth;
     return x < y ? 1 : x > y ? -1 : 0;
 }
-static int DpWisps(void *dev, const Viewport8 *vp, float R, int nW)
+static int DpWisps(void *dev, const Viewport8 *vp, float R, int nW, int keep)  // v3.56 PW356: + keep (the first `keep` of nW drawn)
 {
     static DpWispQ Q[2 * DP_WISP_N];
     static SpVtx v[6 * 2 * DP_WISP_N];
     void *tex;
     int i, nq = 0, n = 0;
-    for (i = 0; i < nW && i < DP_WISP_N; ++i) {
+    for (i = 0; i < nW && i < keep && i < DP_WISP_N; ++i) {  // v3.56 PW356: + i < keep (nW still sets the look: Weak's 0.6)
         const float life = 4.0f + 3.0f * FxRnd((DWORD)i * 6007u + 5u), tt = g_dpNow + FxRnd((DWORD)i * 7717u + 9u) * life;
         const int cyc = (int)floorf(tt / life);
         const float age = tt - (float)cyc * life, f = age / life;
@@ -1566,7 +1571,7 @@ static int DpSprFrame(void *dev, const Viewport8 *vp, float R, int level, const 
             }
         }
     } else {
-        tris += DpWisps(dev, vp, R, kDpLook[level].wisps);  // the raised wisps (their own draw, premultiplied)
+        tris += DpWisps(dev, vp, R, kDpLook[level].wisps, BgThinN(kDpLook[level].wisps, BgSparkNow(), 1, NULL));  // the raised wisps (their own draw, premultiplied)  // v3.56 PW356: + the count kept by the high-rate spark share
         if (g_dpHerOk) DpHerHalo(level, g_dpFloorY);
     }
     if (g_dpHerOk) DpHerTendrils(level);

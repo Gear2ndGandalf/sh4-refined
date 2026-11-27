@@ -56,6 +56,11 @@ Runs the game in a real window and keeps it running when you switch away:
     game's 800 menu glyphs a frame (about 106 with these names: 53 letters).
 - **Six themed Options pages** (v3.54.0, rounds R3 + R4 of the Options layout plan). The cycle is Display, Controls, Interface, Sound, Effects, Gameplay; every other setting sits one or two folders deep (Gameplay > Player / Combat / Items / Enemies / Powers / Randomizer, Controls > Camera > Steering, Controls > Room 302, Interface > Subtitles / Menus, Effects > Film Grain / Shadows). The pause camera's settings are in Options too (Controls > Camera). v3.55.0 moved the game's own rows too. See "Options pages (v3.55.0)" below.
 - **Every Options row on its own page** (v3.55.0, rounds R5 + R6): the game's own rows moved to their themed pages: Sound Mode, Music Volume and Effects Volume to Sound, Invert Look / Head Bob / Left / Right to Controls > Room 302, the Subtitles, Film Grain and Shadows switches into their folders (which only open now), Blood Colour to Gameplay; Renderer, Menu Font, Start-Up and Interface > Pause Menu are back where the plan has them; a click on a name in the page strip opens that page; the pause Extra Menu says Eileen Outfit and its Camera page uses the Options names.
+- **Folders open on a click, every value its own line, a clean pause list** (v3.56.0): a mouse click anywhere on a
+  folder row (its name, its blue triangle) opens it, whatever row the cursor is on (it opened only on Enter before);
+  every setting's value now has its own line under the rows (Supply Drops Off no longer says "Kills sometimes leave an
+  item."); the pause Extra Menu says "Eileen Default" / "Eileen Nurse" and draws each row once (no dark second copy
+  under the lower rows).
 - **Aspect Ratio in the game's Options** (`[Window] AspectMenu`, v1.3): Options > Option 1 gets an "Aspect Ratio" row
   (4:3, 16:10, 16:9, and since v1.6 the ultrawide 21:9 and 32:9) under Resolution, and Resolution lists six sizes of
   that shape (4:3 640x480 .. 2880x2160, 16:10 768x480 .. 3840x2400, 16:9 854x480 .. 3840x2160, 21:9 1720x720, 1920x800,
@@ -94,6 +99,21 @@ Runs the game in a real window and keeps it running when you switch away:
     first; Night Mode narrows the range of the volumes the game sets (the music included), a sound's own loud peaks
     stay; Voice volume is not in this version (planned: in-game voices first); with another frame-rate mod (Refined's
     frame end not hooked) the first start's migration, the reverb probe (no reverb) and the mode keeper do not run.
+  - **Background** (Sound page, v3.56.0): **Mute** (the game's own: its sounds are silent while another window is in
+    front) or **Play** (the game stays audible behind other windows: its sound buffers get DirectSound's global focus).
+    Play applies to sounds that start after the change; a sound already playing (the room's loop, the music) follows at
+    the next room / the next track. Exe sites: one byte each at 0x4095FE / 0x409B02 / 0x40A14C / 0x40A723 (the flags of
+    the game's four buffer makers), byte-checked, all or nothing.
+  - **No silence after Alt+Tab** (v3.56.0): while another window is in front the game's sound is muted, and a wireless
+    headset whose stream carries only silence can fall asleep and take seconds to wake when you come back. Refined now
+    plays one inaudible keep-awake signal of its own (a 45 Hz tone at -72 dBFS, far below hearing) under the game's
+    sound for the whole session, also behind other windows, so the device never idles. Hidden `[Sound] KeepAwake` /
+    `KeepAwakeLevel`.
+  - **Sound device** (v3.56.0): the game's DirectSound stays on the device that was Windows' default when the game
+    started (as before). Refined now notices when the default changes (a headset connected later): the log says "the
+    default sound device changed to ...; restart the game to use it", and Options > Sound > Sound Mode's line reads "New
+    sound device: restart the game to use it." Following the new device without a restart is not built (it would re-make
+    every buffer of the game's sound engine while it plays; planned only if wanted).
 - **Display Mode** (v1.5; in Options > Option 4 Presentation since v3.5.0): a "Display Mode" row: Windowed, or Borderless
   (the whole screen without a frame, black bars where the monitor has another shape). Alt+Enter switches too. The
   choice is kept in `[Window] Borderless`.
@@ -116,6 +136,18 @@ Runs the game in a real window and keeps it running when you switch away:
   monitor's refresh would run the game in slow motion, so gameplay is capped at the highest rate the monitor shows (60
   at 60-75 Hz, 120 at 120-165 Hz; none at 180 Hz and above), windowed and borderless too. There is no separate frame
   limiter: the Frame Rate row is it (the game paces itself); dxcfg.ini's `fpslimit` is left as it is.
+- **Frame rate (v3.56.0).** The final fight's metal contraption in the blood pool turns at the game's own speed at every
+  frame rate (it used to swing 2x / 4x / 6x as fast at 60 / 120 / 180). Henry's step onto a spear's spot in that room is
+  as smooth as at 30.
+- **Rate guard** (v3.56.0). With the true frame rate (FrameMode 0), the game runs one step a frame: a PC that cannot
+  draw 180 (or 120) frames a second runs the whole game in slow motion. When the play frames take more than 1.15 x their
+  time for two 3-second stretches in a row (menus, cut-scenes, loads, doors and the game out of front do not count),
+  Refined runs gameplay one step lower (180 -> 120 -> 60; never below 60) and writes it in the log. The effect budget
+  thins the power effects first; the guard waits while it is still doing so, and steps at once when the budget has
+  nothing left to shed. After 10 minutes without a slow stretch at the lower rate the higher rate is tried again at the
+  next room change; a rate the guard had to leave twice stays off for the rest of the session. The Frame Rate row and
+  `[Window] FrameRate` keep your choice; choosing a rate in the row starts the guard again. Hidden `[Window]
+  RateGuard=0` turns it off.
 - **Renderer** (v3.39.0, Options > Option 4, with SH4 Graphics Plus installed): Direct3D 11 / Direct3D 11 (16-bit) /
   Direct3D 12 / Stock, the dgVoodoo2 configs SH4 Graphics Plus put in `dgVoodoo_variants\` (the choices are the rows of
   its `manifest.csv`; their md5s are read from it). Leaving Options with "Yes" copies the chosen config over
@@ -212,10 +244,9 @@ Runs the game in a real window and keeps it running when you switch away:
   v3.30.0: a bevelled look with a damage chip, ghost bars that show their real health, a violet revive bar while down,
   sealed by the Sword of Obedience), **Supply Drops** (Off / Normal / Generous: killed monsters sometimes leave an item;
   v3.30.0: rolled anew after every load, New Game and game start; a rare Saint Medallion, Sword of Obedience or Ampoule
-  when one of the four named ghosts or the stalker Walter is fully downed), **Revive Enemies** (v3.30.0, Off / On: leave
-  a room and come back, and its killed monsters and copies stand again; never bosses, Walter, Wall Men, Wheelchairs,
-  ghosts or story rooms; revived kills count for the ending's rank), **Fade In** (v3.50.0, Off / Fade / Fade + Portal,
-  default Fade + Portal: monsters and victims that appear in a room no longer pop in. Each one fades in over 0.8 s, from
+  when one of the four named ghosts or the stalker Walter is fully downed), **Enemies Return** (v3.30.0 as Revive
+  Enemies Off / On; v3.56.0 Off / By Room / By World: below), **Fade In** (v3.50.0, Off / Fade / Fade + Portal, default
+  Fade + Portal: monsters and victims that appear in a room no longer pop in. Each one fades in over 0.8 s, from
   invisible to whole. That covers the room load, followers coming through the door, wanderers, Enemy Copies, revived
   monsters, and ghosts or monsters the game brings in later. The fade uses the game's own see-through enemy draw, the
   one its ghosts use when they pass through walls. A monster's shadow joins when it is half in. With Fade + Portal, a
@@ -255,6 +286,40 @@ Runs the game in a real window and keeps it running when you switch away:
   breath), **Life Steal** (Off / 5 / 10 % of the damage you deal to monsters heals you), **Curse Meter** (Off / On /
   Companion: Eileen's curse split into its stages, since v3.30.0 a ring of thorns; with Playable Eileen loaded, On shows
   her own curse).
+- **Enemies Return** (v3.30.0 as Revive Enemies; v3.56.0: Off / By Room / By World): when killed monsters come back.
+  **Off** is the game's own rule: a killed monster lies dead until you leave its world through the hole, and comes back
+  at your next visit; some stay dead for good (Twin Victims, about 1 Tremer in 10, and old bodies the game's record pool
+  reuses), and about 4 Tremers in 10 stand again at the room's next visit. **By Room** (v3.30 - v3.55's On): a room's
+  killed monsters and its killed copies stand again each time you enter the room. **By World**: killed monsters stay
+  dead for the rest of the world visit (Tremers too) and all stand again when you enter the world again (through Room
+  302's hole, or when the story moves you to another world). A load (Quick Load, the Load Game list, a Continue) is
+  never a room change or a world entry by itself: a Quick Save and Quick Load brings nobody back early, and a save made
+  in the world keeps its dead as they were when you saved (killed after the save: standing again after the load, as that
+  save had them). Never returning: bosses, Walter, the Wall Men, Wheelchairs, the victims' ghosts (they never die; their
+  own down countdown), story ghosts, and the rooms of story events (logged once each). Enemy Copies' copies follow their
+  room: By Room brings a room's killed copies back with it; By World and Off keep them dead until you leave the world.
+  Revived kills count for the ending's rank (copies never do). The world-visit rule is the one the Randomizer's Reroll
+  Visits uses (`src/worldvisit.inc`).
+- **After Shock lets you see the player in the over-the-shoulder camera** (v3.56.0; the user's request 9). In the
+  Shoulder camera the trail of a run lies between the camera and the player, and every copy there was added over her
+  body until she turned white. Now a copy that is nearer the camera than the player and covers her on screen keeps only
+  30 % of its light (the nearer and more centred, the dimmer; the streaks along her path the same). Copies beside her on
+  screen (when she strafes, turns or side-steps) and copies behind her keep their full glow, and the game's own cameras
+  show the trail exactly as before. The size of "her" on screen is read from the body drawn that frame, so it fits
+  vanilla Henry (broader) and Playable Eileen alike. The change fades in and out over 0.2 s when the camera switches.
+  The stun is not changed: copies still stun what they touch, however dim they are drawn.
+- **The powers step down when 120 fps or more cannot be held** (v3.56.0; the user's request 10). At a gameplay rate of
+  120 frames a second or more (a true logic rate: every frame that runs late slows the game), the effect budget now
+  counts a frame as late from 6 % over its time (was 25 %) and acts within about a second. First it thins the sparks,
+  arcs and smoke of the powers (After Shock's lightning, sparks and streaks, Death Presence's trail fire and wisps, Echo
+  Doubles' light look) to 60 %, then 35 %, before it touches any body redraw (the v3.35 levels follow, as before; their
+  numbers 1 - 9 are now 3 - 11, the log names each). When frames run late while the powers cost little processor time
+  (their graphics-card cost cannot be measured), it tries a step and keeps it only if the frames get at least 3 %
+  shorter within 1.5 s; otherwise the step is taken back at once and not tried again for 20 s (then 40, 80, up to 120
+  s). Everything comes back after a calm stretch. What a power means is never thinned: After Shock's copies and stuns,
+  Death Presence's fog and its drain area, Echo's shadows' bodies (by these new levels) and Ghost Teleport's fade (it
+  draws nothing extra) stay. Below 120 fps the budget works exactly as in v3.55. When nothing is left to shed, the log
+  says so, and the frame-rate guard (above) then lowers the rate without waiting.
 - **Enemy Health Bars: which enemies get a bar** (v3.52.0; Option 5 > Enemies > Enemy Health Bars). A bar is drawn only
   for an enemy the game itself draws in this room: not for one that is still on its way in, hidden or a placeholder (the
   states 0, 0x0D, 0x0E and 0x0F of the enemy's work; the game's own draw test 0x45CA40), and not for one whose position
@@ -377,130 +442,128 @@ Runs the game in a real window and keeps it running when you switch away:
   proof (the room's tree2 collision) and Enemy Pursuit's line test (the mover line 0x454000) are separate tests and both
   stay.
 - **Randomizer** (v3.48.0, first part; Options > Option 5 Gameplay > Randomizer, a folder under Special;
-  `[Randomizer]`): randomizes the **item and weapon pickups** lying in the worlds, from one seed kept in
-  SH4Refined.ini. Every change applies **at the next room load** (the next door). Nothing goes into your saves: a save
-  made with the Randomizer loads fine without it, and a pickup you took stays taken. **Items**: Off (the game's own
-  pickups), **Shuffle** (the items of each world visit trade spots: the same number of each item and weapon as the game
-  gives) or **Random** (each spot draws an item as Supply Drops does: common ammo and Nutrition Drinks, less often
-  Medical Kits and Holy Candles, now and then Saint Medallions, Ampoules, Silver Bullets and Swords of Obedience; about
-  one spot in 25 a weapon, and a spot that held a weapon a weapon every other time); default Random. **Keep Specials**:
-  On keeps Holy Candles, Saint Medallions and Swords of Obedience where the game puts them (their spots and items leave
-  the pool); Off mixes them in too; default Off. **Room 302**: In (its pickups are randomized too) or Out (they stay);
-  default In. **Change Each Visit** (`PerVisit`): On (default) gives new items at every visit: Random draws every
-  untaken spot of a room anew each time you enter it, Shuffle makes a new arrangement every time you enter a world (a
-  room keeps its items while you stay in that world, so the world still has its own number of each item); Off: a room
-  always has the same items for this seed. **Seed**: the number every choice comes from (shown, not set in the menu;
-  set it in the ini to replay a run). **New Seed**: Enter rolls a new seed, writes it into the ini and shows it on the
-  Seed row. **A pickup looks like what it gives:** the model on the ground, the "Take the ...?" prompt and what lands
-  in the inventory all follow the new item (the model comes from the item, the prompt and the gift from the item's own
-  pickup script; a weapon spot gets the matching pickup record for its new item). **Weapons:** Henry's weapons that lie
-  on their own (27 spots, among them the weapon row of the Subway's first room) join the pool, and any spot may now
-  hold a weapon. Random never draws a weapon you already have (the game would not show it) and never the same weapon
-  twice in a room. The Pistol and the Steel Pipe of Room 302, the Torch, the Chainsaw of a New Game+ in the Forest and
-  every other weapon pickup that runs an event of its own stay where they are; the Steel Pipe, the Spade, the
-  Paper-Cutting Knife and the Stun Gun never move (their models load only in their own rooms); no story event needs a
-  weapon. **Never randomized:** key items, memos and files, Eileen's weapons, broken golf clubs, and every pickup that
-  runs an event of its own (22 scripted consumables among them). The pool: the 137 plain pickups (pistol bullets 46,
-  Nutrition Drink 40, Holy Candle 16, Medical Kit 12, Saint Medallion 8, revolver bullets 5, Ampoule 4, Sword of
-  Obedience 4, silver bullets 2; 18 of them in Room 302) and the 27 weapon spots. No exe code patched: the room
-  script's item and pickup-record words are patched and restored around the room's build (the room-load hook 0x4F0AF8
-  that Enemy Copies uses). v3.49.0 adds monsters, Eileen's outfit and ghost spots (the next two bullets). **Limits:** changes apply at the next door, never in
-  the room you stand in; with Change Each Visit On every room load counts as a visit, **a Quick Load or a save load
-  included**: the untaken items you saw before the load may be different after it, and leaving and coming back rerolls
-  a room's Random items; weapons can come **early**: the Chainsaw (or another strong weapon) can lie in one of the
-  first worlds' spots, which makes the game easier (there is no separate weapons switch yet: Keep Specials does not
-  hold weapons back, only Items Off does); Random gives no guarantee of any item (a world may get fewer Swords of
-  Obedience than ghosts to pin, the log says so for each world visit, or more healing than the game gives; Shuffle
-  keeps each world visit's own counts); Random does not ask which guns you have for ammo (Revolver or Silver Bullets
-  can lie in a world before you own the gun); Shuffle can move a weapon you already own onto another spot, which then
-  shows nothing (as the game does with a weapon you have); a model can look odd where the game placed a small item (a
-  Chainsaw where a box of bullets lay in a drawer); if another mod changes the room-load site 0x4F0AF8 the rows say
-  "Not available" and nothing is randomized, and a script word that is not the stock value (another mod) is left alone.
-- **Randomizer: Monsters** (v3.49.0; v3.50.0 All Worlds and saves; Options > Option 5 Gameplay > Randomizer > Monsters,
-  `[Randomizer] Monsters`): **Off**, **This Room**, **This World** (default) or **All Worlds** (v3.50.0). At every room
-  load of the monster worlds each monster of the room's script rolls its own type (a mix per monster, any strength),
-  from the same seed as the items. **This Room**: among the monster types whose files that room has loaded (no loading,
-  no longer doors); **This World**: also among every monster type this world places (both of its visits); **All
-  Worlds**: among every monster type of any world (a Twin Victim in the Forest, a Sniffer Dog in the Water Prison); for
-  This World and All Worlds the files of a type the room does not hold are loaded at the room load (as Enemies Follow
-  loads a follower's files: at most 16 extra files a room, 30 MB of file memory kept free; the door can take a moment
-  longer; a type whose files do not fit stays as placed). A monster outside its own worlds may make no sound there (the
-  game's sound tables are per world; logged once per type and world). **Games played from saves** (v3.50.0): every room
-  a save has visited holds the game's own record of each living monster; such a record of the stock monster no longer
-  keeps the room stock: the placement rolls like a fresh one, and a monster that rolls another type comes back fresh at
-  its own spot (a hurt or knocked-down monster from the save is then healed and standing, as the new type); one that
-  rolls its own type stays as the save left it. A record of another type that SH4 Refined did not write (another mod,
-  the cheat table) still keeps its placement as placed and is never deleted. **The Subway's first Sniffer Dogs**
-  (v3.51.0): the three dogs of Subway World room 2:2 are event dogs: hidden and asleep until that room's cut-scene has
-  played (story flag 130). Up to v3.50 they were never randomized (nor were the copies Enemy Copies makes of them). Now
-  they roll like every other monster once their cut-scene is over; before it they stay as placed, so the scene plays as
-  the game made it. **A roll that lands on the monster's own type rolls once more** (v3.51.0): a monster still keeps its
-  own type sometimes, but far more rarely (All Worlds: a Sniffer Dog stays a dog about 1 time in 20 instead of 2 in 9;
-  This World keeps every world's own monsters possible); hidden `[Randomizer] MonsterRollAgain=0` gives v3.50's single
-  roll back. The types: Whitestool, Hummer, Twin Victim (both looks), Tremer, Sniffer Dog (both looks) and Gum Head
-  (both looks: only while Playable Eileen's crash guard of the Gum Head's group call is in; without it Gum Heads are
-  never rolled). **Change Each Visit** applies: On (default) = the room's monsters roll again at every visit (a monster
-  left alive there that rolls another type comes back fresh, at its own spot); Off = a room always has the same monsters
-  for this seed. **Never changed:** story, boss and event monsters (the event dogs other than Subway 2:2's three,
-  scripted spawns, every placement with a story condition or a fixed id), every ghost and victim, Walter, Wall Men, mm,
-  Wheelchairs, the Patient, monsters on walls and ceilings, Gum Heads that carry a golf club, the special Hummers /
-  Whitestools / Twin Victims, boss rooms, Room 302 and the final stages; 238 of the game's 783 enemy placements may
-  change (v3.51.0; was 235) (at most 20 in one room). **Budgets:** a room never needs more animation memory (bones) than
-  the game's own room or the free pool allows (a dearer monster that does not fit stays as placed); a full enemy list /
-  task pool leaves the room as placed; a walker at a Hummer's spot is put on the floor under it (no floor: the Hummer
-  stays); with the stock hit-shape pool (`[Gameplay] HitPool` 100) Monsters stays off. **Saves:** nothing randomized is
-  written into a save: a monster made as another type is left out of the save's enemy records (the save's copy at
-  0x465468 is cleaned; it comes back as its room places it after a load); the kill bits stay. Copies of a randomized
-  monster (Enemy Copies) are the same new type; one that follows you (Enemies Follow) stays that type. While the cheat
-  table's Enemy Randomizer (entry 7700) is on, Refined's Monsters stay off (logged). **Limits:** changes apply at the
-  next door; rooms whose monsters are all event, story, wall or ceiling placements (most of Subway World's first visit,
-  Wall Man and ghost rooms, all of stage 7) stay as placed; a big monster where the game put a small one can stand
-  awkwardly, and a Tremer that was not one has no room box; This World makes doors longer when files must be loaded, and
-  when the extra files or the file memory run out those monsters stay as placed (logged); with Change Each Visit On a
-  monster you hurt and left alive can come back fresh as another type; a monster outside its own world may be silent or
-  partly silent (logged once per world); it needs the room-load hook 0x4F0AF8 (changed by another mod: "Not available"),
-  and a script word that is not the stock value is left alone; v3.50.0: an adopted monster that rolls another type loses
-  what the save kept of it (its hit points, its knocked-down state and where it was standing; it starts fresh at its
-  placement), one that rolls its own type keeps all of it; with All Worlds a monster far from its own worlds may be
-  silent, and rooms may hit the 16-extra-files / 30 MB limits sooner (those placements stay as placed, logged); a save
-  made with v3.49 holds the game's own records only (the save filter never let a randomized one in): nothing to migrate;
-  v3.51.0: before its cut-scene (a new game, the first visit of Subway room 2:2) the three dogs stay dogs for that
-  visit; an event dog that rolls a Sniffer Dog of the other variant keeps its event mode (a mode-6 dog of variant 1
-  starts awake instead of waiting); stage 6's eight dogs lying at bodies (spawn mode 3) stay as placed (they have no
-  kill index of their own); Water Prison room 0x23's Whitestools, Building room 0x12's Gum Heads and stage 7 room 4's
-  Hummers stay event spawns, as before.
-- **Randomizer: Eileen Outfit and Ghosts** (v3.49.0; v3.50.0 every outfit, a draw per room, ghost spots you can see;
-  Options > Option 5 Gameplay > Randomizer). **Eileen Outfit**: Off or **Random** (default). Random dresses **companion
-  Eileen** in an outfit drawn at random among **every** outfit the game has for her: her Dress and the **Nurse** outfit
-  (v3.50.0: no unlock needed any more; there is no third companion outfit). With **Change Each Visit On** (the default)
-  she gets a new draw at **every room load** of her world (the first room of a world visit keeps the draw made as the
-  world loaded; never more than two rooms in a row in the same outfit, so you see her change); with Change Each Visit
-  Off one draw per world visit, the same for this seed. The switch happens as the room is built (the game rebuilds her
-  model in every room): she is never left invisible, and in a room whose files hold only one of her models she wears
-  that one. **The final fight** keeps the outfit of its world visit (no draws in the room-by-room walk to Walter). Her
-  cutscene, peephole and door-viewer models follow as they follow the Extra Menu's choice (`[EileenOutfit] Cutscenes`).
-  A choice in the pause menu's Extra Menu row Eileen holds until the next world visit (no room draws meanwhile). Off (or
-  a world without her) puts back the outfit you set (`[EileenOutfit] Outfit`, or the Extra Menu); the Randomizer never
-  writes that key. Needs the outfit engine (`[EileenOutfit] Enabled 1`, the default). **With Playable Eileen:** the
-  player's own outfit belongs to Playable Eileen; this row changes the companion only. **Ghosts**: Off or **Spots**
-  (default). The victim ghosts start at another spot of their own room, now clearly away from where the game puts them:
-  at least 800 units from their own spot and 1000 from where you come in whenever the room has such a spot (else at
-  least 500 / 600), never within 600 units of another ghost's place (v3.49 sometimes just swapped two victims, so the
-  room looked the same), always above a floor of the same storey at the height the game gives them, clear of walls and
-  in sight of their own spot. Seeded; with Change Each Visit On a new spot at every visit. A victim the game remembers
-  in this room (its record, written when you last left the room, or in your save: the game brings it back there half the
-  time) now starts at the new spot too; a victim you **pinned** (or one that is down) stays where it lies. **Never
-  moved:** the story ghosts (Cynthia, Jasper, Andrew, Richard), the Patient, ghosts that are part of a scene and
-  anything in Room 302. With the cheat table's Enemy Randomizer on, the ghosts stay where the game puts them. No exe
-  code patched. **Limits:** only two companion outfits exist (Dress, Nurse): a room draw is a coin with a cap of two
-  rooms in a row alike; in the rooms whose own file list brings her model (6:43 in the Apartment World; 7:10 and 2:55
-  have it from the world list too) she wears the model that room loads, and Random puts the set outfit back there (as
-  v3.49); a save made while Random dresses her as the Nurse records "Nurse worn" as the Extra Menu's Nurse does; Random
-  keeps both outfit models in memory in her worlds (about 0.7 MB); a save made while a moved victim's record is in the
-  room keeps that record at its new spot (a valid spot of the same room; the save's format is unchanged); a later load
-  without Ghosts brings it back there half the time, as the game does with any record; the victims drift towards you
-  after they appear: the start spot is what changes, not where they end up; ghosts to other rooms and moving the story
-  ghosts are a later round.
+  `[Randomizer]`): randomizes the **item and weapon pickups** lying in the worlds, from one seed kept in SH4Refined.ini.
+  Every change applies **at the next room load** (the next door). Nothing goes into your saves: a save made with the
+  Randomizer loads fine without it, and a pickup you took stays taken. **Items**: Off (the game's own pickups),
+  **Shuffle** (the items of each world visit trade spots: the same number of each item and weapon as the game gives) or
+  **Random** (each spot draws an item as Supply Drops does: common ammo and Nutrition Drinks, less often Medical Kits
+  and Holy Candles, now and then Saint Medallions, Ampoules, Silver Bullets and Swords of Obedience; about one spot in
+  25 a weapon, and a spot that held a weapon a weapon every other time); default Random. **Specials** (v3.56.0; was Keep
+  Specials, turned round): **Off** = Holy Candles, Saint Medallions and Swords of Obedience stay where the game puts
+  them (their spots and items leave the pool), **On** (default) = they are drawn with the rest. The specials are exactly
+  these three; weapons belong to Items (Henry's weapons that lie on their own move with Items whatever Specials says);
+  key items, memos and files, and every pickup that runs an event of its own never move, with any setting. **Room 302
+  Items** (v3.56.0): Room 302's own pickups, independent of Items: **Off** (the game's pickups), **Shuffle** (Room 302's
+  own pickups swap spots) or **Random** (default: each of its spots draws an item). **Reroll Visits** (v3.56.0,
+  `Reroll`): when Random draws again. **By Room** (default): a new draw each time you enter a room. **By World**: one
+  draw for a whole visit of a world, and a new one when you enter that world again (through the hole, or when the story
+  moves you there); Room 302 is a world of its own here. Shuffle always makes one new arrangement per world visit (a
+  room keeps its items while you stay in that world). **A load is never a visit:** a Quick Load, the Extra Menu's Load
+  Game, the title's Load and Continue after a death never count as entering a room or a world, so loading a save made in
+  a room shows the same untaken items again, and a sneaky Quick Save / Quick Load cannot reroll anything; a save of
+  another world, loaded this session after you were in that world, takes back that world's last visit; a world not
+  visited since the game started gets "the seed's own" draw, the same for every load (the world-visit rule is the one
+  Enemies Return uses, `src/worldvisit.inc`: a load is the game's own signal, its enemy manager reset by every save's
+  apply). **The seed**: the number every choice comes from, shown in small grey type under the Randomizer page's
+  description (only while a Randomizer row is on). It has no row of its own any more (v3.56.0: no Seed / New Seed rows).
+  Set another one in `[Randomizer] Seed` to replay a run; 0 or missing rolls a new one at the next start. **A pickup
+  looks like what it gives:** the model on the ground, the "Take the ...?" prompt and what lands in the inventory all
+  follow the new item (the model comes from the item, the prompt and the gift from the item's own pickup script; a
+  weapon spot gets the matching pickup record for its new item). **Weapons:** Henry's weapons that lie on their own (27
+  spots, among them the weapon row of the Subway's first room) join the pool, and any spot may now hold a weapon. Random
+  never draws a weapon you already have (the game would not show it) and never the same weapon twice in a room. The
+  Pistol and the Steel Pipe of Room 302, the Torch, the Chainsaw of a New Game+ in the Forest and every other weapon
+  pickup that runs an event of its own stay where they are; the Steel Pipe, the Spade, the Paper-Cutting Knife and the
+  Stun Gun never move (their models load only in their own rooms); no story event needs a weapon. **Never randomized:**
+  key items, memos and files, Eileen's weapons, broken golf clubs, and every pickup that runs an event of its own (22
+  scripted consumables among them). The pool: the 137 plain pickups (pistol bullets 46, Nutrition Drink 40, Holy Candle
+  16, Medical Kit 12, Saint Medallion 8, revolver bullets 5, Ampoule 4, Sword of Obedience 4, silver bullets 2; 18 of
+  them in Room 302) and the 27 weapon spots. No exe code patched: the room script's item and pickup-record words are
+  patched and restored around the room's build (the room-load hook 0x4F0AF8 that Enemy Copies uses). v3.49.0 adds
+  monsters, Eileen's outfit and ghost spots (the next bullets; v3.56.0: Enemies and Spawn Site). **Limits:** changes
+  apply at the next door, never in the room you stand in; with Reroll Visits By Room, leaving a room and coming back
+  rerolls its Random items (a load does not); the visit counts live in memory: after a restart a loaded save shows its
+  world's "seed's own" draw until you next enter a world; weapons can come **early**: the Chainsaw (or another strong
+  weapon) can lie in one of the first worlds' spots, which makes the game easier (there is no separate weapons switch
+  yet: Specials does not hold weapons back, only Items Off does); Random gives no guarantee of any item (a world may get
+  fewer Swords of Obedience than ghosts to pin, the log says so for each world visit, or more healing than the game
+  gives; Shuffle keeps each world visit's own counts); Random does not ask which guns you have for ammo (Revolver or
+  Silver Bullets can lie in a world before you own the gun); Shuffle can move a weapon you already own onto another
+  spot, which then shows nothing (as the game does with a weapon you have); a model can look odd where the game placed a
+  small item (a Chainsaw where a box of bullets lay in a drawer); if another mod changes the room-load site 0x4F0AF8 the
+  rows say "Not available" and nothing is randomized, and a script word that is not the stock value (another mod) is
+  left alone.
+- **Randomizer: Enemies** (v3.49.0 as Monsters; v3.50.0 All Worlds and saves; v3.56.0 renamed Enemies, with the victims'
+  ghosts; Options > Gameplay > Randomizer > Enemies, `[Randomizer] Enemies`): **Off**, **Same World** (default) or **All
+  Worlds**. At every room load of the monster worlds each monster of the room's script rolls its own type (a mix per
+  monster, any strength), from the same seed as the items. **Same World**: among the monster types **and the victims'
+  ghosts** this world places (both of its visits) or this room has loaded; **All Worlds**: among every monster type and
+  every victim's ghost of any world. The files of a type the room does not hold are loaded at the room load (at most 16
+  extra files a room, 30 MB of file memory kept free; a type whose files do not fit stays as placed). **The victims'
+  ghosts** (v3.56.0): a monster may become one of the game's six victim ghosts (the four male victims, type 0B, and the
+  two victims 0C v1 and 0D v1). It is then the game's own victim ghost: it floats, passes walls, the Sword of Obedience
+  pins it, it is never killed (no kill, no ending's kill rank), and it may follow you through the rooms of its world the
+  way the game's victims do (never into another world). Two of them are kept out until the story allows them: a male
+  victim's ghost never appears in the **Water Prison** before you have its first secret-number memo (the game's own code
+  marks that memo as found when such a ghost appears there: story flag 2D3), and the **old man's ghost** (0D v1) never
+  appears before you have met him in the **Forest** (its appearance sets the Forest's flag 23B). Which ghosts each world
+  places itself: the Subway three (0B two looks, 0C v1), the Forest four (0B three looks, 0D v1), the Building three (0B
+  two looks, 0D v1), the Apartment three (0B, 0C v1, 0D v1), stage 8 one (0B); the Water Prison and the Hospital none
+  (with Same World their monsters roll among monsters only). **Never** a target: the story ghosts (Cynthia, Jasper,
+  Andrew, Richard: their creates and routines run story events), the Patient, Walter, Wall Men, Wheelchairs, mm (its
+  files exist only for its own rooms). **The victims themselves keep their own ghosts** (each victim exists once per
+  world and is placed in several rooms); Spawn Site moves them. Everything else of Monsters stays as it was: games
+  played from saves roll too (the game's own records adopted), the Subway's first Sniffer Dogs roll once their cut-scene
+  is over, a roll of the monster's own type rolls once more (hidden `MonsterRollAgain`), the bone / enemy-list /
+  hit-shape budgets, a walker (or a ghost) at a Hummer's spot on the floor under it, nothing randomized written into a
+  save (a monster made a ghost is left out of the save as every randomized monster), off while the cheat table's Enemy
+  Randomizer is on. **Reroll Visits** applies: By Room (default) = the room's monsters roll again at every room entry;
+  By World = a monster's record keeps its type for the world visit (as v3.55's Change Each Visit Off); a load never
+  rolls them again. **This Room** is gone (v3.56.0): an ini value This Room or This World reads as Same World.
+  **Limits:** a ghost outside its own world may be silent (the game's sound tables are per world; logged once per type
+  and world); a room whose monsters became ghosts cannot be cleared by killing; Enemy Copies makes no copies of a
+  monster made a ghost, and Enemies Follow / Enemy Pursuit leave it to the game's own ghost rules.
+- **Randomizer: Eileen Outfit** (v3.49.0; v3.50.0 every outfit, a draw per room, ghost spots you can see; Options >
+  Option 5 Gameplay > Randomizer). **Eileen Outfit**: Off or **Random** (default). Random dresses **companion Eileen**
+  in an outfit drawn at random among **every** outfit the game has for her: her Dress and the **Nurse** outfit (v3.50.0:
+  no unlock needed any more; there is no third companion outfit). With **Reroll Visits By Room** (the default) she gets
+  a new draw at **every room load** of her world (the first room of a world visit keeps the draw made as the world
+  loaded; never more than two rooms in a row in the same outfit, so you see her change); with Reroll Visits By World one
+  draw per world visit, the same for this seed. The switch happens as the room is built (the game rebuilds her model in
+  every room): she is never left invisible, and in a room whose files hold only one of her models she wears that one.
+  **The final fight** keeps the outfit of its world visit (no draws in the room-by-room walk to Walter). Her cutscene,
+  peephole and door-viewer models follow as they follow the Extra Menu's choice (`[EileenOutfit] Cutscenes`). A choice
+  in the pause menu's Extra Menu row Eileen holds until the next world visit (no room draws meanwhile). Off (or a world
+  without her) puts back the outfit you set (`[EileenOutfit] Outfit`, or the Extra Menu); the Randomizer never writes
+  that key. Needs the outfit engine (`[EileenOutfit] Enabled 1`, the default). **With Playable Eileen:** the player's
+  own outfit belongs to Playable Eileen; this row changes the companion only. The v3.49 - v3.55 **Ghosts** row is
+  **Spawn Site** since v3.56.0 (the next bullet). No exe code patched. **Limits:** only two companion outfits exist
+  (Dress, Nurse): a room draw is a coin with a cap of two rooms in a row alike; in the rooms whose own file list brings
+  her model (6:43 in the Apartment World; 7:10 and 2:55 have it from the world list too) she wears the model that room
+  loads, and Random puts the set outfit back there (as v3.49); a save made while Random dresses her as the Nurse records
+  "Nurse worn" as the Extra Menu's Nurse does; Random keeps both outfit models in memory in her worlds (about 0.7 MB).
+- **Randomizer: Spawn Site** (v3.49.0 as Ghosts Spots; v3.56.0 Spawn Site for every enemy; Options > Gameplay >
+  Randomizer > Spawn Site, `[Randomizer] SpawnSite`): **Off** or **On** (default). On: every monster and victim ghost a
+  room places starts at a random site of its room, drawn again as the Randomizer's Reroll Visits rule says (a load never
+  draws new sites). **Monsters** stand on floor you can walk to: a map of the room's floor is flooded at the room load
+  from its doors and from where you come in, by the player's own walking rules (Ghost Teleport's floor map); a site is
+  never inside a wall or a prop, has room to stand, and is at least 800 units from where you come in and 400 from every
+  door (monsters do not wait at the door); sites are 250 apart. A Hummer flies at its own height above its site, a
+  monster Enemies made a ghost takes a ghost's site. **Ghosts** (the victims, 0B / 0C v1 / 0D v1) start anywhere inside
+  the room's bounds (its collision box) in x, y and z: on any storey of the room, at their own height above the floor
+  there, never inside geometry, at least 600 units from where you come in (never inside you) and from another ghost's
+  place. A monster or victim the game remembers in this room (its record, from your last visit or your save) starts at
+  its site too; one you knocked down or pinned stays where it lies. With **Enemies**, a monster's new type is rolled
+  first and the site follows that type. **Kept as placed:** Wall Men, bosses and boss rooms, Wheelchairs, the story
+  ghosts, event monsters before their event (the Subway's first dogs before their cut-scene), a Tremer that keeps its
+  room box, a monster whose record is in another room (it is not made here), Room 302 and the final stages. Enemy Copies
+  stand beside their moved original; a monster that follows you through a door arrives at the door as before. No exe
+  code patched; nothing new in saves (a record moved with its site is saved where it stands, as any monster that walked
+  there). **Limits:** a room without collision data has no floor map (its monsters keep their spots, logged once); the
+  floor map takes at most 40 ms at a room load (a few ms in the rooms measured by Ghost Teleport); a big monster can
+  stand in a narrow corridor of the room; a ghost site inside the room's box but outside its walls (an L-shaped room)
+  comes through the wall, as the game's victims do. The old `[Randomizer] Ghosts` value is read once (Spots = On) and
+  written as SpawnSite.
 - **Blood Colour** (v3.25.0): Option 3's Blood Colour has 10 values: Red, Green, Purple (the game's, unchanged), Yellow,
   Orange, Pink, Blue, Cyan, White, Black. They tint the blood spray, the drops' floor splashes and the pools under dead
   enemies (the game's own three blood effects; bloody textures and haunting blood are not part of the option). The
@@ -545,6 +608,21 @@ Runs the game in a real window and keeps it running when you switch away:
   guttering out like a real fire at death; companions' fires never go out). v3.29.0, Thermal: no more blue flicker on
   bodies in rooms that keep the 3D depth (Building World 2nd).
   Kept in `[ScreenEffects]`.
+- **The Effects page's preview shows every filter** (v3.56.0; Options > Effects). From a pause, Thermal now shows the
+  paused scene's living bodies hot (dead ones cooling red, the footprints) over its cold world, and Spirit Vision the
+  ghosts glowing through the walls, the soul fires, the haunting auras, portals and veins over its edge world: in the
+  frame the pause picture is taken, each look's own parts are drawn once and kept on the GPU beside the picture (nothing
+  read back; the pause picture itself is unchanged). The pause menu shows them too when the filter was changed in
+  Options. With no paused game (the title menu) the page shows SH4 Refined's own small scene instead of the F7 picture,
+  which may hold nobody: a dim room with a window, a lamp, a door and a cabinet, a standing figure and a ghost half
+  behind the cabinet, all drawn by Refined (no game art). Thermal shows the figure hot with fading footprints (the ghost
+  is cold: unseen), Spirit Vision the ghost glowing through the cabinet and the figure's living soul fire; CRT, Vivid,
+  Sepia, Old Film, the night visions, Vignette, Film Grain, Bloom (the window and the lamp), Colour Grading, Depth of
+  Field and the Otherworld Lens all work on it. The scene is drawn only while the page is open (a few draws).
+  `PreviewScene=Picture` keeps the F7 picture first (and the Filter row's " F7 in play: new preview." sentence);
+  `PreviewLayers=0` turns the pause layers off. The capture frame's extra draws never count as a late frame for the
+  effect budget or the rate guard. Not in the previews: Death Presence, Echo and After Shock (the Powers' own looks); a
+  pause taken under Thermal has no ghosts in its Spirit Vision preview (Thermal hid them from that frame).
 - **Depth of Field eases in** (v3.47.0; the Screen Effects page's Depth of Field / DoF Strength rows). The blur no
   longer starts with an edge: from the sharp area around the player it fades in over a short distance, a quarter of a
   blur step at a time, and fades the same way into each stronger blur farther away and into the near blur in front of
@@ -750,9 +828,12 @@ The Options layout plan (`staging/options_layout/PLAN.md`) is complete: rounds R
 (v3.55.0) put every row on its plan page, the game's own rows too. No ini key, written value or save byte changes.
 
 The page cycle (Q / E, the page arrows, or a click on a name in the strip under the title): **Display, Controls,
-Interface, Sound, Effects, Gameplay**. A `>` row is a folder (blue, with a triangle): Enter opens its page; Back (or
-Cancel, or a page key) goes back to the row that opened it. Controls > Camera > Steering is the one third level.
-No page has more than 10 rows.
+Interface, Sound, Effects, Gameplay**. A `>` row is a folder (blue, with a triangle): Enter, or a mouse click anywhere
+on the row (its name, the triangle, the value column), opens its page (v3.56.0; Enter only before); Brightness, Gamma
+and Buttons open the game's own screens the same way. Back (Enter or a click on it, Cancel, or a page key) goes back to
+the row that opened it. Controls > Camera > Steering is the one third level. No page has more than 10 rows. Every value
+has its own line under the rows ("Value: what it does."; v3.56.0); a value that is a number (sizes, degrees, distances,
+percentages) shows the row's line, which names its scale.
 
 A hidden `[Options] StockMoves=0` (not written to the ini) puts the game's own rows back on their v3.54.0 places
 (the sound three on Display, the first-person three on Controls, the Subtitles / Film Grain / Shadows switches and
@@ -866,7 +947,7 @@ v3.51 - v3.53 (the plan's "Today" column, under its old name).
 | Load Game | Hidden (ini `0`), **Shown** (ini `1`) | [ExtraMenu] Load | Option 6 > Load Game |
 | Quick Save | Hidden (ini `0`), **Shown** (ini `1`) | [ExtraMenu] QuickSave | Option 6 > Quick Save |
 | Quick Load | Hidden (ini `0`), **Shown** (ini `1`) | [ExtraMenu] QuickLoad | Option 6 > Quick Load |
-| Eileen Outfit | Hidden (ini `0`), **Shown** (ini `1`) | [ExtraMenu] Eileen | Option 6 > Eileen Outfit |
+| Eileen | Hidden (ini `0`), **Shown** (ini `1`) | [ExtraMenu] Eileen | Option 6 > Eileen Outfit (v3.55.0: Eileen Outfit) |
 | Save Banks | Off, **On** | [SaveBanks] Enabled | Option 6 > Save Banks |
 | Back | | | "Back to Interface." |
 
@@ -880,6 +961,7 @@ v3.51 - v3.53 (the plan's "Today" column, under its old name).
 | Stereo Width | **100 %**, 90 %, ..., 0 % | [Sound] Width (0..100, steps of 10) | v3.52 Option 1 > Sound > Stereo Width |
 | Room Reverb | Off, **On** | [Sound] Reverb | v3.52 Option 1 > Sound > Room Reverb |
 | Night Mode | **Off**, Low, High | [Sound] NightMode | v3.52 Option 1 > Sound > Night Mode |
+| Background | **Mute**, Play | [Sound] Background | (new in v3.56.0) |
 | Exit | | | the game's Exit |
 
 #### Effects (top page 5)
@@ -968,7 +1050,7 @@ v3.51 - v3.53 (the plan's "Today" column, under its old name).
 | Extra Enemies | **Off**, x2, x3, x4 | [Gameplay] EnemyCopies | Option 5 > Enemies > Enemy Copies |
 | Door Chase | **Off**, Monsters, Victims, Both (ini `Monsters + Victims`) | [Gameplay] EnemyFollow | Option 5 > Enemies > Enemies Follow |
 | Pursuit | Relentless, **Normal**, Forgetful | [Gameplay] EnemyPursuit | Option 5 > Enemies > Enemy Pursuit |
-| Enemies Return | **Off**, On | [Gameplay] EnemyRevive | Option 5 > Enemies > Revive Enemies |
+| Enemies Return | **Off**, By Room, By World | [Gameplay] EnemyRevive | Option 5 > Enemies > Revive Enemies (v3.55: Off / On) |
 | Fade In | Off, Fade, **Portal** (ini `Fade + Portal`) | [Gameplay] FadeIn | Option 5 > Enemies > Fade In |
 | Back | | | "Back to Gameplay." |
 
@@ -988,15 +1070,15 @@ v3.51 - v3.53 (the plan's "Today" column, under its old name).
 | Row | Values | ini / save | Was |
 |---|---|---|---|
 | Items | Off, Shuffle, **Random** | [Randomizer] Items | Randomizer > Items |
-| Keep Specials | **Off**, On | [Randomizer] KeepSpecials | Randomizer > Keep Specials |
-| Room 302 Items | Stay (ini `Out`), **Change** (ini `In`) | [Randomizer] Room302 | Randomizer > Room 302 |
-| Monsters | Off, This Room, **This World**, All Worlds | [Randomizer] Monsters | Randomizer > Monsters |
-| Ghosts | Off, **Spots** | [Randomizer] Ghosts | Randomizer > Ghosts |
+| Specials | Off, **On** | [Randomizer] Specials (v3.55's KeepSpecials migrated: On -> Off, Off -> On) | Randomizer > Keep Specials |
+| Room 302 Items | Off, Shuffle, **Random** | [Randomizer] Room302 (v3.55's In -> the Items value, Out -> Off) | Randomizer > Room 302 (Stay / Change) |
+| Enemies | Off, **Same World**, All Worlds | [Randomizer] Enemies | Randomizer > Monsters (v3.56.0: renamed; This Room gone) |
+| Spawn Site | Off, **On** | [Randomizer] SpawnSite | Randomizer > Ghosts (v3.56.0: renamed; Spots = On; monsters too) |
 | Eileen Outfit | Off, **Random** | [Randomizer] EileenOutfit | Randomizer > Eileen Outfit |
-| Reroll Visits | Off, **On** | [Randomizer] PerVisit | Randomizer > Change Each Visit |
-| Seed (its number) |  | [Randomizer] Seed | Randomizer > Seed |
-| New Seed |  | [Randomizer] Seed | Randomizer > New Seed |
+| Reroll Visits | **By Room**, By World | [Randomizer] Reroll (v3.55's PerVisit: On -> By Room, Off -> By World) | Randomizer > Change Each Visit |
 | Back | | | "Back to Gameplay." |
+
+The seed is drawn in small type under the page's description (`[Randomizer] Seed`; v3.56.0: no Seed / New Seed rows).
 
 ### Old place -> new place (v3.55.0)
 
@@ -1062,7 +1144,7 @@ Every row: where it was before the plan (Option N > Row, v3.51 - v3.53), where v
 | Option 6 > Load Game | the same | **Interface > Pause Menu > Load Game** |
 | Option 6 > Quick Save | the same | **Interface > Pause Menu > Quick Save** |
 | Option 6 > Quick Load | the same | **Interface > Pause Menu > Quick Load** |
-| Option 6 > Eileen Outfit | the same | **Interface > Pause Menu > Eileen Outfit** |
+| Option 6 > Eileen Outfit | the same | **Interface > Pause Menu > Eileen** (v3.55.0 "Eileen Outfit") |
 | Option 6 > Save Banks | the same | **Interface > Pause Menu > Save Banks** |
 | Option 1 > Sound (+ v3.52's mode) | Display > Sound Mode | **Sound > Sound Mode** |
 | Option 1 > BGM Volume | Display > BGM Volume | **Sound > Music Volume** |
@@ -1118,14 +1200,82 @@ Every row: where it was before the plan (Option N > Row, v3.51 - v3.53), where v
 | Option 5 > Special > Echo Count | the same | **Gameplay > Powers > Echo Count** |
 | Option 5 > Special > Ghost Teleport | the same | **Gameplay > Powers > Ghost Teleport** |
 | Randomizer > Items | the same | **Gameplay > Randomizer > Items** |
-| Randomizer > Keep Specials | the same | **Gameplay > Randomizer > Keep Specials** |
+| Randomizer > Keep Specials | the same | **Gameplay > Randomizer > Specials** (v3.56.0: turned round) |
 | Randomizer > Room 302 | the same | **Gameplay > Randomizer > Room 302 Items** |
-| Randomizer > Monsters | the same | **Gameplay > Randomizer > Monsters** |
-| Randomizer > Ghosts | the same | **Gameplay > Randomizer > Ghosts** |
+| Randomizer > Monsters | the same | **Gameplay > Randomizer > Enemies** (v3.56.0) |
+| Randomizer > Ghosts | the same | **Gameplay > Randomizer > Spawn Site** (v3.56.0) |
 | Randomizer > Eileen Outfit | the same | **Gameplay > Randomizer > Eileen Outfit** |
 | Randomizer > Change Each Visit | the same | **Gameplay > Randomizer > Reroll Visits** |
-| Randomizer > Seed | the same | **Gameplay > Randomizer > Seed (its number)** |
-| Randomizer > New Seed | the same | **Gameplay > Randomizer > New Seed** |
+| (new in v3.56.0) | - | **Sound > Background** |
+
+v3.56.0: the Seed and New Seed rows are gone (the seed in small type under the Randomizer page's description); the pause
+Extra Menu's own row reads **Eileen** with its outfit after it ("Eileen Default", "Eileen Dress", "Eileen Nurse"; v3.55.0
+"Eileen Outfit Default"). The Randomizer's row **Eileen Outfit** keeps its name.
+
+### Old name -> new name (v3.56.0)
+
+| Where | v3.55.0 | v3.56.0 | ini |
+|---|---|---|---|
+| Interface > Pause Menu | Eileen Outfit | **Eileen** | `[ExtraMenu] Eileen` (unchanged) |
+| pause > Extra Menu | Eileen Outfit Default / Dress / Nurse | **Eileen** Default / Dress / Nurse | - |
+| Display > Renderer's lines | "Direct3D 11 through dgVoodoo2 (default). Next start." ... | "Direct3D 11: dgVoodoo2, the default. Next start.", "Stock: ...", "Custom: ...", "Unavailable: ..." | - |
+| Gameplay > Blood Colour's lines | "Makes blood colour yellow." | "Yellow: yellow blood." (Red / Green / Purple have lines too) | - |
+| Gameplay > Enemies | Enemies Return: Off / On | Enemies Return: Off / **By Room** / **By World** (On = By Room) | `[Gameplay] EnemyRevive` (On read once as By Room, written back) |
+| Gameplay > Randomizer | Keep Specials (Off / On) | **Specials** (Off / On, turned round: Off = they stay) | `KeepSpecials` -> `Specials` (once) |
+| Gameplay > Randomizer | Room 302 Items (Stay / Change) | Room 302 Items (**Off** / **Shuffle** / **Random**) | `Room302` In -> the Items value, Out -> Off (once) |
+| Gameplay > Randomizer | Monsters: Off / This Room / This World / All Worlds | **Enemies**: Off / Same World / All Worlds | `Monsters` -> `Enemies` (This Room, This World -> Same World) |
+| Gameplay > Randomizer | Ghosts: Off / Spots | **Spawn Site**: Off / On | `Ghosts` -> `SpawnSite` (Spots -> On) |
+| Gameplay > Randomizer | Reroll Visits (Off / On) | Reroll Visits (**By Room** / **By World**) | `PerVisit` -> `Reroll` (On -> By Room, Off -> By World) |
+| Gameplay > Randomizer | Seed (its number), New Seed | (gone: the seed in small type under the description) | `Seed` (unchanged) |
+| Gameplay > Randomizer | "Next room." at the end of each line | (gone) | - |
+| Sound | - | **Background** (Mute / Play) | `[Sound] Background` (new) |
+
+Every value has its own line now (MN356: 142 values in 48 rows, the Randomizer page and Enemies Return by their owners); a
+number keeps the row's line. The Options layout plan's copy of these changes: `staging/v356_feedback/merge356_tools/LAYOUT_CHANGES.md`.
+
+### Known limits (v3.56.0)
+
+- Not yet installed or tested in game (every v3.56 part is built and tested offline only).
+- **Folder click (MN356):** a click on a folder row's name (or on a row other than the cursor's) needs the menu mouse hooks of
+  `[Window] Menus43=1` (the default); with `Menus43=0` a click on the cursor row's triangle or value column still opens it. A
+  click while a page slides or fades, or while a page-strip click waits, is not taken (the log says so; the page strip uses
+  the same rule): click again once the page is still.
+- **Value lines (MN356):** a value line comes from the plan's words when the row's own code has none for that value; a value
+  whose word is not the plan's (a number, a sixth monitor) keeps the row's line and the log names it once. The Film Grain and
+  Shadows switches now show Refined's own "Off" / "On" (the same words) so their lines are found.
+- **Sound (SD356):** the sound still stays on the device the game started with: connect the headset (or set it as Windows'
+  default) before starting the game, or restart the game after the change; Refined says when a restart is needed. Background
+  Play acts on sounds that start after the change; the FMVs (DirectShow) keep their own focus rule. The keep-awake signal
+  cannot help when the silence has another cause (a Bluetooth headset switching to its hands-free profile); a headset that
+  treats a -72 dBFS 45 Hz tone as silence may still fall asleep: raise `[Sound] KeepAwakeLevel` (up to 64) or use Background
+  Play. With `[Sound] Enabled=0` none of this runs.
+- **Frame rate (FR356):** the guard looks only at gameplay frames above 60 fps in FrameMode 0 (FrameMode 1 has its own
+  `InterpAutoLower`); a step down lasts at least 10 minutes even if the slow scene was short, then one try at a room change;
+  the Options row still shows the rate you chose while the guard holds a lower one (the log says which rate runs); Walter's
+  arm-gun flash in the final fight is still 4 ticks long; the final room's ending fade (and every fade sized `0x80 / fps`) is
+  1.5x quick at 180 only.
+- **Powers (PW356):** the 30 % was chosen on an offline sheet (`tools/ots_fade_preview.py`): `[Gameplay] AfterImageOtsFade`
+  changes it without a new build; a copy right at the camera is dimmed too; a tested step's verdict can be fooled when the
+  scene changes within its 1.5 s; a PC that can never hold the rate sees a short thinning of the sparks at most every 20 - 120 s
+  while the budget tests (the rate guard is the cure there); Ghost Teleport has nothing to thin; the Effects page's preview
+  right after a thinned stretch can show Death Presence's trail fire thinner until play resumes.
+- **Effects preview (PV356):** the pause layers need the pause picture on the GPU: the first pause that saves `preview.dds`
+  and a pause whose frame F7 is saving keep no layers (logged); Death Presence, Echo and After Shock are not in the previews; a
+  body another effect hid in the pause frame has no heat there; a pause taken while Thermal is live has no ghosts in its
+  Spirit Vision preview; the title scene's ghost has no hauntings / portals of its own.
+- **Randomizer items (RI356):** the visit counts are memory only: after a restart, a loaded save shows "the seed's own" draw
+  of its world until you next enter a world (the same draw for every load, never a fresh one); a save of world A loaded while
+  you are in world B takes back A's last visit of this session (if you entered A again after saving, that newer visit);
+  without the subtitle hooks (another mod on 0x559B64 / 0x559D34) the seed line is drawn at full size (logged), without the
+  description hook (`[Window] DescFit=0`) it is not drawn; Eileen Outfit keeps its own per-world counter: a load can still
+  change the companion's outfit (cosmetic).
+- **Enemies / Spawn Site (RE356):** a monster made a ghost may follow you through its world by the game's own ghost rule (not
+  one of Refined's followers, copies or pursuers); a ghost outside its own world may be silent; the floor map takes up to
+  40 ms at a room load.
+- **Enemies Return (ER356):** By World's released event dogs of Subway room 2:2 (after their event): a load before you reach
+  2:2 forgets their "stand again awake" mark and they come in their event mode; By World judges a Randomizer placement by its
+  stock type at the world entry; killed copies (Enemy Copies) are never saved (a title load's world reset forgets them); the
+  world-visit rule reads the game's own enemy manager (0xFD0BA4): a mod that wrote it would make a load look like a room change.
 
 ### Known limits (v3.55.0)
 
@@ -1275,6 +1425,7 @@ only `[Items]` is read again while the game runs, and only an edit you make to t
 | `[Gameplay] OneHitKill` | Off | Options: Gameplay > Combat > One-Hit Kill. v3.25.0 (was Option 5 > Enemies): On = your hits kill monsters at once and knock ghosts down; Walter, the Conjoined Bodies and the Wall boss as normal. |
 | `[Gameplay] DeathPresence` | Off | Options: Gameplay > Powers > Death Presence. v3.27.0 (was Option 5 > Special): Off, Weak (radius 300, 2-8 % of max health a second) or Strong (400, 5-20 %): the black-violet fog that drains every being round you. |
 | `[Gameplay] AfterImage` | Off | Options: Gameplay > Powers > After Shock. v3.29.0 (was Option 5 > Special, After Shock since v3.30.0): Off, Short, Medium or Long (3 / 5 / 8 copies; v3.29's On reads as Medium). Hidden, not written: `AfterImageSound` 1, `AfterImageDryRun` 1 = look only (no hits), `AfterImageSkip` enemy types (hex) never stunned; `AfterImageTrail` is retired (v3.30.0). |
+| `[Gameplay] AfterImageOtsFade` | (absent) 30 | v3.56.0, hidden: in the over-the-shoulder camera, the light (in percent, 0 - 100) an After Shock copy keeps when it sits right over the player between her and the camera; copies beside or behind her are not dimmed. 100 = v3.55 (no fade). |
 | `[Gameplay] Echo` | Off | Options: Gameplay > Powers > Echo Doubles. v3.29.0 (was Option 5 > Special, Echo Doubles since v3.30.0): Off, Shadow Copy or Shadow Cast (v3.29's Shadow, Twin and Mirror read as Shadow Copy). Hidden: `EchoDamage` percent, `EchoSide`, `EchoColour`, `EchoDepth`, `EchoRim` (see the default ini's comment). |
 | `[Gameplay] EchoCount` | 1 | Options: Gameplay > Powers > Echo Count. v3.30.0 (was Option 5 > Special > Echo Count): 1, 2 or 3 shadows. |
 | `[Gameplay] EnemyCopies` | Off | Options: Gameplay > Enemies > Extra Enemies. v3.29.0 (was Option 5 > Enemies): Off, x2, x3 or x4 monsters and victims per room. The bone pool grows to 4096 records at the next New Game or load; crowded rooms get fewer copies. Hidden: `BonePool` Auto (or a record count). |
@@ -1284,7 +1435,7 @@ only `[Items]` is read again while the game runs, and only an edit you make to t
 | `[Gameplay] PursuitInRoom` | (absent) 1 | v3.51.0, hidden: 1 = Enemy Pursuit Normal / Forgetful also acts inside the room (monsters give up after 10 / 4 s unsensed; victims' ghosts when far 2500 / 1200 u for 12 / 3 s or after a 25 / 8 s chase without touching you, Forgetful also 3 s out of their sight; rest 8 / 15 s, then calm until they sense you again within 2000 / 1200 u, v3.52); 0 = v3.50: the door rules only. |
 | `[Gameplay] EnemyHealthBars` | Off | Options: Interface > Enemy Health. v3.29.0 (was Option 5 > Enemies): Off, Locked Target (your target and monsters hurt in the last 4 s) or All Near (also every monster within 1500 units). |
 | `[Gameplay] SupplyDrops` | Off | Options: Gameplay > Items > Supply Drops. v3.29.0 (was Option 5 > Enemies): Off, Normal (about 1 kill in 8) or Generous (about 1 in 4): items left by killed monsters; rare items from the four named ghosts and the stalker Walter. The drop counter is kept in the save. Hidden `SupplyDropsSeed=Fixed` (v3.30.0): v3.29's fixed rolls per kill instead of a new seed each load. |
-| `[Gameplay] EnemyRevive` | Off | Options: Gameplay > Enemies > Enemies Return. v3.30.0 (was Option 5 > Enemies > Revive Enemies): On = a room's killed monsters and copies stand again when you come back. Hidden: `ReviveEventDogs` 1 (v3.34.0: a story room's released event dogs, e.g. Subway 2:2 after their event, revive awake; 0 = v3.33). |
+| `[Gameplay] EnemyRevive` | Off | Options: Gameplay > Enemies > Enemies Return. `Off` / `By Room` / `By World` (v3.56.0; was Off / On: v3.30 - v3.55's `On` reads as `By Room` and is written back once, logged). By Room = a room's killed monsters and copies stand again each time you enter it; By World = they stay dead for the world visit and stand again when you enter the world again. A load is never a room change or a world entry. Hidden: `ReviveEventDogs` 1 (v3.34.0: a story room's released event dogs, e.g. Subway 2:2 after their event, revive awake; 0 = v3.33); `ReturnTremers` 1 (v3.56.0: By World keeps a killed Tremer's body, exe site 0x48ACE5; 0 = the site stays stock and Tremers keep the game's coin flip). |
 | `[Gameplay] FadeIn` | Fade + Portal | Options: Gameplay > Enemies > Fade In. v3.50.0 (was Option 5 > Enemies > Fade In): Off, Fade or Fade + Portal (also read: On / 1 = Fade + Portal, 0 = Off; an unknown text is read as Fade + Portal and logged). Fade: a monster or victim seen for the first time in a room visit fades in over `FadeInSeconds`, drawn by the game's see-through enemy draw 0x45C880 (no exe patch). Fade + Portal: a ghost arriving after the room's first 1.5 s also gets a portal behind it (v3.50.0 a blood-red vortex; v3.51.0 it tears free of a tar portal: the game's own wall portal look, drips and strands; held 2.5 s, no grab meanwhile). Read again while the game runs. Hidden: `FadeInSeconds` 0.8 (0.2 to 3). |
 | `[Gameplay] FadeInPortalDraw` | (absent) Auto | v3.51.0, hidden: Auto = the game's own wall-portal draw when its textures are loaded, else Refined's own tar portal; Refined = always Refined's own; Vortex = v3.50's blood-red vortex and no hold (also read: Game / 1, Own / 2, 0 / Blood). An unknown text reads as Auto (logged). |
 | `[Gameplay] FadeInHold` | (absent) 1 | v3.51.0, hidden: 1 = a ghost coming out of a tar portal is held (40 % speed for 1.5 s, full by 2.5 s, no grab / attack until then); 0 = it acts at once (the portal and strands stay). |
@@ -1307,13 +1458,13 @@ only `[Items]` is read again while the game runs, and only an edit you make to t
 | `[Gameplay] RegenDelay` | 30 | v3.47.0, no Options row: seconds without healing after any damage, 10 to 120. The first start of v3.47 copies Playable Eileen's `[Defense] RegenDelay`. |
 | `[Gameplay] CurseMeter` | Off | Options: Interface > Curse Meter. v3.29.0 (was Option 5 > Player): Off, On (Playable Eileen's own curse when it is loaded, else companion Eileen's) or Companion (always companion Eileen's). |
 | `[Randomizer] Items` | Random | Options: Gameplay > Randomizer > Items. v3.48.0 (was Option 5 > Randomizer > Items): Off, Shuffle or Random (or 0, 1, 2): the item and weapon pickups' mode. Read again while the game runs (an edit applies at the next door); an unknown value is read as the default and logged. |
-| `[Randomizer] KeepSpecials` | Off | Options: Gameplay > Randomizer > Keep Specials. v3.48.0 (was Option 5 > Randomizer > Keep Specials): On / Off (or 1 / 0); On: Holy Candles, Saint Medallions and Swords of Obedience stay in place. |
-| `[Randomizer] Room302` | In | Options: Gameplay > Randomizer > Room 302 Items. v3.48.0 (was Option 5 > Randomizer > Room 302): In / Out (or 1 / 0); In: Room 302's pickups are randomized too. |
-| `[Randomizer] Monsters` | This World | Options: Gameplay > Randomizer > Monsters. v3.49.0 (was Option 5 > Randomizer > Monsters): Off, This Room, This World, All Worlds (v3.50.0) (or 0, 1, 2, 3; Room, World, All): each monster of a room's script rolls its own type among the room's loaded types, this world's types or every world's types (their files loaded at the room load). The game's own records of stock monsters (a save's) roll too (v3.50.0). Read again while the game runs (an edit applies at the next door); an unknown value is read as the default and logged; Seed and PerVisit are shared with the items. Hidden `MonsterSaveFilter` 1 (0: the save's copy of the enemy records is not cleaned, 0x465468 stays stock); hidden `MonsterRollAgain` 1 (v3.51.0; 0: a roll of the placement's own type is kept, as v3.50). |
-| `[Randomizer] EileenOutfit` | Random | Options: Gameplay > Randomizer > Eileen Outfit. v3.49.0, v3.50.0 (was Option 5 > Randomizer > Eileen Outfit): Off / Random (or 0 / 1); Random: companion Eileen wears Dress or Nurse (every outfit, no unlock), a new draw at every room load of her world with Change Each Visit On (one per world visit with it Off); the final fight keeps its outfit; an Extra Menu choice holds until the next world visit; Off puts `[EileenOutfit] Outfit` back. With Playable Eileen only the companion changes. |
-| `[Randomizer] Ghosts` | Spots | Options: Gameplay > Randomizer > Ghosts. v3.49.0, v3.50.0 (was Option 5 > Randomizer > Ghosts): Off / Spots (or 0 / 1); Spots: the victim ghosts start at another spot of their own room, 800 + units away when the room allows, never at another ghost's place (seeded; a new spot every visit with Change Each Visit On); a victim's record in the room moves with it, a pinned or downed one stays; never the story ghosts. |
-| `[Randomizer] PerVisit` | On | Options: Gameplay > Randomizer > Reroll Visits. v3.48.0 (was Option 5 > Randomizer > Change Each Visit): On / Off (or 1 / 0); On: Random draws a room's untaken spots anew at every room visit, Shuffle at every world visit (every room load counts, a Quick Load or a save load included); Off: a room keeps the same items for this seed. |
-| `[Randomizer] Seed` | 0 | Options: Gameplay > Randomizer > Seed (its number). v3.48.0 (was Option 5 > Randomizer > Seed, New Seed): 1 .. 4294967295; 0 or missing: a new one is rolled at the next start and written; New Seed writes another. |
+| `[Randomizer] Specials` | On | Options: Gameplay > Randomizer > Specials. v3.56.0 (was `KeepSpecials`, turned round: v3.55's KeepSpecials On -> Specials Off, Off -> On, read once, written as Specials, the old key removed, logged): Off = Holy Candles, Saint Medallions and Swords of Obedience stay where the game puts them; On = they are drawn too. Key items never move. |
+| `[Randomizer] Room302` | Random | Options: Gameplay > Randomizer > Room 302 Items. v3.56.0: Off / Shuffle / Random (Off = the game's pickups, Shuffle = Room 302's own pickups swap spots, Random = each of its spots draws an item); v3.55's In / Out are written once in the new word (In = the Items value then, Out = Off; logged). |
+| `[Randomizer] Enemies` | Same World | Options: Gameplay > Randomizer > Enemies. v3.56.0 (was `[Randomizer] Monsters`, read once, written as Enemies and the old key removed, one log line; its This Room and This World read as Same World): Off, Same World, All Worlds (or 0, 2, 3; World, All): each monster of a room's script rolls its own type among the monster types and victims' ghosts of this world (or this room's loaded ones), or of every world (their files loaded at the room load). The game's own records of stock monsters (a save's) roll too. Read again while the game runs; an unknown value is read as the default and logged; Seed and the Reroll row are shared with the items. Hidden `MonsterSaveFilter` 1, `MonsterRollAgain` 1 (unchanged). |
+| `[Randomizer] EileenOutfit` | Random | Options: Gameplay > Randomizer > Eileen Outfit. v3.49.0, v3.50.0 (was Option 5 > Randomizer > Eileen Outfit): Off / Random (or 0 / 1); Random: companion Eileen wears Dress or Nurse (every outfit, no unlock), a new draw at every room load of her world with Reroll Visits By Room (one per world visit with By World; v3.56.0); the final fight keeps its outfit; an Extra Menu choice holds until the next world visit; Off puts `[EileenOutfit] Outfit` back. With Playable Eileen only the companion changes. |
+| `[Randomizer] SpawnSite` | On | Options: Gameplay > Randomizer > Spawn Site. v3.56.0 (was `[Randomizer] Ghosts` Off / Spots, read once, written as SpawnSite, Spots = On, the old key removed): Off / On (or 0 / 1, Spots): every monster and victim ghost of a room starts at a random site of the room (monsters on floor you can walk to, 800 from where you come in, 400 from a door; ghosts anywhere in the room's box, 600 from you and from another ghost); their records in the room move with them, a downed or pinned one stays. |
+| `[Randomizer] Reroll` | By Room | Options: Gameplay > Randomizer > Reroll Visits. v3.56.0 (was `PerVisit`: On -> By Room, Off -> By World, read once, written as Reroll, the old key removed, logged): By Room = Random draws new items (and Enemies new types, Spawn Site new sites) each time you enter a room; By World = one draw for each visit of a world (a new one when you enter that world again). Shuffle always swaps a world's items once a world visit. A Quick Load or a loaded save is never a visit: it never rerolls. |
+| `[Randomizer] Seed` | 0 | v3.48.0: the seed every choice comes from (1 .. 4294967295): the same seed gives the same items; 0 or missing: a new one is rolled at the next start and written. v3.56.0: shown in small type under the Randomizer page's description (no Seed / New Seed rows any more); set another one here. |
 | `[Items] ShineMemos` / `ShineRange` / `ShineThroughWalls` | 1 / 3000 / 0 | v3.3: memos shine too; how far (game units, 500-20000); 1 = also through walls. |
 | `[Items] ShineBodies` / `ShineDepthTest` / `ShineEvery` / `ShineFor` | 1 / 0 / 7 / 2 | v3.3.3: characters in front hide the shine (v3.3.5: companions too); v3.3.2's depth-buffer test (experimental, it hid everything); seconds between an item's flashes; how long a flash lasts. |
 | `[Textures] Pool` | 0 | v3.4.0: where `[Textures] Pack` replacements are kept. 0 = MANAGED, as before (Direct3D 9 keeps a system-memory copy of each one inside the game's 2 GB address space). 1 = DEFAULT: video memory only, uploaded through a temporary staging texture; after a device reset (resolution / display mode / aspect change, a lost device) each one is filled again from its .dds. Anything that fails falls back to MANAGED. Read at game start. |
@@ -1324,10 +1475,12 @@ only `[Items]` is read again while the game runs, and only an edit you make to t
 | `SmoothCutscenes` | 0 | v2.1, FrameMode 1: also interpolate real-time cutscenes (phase [0xFD5C20]==1). 0 = cutscenes at 30 (the user's wish). |
 | `EntityGate` / `CompanionGate` / `EntitySmooth` | 0 / 0 / 1 | FrameMode 0 only: monster / companion task updates run on 30 Hz ticks (hook 0x553877), drawn at in-between positions (research `framerate/v3/entity_speed.md`). v3.0: the two keys are independent; monsters default to the true rate (v5 audit: their movement is dt-scaled); v3.1: companions default to the true rate too (21 hooks, section "v3.1 COMPANIONS"). The haunting cache 0x5390CE only with EntityGate=1. |
 | `RateProbe` | 0 | v3.0, hidden, FrameMode 0: 1 = the loop stays at 30 ticks/s while the engine is told FrameRate (everything rate-aware runs in slow motion; per-tick leftovers at normal speed). A diagnostic. |
+| `RateGuard` | (absent) 1 | v3.56.0, hidden, read at start, FrameMode 0 only: 1 = above 60 fps, when the play frames' mean over 3 s is over 1.15 x the frame time in 2 windows in a row, gameplay steps down 180 -> 120 -> 60 (the effect budget sheds first; the guard waits for it only while it can still shed). After 10 minutes of clean play at the lower rate the next room change tries the higher rate again; a rate it stepped down from twice stays off for the rest of the session. 0 = off (v3.55.0: a rate the PC cannot hold runs the game in slow motion). FrameRate itself never changes. |
 | `Menus43Log` | 0 | Diagnostic (v1.6): the log names each new full-width 2D draw once, with what the mod did with it. |
 | `AspectMenu` | 1 | Aspect Ratio row in Options, six sizes per shape, 3D view from the real size (v1.3). 0 = the stock Options pages: none of Refined's rows or pages; every setting from this ini. |
 | `[Options] Look` | (absent) 1 | v3.53.0, hidden, read only: 0 = v3.52's Options look (no page strip, folder triangles, "Parent > Page" titles or the new grey rows); the words of v3.53 stay. |
 | `[Options] StockMoves` | (absent) 1 | v3.55.0, hidden, read only: 0 = the game's own rows on their v3.54.0 places (the sound three on Display, the first-person three on Controls, the Subtitles / Film Grain / Shadows switches and Blood Colour on Interface, Renderer on Effects, Menu Font and Start-Up in Interface > Menus) and no patch at 0x525672. |
+| `[Options] FolderClick` | (absent) 1 | v3.56.0, hidden, read only: 1 = a mouse click anywhere on a folder row (name, triangle, value column; Brightness / Gamma / Buttons; Back; StockMoves=0's Subtitles combo on its name) opens it; 0 = v3.55.0 (folders open on Enter only). |
 | `FitWrapper` | 1 | GOG's wrapper draws at the game's size in a window; mouse scaled to the window (v1.3). |
 | `[EileenOutfit] Enabled` / `Outfit` / `Instant` / `Cutscenes` | 1 / -1 / 1 / 1 | v3.9.0: the companion Eileen's outfit (-1 Default, 0 Dress, 1 Nurse; the pause Extra Menu row writes it), put on at once while she walks with you, and whether cutscene / peephole files follow it. |
 | `[SaveBanks] Enabled` / `Bank` | 1 / 1 | Options: Interface > Pause Menu > Save Banks. v3.8.0: Save Banks on / off and the bank the lists open on (1 = sh4.sav, 2-99 = sh4_bankN.sav); Q / E / L1 / R1 and (v3.47.0) the mouse on the Bank row's arrows write `Bank`; v3.48.0, on the Bank row: Left / Right and the D-pad 1 bank, Q / E and the pad's shoulders 10 banks (not the triggers), held keys, buttons and mouse arrows repeat (no new key). |
@@ -1335,11 +1488,13 @@ only `[Items]` is read again while the game runs, and only an edit you make to t
 | `[ExtraMenu] Enabled` / `Chest` / `Save` / `Load` / `QuickSave` / `QuickLoad` / `Eileen` | 1 each | Options: Interface > Pause Menu. v3.7.0: the pause Extra Menu (Enabled needs a restart) and its rows (was Option 6). |
 | `[ExtraMenu] PauseSound` | (absent) 1 | v3.51.0, hidden: 1 = the level music and the world's sounds stay paused in the Extra Menu's Storage Chest / Save Game / Load Game, as in the pause menu; 0 = v3.50 (the music plays at 20 % in them). Read at the start; only with the default `Seamless=1`. |
 | `[ExtraMenu] QuickLoadInPause` | (absent) 1 | v3.52.0, hidden: 1 = the Extra Menu's Quick Load runs inside the pause (the world frozen, the music paused until the loaded room starts); 0 = v3.51 (the pause closes first). Needs `[ExtraMenu] Seamless=1`. |
+| `[ExtraMenu] StockShadow` | (absent) 0 | v3.56.0, hidden, read only: 0 = the pause list (Extra Menu, its Camera page, the top level) draws each row once with its letters' own shadow; 1 = v3.55.0 (the game's second shadow copy of every row at +2, +2, which shows as a dark double under bright parts of the picture). |
 | `[QuickSave] Enabled` / `SaveKey` / `LoadKey` / `Folder` / `Feedback` | 1 / F5 / F9 / save\quick / 1 | v3.6.0: Quick Save / Quick Load keys (F1-F12 or a Windows key code; not with Ctrl / Alt / Shift), the folder of qs1-3.bin, the on-screen line. |
 | `[Saves] WorldTitles` | 1 | v3.5.2: a save made in a world is titled after that world (and its 2nd visit) instead of the last return to Room 302. 0 = the game's own titles. |
 | `[Input] PadNames` | Auto | Options: Controls > Buttons. v3.10.0: pad button names in Options > Button Config: Auto (from the connected pad), Xbox, PlayStation, Nintendo or Generic. |
 | `[Graphics] VSync` / `AntiAliasing` / `Anisotropic` | (not used) | v3.12.0 - v3.38: the Option 4 rows. v3.39.0: gone; GOG Galaxy > Manage > DirectX Settings (`dxcfg.exe`) sets them in `dxcfg.ini`. A value that is not Default is named once in the log at start. |
 | `[Graphics] PerfOverlay` | (absent) 0 | v3.37.0 the Option 4 > Performance row; v3.39.0 a hidden key: 1 = the corner readout (fps, frame ms, 1 % low of the last 5 s, Refined's ms a frame, address space). The log gets a `perf:` summary every 5 minutes whether it shows or not. |
+| `[Graphics] EffectBudgetHighRate` | (absent) 1 | v3.56.0, hidden: the effect budget's high frame-rate rules at 120 fps and more (late from 1.06 x the frame, the spark levels first, tested steps when the powers' cost is not measurable). 0 = v3.55's rules at every rate. |
 | `[Shadows] Edge` | Stock | Options: Effects > Shadows > Edge. v3.40.0 Stock / Soft / Softer; v3.41.0 Stock / Soft (Soft and Softer read as Soft). Option 3 > Realtime Shadow, Enter: the Shadows page with a split-view preview. Hidden `SoftPx` (default 12, the edge in px at 720 lines, scaled with the height). v3.49.0: the text says what it covers: every real-time shadow (the player, companions, enemies, ghosts, Room 302's hauntings, event and cut-scene figures); shadows painted into the room textures are not changed. |
 | `[Window] WindowView43` | (absent) 1 | v3.41.0, hidden: Room 302's window views keep the 4:3 view with black sides at wide aspects; 0 = full width (v3.40). |
 | `[Window] PixelAlign2D` | (absent) 1 | v3.42.0, hidden: the 2D canvas half a pixel up / left so the first column / row are covered (0 = v3.41). |
@@ -1349,6 +1504,10 @@ only `[Items]` is read again while the game runs, and only an edit you make to t
 | `[Sound] Width` | 100 | Options: Sound > Stereo Width. v3.52.0 (the Sound page's Stereo Width): 0 .. 100 %, any value here; the row steps by 10. |
 | `[Sound] Reverb` | On | Options: Sound > Room Reverb. v3.52.0 (the Sound page's Room Reverb): On / Off (also 1, 0): the game's own Waves Reverb and area presets. |
 | `[Sound] NightMode` | Off | Options: Sound > Night Mode. v3.52.0 (the Sound page's Night Mode): Off / Low / High (also 0, 1, 2): range compression of the volumes the game sets (Low 0.7, High 0.5 around -20 dB). |
+| `[Sound] Background` | Mute | Options: Sound > Background. v3.56.0: Mute / Play (also 0, 1). Mute = the game's own: its sounds are silent while another window is in front. Play = the game's sound buffers get DirectSound's global focus (the four one-byte sites 0x4095FE / 0x409B02 / 0x40A14C / 0x40A723): the game stays audible behind other windows; sounds that start after a change follow it. Anything else reads as Mute (logged). A missing key is added with Mute. |
+| `[Sound] KeepAwake` | (absent) 1 | v3.56.0, hidden: 1 = an inaudible keep-awake signal of Refined's own (a looping 45 Hz tone, global focus) plays under the game's sound for the whole session, so the sound device and a wireless headset never get a silent stream (no lost seconds after Alt+Tab). 0 = none. |
+| `[Sound] KeepAwakeLevel` | (absent) 8 | v3.56.0, hidden: the keep-awake tone's amplitude, 0 .. 64 of 32767 (8 = -72 dBFS, 64 = -54 dBFS; 0 = digital silence: keeps the stream open only). Raise it if a headset still falls asleep; anything else reads as 8 (logged). |
+| `[Sound] DeviceWatch` | (absent) 1 | v3.56.0, hidden: 1 = log the device the game plays on and every change of Windows' default sound device (and show "New sound device: restart the game to use it." on Sound Mode's line while the default is another device). 0 = off. |
 | `[Sound] Enabled` | (absent) 1 | v3.52.0, hidden: 0 = the game's own sound and Sound row (no Refined sound site). |
 | `[Sound] PanLaw` | (absent) Smooth | v3.52.0, hidden: Stock = the game's own steep pan (Width and the Headphones floor do nothing). Read at the start. |
 | `[Sound] HeadphonesFloor` | (absent) 9 | v3.52.0, hidden: 6 .. 12 dB, how far down the other ear may go in Headphones. Read at the start. |
@@ -1379,7 +1538,9 @@ only `[Items]` is read again while the game runs, and only an edit you make to t
 | `[ScreenEffects] ThermalHeat` | 1 | v3.22.0: 1 = Thermal draws the world cold (navy - blue - cyan) and redraws living bodies in heat colours; 0 = the v3.21 brightness-based look (ambient boost). Read at start. |
 | `[ScreenEffects] SpiritGhost` | Blood | v3.26.0: Spirit Vision ghosts. Blood = a pale core bleeding into crimson with a crimson aura and blood at the vein roots; White = the v3.23.0 white glow (no aura or blood). Read at start. |
 | `[ScreenEffects] SoulNone` | 06 | v3.22.0: enemy types (hex) without a soul fire in Spirit Vision (06 = Wheelchair); the ghosts 0B-0F never have one. Read at start. |
-| `[ScreenEffects] PreviewKey` | F7 | v3.22.0: a key (F1-F12 or a virtual-key number) that saves the current clean gameplay frame as PreviewImage, the picture behind the Screen Effects page, replacing it (the stock save sound confirms it). None = off. v3.39.0: F7 is the default (was None) for an ini without the key; a `PreviewKey=None` already in the ini stays None (write F7 there to use the key). F7: no key of Refined, Playable Eileen or the cheat table; F8 sits next to Quick Load's F9. The Filter row's description names the key. |
+| `[ScreenEffects] PreviewKey` | F7 | v3.22.0: a key (F1-F12 or a virtual-key number) that saves the current clean gameplay frame as PreviewImage, the picture behind the Screen Effects page, replacing it (the stock save sound confirms it). None = off. v3.39.0: F7 is the default (was None) for an ini without the key; a `PreviewKey=None` already in the ini stays None (write F7 there to use the key). F7: no key of Refined, Playable Eileen or the cheat table; F8 sits next to Quick Load's F9. The Filter row's description names the key (v3.56.0: only with `PreviewScene=Picture`). |
+| `[ScreenEffects] PreviewScene` | Scene | v3.56.0: what the Effects page shows with no paused game (the title menu): Scene = SH4 Refined's own room with a figure and a ghost, made for every filter (Thermal's heat and footprints, Spirit Vision's ghost glow and soul fire); Picture = PreviewImage first (as before v3.56.0), then the scene. While it is Scene the Filter row's description no longer names the PreviewKey (F7 still saves PreviewImage: Picture and the Shadows page use it). |
+| `[ScreenEffects] PreviewLayers` | 1 | v3.56.0: 1 = every pause keeps Thermal's hot bodies and Spirit Vision's ghosts, soul fires and haunting auras for the Effects page opened from it (two render targets of the screen's size, 28 MB at 2560x1440, kept between pauses like the Shadows page's); 0 = off (the page shows their palette / edge world only, as before v3.56.0). |
 | `[ScreenEffects] ThermalDepthBias` | (absent) 0.3 | v3.24.0, hidden key: how much nearer (per mille, 0..1; 0 = off) Thermal's heat colours are drawn, so they never lose a near-tie with the body's own surface (cold / hot flicker). Higher values may let a body show through a surface right in front of it. v3.29.0: also applied to c12, the clip-z row of the skinned shader family (bodies; c9 is the rigid family's), and values up to 10 are accepted as a logged test value. |
 | `[ScreenEffects] ThermalRedrawDepth` | (absent) 1 | v3.29.0, hidden test key: 0 = Thermal's heat redraw ignores the depth buffer (bodies show through walls); settles whether anything but the stock draw wins the depth test over a body. |
 | `[ScreenEffects] DeathPresenceDepth` | (absent) 1 | v3.27.3, hidden: 1 = Death Presence's depth is the one the game stores (z = P22 + P32 / w); 0 = v3.27.2's x 1/128 (for comparison). |
@@ -1520,7 +1681,8 @@ import, coexistence with the plugin in both load orders); results in `test\resul
 - v3.30.0 (2026-11-18, main rig, session 18b; md5 46D1396F; installed 2026-11-18 20:23 with `staging/v330_feedback/install_v330.ps1`, the game closed; **installed, not yet tested in game**): **the user's v3.29.0 feedback** (special and player mods confirmed, enemy mods partly). Built by four Opus sub-agents in sandboxes and merged by an Opus merge agent (`staging/v330_feedback/merge/MERGE_NOTES.md`). **Echo Doubles**: Off / Shadow Copy (per-shadow random delay 0.15-0.6 s re-rolled every 2-6 s, eased) / Shadow Cast (while she attacks, each shadow dissolves and reforms beside an enemy on her floor within 1500 u, from a random side, and strikes; 75 / 60 / 50 % damage per shadow), new row **Echo Count** 1-3 (`EchoCount`), a shadow-soldier look (near-black body, violet rim and eyes, black-violet flames, smoke teleports), the 44 ms first-draw hitch pre-warmed; old Shadow / Twin / Mirror read as Shadow Copy. **After Shock** (was After-image): Off / Short 3 / Medium 5 / Long 8 copies (old On = Medium), one contact decision per enemy a tick, a frame guard. Henry audit: no Henry-specific fault; fixed for both bodies: a live body switch with an equal bone count (After Shock and Echo key the pose on the model file and skeleton) and a stun writing hp+0x1C (a double hit in one swing). **Supply Drops**: a session seed re-rolled at game start, New Game, every load (the load flag [0xFD5A74]) and quick load (`SupplyDropsSeed=Fixed` = v3.29). **Enemy Copies**: the bone pool grows to 4096 at the next room change (new site 0x4F0A5A, the bone reset in RoomLoadSetMark) because an in-game load never passes the world reset; reasons logged per missing copy. **Enemies Follow**: event dogs and risen Hummers follow; a temporary kill bit keeps a follower's home placement empty (no duplicate). **Revive Enemies** (new Enemies row, `EnemyRevive`): killed monsters and copies stand again on room re-entry (types 02 03 07 08 09 0A; never bosses, Walter, Wall Men, Wheelchairs, ghosts or story rooms; a follower's body revives only if its home placement qualifies); revived kills count for the rank. **Health bars**: ghost-true (a knock-down is the stagger gauge running out; rising heals 50 % / max/(n+3): `w4_hud/RE_GHOST_HEALTH.md`), a violet revive bar, sealed by the Sword of Obedience (shown 4 s after the pin in Locked Target), bevel look with a damage chip. **Curse Meter**: the ring of thorns. Review: plan approved by Codex in round 1; inspections 4 (2 + 2 granted by the user; 3, 2 and 1 findings, all fixed; the 4th APPROVED). Rollback: `Mod Backups\winmm.dll.v3.29.0.before_v3.30.0` (B0D0225C). Plan / reviews / renders: `staging/v330_feedback/`.
 - v3.53.0 (2026-11-26, main rig, SH4 Refined Session 22; the Options layout rounds R1 + R2: two sandbox workers (W2 OL1 the words, then W3 OL2 the look) merged in that order by the merge agent, `staging/v353_layout/merge353_tools/MERGE_NOTES.md`; md5 5BDAC7F771A1C802C10073801358B616 (out_v353; merge E9ECCF75; Codex APPROVED on inspection 1) (merge353 out_m); **not yet installed or tested in game**): the plan `staging/options_layout/PLAN.md` (approved by the user). **OL1 the words:** every Options page, row, value and line in the plan's words on the rows where they are (`src/ol_words.h` generated from the plan's `layout_data.py`; page names Display, Controls, Interface, Presentation, Gameplay, Pause Menu; stock rows renamed through Refined's copies of their records; BGM / SE Volume keep their labels until R5; the Camera value reads "Eileen"; the Randomizer lines keep "Next room."); Room 302's Back line fixed, the Renderer 16-bit and Bloom lines no longer cut off, the unused Save Bank texts gone; the ini unchanged (screen words mapped). **OL2 the look:** the page strip, blue triangles on folder rows, "Parent > Page" titles, the dependent rows grey and inert with the reason first (the pause Camera rows too), the glyph lines; hidden `[Options] Look`; no strip clicks yet, the value arrows stay white on a grey row. **Merge:** the grey line is one line of at most 52 characters and one drawn line (the reason, then the row's own line, else the reason alone), the reasons and crumbs read OL1's names, titles are taken whole, value-less rows are not measured for arrows; one MSG_V53 block (OL1 V53 + 0 .. 89, 400 .. 409, 420; OL2 + 512 .. 551); no new exe site; 199 exports as v3.52.0.
 - v3.54.0 (2026-11-26, main rig, SH4 Refined Session 22; the Options layout rounds R3 + R4, one sandbox worker (tag OL34), `staging/v354_layout/BUILD_NOTES.md`; md5 E364E634B47A8563A2D6E09CBA5F4E1A (out_v354; sandbox F0E2EB04; Codex APPROVED on inspection 1); **not yet installed or tested in game**): **R3** Option 5 becomes Gameplay with Player / Combat / Items / Enemies / Powers / Randomizer (Curse Meter and Enemy Health to Interface, Supply Drops to Items). **R4** the cycle Display, Controls, Interface, Sound, Effects, Gameplay: Option 4's rows to Display (Aspect Ratio, Display Mode, Monitor, Frame Rate) and Controls > Camera / Room 302 (the Fields of View, Room 302's rows); Option 6 becomes Interface > Menus with Menu Font and Start-Up; Controls > Camera holds the pause camera's settings (Camera, Distance, Side, Height, Tilt Down, Fixed Angles) and Steering the rest (the third level); Screen Effects becomes the top page Effects with Film Grain > and Shadows > (and Renderer, a PLAN section 4 fallback); v3.52's Sound page is top page 3 (Exit; Sound Mode lost its Enter); the hidden pages renumbered to PLAN section 6 (LP_MAX 22), every one on REQ_OPEN / REQ_BACK; the stock pages' special cases off on every rebuilt page (g_stockView 7), a stock row turns yellow by its own cfg byte wherever it sits; the stock pages' rows at their own pitch (10 / 11 rows). The stock rows stay until R5. Every ini key and written word as before; one MSG_V54 block; no new exe site; 199 exports.
-- v3.55.0 (2026-11-26, main rig, SH4 Refined Session 22; the Options layout rounds R5 + R6, one sandbox worker (tag OL56), `staging/v355_layout/BUILD_NOTES.md`; md5 8C47349317D20CF203439562A55FD73C (out_v355; sandbox 25652C38, then Codex fixes OL56-001 / OL56-002; inspection 2 APPROVED); **installed 2026-11-26 17:12** (over v3.52.0; rollback `Mod Backups/winmm.dll.v3.52.0.before_v3.55.0`), not yet tested in game; contains v3.53.0 and v3.54.0, which were never installed on their own): **R5** the stock rows on their plan pages (all R0-approved): Sound Mode, Music Volume, Effects Volume on Sound (the bar by the record's input: one exe patch at 0x525672, byte-checked, rolled back on failure, in SH4WM_Patches); Invert Look, Head Bob, Left / Right in Controls > Room 302; the Subtitles / Film Grain / Shadows switches row 0 of their folders (the three are pure folders now); Blood Colour on Gameplay; Renderer back on Display, Menu Font and Start-Up on Interface, Interface > Pause Menu again; every page at the plan's count (10 rows at most); a moved row keeps its cfg byte, its yellow and its "No"; hidden `[Options] StockMoves=0` = v3.54.0's places. **R6** the pause Extra Menu's "Eileen Outfit", its Camera page in the Options names (Tilt Down, Turn Speed, Invert Turn, Wall Zoom, Fixed Angles, Shoulder ...); a click on a page strip name opens that page (a slide, or the fade for the page in the same slot or from a folder page; needs Menus43); this README's pages, old -> new table and Settings notes in the new places. Every ini key and written word as before; one MSG_V55 block; one new exe site (0x525672); 199 exports.
+- v3.55.0 (2026-11-26, main rig, SH4 Refined Session 22; the Options layout rounds R5 + R6, one sandbox worker (tag OL56), `staging/v355_layout/BUILD_NOTES.md`; md5 8C47349317D20CF203439562A55FD73C (out_v355; sandbox 25652C38, then Codex fixes OL56-001 / OL56-002; inspection 2 APPROVED); **installed 2026-11-26 17:12** (over v3.52.0; rollback `Mod Backups/winmm.dll.v3.52.0.before_v3.55.0`); **user QA 2026-11-26: items 1-11 pass** (requests and issues for v3.56: `staging/v356_feedback/USER_FEEDBACK_v355.md`); contains v3.53.0 and v3.54.0, which were never installed on their own): **R5** the stock rows on their plan pages (all R0-approved): Sound Mode, Music Volume, Effects Volume on Sound (the bar by the record's input: one exe patch at 0x525672, byte-checked, rolled back on failure, in SH4WM_Patches); Invert Look, Head Bob, Left / Right in Controls > Room 302; the Subtitles / Film Grain / Shadows switches row 0 of their folders (the three are pure folders now); Blood Colour on Gameplay; Renderer back on Display, Menu Font and Start-Up on Interface, Interface > Pause Menu again; every page at the plan's count (10 rows at most); a moved row keeps its cfg byte, its yellow and its "No"; hidden `[Options] StockMoves=0` = v3.54.0's places. **R6** the pause Extra Menu's "Eileen Outfit", its Camera page in the Options names (Tilt Down, Turn Speed, Invert Turn, Wall Zoom, Fixed Angles, Shoulder ...); a click on a page strip name opens that page (a slide, or the fade for the page in the same slot or from a folder page; needs Menus43); this README's pages, old -> new table and Settings notes in the new places. Every ini key and written word as before; one MSG_V55 block; one new exe site (0x525672); 199 exports.
+- v3.56.0 (2026-11-26, main rig, SH4 Refined Session 22; eight sandbox workers (W8 SD356, W7 FR356, W5 PW356, W6 PV356, W1 MN356, W2 RI356, W4 ER356, W3 RE356) merged in that order by the merge agent, `staging/v356_feedback/merge356_tools/MERGE_NOTES.md`; md5 F31C4152FCB574373186BC0BDBFB0EE2 (out_v356; the merge out_m was C6A46D09 before the Codex fixes); Codex: inspection 1 REVISE (SD356-001: Background all four buffer sites or none), inspection 2 REVISE (SD356-002: the page protection and the rollback checked, a mix it cannot undo turns Background off for the session), both fixed, `staging/v356_feedback/PLAN-REVIEW-LOG.md`; **installed 2026-11-26 21:32** (over v3.55.0; rollback `Mod Backups/winmm.dll.v3.55.0.before_v3.56.0`), not yet tested in game; QA `staging/v356_feedback/QA_v356.md`): the user's v3.55 QA and requests (`staging/v356_feedback/USER_FEEDBACK_v355.md`). **SD356 Sound**: an inaudible keep-awake signal (a 45 Hz tone at -72 dBFS) for the whole session, so a wireless headset is awake after Alt+Tab (hidden `[Sound] KeepAwake` / `KeepAwakeLevel`); Sound > Background Mute / Play (four one-byte exe sites 0x4095FE / 0x409B02 / 0x40A14C / 0x40A723: the buffers' global focus); a device watch says when a new sound device needs a restart (hidden `DeviceWatch`; following it live is not built). **FR356 Frame rate**: the final fight's contraption and the spear spot follow the rate (three sites 0x4E4CCE / 0x542529 / 0x54253F, byte-checked, all or none); the rate guard steps gameplay 180 -> 120 -> 60 when the play frames cannot hold the rate (hidden `[Window] RateGuard`; back up after 10 minutes clean at a room change, a rate left twice stays off for the session). **PW356 Powers**: After Shock dims the copies that cover the player in the Shoulder camera (30 %, hidden `AfterImageOtsFade`); at 120 fps and more the effect budget acts from 1.06 x the frame with two spark levels first (v3.55's levels 1 - 9 are 3 - 11) and tested blind steps (hidden `[Graphics] EffectBudgetHighRate`). **PV356 Effects preview**: from a pause, Thermal's heat and Spirit Vision's ghosts and soul fires (two GPU layers, the clean pause picture drawn back); with no paused game Refined's own preview scene, no game art (`[ScreenEffects] PreviewScene`, `PreviewLayers`). **MN356 Menus**: a mouse click opens a folder row (hidden `[Options] FolderClick`); every value its own line (`src/vlines.inc`, MSG_V56 + 0 .. 15); the pause row is "Eileen" again and each pause row is drawn once (hidden `[ExtraMenu] StockShadow`). **RI356 Randomizer items**: Specials (turned round), Room 302 Items Off / Shuffle / Random, Reroll Visits By Room / By World, no Seed / New Seed rows (the seed in small type), no "Next room."; v3.55's KeepSpecials / Room302 / PerVisit migrated once. **ER356 Enemies Return** Off / By Room / By World (By Room = v3.55's On; the Tremer site 0x48ACE5, hidden `ReturnTremers`). **RE356 Randomizer enemies**: Enemies Off / Same World / All Worlds with the victims' ghosts (Monsters migrated), Spawn Site Off / On for every enemy (Ghosts migrated). **The merge**: ONE world-visit rule for Reroll Visits, Enemies Return, Enemies and Spawn Site (`src/worldvisit_sim.h` / `worldvisit.inc`: a load is the game's own signal, gEnemyManager.stage -2 after every save's apply, proven to cover Quick Load, Load Game, the title's Load and Continue; one WvOnRoomLoad call per room load; tests `worldvisit_test` 369 305 + `worldvisit_visits_test` 33); the rate guard waits for the effect budget only while it can still shed; a pause capture is never a late frame for either; the page strip and the folder click share one mid-slide refusal; Randomizer > Eileen Outfit Off got its own line. One MSG_V56 block (MN356 V56 + 0 .. 15, SD356 + 112 .. 115); eight new exe sites (above), all in SH4WM_Patches; 199 exports; no save format change.
 - v3.52.0 (2026-11-26, main rig, SH4 Refined Session 22; seven sandbox workers (W4 SH352, W7 EP352, W2 HB352, W5 TP352, W6 QL352, W3 FX352, W1 SND352) merged in that order by the merge agent, `staging/v352_feedback/merge352_tools/MERGE_NOTES.md`; md5 9AC9B22AB768C125565D24FB5D985018 (out_v352; merge D270E181, then Codex fix SND352-001; Codex APPROVED on inspection 2); **installed 2026-11-26 12:20**; **user QA 2026-11-26: items 1-5, 8-10 pass** (6 the Otherworld Lens not noticed though the log shows it drawn at 70 %; 7 the turnstile floor shadows are baked into the textures, not a real-time shadow); rollback `G:/SH4 Mod Archive/2026-11-14/Mod Backups/*before_v3.52.0`): the user's v3.51 QA (`staging/v352_feedback/USER_FEEDBACK_v351.md`). **SH352 Shadows** (D5, D8): the Darkness row runs 25 -> 100 % (Left lighter), the ini unchanged; 4:1F and cut-scene 0x43 have no real-time shadow in the game (0x55F660 sets the darkness to 0); a reason logged for every composite that is not soft. **EP352 Enemy Pursuit** (QA 2): Forgetful's victims' ghosts give up at 1200 u for 3 s, after 8 s, or 3 s out of sight; after the rest a ghost stays calm until it senses you again (Normal 2000 u, Forgetful 1200 u); dives into a wall set back, ghosts never handed to the game by the quick guard. **HB352 Enemy Health Bars** (D1, D2): only for enemies the game draws in this room; a boss's bar at any distance, at the top edge for a tall body. **TP352 Ghost Teleport** (D4): every landing proven by her body and the floor map; freed from a wall after a warp. **QL352 Quick Load from the pause** (Q2): a fade to black inside the pause, the music paused until the loaded room runs (hidden `[ExtraMenu] QuickLoadInPause`). **FX352 Screen Effects** (D3, D6, D7): Depth of Field with a close third-person camera (only Room 302's first-person view and the views of another place skip it); Bloom Off / Low / Medium / High / Ultra, migrated once; the Otherworld Lens at 70 % (hidden `LensBase`). **SND352 Sound** (Q1): Option 1 > Sound Mono / Stereo / Headphones / Surround (`[Sound] Mode`), the Sound page (Stereo Width, Room Reverb, Night Mode), a smooth pan law, the Mono fold, the Options "No" discard fixed; eleven exe sites in four groups. **Merge rule:** the Sound mode keeper waits while Quick Load from the pause holds the sound, and the music comes back through the game's own path (Night Mode and Mono still apply). Text ids: the MSG_V52 block (V52 29907, MSG_END 29971; SND352 V52 + 0 .. 18, the rest unused); exports unchanged (199).
 - v3.51.0 (2026-11-25, main rig, SH4 Refined Session 22; five sandbox workers (W5 MU351, W4 SN351, W1 TP351, W2 EP351, W3 PT351) merged in that order by the merge agent, `staging/v351_feedback/merge351_tools/MERGE_NOTES.md`; md5 F4D0E4860A15A08170F34AE5F6233BB2 (out_v351; merge 850861C1, then Codex fixes TP351-001 / PT351-001 / PT351-002); **installed 2026-11-26 00:31**; **user QA 2026-11-26: items 1-5 pass** (Forgetful victims still hard to shake: v3.52); rollback `G:/SH4 Mod Archive/2026-11-14/Mod Backups/*before_v3.51.0`): the user's v3.50 QA (`staging/v351_feedback/USER_FEEDBACK_v350.md`). **W5 MU351, the level music in the load list** (QA item 11): the Extra Menu's Storage Chest / Save Game / Load Game no longer bring the level music back (v3.32 - v3.50 called the game's "resume sound" and then its "overlay" pause: full volume for a moment, then 20 %); the pause's own silence goes on (hidden `[ExtraMenu] PauseSound`; `test/pausesound_test.c` 132 checks). **W4 SN351, the first Sniffers** (QA item 4): Subway room 2:2's three event dogs (and their copies) were no source placement; they roll once story flag 130 is set (238 sources, was 235), else stay as placed; a roll of the placement's own type rolls once more (hidden `[Randomizer] MonsterRollAgain`); the native test replays the user's 23 logged rolls exactly (`test/rzmon_sim_test.c` 1 130). **W1 TP351, Ghost Teleport and collision** (QA item 2): never behind an enemy on the other side of collision (a wall, a prop, a turnstile, a ghost in its wall): the next enemy in the cone in the open, else the warp ahead (hidden `GhostTeleportBehindCollision`; `test/gt_sim_test.c` 226). **W2 EP351, Enemy Pursuit inside the room** (QA item 9 failed: v3.50 acted only at doors): chasing monsters give up after 10 / 4 s out of their senses and go back to their own routine by the game's own AI states; victims' ghosts give up when far (2500 / 1500 for 12 / 6 s) or after a 25 / 12 s chase without touching you, then rest 8 / 15 s; one that gave up does not follow through the next door (hidden `PursuitInRoom`; `test/pursuit_room_test.c`). **W3 PT351, the tar portal** (QA item 7): Fade + Portal's portal is the game's own wall portal look (its draws 0x4868B0 / 0x486E80 from Refined's blocks after the game's pass 2, phase 0's step list entry 0x62BC98) with the ghost's own strands; the arriving ghost is held 2.5 s (40 % speed, no grab; hidden `FadeInPortalDraw` / `FadeInHold`; `test/fadein_sim_test.c` 314). **Merge:** a ghost in the tar portal's hold is not judged by Enemy Pursuit (its timers start when the hold ends; it never sets the state of, withdraws the requests of or moves a held ghost; `test/pursuit_room_test.c` TestPortalHold). Text ids: MSG_V51 = MSG_V50 + 64, MSG_END = MSG_V51 + 32 (none used). New exe site: none in code; one data site 0x62BC98 (4 bytes, byte-checked, put back on a failed write; data, so not in SH4WM_Patches, as EntityGate's 0x62BC94 / 0x62BCB0). Exports unchanged (199). No save format change. Tests: 45 native tests, logcheck_test, fontlib_test, check_exports pass; run_tests.py: the known 17 FAIL lines only.
 - v3.50.0 (2026-11-25, main rig, SH4 Refined Session 22; six sandbox workers (W2 RM350, W3 RL350, W6 R302, W1 TP350, W5 EF350, W4 FI350) merged in that order by the merge agent, `staging/v350_feedback/merge350_tools/MERGE_NOTES.md`; md5 B3185A0C0E6BB5AB22C56FD2BC535400 (out_v350; merge E9AA41AB, then Codex fixes TP350-001 / FI350-001); **installed 2026-11-25 18:28; user QA 2026-11-25: items 1-8 and 10 pass, 9 Enemy Pursuit fails (acts only at doors; fixed in v3.51)**): the user's v3.49 QA (`staging/v350_feedback/USER_FEEDBACK_v349.md`). **W2 RM350, Randomizer Monsters** (QA items 4 / 5, "Monster randomizer does not work"; queue "monsters from all worlds"): a game played from saves holds the game's own enemy record of every room the save visited, and v3.49's RZ349-SAVE-001 rule kept every placement with a record SH4 Refined had not written as placed, also a record of the stock monster (the user's log: 7 room loads, 1 of 15 placements changed); now the game's own record of the stock monster in its room is adopted (rolled like a fresh placement, deleted when the roll gives another type, Refined's from then on), records of another type Refined did not write keep RZ349-SAVE-001's protection; new value **All Worlds**; the room line counts the adopted records and why each placement kept its stock type (`test/rzmon_sim_test.c` 1 100 checks). **W3 RL350, Randomizer looks** (QA item 6 "change per room, remove the unlock limiter", item 7): **Eileen Outfit** draws among every companion outfit (no Nurse unlock) and, with Change Each Visit On, again at every room load of her world (at most two rooms in a row alike; the final fight keeps its outfit), through the outfit engine's room-load path; **Ghosts Spots** now shows: v3.49 could swap two victims, moved most 400-600 units, and the game restored a victim from its own record half the time (EnemyGhostReconcile 0x482590); now 800 + away when the room allows, never at another ghost's place, and a standing record of the victim in the room moves with it (pinned / down ones stay) (`test/rzlooks_sim_test.c` 11 101). **W6 R302, Room 302 for Henry and Eileen** (QA item 9): Options > Option 4 > Room 302 (Look Down, Look Up, Look Feel, Walk Speed), taken over from Playable Eileen's Room 302 (its look limits, exact pitch clamp and look easing: sites 0x52DF74 / 0x52DCC6 / 0x52DD14; its walk speed through Movement Speed's own Room 302 operands); inert (rows grey) while Playable Eileen has no SH4PE_Room302Yield export (v1.24.4; PE v1.25.0 accepted `staging/v350_feedback/w6_room302/R302_CONTRACT.md`); new export SH4R_Room302 (@200); seeded from SH4PlayableEileen.ini [Room302] (`test/r302_sim_test.c` 137). **W1 TP350, Ghost Teleport through walls** (QA item 2, A1-A3): the warp ahead looks along her facing and +-10 / +-20 degrees, every 40 u, past the first thing she could not walk straight to, for the nearest standable spot whose floor a route of the room reaches (a flood of the room's floor by the player's own walking rules from its doors and her standing places, built once a room visit: Subway room 2:9's whole map is 2648 cells, 3.8 ms natively); behind the enemy she faces only (inside +-35 degrees), from twice as far (5000 u); the fade-out owns the Action button (v3.49's log: 7 warps called off by an examine); a quota per refusal kind, one line per room visit (`test/gt_sim_test.c` 202). **W5 EF350, Enemies** (C1, C4, C5): Enemies Follow "Victims Only" renamed Victims; Enemy Pursuit Relentless / Normal (default) / Forgetful (enemies lose track of you: out of their senses 10 / 4 s when you leave, downed when you leave, 2 / 1 doors without catching up); followers survive saves and loads (side file save\SH4Refined_follow.dat keyed by the save's enemy block; hooks 0x4FC1A4 / 0x4FC6ED, `[Gameplay] FollowSaveFile`); a load no longer reports a follower that came in after the save as "lost between the rooms" (`test/pursuit_sim_test.c` 88). **W4 FI350, Fade In** (C2, C3): a new Enemies row, `[Gameplay] FadeIn` Off / Fade / Fade + Portal (default): every enemy actor is remembered at its first visible draw of a room visit and one that may fade is drawn by the game's own see-through enemy draw 0x45C880 instead of ModelDraw over 0.8 s (the existing 0x52AEB5 / 0x52AF95 hooks, through a wrapper `ThermDrawFi`; the shadow joins at half in; the arriving victim's placeholder -> ghost take-over keeps the fade); Fade + Portal draws a procedural crimson vortex for each ghost that arrives after the room's first 1.5 s, in the scene pass with the exact depth; never bosses, Wall Men, mm, Wheelchairs, the Patient, Walter, event spawns, dead bodies, cut-scenes or a ghost from the game's own portal (`test/fadein_sim_test.c` 243). The Enemies page: Enemy Copies, Enemies Follow, Enemy Pursuit, Enemy Health Bars, Supply Drops, Revive Enemies, Fade In, Back (8 rows); Option 4 gets the Room 302 folder row (10 rows). Text ids: MSG_V50 = MSG_RZ1 + 32, MSG_END = MSG_V50 + 64 (FI350 V50 + 8 .. 15, EF350 V50 + 16 .. 23, R302 V50 + 32 .. 61; RM350 RZ1 + 5 / + 6). New exe sites: 0x4FC1A4, 0x4FC6ED (5 bytes each, byte-checked, in SH4WM_Patches, on no Playable Eileen hook or cheat table span); R302's three only when Playable Eileen yields. New export SH4R_Room302 (ordinal 200, DATA; 199 exports). No save format change. Tests: 43 native tests, logcheck_test, fontlib_test, check_exports pass; run_tests.py: the known 17 FAIL lines only.

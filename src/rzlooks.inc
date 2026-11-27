@@ -37,6 +37,12 @@
 // this room is moved to the new spot too (pinned / down ones keep theirs); the log gives the distance and the record.
 
 #include "rzlooks_sim.h"
+#include "spawnsite_sim.h"  // v3.56 RE356: (its pure part; teleport_sim.h with it)
+// v3.56 RE356: Spawn Site (spawnsite.inc, included after teleport.inc: it uses Ghost Teleport's floor map and queries)
+static int SsGhostSite(int stage, int half, int room, int n, int kind, const float *base, float hover, const float (*ghosts)[3],
+                       int nGhosts, float *out, int *why);
+static void SsTake(const float *p);
+static void SsSessionLine(void);
 
 static volatile LONG g_rzoMode = RZO_DEFAULT, g_rzgMode = RZG_DEFAULT;
 static LONG g_rzlSnap[2];        // as Options opened
@@ -63,33 +69,34 @@ static const BYTE *RzlText(int id)
 }
 static void RzlTexts(void)  // randomizer.inc RzTexts
 {
-    // v3.53 OL1: the plan's lines (+ "Next room.")
+    // v3.53 OL1: the plan's lines (+ "Next room.")  // v3.56 RI356: without "Next room." (the plain _D / _VD lines)
     Encode(g_txtRzl[RZLM_LO], 64, OLW_RANDO_EILEEN_OUTFIT_L);
     Encode(g_txtRzl[RZLM_VR], 64, OLW_RANDO_EILEEN_OUTFIT_V_RANDOM);
-    Encode(g_txtRzl[RZLM_DO0], 64, OLW_RANDO_EILEEN_OUTFIT_DT);
-    Encode(g_txtRzl[RZLM_DO1], 64, OLW_RANDO_EILEEN_OUTFIT_VDT_RANDOM);  // v3.50 RL350 (was "an unlocked outfit each world visit")
-    Encode(g_txtRzl[RZLM_LG], 64, OLW_RANDO_GHOSTS_L);
-    Encode(g_txtRzl[RZLM_VS], 64, OLW_RANDO_GHOSTS_V_SPOTS);
-    Encode(g_txtRzl[RZLM_DG0], 64, OLW_RANDO_GHOSTS_DT);
-    Encode(g_txtRzl[RZLM_DG1], 64, OLW_RANDO_GHOSTS_VDT_SPOTS);
+    Encode(g_txtRzl[RZLM_DO0], 64, OLW_RANDO_EILEEN_OUTFIT_D);
+    Encode(g_txtRzl[RZLM_DO1], 64, OLW_RANDO_EILEEN_OUTFIT_VD_RANDOM);  // v3.50 RL350 (was "an unlocked outfit each world visit")
+    Encode(g_txtRzl[RZLM_LG], 64, OLW_RANDO_SPAWN_SITE_L);        // v3.56 RE356: Spawn Site (was Ghosts), no "Next room." tag
+    Encode(g_txtRzl[RZLM_VS], 64, OLW_RANDO_SPAWN_SITE_V_ON);
+    Encode(g_txtRzl[RZLM_DG0], 64, OLW_RANDO_SPAWN_SITE_VD_OFF);
+    Encode(g_txtRzl[RZLM_DG1], 64, OLW_RANDO_SPAWN_SITE_VD_ON);
     g_rzoIds[0] = g_rzgIds[0] = MSG_RZ0 + RZM_VK0;  // "Off" (the Keep Specials row's)
     g_rzoIds[1] = MSG_RZL0 + RZLM_VR;
     g_rzgIds[1] = MSG_RZL0 + RZLM_VS;
 }
 
 // ---------------------------------------------------------------- [Randomizer] EileenOutfit / Ghosts
-static const char *const kRzlKey[2] = { "EileenOutfit", "Ghosts" };
+static const char *const kRzlKey[2] = { "EileenOutfit", "SpawnSite" };  // v3.56 RE356: Ghosts -> SpawnSite (RzReadKeyMig reads the old key once)
 static volatile LONG *RzlSetting(int k) { return k ? &g_rzgMode : &g_rzoMode; }
 static const char *RzlValName(int k, LONG v) { return k ? kRzgName[v ? 1 : 0] : kRzoName[v ? 1 : 0]; }
 static void RzlReadIni(void)  // randomizer.inc RzReadIni (RzInit): the keys and the start line
 {
     g_rzoMode = RzReadKey("EileenOutfit", RzoOfText, RZO_DEFAULT, kRzoName, "Off / Random");
-    g_rzgMode = RzReadKey("Ghosts", RzgOfText, RZG_DEFAULT, kRzgName, "Off / Spots");
+    g_rzgMode = RzReadKeyMig("SpawnSite", "Ghosts", RzgOfText, RZG_DEFAULT, kRzgName, "Off / On");  // v3.56 RE356 (was Ghosts)
     RzoInit(&g_rzo);
-    Log("randomizer: looks: [Randomizer] EileenOutfit %s, Ghosts %s (companion Eileen's outfit among every outfit, Dress and "
-        "Nurse: at every room load of her world with Change Each Visit On, else once per world visit; victim ghosts at another "
-        "spot of their room, 800 + away when it allows, their records in the room moved too: patch-and-restore of their "
-        "position words, no exe patch)", kRzoName[g_rzoMode ? 1 : 0], kRzgName[g_rzgMode ? 1 : 0]);  // v3.50 RL350
+    Log("randomizer: looks: [Randomizer] EileenOutfit %s, SpawnSite %s (companion Eileen's outfit among every outfit, Dress and "
+        "Nurse: at every room load of her world with Change Each Visit On, else once per world visit; every monster and victim "
+        "a room places at a site of the room: monsters on floor you can walk to, ghosts anywhere in the room's box, their "
+        "records in the room moved too: patch-and-restore of their position words, no exe patch)", kRzoName[g_rzoMode ? 1 : 0],
+        kRzgName[g_rzgMode ? 1 : 0]);  // v3.50 RL350  // v3.56 RE356: Spawn Site
 }
 static void RzlSetLocked(int k, LONG v)  // GpLock held
 {
@@ -115,6 +122,7 @@ static void RzlIniReread(void)  // randomizer.inc RzIniReread (under GpLock)
     }
 }
 static void RzlSnapshot(void) { g_rzlSnap[0] = g_rzoMode, g_rzlSnap[1] = g_rzgMode; }
+static int RzlAnyOn(void) { return g_rzoMode != RZO_OFF || g_rzgMode != RZG_OFF; }  // v3.56 RI356: randomizer.inc RzAnyOn (the seed line)
 static int RzlChanged(void) { return g_rzoMode != g_rzlSnap[0] || g_rzgMode != g_rzlSnap[1]; }
 static void RzlDiscard(void)  // under GpLock: "No" at the exit puts the snapshot back
 {
@@ -176,7 +184,7 @@ static void RzlOutfitStep(int atWorld)
         here = atWorld || (eo_scan() & 0x33) != 0;  // the world's file list holds eil.bin / her models are in the file cache
         took = g_rzo.takeovers;
         was = eo_outfit;
-        ev = RzoStep(&g_rzo, (int)g_rzoMode, (unsigned)g_rzSeed, g_rzPerVisit != 0, stage, half, here, RZO_ALL, eo_outfit,
+        ev = RzoStep(&g_rzo, (int)g_rzoMode, (unsigned)g_rzSeed, RZ_PERVISIT_ON(), stage, half, here, RZO_ALL, eo_outfit,  // v3.56 RI356: By Room = per room
                      g_eoSaved, atWorld, room, &put);  // v3.50 RL350: every outfit (was RzoUnlocked(the Nurse's flag)), + room loads
         if (put >= -1 && put <= 1) eo_outfit = put;  // (the engine's tick, stage and room hooks take it from here)
         if (g_rzo.takeovers != took && ev != RZO_EV_TAKEOVER && LogQuota(&g_rzoQuota, 400))  // (a choice, then straight on)
@@ -197,7 +205,7 @@ static void RzlOutfitStep(int atWorld)
         if (ev == RZO_EV_DRAW)
             Log("randomizer: outfit: world visit %u (stage %d, half %d, at %s): %s (seed %lu, Change Each Visit %s; every outfit: "
                 "Dress, Nurse; the set outfit %s)", g_rzo.visit, stage, half + 1, kRzoWhere[atWorld ? 0 : 1], RzoOutfitName(put),
-                (unsigned long)(unsigned)g_rzSeed, kRzKeepName[g_rzPerVisit ? 1 : 0], RzoOutfitName(g_eoSaved));  // v3.50 RL350: was "unlocked: Dress, Nurse"
+                (unsigned long)(unsigned)g_rzSeed, kRzKeepName[RZ_PERVISIT_ON() ? 1 : 0], RzoOutfitName(g_eoSaved));  // v3.50 RL350: was "unlocked: Dress, Nurse"  // v3.56 RI356: On = Reroll By Room
         else if (ev == RZO_EV_SINGLE)  // (v3.50 RL350: no longer with RZO_ALL)
             Log("randomizer: outfit: world visit %u (stage %d, half %d, at %s): only the Dress is unlocked in this save: her "
                 "outfit stays %s", g_rzo.visit, stage, half + 1, kRzoWhere[atWorld ? 0 : 1], RzoOutfitName(eo_outfit));
@@ -262,14 +270,14 @@ static void RzlFirstLoad(int stage, int room)
 {
     const HMODULE ds = GetModuleHandleA("dsound.dll");
     const int pe = ds && HasExport(ds, "SH4PE_Patches");  // Playable Eileen (it may load after this dll)
-    Log("randomizer: looks: the first room load (stage %d room %d): Eileen Outfit %s, %s; Ghosts %s, %s", stage, room,
+    Log("randomizer: looks: the first room load (stage %d room %d): Eileen Outfit %s, %s; Spawn Site %s, %s", stage, room,  // v3.56 RE356
         kRzoName[g_rzoMode ? 1 : 0],
         !RzoAvail() ? "NOT available: the outfit engine is off ([EileenOutfit] Enabled 0, or its sites are not stock)"
         : pe ? "the companion only: Playable Eileen dresses the player ([Variant] in SH4PlayableEileen.ini)"
                      : "companion Eileen",
         kRzgName[g_rzgMode ? 1 : 0],
-        !RzAvail() ? "NOT available: no room-load hook" : g_rzgFail ? "NOT available: the spot test's game code is not stock" : RzlCt7700() ? "the cheat table's Enemy Randomizer is on: ghosts left alone"
-                                                                       : "victim ghosts, never the story ghosts");
+        !RzAvail() ? "NOT available: no room-load hook" : g_rzgFail ? "NOT available: the spot test's game code is not stock" : RzlCt7700() ? "the cheat table's Enemy Randomizer is on: enemies left alone"
+                                                                       : "monsters and victim ghosts, never the story ghosts");  // v3.56 RE356
 }
 // v3.50 RL350: the live records of a mover's id (the game's 64): what Ghosts does with them (RzgRecRule, the strongest of
 // them). move: every standing record of it in this room is put at `spot` (world -> record, 0x46FE30; its w kept).
@@ -335,7 +343,7 @@ static void RzlGhostsBeforeC(int room, int d)
     ++g_rzgRooms;
     g_rzgVictims += R.nm;
     EnmPlayerPos(pp, 1);
-    visit = g_rzPerVisit ? g_rzRoomVisit[stage][room] : 0;
+    visit = RzVisitSalt(stage, room);  // v3.56 RI356: By Room = the room's entries, By World = the world visit (worldvisit.inc)
     list[0] = 0;
     for (i = 0; i < R.nghost; ++i) memcpy(ghosts[nGhosts++], R.ghost[i], 12);  // v3.50 RL350
     for (i = 0; i < R.nm; ++i) {  // v3.50 RL350: a pinned / down record in this room keeps its ghost there: an occupied spot
@@ -347,7 +355,7 @@ static void RzlGhostsBeforeC(int room, int d)
     for (i = 0; i < R.nm; ++i) {
         const RzgMover *m = &R.m[i];
         RzgPickIn in;
-        int nv = 0, nt = 0, n0, near1 = 0, rec;
+        int nv = 0, nt = 0, n0, near1 = 0, rec, boxed = 0;  // v3.56 RE356: + boxed
         for (k = 0; k < 3; ++k) base[k] = RzgF(m->pos[k]);
         if (o < (int)sizeof list - 160)
             o += sprintf_s(list + o, sizeof list - o, "%s%08X %02X v%u %.0f %.0f %.0f", i ? "; " : "", m->id, m->type,
@@ -366,7 +374,16 @@ static void RzlGhostsBeforeC(int room, int d)
         in.stock = (const float(*)[3])R.spot, in.nStock = R.nspot;
         in.player = pp, in.taken = (const float(*)[3])taken, in.nTaken = nTaken;
         in.ghosts = (const float(*)[3])ghosts, in.nGhosts = nGhosts;  // v3.50 RL350
-        if (!RzgPick2(&in, RzlSpotTest, &floor0, out, &nv, &nt, &near1)) {
+        {  // v3.56 RE356: Spawn Site: anywhere in the room's box in x / y / z (spawnsite.inc SsGhostSite); else v3.50's rings
+            int sw[SSW_N], j;
+            memset(sw, 0, sizeof sw);
+            boxed = SsGhostSite(stage, half, room, m->n, 1, base, floor0 - base[1], (const float(*)[3])ghosts, nGhosts, out, sw);
+            if (boxed) {
+                for (j = 0, nt = 1; j < SSW_N; ++j) nt += sw[j];
+                nv = 1, near1 = 0;
+            }
+        }
+        if (!boxed && !RzgPick2(&in, RzlSpotTest, &floor0, out, &nv, &nt, &near1)) {
             ++kept;
             if (o < (int)sizeof list - 60) o += sprintf_s(list + o, sizeof list - o, " kept (no spot fits, 0 of %d)", nt);
             continue;
@@ -381,6 +398,7 @@ static void RzlGhostsBeforeC(int room, int d)
             continue;
         }
         taken[nTaken][0] = out[0], taken[nTaken][1] = out[1], taken[nTaken][2] = out[2];
+        if (!boxed) SsTake(out);  // v3.56 RE356: (a box site is taken by SsGhostSite)
         ++nTaken, ++moved;
         rec = recHow[i] == RZG_REC_MOVE ? RzlGhostRec(m->id, stage, room, out, 1, NULL) : recHow[i];  // v3.50 RL350
         g_rzgRecMoved += rec == RZG_REC_MOVE;
@@ -392,7 +410,7 @@ static void RzlGhostsBeforeC(int room, int d)
     g_rzgMoved += moved, g_rzgKept += kept, g_rzgLeft += left;
     if (LogQuota(&g_rzgQuota, 4000))
         Log("randomizer: ghosts: room %d:%d (#%u): %d of %d victim(s) moved (seed %lu, Change Each Visit %s): %s", stage, room, visit,
-            moved, R.nm, (unsigned long)seed, kRzKeepName[g_rzPerVisit ? 1 : 0], list);
+            moved, R.nm, (unsigned long)seed, kRzKeepName[RZ_PERVISIT_ON() ? 1 : 0], list);  // v3.56 RI356: On = Reroll By Room
     if (left && LogQuota(&g_rzgQuotaAnom, 20))
         LogAnomaly("randomizer", "ghosts: room %d:%d: %d victim(s) whose position words did not hold the stock value (another "
                    "mod?): left as found", stage, room, left);
@@ -420,11 +438,12 @@ static void RzlGhostsBefore(int room, int d)  // after the Items' words of this 
 static void RzlSessionLine(void)  // v3.50 RL350: + room draws, moves of 800 +, records moved / kept (was "with only the Dress unlocked")
 {
     Log("randomizer: looks session: Eileen Outfit %s: %u world visit(s), %u world draw(s) (all draws: Dress %u, Nurse %u), %u room "
-        "draw(s) (%u changed her outfit), %u back to the set outfit, %u chosen in the Extra Menu%s; Ghosts %s: %d room load(s) with victims, %d "
+        "draw(s) (%u changed her outfit), %u back to the set outfit, %u chosen in the Extra Menu%s; Spawn Site %s: %d room load(s) with victims, %d "
         "victim(s), %d moved (%d of them 800 or more, %d record(s) moved), %d kept (%d by a pinned or down record), %d left as "
         "found%s",
         kRzoName[g_rzoMode ? 1 : 0], g_rzo.visit, g_rzo.draws, g_rzo.drawn2[0], g_rzo.drawn2[1], g_rzo.roomDraws, g_rzo.roomChanged,
         g_rzo.restores, g_rzo.takeovers, g_rzoFail ? "; FAULTED (off)" : !RzoAvail() ? "; no outfit engine (off)" : "",
         kRzgName[g_rzgMode ? 1 : 0], g_rzgRooms, g_rzgVictims, g_rzgMoved, g_rzgFar, g_rzgRecMoved, g_rzgKept, g_rzgRecKept, g_rzgLeft,
         g_rzgFail ? "; FAULTED (off)" : !RzgAvail() ? "; no room-load hook (off)" : "");
+    SsSessionLine();  // v3.56 RE356
 }

@@ -81,13 +81,14 @@ enum {
     OLS_SUB0, OLS_SUB1, OLS_SUB2, OLS_SUB3, OLS_SUB4, OLS_SUB5,
     // Sound (v3.52's Sound page)
     OLS_WIDTH, OLS_REVERB, OLS_NIGHT,
+    OLS_SNDBG,  // v3.56 SD356: Sound > Background
     // Effects (the Screen Effects page, the Shadows page)
     OLS_FILTER, OLS_CUT, OLS_BLOOM, OLS_GRADE, OLS_LENS, OLS_DOF, OLS_BLUR, OLS_NSTR, OLS_NTYPE, OLS_NCOL, OLS_SHEDGE, OLS_SHDARK,
     // Gameplay (Option 5 and its folders)
     OLS_MOVE, OLS_REGEN, OLS_MED, OLS_GRAB, OLS_NOCLIP, OLS_OHK, OLS_PACT, OLS_QC, OLS_STEAL, OLS_AMMO,
     OLS_SHINE, OLS_TOOLBELT, OLS_STACKS, OLS_DROPS, OLS_COPIES, OLS_FOLLOW, OLS_PURSUIT, OLS_REVIVE, OLS_FADEIN,
     OLS_DP, OLS_AI, OLS_ECHO, OLS_ECHON, OLS_GT,
-    OLS_RZ_ITEMS, OLS_RZ_KEEP, OLS_RZ_R302, OLS_RZ_MON, OLS_RZ_GHOSTS, OLS_RZ_OUTFIT, OLS_RZ_PERVISIT, OLS_RZ_SEED, OLS_RZ_NEW,
+    OLS_RZ_ITEMS, OLS_RZ_KEEP, OLS_RZ_R302, OLS_RZ_MON, OLS_RZ_GHOSTS, OLS_RZ_OUTFIT, OLS_RZ_PERVISIT,  // v3.56 RI356: KEEP = Specials, PERVISIT = Reroll Visits; - SEED, NEW (the rows are gone)
     OLS_N };
 
 // one row: its kind, source (OLS_*), argument (a folder's / combo's page; a camera row), a label / line of its own (NULL =
@@ -195,7 +196,7 @@ static const OlRowDef kOlSubt[] = {
     OL_BACK(OLW_BACK_INTERFACE), OL_END };
 static const OlRowDef kOlMenus[] = {
     OLV(OLS_EM0, "pause", "Storage Chest"), OLV(OLS_EM1, "pause", "Save Game"), OLV(OLS_EM2, "pause", "Load Game"),
-    OLV(OLS_EM3, "pause", "Quick Save"), OLV(OLS_EM4, "pause", "Quick Load"), OLV(OLS_EM5, "pause", "Eileen Outfit"),
+    OLV(OLS_EM3, "pause", "Quick Save"), OLV(OLS_EM4, "pause", "Quick Load"), OLV(OLS_EM5, "pause", "Eileen"),  // v3.56 MN356: was "Eileen Outfit"
     OLV(OLS_SAVEBANKS, "pause", "Save Banks"),
     OLV_S(OLS_MENUFONT, "interface", "Menu Font"),  // interim (StockMoves=0): PLAN section 4's Interface fallback (13 -> 11 rows)
     OLV_S(OLS_STARTUP, "interface", "Start-Up"),    // interim (StockMoves=0): the same
@@ -205,6 +206,7 @@ static const OlRowDef kOlSound[] = {
     OLR_M(OLK_VALUE, OLS_BGM, 0, OLW_SOUND_MUSIC_VOLUME_L, 0, "sound", "Music Volume"),      // the stock BGM Volume record: its bar
     OLR_M(OLK_VALUE, OLS_SE, 0, OLW_SOUND_EFFECTS_VOLUME_L, 0, "sound", "Effects Volume"),  // by its input (0x525672, volbar_sim.h)
     OLV(OLS_WIDTH, "sound", "Stereo Width"), OLV(OLS_REVERB, "sound", "Room Reverb"), OLV(OLS_NIGHT, "sound", "Night Mode"),
+    OLV(OLS_SNDBG, "sound", "Background"),  // v3.56 SD356: Mute / Play (sound.inc SndBgIn)
     OL_EXIT, OL_END };
 static const OlRowDef kOlEffects[] = {
     OLF(LP_GRAIN, OLW_EFFECTS_FILM_GRAIN_L, OLW_EFFECTS_FILM_GRAIN_D, "effects", "Film Grain"),
@@ -245,10 +247,10 @@ static const OlRowDef kOlEnemies[] = {
 static const OlRowDef kOlPowers[] = {
     OLV(OLS_DP, "powers", "Death Presence"), OLV(OLS_AI, "powers", "After Shock"), OLV(OLS_ECHO, "powers", "Echo Doubles"),
     OLV(OLS_ECHON, "powers", "Echo Count"), OLV(OLS_GT, "powers", "Ghost Teleport"), OL_BACK(OLW_BACK_GAMEPLAY), OL_END };
-static const OlRowDef kOlRando[] = {
-    OLV(OLS_RZ_ITEMS, "rando", "Items"), OLV(OLS_RZ_KEEP, "rando", "Keep Specials"), OLV(OLS_RZ_R302, "rando", "Room 302 Items"),
-    OLV(OLS_RZ_MON, "rando", "Monsters"), OLV(OLS_RZ_GHOSTS, "rando", "Ghosts"), OLV(OLS_RZ_OUTFIT, "rando", "Eileen Outfit"),
-    OLV(OLS_RZ_PERVISIT, "rando", "Reroll Visits"), OLV(OLS_RZ_SEED, "rando", "Seed 1234567"), OLV(OLS_RZ_NEW, "rando", "New Seed"),
+static const OlRowDef kOlRando[] = {  // v3.56 RI356: Specials (was Keep Specials); no Seed / New Seed rows (the seed is drawn under the line)  // v3.56 RE356: Monsters -> Enemies, Ghosts -> Spawn Site
+    OLV(OLS_RZ_ITEMS, "rando", "Items"), OLV(OLS_RZ_KEEP, "rando", "Specials"), OLV(OLS_RZ_R302, "rando", "Room 302 Items"),
+    OLV(OLS_RZ_MON, "rando", "Enemies"), OLV(OLS_RZ_GHOSTS, "rando", "Spawn Site"), OLV(OLS_RZ_OUTFIT, "rando", "Eileen Outfit"),
+    OLV(OLS_RZ_PERVISIT, "rando", "Reroll Visits"),
     OL_BACK(OLW_BACK_GAMEPLAY), OL_END };
 
 // the page tree: parent (-1 = a top page; -2 = a free id), the title (a hidden page's leaf: look.inc draws "Parent > Page"),

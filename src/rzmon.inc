@@ -59,13 +59,16 @@ static int g_rmAdopted, g_rmAdoptChanged, g_rmRollStock, g_rmSame, g_rmAway, g_r
 static int g_rmRollAgain = 1;        // v3.51 SN351: [Randomizer] MonsterRollAgain (hidden, ini only; 0 = v3.50's roll)
 static int g_rmSelfEv = -1;          // v3.51 SN351: event dogs among the start's sources
 static int g_rmAgain, g_rmEvPlanned, g_rmEvAsleep;  // v3.51 SN351: the session: rolled again, event dogs planned / kept asleep
+static unsigned g_rmStorySaid[RZ_STAGES];  // v3.56 RE356: the story rule's line said (bit: which flags were set)
 
 // ---------------------------------------------------------------- texts (MSG_RZ0 + 28 .. + 29, MSG_RZ1 + 0 .. 15)
 // v3.50 RM350: All Worlds' value and description appended (RZ1 + 5 / + 6: the v3.49 ids stay as they were)
-enum { RMT_LABEL, RMT_ROOM, RMT_WORLD, RMT_D0, RMT_CT = RMT_D0 + RMM_ALL, RMT_ALL, RMT_DALL, RMT_N };
-static int RmDescText(int mode) { return mode == RMM_ALL ? RMT_DALL : RMT_D0 + mode; }  // v3.50 RM350
+// v3.56 RE356: the row Enemies, three values Off / Same World / All Worlds (row index = kRmRowMode's): the label, Same World,
+// the descriptions of Off and Same World, the cheat table's line, All Worlds and its description (the same ids, fewer used)
+enum { RMT_LABEL, RMT_WORLD, RMT_D0, RMT_DWORLD, RMT_CT, RMT_ALL, RMT_DALL, RMT_N };
+static int RmDescText(int mode) { return mode == RMM_ALL ? RMT_DALL : mode == RMM_OFF ? RMT_D0 : RMT_DWORLD; }  // v3.50 RM350  // v3.56 RE356
 static BYTE g_txtRm[RMT_N][64];
-static DWORD g_rmIdsMon[RMM_N];
+static DWORD g_rmIdsMon[RM_ROW_N];  // v3.56 RE356: by row index (was by mode)
 static int RmTextId(int k) { return k < 2 ? MSG_RZ0 + 28 + k : MSG_RZ1 + k - 2; }
 typedef char RmTextsFit[RMT_N - 2 <= 16 && MSG_RZ0 + 30 <= MSG_RZ1 && MSG_RZ1 + 16 <= MSG_V50 ? 1 : -1];  // v3.50 MERGE: MSG_V50 (was MSG_END)
 static const BYTE *RmText(int id)
@@ -75,19 +78,17 @@ static const BYTE *RmText(int id)
 }
 static void RmTexts(void)
 {
-    Encode(g_txtRm[RMT_LABEL], 64, OLW_RANDO_MONSTERS_L);  // v3.53 OL1: the plan's lines (+ "Next room.")
-    Encode(g_txtRm[RMT_ROOM], 64, kRmMonName[RMM_ROOM]);
-    Encode(g_txtRm[RMT_WORLD], 64, kRmMonName[RMM_WORLD]);
-    Encode(g_txtRm[RMT_D0 + RMM_OFF], 64, OLW_RANDO_MONSTERS_DT);
-    Encode(g_txtRm[RMT_D0 + RMM_ROOM], 64, OLW_RANDO_MONSTERS_VDT_THIS_ROOM);
-    Encode(g_txtRm[RMT_D0 + RMM_WORLD], 64, OLW_RANDO_MONSTERS_VDT_THIS_WORLD);
+    // v3.56 RE356: the row Enemies (was Monsters); its words without the "Next room." tag (the user's improvement 11)
+    Encode(g_txtRm[RMT_LABEL], 64, OLW_RANDO_ENEMIES_L);
+    Encode(g_txtRm[RMT_WORLD], 64, OLW_RANDO_ENEMIES_V_SAME_WORLD);
+    Encode(g_txtRm[RMT_D0], 64, OLW_RANDO_ENEMIES_VD_OFF);
+    Encode(g_txtRm[RMT_DWORLD], 64, OLW_RANDO_ENEMIES_VD_SAME_WORLD);
     Encode(g_txtRm[RMT_CT], 64, OLW_RANDO_CT);
-    Encode(g_txtRm[RMT_ALL], 64, kRmMonName[RMM_ALL]);                            // v3.50 RM350
-    Encode(g_txtRm[RMT_DALL], 64, OLW_RANDO_MONSTERS_VDT_ALL_WORLDS);  // v3.50 RM350  // v3.53 OL1
-    g_rmIdsMon[RMM_OFF] = MSG_RZ0 + RZM_VK0;  // randomizer.inc's "Off"
-    g_rmIdsMon[RMM_ROOM] = (DWORD)RmTextId(RMT_ROOM);
-    g_rmIdsMon[RMM_WORLD] = (DWORD)RmTextId(RMT_WORLD);
-    g_rmIdsMon[RMM_ALL] = (DWORD)RmTextId(RMT_ALL);  // v3.50 RM350
+    Encode(g_txtRm[RMT_ALL], 64, OLW_RANDO_ENEMIES_V_ALL_WORLDS);
+    Encode(g_txtRm[RMT_DALL], 64, OLW_RANDO_ENEMIES_VD_ALL_WORLDS);
+    g_rmIdsMon[0] = MSG_RZ0 + RZM_VK0;  // randomizer.inc's "Off"
+    g_rmIdsMon[1] = (DWORD)RmTextId(RMT_WORLD);
+    g_rmIdsMon[2] = (DWORD)RmTextId(RMT_ALL);
 }
 
 // ---------------------------------------------------------------- the row (randomizer.inc RzBuildPage)
@@ -106,19 +107,20 @@ static int __cdecl RmInMon(BYTE *cfg, int count)
         return 0;
     }
     GpLock();
-    v = StepValue((int)g_rzMon, RMM_N);
-    if (v >= 0) RzSetLocked(RZS_MON, v, "");
+    v = StepValue(RmRowOfMode((int)g_rzMon), RM_ROW_N);  // v3.56 RE356: by row index (Off / Same World / All Worlds)
+    if (v >= 0 && v < RM_ROW_N) RzSetLocked(RZS_MON, kRmRowMode[v], "");
     GpUnlock();
     return 0;
 }
-static int __cdecl RmGetMon(void) { return (int)g_rzMon >= 0 && g_rzMon < RMM_N ? (int)g_rzMon : 0; }
+static int RmMode(void) { return (int)g_rzMon >= 0 && g_rzMon < RMM_N ? (int)g_rzMon : 0; }  // v3.56 RE356
+static int __cdecl RmGetMon(void) { return RmRowOfMode(RmMode()); }  // v3.56 RE356: the row index (was the mode)
 static int __cdecl RmDescMon(void)
 {
     if (!RmAvail()) return MSG_RZ0 + RZM_NA;
-    if (g_rmCt > 0 && RmGetMon() != RMM_OFF) return RmTextId(RMT_CT);
-    return RmTextId(RmDescText(RmGetMon()));  // v3.50 RM350 (All Worlds' description sits after the cheat table's)
+    if (g_rmCt > 0 && RmMode() != RMM_OFF) return RmTextId(RMT_CT);
+    return RmTextId(RmDescText(RmMode()));  // v3.50 RM350 (All Worlds' description sits after the cheat table's)
 }
-static void RmRow(DWORD *r) { FillRow(r, RmInMon, RmGetMon, g_rmIdsMon, RMM_N, RmTextId(RMT_LABEL), RmDescMon); }
+static void RmRow(DWORD *r) { FillRow(r, RmInMon, RmGetMon, g_rmIdsMon, RM_ROW_N, RmTextId(RMT_LABEL), RmDescMon); }  // v3.56 RE356: 3 values
 
 // ---------------------------------------------------------------- the scan of the stage in hand
 static void RmScanStage(int stage)  // (no word of ours is in the scripts now: RmAfterScript restored them)
@@ -232,6 +234,53 @@ static int RmDropForeign(int stage, int half, int room, const int *idx, int m, i
     RmOtherSay(stage, room, others);
     return n;
 }
+// v3.56 RE356: a placement's position words (command 8: x at yVa - 4, y at yVa, z at yVa + 4) set to want (float bits) on
+// this run's level d; 1 = every differing word written (none = 1 too)
+static int RmPosWords(int d, const RmSlot *s, const float *want)
+{
+    int a;
+    for (a = 0; a < 3; ++a) {
+        unsigned u0, u1;
+        memcpy(&u0, &s->pos[a], 4), memcpy(&u1, &want[a], 4);
+        if (u0 != u1 && !RmStackAdd(&g_rmStack, d, (unsigned *)(ULONG_PTR)(s->yVa + 4u * (unsigned)a - 4u), u0, u1)) return 0;
+    }
+    return 1;
+}
+// v3.56 RE356: Spawn Site with Enemies Off (or a room left as placed but a boss room): each source at its site as its stock
+// type (spawnsite.inc SsMonSite), its words and its standing record here moved (SsMonRecMove)
+static void RmSitesStock(int stage, int half, int room, int d, int vis, const int *idx, int m)
+{
+    int k, left = 0;
+    for (k = 0; k < m; ++k) {
+        const RmSlot *s = &g_rmScan[vis].s[idx[k]];
+        float site[3], hover = 0.0f;
+        int keep, n0;
+        if (RmIsFlyer(s->type)) {  // a Hummer keeps its own height above its floor
+            float base[3], cand[3];
+            memcpy(base, s->pos, 12), memcpy(cand, s->pos, 12);
+            if (EnmFinite3(base) && EnmSpotTest(base, cand, 0, 0.0f) == ENM_SPOT_OK && _finite(cand[1])) hover = cand[1] - s->pos[1];
+        }
+        {
+            const BYTE *r = RmRecLive(EnmScriptId(stage, half, room, s->n));  // (recorded in another room: not made here)
+            if (!SsMonSite(stage, half, room, s, s->type, 0, ENM_DOGS_AWAKE, r && RmRecStage(r) == stage && RmRecRoom(r) != room, hover,
+                           site, &keep))
+                continue;
+        }
+        n0 = d >= 0 && d < RZ_DEPTH ? g_rmStack.n[d] : 0;
+        if (!RmPosWords(d, s, site)) {
+            RmStackTrim(&g_rmStack, d, n0);
+            ++left;
+            --g_ssRmMoved, ++g_ssRmKept;  // (its site's count back)
+            continue;
+        }
+        SsMonRecMove(EnmScriptId(stage, half, room, s->n), stage, room, s->type, s->variant, site);
+    }
+    g_rmLeft += left;
+    if (left && LogQuota(&g_rmQuotaAnom, 20))
+        LogAnomaly("randomizer", "spawn site: room %d:%d: %d placement word(s) did not hold the stock value (another mod?): left as found",
+                   stage, room, left);
+    SsMonRoomSay(stage, room);
+}
 static void RmBeforeScriptC(int room, int d)
 {
     const int stage = ENM_STAGE, half = ENM_HALF() ? 1 : 0, mode = (int)g_rzMon;
@@ -243,9 +292,12 @@ static void RmBeforeScriptC(int room, int d)
     RmPick pick[RM_ROOM_MAX];
     RmPlanStat st;
     RmPlanIn in;
+    float site[RM_ROOM_MAX][3];          // v3.56 RE356: Spawn Site
+    unsigned char sited[RM_ROOM_MAX];    // v3.56 RE356
     char list[900];
     int o = 0;
     ++g_rmLoads;
+    memset(sited, 0, sizeof sited);  // v3.56 RE356
     if (stage < 2 || stage > 8 || room <= 0 || room >= RZ_ROOMS) return;  // (only the monster worlds)
     if (stage != g_rmScanStage) RmScanStage(stage);
     start = ((const DWORD *)0x10A0A78)[room];
@@ -288,11 +340,12 @@ static void RmBeforeScriptC(int room, int d)
         if (why == 2 || why == 3)
             LogV("randomizer: monsters: room %d:%d left as placed (%s)", stage, room,
                  why == 2 ? "a boss room" : "the enemy list / task / actor pools are nearly full");
+        if (SsOn() && why != 2 && !g_rmScan[vis].roomBoss[room]) RmSitesStock(stage, half, room, d, vis, idx, m);  // v3.56 RE356
         return;
     }
     if (!g_rmFirstSaid++)
-        Log("randomizer: monsters: the first room with source placements (stage %d room %d): Monsters %s", stage, room,
-            kRmMonName[mode]);
+        Log("randomizer: monsters: the first room with source placements (stage %d room %d): Enemies %s", stage, room,
+            kRmMonName[mode]);  // v3.56 RE356: Enemies (was Monsters)
     // the plan's inputs: the records, the floors under the Hummers, the pool
     for (k = 0; k < m; ++k) {
         const RmSlot *s = &g_rmScan[vis].s[idx[k]];
@@ -310,9 +363,20 @@ static void RmBeforeScriptC(int room, int d)
     }
     memset(&in, 0, sizeof in);
     in.mode = mode, in.seed = (unsigned)g_rzSeed, in.stage = stage, in.half = half, in.room = room;
-    in.visit = g_rzPerVisit ? g_rzRoomVisit[stage][room] : 0;
-    in.reroll = g_rzPerVisit != 0;  // Change Each Visit: the monsters left in this room roll again too
+    in.visit = RzVisitSalt(stage, room);  // v3.56 RI356: By Room = the room's entries, By World = the world visit (worldvisit.inc)
+    in.reroll = RZ_PERVISIT_ON();  // Change Each Visit: the monsters left in this room roll again too  // v3.56 RI356: By Room (By World: a record keeps its type, as v3.55's Off)
     in.allowed = RM_ALL_TARGETS & (RmGumGuard() ? RM_ALL_TARGETS : ~RM_GUM_TARGETS);
+    {  // v3.56 RE356: the victims' ghosts whose create writes a story flag only once that flag is set (rzmon_sim.h RmStoryAllowed)
+        const int f2D3 = (*(volatile const BYTE *)0x13D80FA & 8) != 0, f23B = (*(volatile const BYTE *)0x13D80E7 & 8) != 0;
+        const unsigned story = RmStoryAllowed(stage, f2D3, f23B);
+        if ((RM_ALL_TARGETS & ~story) && !(g_rmStorySaid[stage] >> (f2D3 | f23B << 1) & 1u)) {
+            g_rmStorySaid[stage] |= 1u << (f2D3 | f23B << 1);
+            Log("randomizer: monsters: story rule in stage %d: %s%s%s (their create sets that flag; in the pool once it is set)", stage,
+                stage == 4 && !f2D3 ? "no male victim ghost (0B) before story flag 2D3" : "",
+                stage == 4 && !f2D3 && !f23B ? "; " : "", !f23B ? "no old man's ghost (0D v1) before story flag 23B" : "");
+        }
+        in.allowed &= story;
+    }
     in.world = g_rmScan[0].placed | (g_rmScanHas1 ? g_rmScan[1].placed : 0u);
     for (i = 0; i < RM_TARGET_N; ++i)
         if (EnmLoadedHere(kRmTargets[i].type, kRmTargets[i].variant)) in.resident |= 1u << i;
@@ -338,32 +402,45 @@ static void RmBeforeScriptC(int room, int d)
     }
     // the words (a slot's mode and y words first, its type word last: a word that is not the stock value puts the slot back)
     list[0] = 0;
+    // v3.56 RE356: Spawn Site: each placement's site for the type it is made as (spawnsite.inc SsMonSite), before any word
+    if (SsOn()) {
+        for (k = 0; k < m; ++k) {
+            const RmSlot *s = &g_rmScan[vis].s[idx[k]];
+            const float hover = RmIsFlyer(s->type) && RmIsFlyer(pick[k].type) && floorOk[k] ? floorY[k] - s->pos[1] : 0.0f;
+            int keep;
+            sited[k] = (unsigned char)SsMonSite(stage, half, room, s, pick[k].type, g_rmScan[vis].roomBoss[room], in.released,
+                                                rec[k].type >= 0 && !rec[k].here && !pick[k].drop && !RmIsGhostTarget(pick[k].type),
+                                                hover, site[k], &keep);  // (a ghost's record elsewhere: 0x482590 drops it half the time)
+        }
+    }
     for (k = 0; k < m; ++k) {
         const RmSlot *s = &g_rmScan[vis].s[idx[k]];
         RmPick *p = &pick[k];
-        if (p->type != s->type || p->variant != s->variant) {
+        const int ch = p->type != s->type || p->variant != s->variant;  // v3.56 RE356
+        if (ch || sited[k]) {  // v3.56 RE356: + a site of its own (its x / y / z words)
             const int n0 = d >= 0 && d < RZ_DEPTH ? g_rmStack.n[d] : 0;
             const unsigned mw = RmModeWord(s->type, s->mw, p->type, p->variant);
-            unsigned yb;
+            float want[3];
             int ok = 1;
-            memcpy(&yb, &floorY[k], 4);
-            if (mw != s->mw) ok = RmStackAdd(&g_rmStack, d, (unsigned *)(ULONG_PTR)s->modeVa, s->mw, mw);
-            if (ok && RmIsFlyer(s->type) && !RmIsFlyer(p->type)) {
-                unsigned y0;
-                memcpy(&y0, &s->pos[1], 4);
-                if (y0 != yb) ok = RmStackAdd(&g_rmStack, d, (unsigned *)(ULONG_PTR)s->yVa, y0, yb);
-            }
-            if (ok) ok = RmStackAdd(&g_rmStack, d, (unsigned *)(ULONG_PTR)s->typeVa, s->type, p->type);
+            memcpy(want, sited[k] ? site[k] : s->pos, 12);
+            if (!sited[k] && ch && RmIsFlyer(s->type) && !RmIsFlyer(p->type)) want[1] = floorY[k];  // a walker at a Hummer's spot
+            if (ch && mw != s->mw) ok = RmStackAdd(&g_rmStack, d, (unsigned *)(ULONG_PTR)s->modeVa, s->mw, mw);
+            if (ok) ok = RmPosWords(d, s, want);
+            if (ok && ch) ok = RmStackAdd(&g_rmStack, d, (unsigned *)(ULONG_PTR)s->typeVa, s->type, p->type);
             if (!ok) {
                 RmStackTrim(&g_rmStack, d, n0);
                 ++other;
-                RmPickBack(p, s, &rec[k], &st, RMW_WORDS);  // v3.50 RM350: the shared rule (an adopted record stays)
+                if (sited[k]) --g_ssRmMoved, ++g_ssRmKept;  // v3.56 RE356 (its site's count back)
+                sited[k] = 0;
+                if (ch) RmPickBack(p, s, &rec[k], &st, RMW_WORDS);  // v3.50 RM350: the shared rule (an adopted record stays)
             }
         }
         if (p->drop) {  // (a record of another type than the one it is made as now: that monster comes back fresh)
             BYTE *r = RmRecLive(EnmScriptId(stage, half, room, s->n));
             if (r && RmRecRoom(r) == room) ENM_RECDEL(r);
         }
+        if (sited[k] && !p->drop)  // v3.56 RE356: its standing record here goes to the site too (else the game puts it back)
+            SsMonRecMove(EnmScriptId(stage, half, room, s->n), stage, room, p->type, p->variant, site[k]);
         // v3.51 SN351: an event dog left asleep is not "built" by Refined: its record stays the game's own, so the first visit
         // after its release adopts and rolls it (else Change Each Visit Off would keep Refined's stock record: a dog for good)
         if (p->why != RMW_EVENT) RmProvAfterBuild(stage, half, room, s, p->type, p->variant);  // v3.49 fix2 RZ349-SAVE-001
@@ -382,13 +459,15 @@ static void RmBeforeScriptC(int room, int d)
                               : p->why == RMW_EVENT ? "asleep for its event"  // v3.51 SN351: + the event dogs, the second roll
                               : p->why == RMW_ROLL ? (ch ? (p->again ? "rolled again" : "") : (p->again ? "rolled it twice" : "rolled"))
                               : "its stock record";
-            const int w = _snprintf_s(list + o, sizeof list - o, _TRUNCATE, "%sn%d %s v%d%s%s v%d%s%s%s%s", o ? "; " : "", s->n,
+            const int w = _snprintf_s(list + o, sizeof list - o, _TRUNCATE, "%sn%d %s v%d%s%s v%d%s%s%s%s%s", o ? "; " : "", s->n,
                                       RmTypeName(s->type), s->variant, ch ? " -> " : " kept as ", RmTypeName(p->type), p->variant,
                                       *why ? " (" : "", why, *why ? ")" : "", p->adopt ? (p->drop ? " [the game's record, adopted and "
-                                      "deleted]" : " [the game's record, adopted]") : "");
+                                      "deleted]" : " [the game's record, adopted]") : "",
+                                      sited[k] ? " at a new site" : "");  // v3.56 RE356
             o = w < 0 ? (int)sizeof list - 1 : o + w;  // (_TRUNCATE: a full list ends there, never the invalid-parameter handler)
         }
     }
+    if (SsOn()) SsMonRoomSay(stage, room);  // v3.56 RE356
     for (k = 0, drops = 0; k < m; ++k) drops += pick[k].drop;
     RmOtherSay(stage, room, st.other);  // v3.49 fix2
     ++g_rmRooms;
@@ -428,6 +507,11 @@ static void RmBeforeScriptC(int room, int d)
 static void __cdecl RmBeforeScript(int room)
 {
     const int d = RmStackPush(&g_rmStack);
+    __try {  // v3.56 RE356: Spawn Site's room state for this run (its own fault flag)
+        SsLoadBegin();
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        SsFault(GetExceptionCode());
+    }
     if (d >= RZ_DEPTH || g_rmFail) return;
     __try {
         RmBeforeScriptC(room, d);
@@ -438,8 +522,9 @@ static void __cdecl RmBeforeScript(int room)
         } __except (EXCEPTION_EXECUTE_HANDLER) {
         }
         g_rmFail = 1;
-        LogAnomaly("randomizer", "monsters: faulted at a room load (code %08lX; %d word(s) not restored): Monsters are off for this "
-                   "session", GetExceptionCode(), left);
+        g_ssFail = 1;  // v3.56 RE356: (its monster sites run in here: both off, fail closed)
+        LogAnomaly("randomizer", "monsters: faulted at a room load (code %08lX; %d word(s) not restored): Enemies and Spawn Site's "
+                   "monster sites are off for this session", GetExceptionCode(), left);
     }
 }
 static void __cdecl RmAfterScript(void)
@@ -560,13 +645,13 @@ static void RmInit(void)  // randomizer.inc RzInit (GameplayInstall: before the 
         g_rmSaveSite = GpApplyAll(&p, 1, "randomizer (monsters' save filter)");
     }
     {
-        char t[200];
+        char t[400];  // v3.56 RE356: 15 targets (was 200)
         int o = 0;
         for (i = 0; i < RM_TARGET_N; ++i)
             o += sprintf_s(t + o, sizeof t - o, "%s%s", i ? ", " : "", kRmTargets[i].name);
-        Log("randomizer: [Randomizer] Monsters %s; self-check: %d source placement(s) of %d enemy placement(s) in %d script(s) "
-            "(stock %d / %d)%s; targets %s (Gum Heads only with a crash guard); applied at each room load through 004F0AF8 "
-            "(patch-and-restore of the type / mode / y words); save filter 00465468 %s", kRmMonName[g_rzMon >= 0 && g_rzMon < RMM_N ?
+        Log("randomizer: [Randomizer] Enemies %s; self-check: %d source placement(s) of %d enemy placement(s) in %d script(s) "
+            "(stock %d / %d)%s; targets %s (Gum Heads only with a crash guard; victims' ghosts by the story rule); applied at each room load through 004F0AF8 "
+            "(patch-and-restore of the type / mode / position words); save filter 00465468 %s", kRmMonName[g_rzMon >= 0 && g_rzMon < RMM_N ?
             g_rzMon : 0], g_rmSelfN, g_rmSelfK, g_rmScripts, RM_STOCK_TOTAL, RM_STOCK_KIND2,
             g_rmFail ? ": the scan FAULTED, Monsters are off" : g_rmSelfBad ? ": some scripts are not the stock ones (their monsters "
             "are left alone)" : ": the stock scripts", t, g_rmSaveSite ? "in" : !g_rmSaveIni ? "off ([Randomizer] MonsterSaveFilter=0)"
@@ -583,7 +668,7 @@ static void RmSessionLine(void)  // randomizer.inc RzSessionLine
         "%d placement(s) changed, %d kept their record's type, %d record(s) deleted (+%d with Monsters off); kept as placed: %d for "
         "the bone budget, %d for files, %d without a floor; files loaded %d time(s) (%d KB); %d room load(s) with the cheat "
         "table's Enemy Randomizer on; %d save(s), %d record(s) left out; %d word(s) left as found%s",
-        kRmMonName[g_rzMon >= 0 && g_rzMon < RMM_N ? g_rzMon : 0], (unsigned long)(unsigned)g_rzSeed, kRzKeepName[g_rzPerVisit ? 1 : 0],
+        kRmMonName[g_rzMon >= 0 && g_rzMon < RMM_N ? g_rzMon : 0], (unsigned long)(unsigned)g_rzSeed, kRzKeepName[RZ_PERVISIT_ON() ? 1 : 0] /* v3.56 RI356: On = Reroll By Room */,
         g_rmLoads, g_rmRooms, g_rmChanged, g_rmSticky, g_rmDrops, g_rmOffDrops, g_rmKeptBones, g_rmKeptFiles, g_rmKeptFloor,
         g_rmFileTypes, g_rmFileKb, g_rmCtLoads, g_rmSaves, g_rmSaveCleaned, g_rmLeft,
         g_rmFail ? "; FAULTED (off)" : !g_enmInstalled ? "; no room-load hook (off)" : "");

@@ -102,6 +102,8 @@
 #include "enemies_sim.h"
 #include "pursuit_sim.h"  // v3.50 EF350
 #include "pursuit_room_sim.h"  // v3.51 EP351: Enemy Pursuit inside the room (the pure rules)
+#include "enmreturn_sim.h"  // v3.56 ER356: Enemies Return Off / By Room / By World (the pure rules)
+// v3.56 MERGE: worldvisit.inc (the one world-visit rule) is included by sh4windowmod.c before randomizer.inc
 
 #define ENM_LIST_MAX 40      // at most 40 enemies in the room list (Death Presence tracks 64)
 #define ENM_FREE_TASKS 40    // tasks (0x11B6020, 300 x 0x430) kept free (v3.36 TP336: of the first 300: TpGateFree)
@@ -140,7 +142,7 @@ static int g_enmDoorSet;
 static unsigned g_enmGhostTag[ENM_FOLLOW_MAX];  // victims that follow (FFFF00nn ids) into this room, this stage
 static int g_enmGhostTagN, g_enmGhostTagStage;
 // v3.30 EN330
-static volatile LONG g_enmRevive;              // the row (gameplay.inc GpApply): 0 Off / 1 On
+static volatile LONG g_enmRevive;              // the row (gameplay.inc GpApply): 0 Off / 1 On  // v3.56 ER356: ER_OFF / ER_ROOM / ER_WORLD
 static int g_enmBoneSite;                      // 0x4F0A5A is in (the pool grows at a room change)
 static BYTE *g_enmPoolBuf;                     // our bone buffer (VirtualAlloc, kept for the session)
 static int g_enmPoolBufN;                      // its size in records
@@ -315,7 +317,9 @@ static void EnmFailNow(const char *where)
 }
 static int EnmCopiesLive(void) { return g_enmInstalled && !g_enmFail && g_enmCopies > 0 && g_enmCopies <= ENM_COPY_MAXK; }
 static int EnmFollowLive(void) { return g_enmInstalled && !g_enmFail && EnmFollowValueOn(g_enmFollow); }  // v3.49 EF349: (was 1..2)
-static int EnmReviveLive(void) { return g_enmInstalled && !g_enmFail && g_enmRevive == 1; }  // v3.30 EN330
+// v3.56 ER356: Enemies Return's live value (enmreturn_sim.h ER_*; Off while the core set is out or after a fault)
+static int EnmReturnMode(void) { const int v = (int)g_enmRevive; return g_enmInstalled && !g_enmFail && v > ER_OFF && v < ER_N ? v : ER_OFF; }
+static int EnmReviveLive(void) { return EnmReturnMode() == ER_ROOM; }  // v3.30 EN330  // v3.56 ER356: By Room (v3.30 - v3.55's On)
 
 // ---------------------------------------------------------------- game calls (all cdecl, matched in SH4Decomp)
 #define ENM_NEXT(t)        ((BYTE *(__cdecl *)(const BYTE *))0x45E760)(t)          // EnemyListNext
@@ -1100,7 +1104,7 @@ static void EnmMakeCopies(int room)
         "were: %d down, %d pinned); not made: %d over the bone budget, %d without a spot, %d killed before (back when you "
         "leave the world%s), %d failed%s; bone pool free %d -> %d of %d (reserve %d)", stage, room, per + 1, x.kind2,
         x.eligible, present, beside ? ", some down or pinned: their copies stand beside them" : "", made, present * per,
-        back, backDown, backPin, cut, nospot, dead, EnmReviveLive() ? "" : " or with Revive Enemies", failed,
+        back, backDown, backPin, cut, nospot, dead, EnmReviveLive() ? "" : " or with Enemies Return By Room", failed,  // v3.56 ER356: (was Revive Enemies)
         limit ? ", the room's enemy / task limit reached" : "", free0, *(volatile const int *)0xED73E4, total, EnmReserve(total));
     if (flyers && !g_enmLogged[9]++)
         Log("enemies: %d flying original(s) here: their copies keep the height above the floor", flyers);
@@ -2649,6 +2653,13 @@ static void EnmAwakeAwayPut(unsigned id)
         if (g_enmAwakeAway[i] == id) return;
     if (g_enmAwakeAwayN < (int)(sizeof g_enmAwakeAway / sizeof g_enmAwakeAway[0])) g_enmAwakeAway[g_enmAwakeAwayN++] = id;
 }
+static int EnmAwakeAwayHas(unsigned id)  // v3.56 ER356
+{
+    int i;
+    for (i = 0; i < g_enmAwakeAwayN; ++i)
+        if (g_enmAwakeAway[i] == id) return 1;
+    return 0;
+}
 static int EnmAwakeAwayTake(unsigned id)
 {
     int i;
@@ -2722,7 +2733,9 @@ static void EnmReviveAwake(int room)
             "events are over)", stage, room, made, g_enmAwakeQN);
     g_enmAwakeQN = 0;
 }
-static void EnmReviveRoom(int room)
+// v3.56 ER356: dogsOnly = By World inside the visit: only this room's released event dogs that the world entry marked
+// (g_enmAwakeAway) stand again, awake; nothing else of the room returns (its killed monsters stay dead this visit)
+static void EnmReviveRoom(int room, int dogsOnly)
 {
     const int stage = ENM_STAGE, half = ENM_HALF() ? 1 : 0;
     static EnmRevCtx x;
@@ -2744,7 +2757,9 @@ static void EnmReviveRoom(int room)
     }
     for (i = 0; i < x.n; ++i) {
         const unsigned id = EnmScriptId(stage, half, room, x.num[i]);
-        BYTE *rec = ENM_RECFIND(id);
+        BYTE *rec;
+        if (dogsOnly && (!x.dog[i] || !EnmAwakeAwayHas(id))) continue;  // v3.56 ER356
+        rec = ENM_RECFIND(id);
         if (x.dog[i]) {  // v3.34 EN334: replayed awake after the script
             EnmReviveDog(stage, id, x.kill[i], rec, &recs, &bits, &dogs);
             continue;
@@ -2759,6 +2774,12 @@ static void EnmReviveRoom(int room)
             ++bits;
             FiNoteRevive(stage, room, id);  // v3.50 FI350
         }
+    }
+    if (dogsOnly) {  // v3.56 ER356: (By World: the bodies lying here and the killed copies wait for the next world entry)
+        if (dogs)
+            LogV("enemies: return: room %d:%d (By World): %d released event dog(s) marked at the world entry are made awake after "
+                 "the room's script", stage, room, dogs);
+        return;
     }
     // bodies lying here of monsters from other rooms (a follower killed here): its home room spawns it again
     for (i = 0, r = ENM_RECORDS; i < 64; ++i, r += 0x50) {
@@ -2788,6 +2809,121 @@ static void EnmReviveRoom(int room)
         Log("enemies: revive: room %d:%d: killed monsters stand again (%d bod%s taken away, %d kill bit(s) cleared, %d bod%s "
             "of other rooms' monsters: they stand at home), %d killed cop%s come back", stage, room, recs,
             recs == 1 ? "y" : "ies", bits, away, away == 1 ? "y" : "ies", copies, copies == 1 ? "y" : "ies");
+}
+
+// ---------------------------------------------------------------- v3.56 ER356: Enemies Return By Room / By World
+// The rule is enmreturn_sim.h (ErAction by worldvisit_sim.h's kind of this room load). By Room = EnmReviveRoom at every
+// room change (a load's room load is none: v3.55 revived there). By World = at a world entry every killed monster of
+// the revive types of the world stands again (ErWorldPass: every room of the stage that is no story room, then
+// EnmReviveRoom for the entry room); inside the visit the game's own bodies keep them dead (Tremers included: the
+// 0x48ACE5 site below), the saves hold them as they are, a load is no entry.
+static volatile LONG g_erQuota;
+static int g_erTremerIni = 1;          // [Gameplay] ReturnTremers (ini only): 0 = the Tremer site stays stock
+static int g_erTremerSite;             // 0x48ACE5 is in
+static volatile LONG g_erTremerKept;   // dead Tremers whose room exit kept their body under By World (this session)
+static LONG g_erTremerSaid;
+static int g_erLastMode = -1;          // the mode of the last room load (a change is logged once)
+// By World at a world entry: every room of this stage but the entry room (EnmReviveRoom takes that one after this)
+static void ErWorldPass(int entryRoom)
+{
+    const int stage = ENM_STAGE, half = ENM_HALF() ? 1 : 0;
+    const int rooms = stage >= 0 && stage < 13 ? kEnmRoomN[stage] : 0;
+    const DWORD *const *tab = (const DWORD *const *)0x10A0A78;  // the room scripts of this stage (EnmWalkC)
+    static EnmRevCtx x;
+    int room, i, walked = 0, story = 0, recs = 0, bits = 0, dogs = 0, alive = 0, back = 0;
+    if (stage < 2 || stage > 8) return;
+    for (room = 1; room < rooms && room < 0x100; ++room) {
+        if (!tab[room]) continue;
+        memset(&x, 0, sizeof x);
+        x.clearOver = *(const unsigned *)0x10A0EAC;
+        x.released = g_enmReviveDogs && ENM_DOGS_AWAKE;
+        if (EnmWalk(room, EnmRevCb, &x) < 0) continue;
+        if (!EnmReviveRoomOk2(stage, x.events, x.relDogs, x.bosses)) {
+            ++story;
+            continue;
+        }
+        ++walked;
+        for (i = 0; i < x.n; ++i) {
+            const unsigned id = EnmScriptId(stage, half, room, x.num[i]);
+            BYTE *rec = ENM_RECFIND(id);
+            const int body = rec && *(const short *)(rec + 0x26) == 0x0B && *(const signed char *)(rec + 0x36) == stage;
+            if (rec && !body) {  // recorded alive (a story move without the hole: a wanderer, a downed one): the game's
+                ++alive;
+                continue;
+            }
+            if (x.dog[i]) {  // a released event dog: its own room makes it awake at its first load of this visit
+                EnmAwakeAwayPut(id);
+                ++dogs;
+                continue;
+            }
+            if (room == entryRoom) continue;  // (EnmReviveRoom: its notes for Fade In too)
+            {
+                const int bit = EnmKillTest(stage, x.kill[i]);
+                if (body) ENM_RECDEL(rec), ++recs;
+                if (bit) EnmKillPut(stage, x.kill[i], 0), ++bits;
+                back += body || bit;
+            }
+        }
+    }
+    if (LogQuota(&g_erQuota, 300))
+        Log("enemies: return: entered world %d (By World): %d room(s) walked, %d killed monster(s) stand again (%d bod%s taken "
+            "away, %d kill bit(s) cleared), %d released event dog(s) awake at their room's next load, %d recorded alive left "
+            "as they are, %d story room(s) left as they are; the entry room %d next", stage, walked, back, recs,
+            recs == 1 ? "y" : "ies", bits, dogs, alive, story, entryRoom);
+}
+// EnmWrap, before the room's script (after the door pass's set-up: g_enmHideN / g_enmAwakeQN are 0)
+static void ErAtRoomLoad(int room, int kind)
+{
+    const int mode = EnmReturnMode(), act = ErAction(mode, kind), stage = ENM_STAGE;
+    const LONG kept = g_erTremerKept;
+    if (mode != g_erLastMode) {
+        if (g_erLastMode >= 0 && LogQuota(&g_erQuota, 300))
+            Log("enemies: return: Enemies Return %s from this room load on (%s)", kErName[mode],
+                mode == ER_ROOM ? "killed monsters stand again each time you enter their room" :
+                mode == ER_WORLD ? "killed monsters stand again when you enter the world again; a load is no entry" :
+                "the game's own rule");
+        g_erLastMode = mode;
+    }
+    if (kept != g_erTremerSaid && room > 0) {
+        if (LogQuota(&g_erQuota, 300))
+            LogV("enemies: return: %ld killed Tremer(s) kept their body at a room exit this session (By World: dead until you "
+                 "enter the world again)", kept);
+        g_erTremerSaid = kept;
+    }
+    if (act == ERA_ROOM) {
+        EnmReviveRoom(room, 0);
+    } else if (act == ERA_WORLD) {
+        ErWorldPass(room);
+        EnmReviveRoom(room, 0);
+    } else if (act == ERA_DOGS) {
+        if (g_enmAwakeAwayN) EnmReviveRoom(room, 1);
+    } else if (kind == WV_LOAD && room > 0 && mode != ER_OFF && stage >= 2 && stage <= 8 && LogQuota(&g_erQuota, 300)) {
+        Log("enemies: return: room %d:%d after a load: nothing returns (%s: a load is no room change and no world entry; the "
+            "save's dead stay dead)", stage, room, kErName[mode]);
+    }
+}
+// 0x48ACE5: the first `call 4215D0` (MathRand01) in TremerDestroy 0x48ACB0, reached only for a dead Tremer (state 0x0B)
+// at its room exit: the stock coin flip (< 0.5 keeps its body record, else 1 in 5 sets its kill bit, else nothing: it
+// stands again at the room's next visit). By World answers 0.0: the body is always kept (TremerSaveRecord 0x4889F0, the
+// game's own record), so it stays dead through this world visit and its saves; any other value: the stock call.
+static int __cdecl ErTremerKeepNow(void)
+{
+    if (!g_erTremerSite || !ErTremerKeep(EnmReturnMode(), 1, ENM_STAGE)) return 0;
+    InterlockedIncrement(&g_erTremerKept);
+    return 1;
+}
+static const DWORD g_erRandFn = 0x4215D0;
+static __declspec(naked) void hkErTremer(void)
+{
+    __asm {
+        call ErTremerKeepNow
+        test eax, eax
+        jz stock
+        fldz                         // MathRand01's result: 0.0 (< 0.5: TremerSaveRecord)
+        ret
+    stock:
+        jmp dword ptr [g_erRandFn]   // MathRand01 (returns to 0x48ACEA)
+    }
 }
 
 // ---------------------------------------------------------------- the coexistence probes (once per session)
@@ -2832,6 +2968,12 @@ static void EnmLoadWatch(const char *where)
 // 0x4F0AF8: was `call 52CA00` (SceneRoomScriptRun) in RoomInitLoad, after the arrival position (0x4F0620)
 static void __cdecl EnmWrap(int room)
 {
+    int wv = WV_FIRST;  // v3.56 MERGE (RI356 + ER356): the world-visit rule first, ONE call per room load (worldvisit.inc: every
+    __try {             // reader of the visit comes after it); its kind for Enemies Return, read before 0x52CA00 resets its source
+        wv = WvOnRoomLoad(room);
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        wv = WV_FIRST;
+    }
     if (g_enmInstalled) {
         __try {
             const int stage = ENM_STAGE;
@@ -2853,7 +2995,8 @@ static void __cdecl EnmWrap(int room)
                 if (g_enmCopies > 0 || g_enmFollow > 0 || g_enmRevive > 0) EnmProbeTable();
                 g_enmExtraN = 0, g_enmExtraStage = stage, g_enmExtraRoom = room;  // v3.33 EN333: every room load parks the last room's extra files
                 g_enmHideN = 0, g_enmAwakeQN = 0;  // v3.34 EN334: (was in EnmHideAwayHome) Revive's event dogs and the followers' homes
-                if (EnmReviveLive()) EnmReviveRoom(room);  // v3.30 EN330 (before the hide: a revived follower is home)
+                if (wv == WV_LOAD) g_enmAwakeAwayN = 0;  // v3.56 ER356: the dogs' marks belong to the timeline the load left
+                ErAtRoomLoad(room, wv);  // v3.30 EN330 (before the hide: a revived follower is home)  // v3.56 ER356: by the mode and this room load's kind (was: By Room / On at every room load)
                 if (EnmFollowLive()) EnmHideAwayHome(room);  // v3.30 EN330
                 EnmDoorPass(room);
                 EfRestoreAtLoad(room);  // v3.50 EF350: after a load, the save's followers (pursuits, the queue, tags, copies)
@@ -2948,6 +3091,7 @@ static int __cdecl EnmPoolAtReset(int count)
         EnmSnapClear(&g_enmSnap), g_enmSnapAny = 0;  // v3.31 EN331
         EnmCwClear(&g_enmCw), g_enmAwakeAwayN = 0;   // v3.34 EN334: New Game / title load: the copies' ledger starts empty
         g_enmLastStage = -1;
+        WvWorldReset();  // v3.56 RI356: the world visit in force ends (worldvisit.inc)
         g_enmPurN = g_enmQN = g_enmGhostTagN = 0;
         EnmPursueClear(&g_enmPursue), g_enmHomeN = 0, g_enmLate.on = 0;  // v3.35 GH335
         EnmSeenReset(&g_enmSeen, 0);                                      // v3.38 EN338
@@ -3158,6 +3302,7 @@ static void EnmReadIni(void)  // the ini-only keys (not written into SH4Refined.
     g_enmCdKeepOn = GetPrivateProfileIntA("Gameplay", "DownKeep", ENM_DOWNKEEP_DEFAULT, g_iniPath) != 0;  // v3.38 EN338: default 0 (vanilla)
     g_enmStoryFollow = GetPrivateProfileIntA("Gameplay", "FollowStoryGhosts", 1, g_iniPath) != 0;       // v3.38 EN338 (hidden)
     g_enmTaskAllIni = GetPrivateProfileIntA("Gameplay", "CopiesAllTasks", 1, g_iniPath) != 0;  // v3.36.1 TL3361 (hidden)
+    g_erTremerIni = GetPrivateProfileIntA("Gameplay", "ReturnTremers", 1, g_iniPath) != 0;      // v3.56 ER356 (hidden)
 }
 
 // ---------------------------------------------------------------- install (Init, after DeathPresenceInstall)
@@ -3239,12 +3384,29 @@ static void EnemiesInstall(void)
     } else {
         Log("enemies: 00465430 differs from the GOG v7 exe (another mod?): a save may hold copies' records (purged at the load)");
     }
-    Log("enemies: in (room load 004F0AF8, kill count 00450DB0, bone pool 00419830%s%s%s); EnemyCopies %s, EnemyFollow %s, "
+    {   // v3.56 ER356: By World keeps a dead Tremer's body (separate: without it Tremers keep the game's own coin flip)
+        // TremerDestroy: cmp eax,0Bh; jne 48AD2C; call 4215D0; fcomp [5B79E0] (0.5); fnstsw ax; test ah,5; jnp 48AD2C
+        static const Site kTremer = { 0x48ACE0, { 0x83, 0xF8, 0x0B, 0x75, 0x47, 0xE8, 0xE6, 0x68, 0xF9, 0xFF, 0xD8, 0x1D, 0xE0, 0x79,
+                                                  0x5B, 0x00, 0xDF, 0xE0, 0xF6, 0xC4, 0x05, 0x7B, 0x35 }, 23 };
+        static const Site kRand = { 0x4215D0, { 0x51, 0xE8, 0xD0, 0x5B, 0x15, 0x00, 0x8B, 0xC8 }, 8 };  // MathRand01 (called)
+        if (!g_erTremerIni) {
+            Log("enemies: return: the Tremer site is off ([Gameplay] ReturnTremers=0): By World leaves Tremers the game's own "
+                "rule (4 in 10 killed ones stand again at their room's next visit)");
+        } else if (!SiteOk(&kTremer) || !SiteOk(&kRand) || *(const float *)0x5B79E0 != 0.5f) {
+            Log("enemies: return: 0048ACE0 or 004215D0 differs from the GOG v7 exe (another mod?): By World leaves Tremers the "
+                "game's own rule");
+        } else {
+            GpBranch(&set[0], 0x48ACE5, 0xE8, hkErTremer, 5);
+            g_erTremerSite = GpApplyAll(set, 1, "enemies (Tremer bodies, By World)");
+        }
+    }
+    Log("enemies: in (room load 004F0AF8, kill count 00450DB0, bone pool 00419830%s%s%s%s); EnemyCopies %s, EnemyFollow %s, "
         "EnemyRevive %s, BonePool %d (-1 Auto = %d while Copies or Follow is on), FollowMax %d, FollowDelay %.1f s, "
         "FollowRange %.0f, CopyStoryGhosts %d, ReviveEventDogs %d, FollowCopies %d, FollowRangeVictims %.0f (v3.38: every ghost "
         "in the room follows), FollowKeepDoors %d (-1 = Always: the whole world visit), LateCopies %d, DownKeep %d (%s), FollowStoryGhosts %d",
         g_enmGhostOn ? ", victims 00486199" : "",
         g_enmBoneSite ? ", room change 004F0A5A" : "", g_enmSaveSite ? ", save 00465438" : "",
+        g_erTremerSite ? ", Tremer bodies 0048ACE5" : "",  // v3.56 ER356
         kGpName[GP_COPIES][g_gp[GP_COPIES]], kGpName[GP_FOLLOW][g_gp[GP_FOLLOW]], kGpName[GP_REVIVE][g_gp[GP_REVIVE]],
         g_enmPoolSetting, ENM_POOL_AUTO_N, g_enmFollowMax, g_enmFollowDelay, g_enmFollowRange, g_enmStoryOn, g_enmReviveDogs,
         g_enmFollowCopies, g_enmVictimRange,

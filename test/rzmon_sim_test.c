@@ -67,22 +67,62 @@ static RzWin ExeWin(void)  // as randomizer.inc RzWindow
 // ---------------------------------------------------------------- texts, types, mode words
 static void TestTexts(void)
 {
-    CHECK(RmMonOfText("Off") == RMM_OFF && RmMonOfText("this room") == RMM_ROOM && RmMonOfText(" THIS WORLD ") == RMM_WORLD,
-          "Monsters names");
-    CHECK(RmMonOfText("Room") == RMM_ROOM && RmMonOfText("world") == RMM_WORLD && RmMonOfText("0") == 0 && RmMonOfText("1") == 1 &&
-          RmMonOfText("2") == 2 && RmMonOfText("4") == -1 && RmMonOfText("") == -1 && RmMonOfText("Everywhere") == -1 &&
-          RmMonOfText(NULL) == -1, "Monsters short names, numbers and junk");
+    // v3.56 RE356: the row is Enemies, Off / Same World / All Worlds; the old This Room / This World read as Same World
+    CHECK(RmMonOfText("Off") == RMM_OFF && RmMonOfText("this room") == RMM_WORLD && RmMonOfText(" THIS WORLD ") == RMM_WORLD &&
+          RmMonOfText("Same World") == RMM_WORLD && RmMonOfText(" same world ") == RMM_WORLD, "v3.56 RE356: Enemies names; the old "
+          "This Room and This World migrate to Same World");
+    CHECK(RmMonOfText("Room") == RMM_WORLD && RmMonOfText("world") == RMM_WORLD && RmMonOfText("0") == 0 && RmMonOfText("1") == RMM_WORLD &&
+          RmMonOfText("2") == RMM_WORLD && RmMonOfText("4") == -1 && RmMonOfText("") == -1 && RmMonOfText("Everywhere") == -1 &&
+          RmMonOfText(NULL) == -1, "v3.56 RE356: short names and numbers (1 = the old This Room: Same World), junk");
     CHECK(RmMonOfText("All Worlds") == RMM_ALL && RmMonOfText(" all worlds ") == RMM_ALL && RmMonOfText("All") == RMM_ALL &&
           RmMonOfText("3") == RMM_ALL && RMM_N == 4 && !strcmp(kRmMonName[RMM_ALL], "All Worlds") &&
-          !strcmp(kRmMonName[RMM_WORLD], "This World") && RMM_OFF == 0 && RMM_ROOM == 1 && RMM_WORLD == 2,
-          "v3.50 RM350: All Worlds (3 / All), the v3.49 values and their numbers unchanged");
-    CHECK(RM_MON_DEFAULT == RMM_WORLD, "the host's default: This World");
+          !strcmp(kRmMonName[RMM_WORLD], "Same World") && RMM_OFF == 0 && RMM_ROOM == 1 && RMM_WORLD == 2,
+          "v3.50 RM350: All Worlds (3 / All); v3.56 RE356: This World is named Same World, the numbers unchanged");
+    CHECK(RM_MON_DEFAULT == RMM_WORLD, "the host's default: Same World (was This World)");
+    CHECK(RM_ROW_N == 3 && kRmRowMode[0] == RMM_OFF && kRmRowMode[1] == RMM_WORLD && kRmRowMode[2] == RMM_ALL && RmRowOfMode(RMM_OFF) == 0 &&
+          RmRowOfMode(RMM_ROOM) == 1 && RmRowOfMode(RMM_WORLD) == 1 && RmRowOfMode(RMM_ALL) == 2 && RmRowOfMode(9) == 0,
+          "v3.56 RE356: the row's three values and their modes (This Room never on the row)");
+    {   // v3.56 RE356: the renamed keys (Monsters -> Enemies): the new key wins; missing, the old key once; junk = the default
+        int v = -9;
+        CHECK(RzKeyPick("All Worlds", "Off", RmMonOfText, RM_MON_DEFAULT, &v) == RZK_NEW && v == RMM_ALL, "key pick: the new key wins");
+        CHECK(RzKeyPick("", "This Room", RmMonOfText, RM_MON_DEFAULT, &v) == RZK_OLD && v == RMM_WORLD, "key pick: Monsters=This Room -> "
+              "Enemies Same World");
+        CHECK(RzKeyPick(NULL, "This World", RmMonOfText, RM_MON_DEFAULT, &v) == RZK_OLD && v == RMM_WORLD, "key pick: This World -> "
+              "Same World");
+        CHECK(RzKeyPick("", "Off", RmMonOfText, RM_MON_DEFAULT, &v) == RZK_OLD && v == RMM_OFF &&
+              RzKeyPick("", "All Worlds", RmMonOfText, RM_MON_DEFAULT, &v) == RZK_OLD && v == RMM_ALL, "key pick: Off and All Worlds stay");
+        CHECK(RzKeyPick("", "Everywhere", RmMonOfText, RM_MON_DEFAULT, &v) == RZK_OLDBAD && v == RM_MON_DEFAULT, "key pick: an old junk "
+              "value: the default (migrated too)");
+        CHECK(RzKeyPick("Nowhere", "Off", RmMonOfText, RM_MON_DEFAULT, &v) == RZK_BAD && v == RM_MON_DEFAULT, "key pick: a new junk "
+              "value: the default, the old key not read");
+        CHECK(RzKeyPick("", "", RmMonOfText, RM_MON_DEFAULT, &v) == RZK_NONE && v == RM_MON_DEFAULT &&
+              RzKeyPick(NULL, NULL, RmMonOfText, RM_MON_DEFAULT, &v) == RZK_NONE, "key pick: neither key: the default");
+    }
     CHECK(RmIsSourceType(2) && RmIsSourceType(3) && RmIsSourceType(7) && RmIsSourceType(8) && RmIsSourceType(9) &&
           RmIsSourceType(0x0A) && !RmIsSourceType(1) && !RmIsSourceType(4) && !RmIsSourceType(5) && !RmIsSourceType(6) &&
           !RmIsSourceType(0x0B) && !RmIsSourceType(0x0F) && !RmIsSourceType(0x10) && !RmIsSourceType(0x11),
-          "source types: never mm, Wall Man, Wheelchair, ghosts, Walter, the Patient");
+          "source types: never mm, Wall Man, Wheelchair, ghosts, Walter, the Patient (v3.56 RE356: the victims keep their ghosts)");
     CHECK(RmTargetIndex(7, 0) == 2 && RmTargetIndex(7, 1) == 3 && (RM_GUM_TARGETS == (1u << 2 | 1u << 3)) &&
-          RmTargetIndex(9, 1) < 0 && RmTargetIndex(3, 1) < 0 && RmTargetIndex(6, 0) < 0 && RmTargetIndex(0x0B, 0) < 0, "targets");
+          RmTargetIndex(9, 1) < 0 && RmTargetIndex(3, 1) < 0 && RmTargetIndex(6, 0) < 0, "targets");
+    {   // v3.56 RE356: the pool filter: + the six victims' ghosts, never a story ghost, Walter, Wall Man, Wheelchair, mm, the Patient
+        int t, v, okIn = 1, okOut = 1;
+        for (v = 0; v < 4; ++v) okIn &= RmTargetIndex(0x0B, v) == 9 + v;
+        okIn &= RmTargetIndex(0x0C, 1) == 13 && RmTargetIndex(0x0D, 1) == 14 && RM_TARGET_N == 15;
+        okOut &= RmTargetIndex(0x0C, 0) < 0 && RmTargetIndex(0x0D, 0) < 0 && RmTargetIndex(0x0E, 0) < 0 && RmTargetIndex(0x0F, 0) < 0 &&
+                 RmTargetIndex(0x0F, 1) < 0 && RmTargetIndex(0x10, 0) < 0 && RmTargetIndex(0x11, 0) < 0 && RmTargetIndex(5, 0) < 0 &&
+                 RmTargetIndex(5, 1) < 0 && RmTargetIndex(6, 1) < 0 && RmTargetIndex(4, 0) < 0 && RmTargetIndex(1, 0) < 0 &&
+                 RmTargetIndex(0x0C, 2) < 0;
+        for (t = 0; t < RM_TARGET_N; ++t)
+            okIn &= (RmIsGhostTarget(kRmTargets[t].type) != 0) == ((RM_GHOST_TARGETS >> t & 1u) != 0);
+        CHECK(okIn && okOut && RM_MON_TARGETS == 0x1FF && RM_GHOST_TARGETS == 0x7E00 && (RM_MON_TARGETS | RM_GHOST_TARGETS) == RM_ALL_TARGETS &&
+              !(RM_MON_TARGETS & RM_GHOST_TARGETS), "v3.56 RE356: the pool: 9 monsters + 0B v0..v3, 0C v1, 0D v1; never a story ghost "
+              "(0C v0, 0D v0, 0E, 0F), Walter, a Wall Man, a Wheelchair, mm or the Patient");
+        CHECK(RmStoryAllowed(2, 0, 0) == (RM_ALL_TARGETS & ~RM_G0D1_TARGET) && RmStoryAllowed(4, 0, 0) == (RM_ALL_TARGETS & ~RM_G0D1_TARGET &
+              ~RM_G0B_TARGETS) && RmStoryAllowed(4, 1, 0) == (RM_ALL_TARGETS & ~RM_G0D1_TARGET) && RmStoryAllowed(4, 0, 1) ==
+              (RM_ALL_TARGETS & ~RM_G0B_TARGETS) && RmStoryAllowed(4, 1, 1) == RM_ALL_TARGETS && RmStoryAllowed(5, 0, 1) == RM_ALL_TARGETS &&
+              RmStoryAllowed(3, 1, 0) == (RM_ALL_TARGETS & ~RM_G0D1_TARGET), "v3.56 RE356: the story rule: no 0B in stage 4 before flag "
+              "2D3 (its create sets it there), no 0D v1 anywhere before flag 23B (its create sets it); the monsters always");
+    }
     CHECK(RmBitCount(0) == 0 && RmBitCount(0x1FF) == 9 && RmNthBit(0x14, 0) == 2 && RmNthBit(0x14, 1) == 4 && RmNthBit(0x14, 2) == -1,
           "bit helpers");
     CHECK(RmModeOk(2, 0) && RmModeOk(9, 0x0010) && RmModeOk(9, 0x3150) == 0 && RmModeOk(9, 0x3110) && RmModeOk(0x0A, 0x0100) &&
@@ -196,8 +236,8 @@ static void TestExe(const char *path)
               "Water Prison 2nd half: 71 sources; it places Whitestools and Twin Victims");
         CHECK(!(g_sc[2][0].placed >> RmTargetIndex(8, 0) & 1u) && (g_sc[2][0].placed >> RmTargetIndex(0x0A, 0) & 1u),
               "Subway 1st half: no Twin Victim of its own, Sniffer Dogs yes (This World's pool)");
-        CHECK((g_sc[2][0].placed | g_sc[2][1].placed) == 0x1C4u && (g_sc[5][0].placed | g_sc[5][1].placed) == 0x1CFu &&
-              g_sc[8][0].placed == 0x030u, "This World's targets: Subway 1C4 (Gum Head, Tremer, both dogs), Building 1CF, stage 8 "
+        CHECK(((g_sc[2][0].placed | g_sc[2][1].placed) & RM_MON_TARGETS) == 0x1C4u && ((g_sc[5][0].placed | g_sc[5][1].placed) &
+              RM_MON_TARGETS) == 0x1CFu && (g_sc[8][0].placed & RM_MON_TARGETS) == 0x030u, "This World's targets: Subway 1C4 (Gum Head, Tremer, both dogs), Building 1CF, stage 8 "
               "030 (both Twin Victims)");
         for (stage = 2; stage <= 8; ++stage)
             printf("  stage %d: This World's targets %03X / %03X (halves), %d / %d sources\n", stage, g_sc[stage][0].placed,
@@ -279,32 +319,32 @@ static void TestPlans(void)
     int diff, t, k;
     memset(yes, 1, sizeof yes), memset(no, 0, sizeof no);
     // This Room: only resident targets; Gum Heads not allowed
-    PlanAll(sc, In(RMM_ROOM, 1234, 4, 1, 0, 0, stockT, RM_ALL_TARGETS & ~RM_GUM_TARGETS), yes, &s1, g_pa);
+    PlanAll(sc, In(RMM_ROOM, 1234, 4, 1, 0, 0, stockT, RM_MON_TARGETS & ~RM_GUM_TARGETS), yes, &s1, g_pa);
     CHECK(s1.picks == 71 && s1.changed > 20 && !s1.outside && !s1.gum, "This Room: %d of %d changed, all in the pool", s1.changed, s1.picks);
     for (t = 0; t < RM_TARGET_N; ++t)
         CHECK((stockT >> t & 1u) ? s1.byTarget[t] > 10 : !s1.byTarget[t], "This Room: target %s x%d", kRmTargets[t].name, s1.byTarget[t]);
     // the same input = the same plan; another seed = another plan
-    PlanAll(sc, In(RMM_ROOM, 1234, 4, 1, 0, 0, stockT, RM_ALL_TARGETS & ~RM_GUM_TARGETS), yes, &s2, g_pb);
+    PlanAll(sc, In(RMM_ROOM, 1234, 4, 1, 0, 0, stockT, RM_MON_TARGETS & ~RM_GUM_TARGETS), yes, &s2, g_pb);
     CHECK(SamePlans(g_pa, g_pb, sc, &diff), "the same seed: the same monsters");
-    PlanAll(sc, In(RMM_ROOM, 1235, 4, 1, 0, 0, stockT, RM_ALL_TARGETS & ~RM_GUM_TARGETS), yes, &s2, g_pb);
+    PlanAll(sc, In(RMM_ROOM, 1235, 4, 1, 0, 0, stockT, RM_MON_TARGETS & ~RM_GUM_TARGETS), yes, &s2, g_pb);
     CHECK(!SamePlans(g_pa, g_pb, sc, &diff) && diff > 30, "another seed: %d of 71 differ", diff);
     // Change Each Visit: visit 1 against visit 0, visit 7 against visit 7 (same)
-    PlanAll(sc, In(RMM_ROOM, 1234, 4, 1, 0, 1, stockT, RM_ALL_TARGETS & ~RM_GUM_TARGETS), yes, &s2, g_pb);
+    PlanAll(sc, In(RMM_ROOM, 1234, 4, 1, 0, 1, stockT, RM_MON_TARGETS & ~RM_GUM_TARGETS), yes, &s2, g_pb);
     CHECK(!SamePlans(g_pa, g_pb, sc, &diff) && diff > 30, "Change Each Visit: the next visit differs (%d of 71)", diff);
-    PlanAll(sc, In(RMM_ROOM, 1234, 4, 1, 0, 7, stockT, RM_ALL_TARGETS & ~RM_GUM_TARGETS), yes, &s1, g_pa);
-    PlanAll(sc, In(RMM_ROOM, 1234, 4, 1, 0, 7, stockT, RM_ALL_TARGETS & ~RM_GUM_TARGETS), yes, &s2, g_pb);
+    PlanAll(sc, In(RMM_ROOM, 1234, 4, 1, 0, 7, stockT, RM_MON_TARGETS & ~RM_GUM_TARGETS), yes, &s1, g_pa);
+    PlanAll(sc, In(RMM_ROOM, 1234, 4, 1, 0, 7, stockT, RM_MON_TARGETS & ~RM_GUM_TARGETS), yes, &s2, g_pb);
     CHECK(SamePlans(g_pa, g_pb, sc, &diff), "the same visit count: the same monsters");
     // the halves are keyed apart
-    PlanAll(sc, In(RMM_ROOM, 1234, 4, 0, 0, 7, stockT, RM_ALL_TARGETS & ~RM_GUM_TARGETS), yes, &s2, g_pb);
+    PlanAll(sc, In(RMM_ROOM, 1234, 4, 0, 0, 7, stockT, RM_MON_TARGETS & ~RM_GUM_TARGETS), yes, &s2, g_pb);
     CHECK(!SamePlans(g_pa, g_pb, sc, &diff), "the half is part of the key (%d differ)", diff);
     // This World: resident | placed; every target appears (Gum Heads allowed: placed elsewhere only, so not here)
-    PlanAll(sc, In(RMM_WORLD, 99, 4, 1, 0, 0, 0, RM_ALL_TARGETS), yes, &s1, NULL);
+    PlanAll(sc, In(RMM_WORLD, 99, 4, 1, 0, 0, 0, RM_MON_TARGETS), yes, &s1, NULL);
     CHECK(!s1.outside && s1.byTarget[RmTargetIndex(2, 0)] && s1.byTarget[RmTargetIndex(8, 0)] && s1.byTarget[RmTargetIndex(9, 0)] &&
           !s1.byTarget[RmTargetIndex(0x0A, 0)], "This World with nothing resident: this world's own types only");
-    PlanAll(sc, In(RMM_WORLD, 99, 4, 1, 0, 0, RM_ALL_TARGETS, RM_ALL_TARGETS), yes, &s1, NULL);
-    for (t = 0; t < RM_TARGET_N; ++t)
+    PlanAll(sc, In(RMM_WORLD, 99, 4, 1, 0, 0, RM_MON_TARGETS, RM_MON_TARGETS), yes, &s1, NULL);
+    for (t = 0; t < 9; ++t)  // v3.56 RE356: the nine monster targets (the victims' ghosts: TestPlans' RE356 part)
         CHECK(s1.byTarget[t] >= 3, "all targets resident and allowed: %s x%d (a mix)", kRmTargets[t].name, s1.byTarget[t]);
-    PlanAll(sc, In(RMM_WORLD, 99, 4, 1, 0, 0, RM_ALL_TARGETS, RM_ALL_TARGETS & ~RM_GUM_TARGETS), yes, &s1, NULL);
+    PlanAll(sc, In(RMM_WORLD, 99, 4, 1, 0, 0, RM_MON_TARGETS, RM_MON_TARGETS & ~RM_GUM_TARGETS), yes, &s1, NULL);
     CHECK(!s1.gum && !s1.byTarget[2] && !s1.byTarget[3], "Gum Heads out without a guard");
     PlanAll(sc, In(RMM_WORLD, 99, 4, 1, 0, 0, 0, 0), yes, &s1, NULL);
     CHECK(!s1.changed, "an empty pool changes nothing");
@@ -312,20 +352,88 @@ static void TestPlans(void)
         int cnt[RM_TARGET_N], seed, total = 0, ok = 1;
         memset(cnt, 0, sizeof cnt);
         for (seed = 1; seed <= 200; ++seed) {
-            RmPlanIn in = In(RMM_WORLD, (unsigned)seed * 7919u, 4, 1, 0, 0, RM_ALL_TARGETS, RM_ALL_TARGETS);
+            RmPlanIn in = In(RMM_WORLD, (unsigned)seed * 7919u, 4, 1, 0, 0, RM_MON_TARGETS, RM_MON_TARGETS);
             in.freeBones = 1 << 24;  // (no bone limit: the roll alone)
             PlanAll(sc, in, yes, &s1, NULL);
             for (t = 0; t < RM_TARGET_N; ++t) cnt[t] += s1.byTarget[t], total += s1.byTarget[t];
         }
-        for (t = 0; t < RM_TARGET_N; ++t) ok &= cnt[t] * 9 > total * 8 / 10 && cnt[t] * 9 < total * 12 / 10;
+        for (t = 0; t < 9; ++t) ok &= cnt[t] * 9 > total * 8 / 10 && cnt[t] * 9 < total * 12 / 10;  // v3.56 RE356: the monsters
         CHECK(ok && total == 200 * 71, "the mix is even over 200 seeds (each target within 20 %% of 1/9)");
+    }
+    {   // v3.56 RE356: Same World and All Worlds with the victims' ghosts (the story rule applied as rzmon.inc does)
+        int seed, ghosts = 0, mon = 0, g0B = 0, g0D1 = 0, outside = 0, total = 0, room, okSave = 1;
+        for (seed = 1; seed <= 200; ++seed) {
+            RmPlanIn in = In(RMM_ALL, (unsigned)seed * 104729u, 4, 1, 0, 0, RM_ALL_TARGETS, RM_ALL_TARGETS & RmStoryAllowed(4, 0, 1));
+            in.freeBones = 1 << 24;
+            PlanAll(sc, in, yes, &s1, NULL);
+            for (t = 0; t < RM_TARGET_N; ++t) {
+                total += s1.byTarget[t];
+                if (RM_GHOST_TARGETS >> t & 1u) ghosts += s1.byTarget[t];
+                else mon += s1.byTarget[t];
+                if (RM_G0B_TARGETS >> t & 1u) g0B += s1.byTarget[t];
+            }
+            in.allowed = RM_ALL_TARGETS & RmStoryAllowed(4, 1, 0);
+            PlanAll(sc, in, yes, &s2, NULL);
+            g0D1 += s2.byTarget[RmTargetIndex(0x0D, 1)];
+        }
+        CHECK(total == 200 * 71 && !g0B && ghosts * 100 > total * 8 && mon > ghosts, "v3.56 RE356: All Worlds in the Water Prison before "
+              "flag 2D3: no 0B; the other victims' ghosts in the mix (%d of %d, monsters %d)", ghosts, total, mon);
+        CHECK(!g0D1, "v3.56 RE356: no old man's ghost (0D v1) before flag 23B (%d)", g0D1);
+        // Same World: this world's victims only (the Subway places 0B v0 / v3 and 0C v1; the Water Prison none)
+        {
+            const unsigned w2 = g_sc[2][0].placed | g_sc[2][1].placed, w4 = g_sc[4][0].placed | g_sc[4][1].placed;
+            const unsigned w3 = g_sc[3][0].placed | g_sc[3][1].placed, w6 = g_sc[6][0].placed;
+            CHECK((w2 & RM_GHOST_TARGETS) == (1u << RmTargetIndex(0x0B, 0) | 1u << RmTargetIndex(0x0B, 3) | 1u << RmTargetIndex(0x0C, 1)) &&
+                  !(w4 & RM_GHOST_TARGETS) && (w3 & RM_GHOST_TARGETS) == (1u << RmTargetIndex(0x0B, 0) | 1u << RmTargetIndex(0x0B, 2) |
+                  1u << RmTargetIndex(0x0B, 3) | 1u << RmTargetIndex(0x0D, 1)) && (w6 & RM_GHOST_TARGETS) == (1u << RmTargetIndex(0x0B, 0) |
+                  1u << RmTargetIndex(0x0C, 1) | 1u << RmTargetIndex(0x0D, 1)), "v3.56 RE356: Same World's victims: Subway %04X, Forest "
+                  "%04X, Water Prison %04X, Apartment %04X (the stock scripts)", w2 & RM_GHOST_TARGETS, w3 & RM_GHOST_TARGETS,
+                  w4 & RM_GHOST_TARGETS, w6 & RM_GHOST_TARGETS);
+        }
+        for (seed = 1, ghosts = 0, outside = 0; seed <= 100; ++seed) {
+            RmPlanIn in = In(RMM_WORLD, (unsigned)seed * 31u, 2, 0, 0, 0, 0, RM_ALL_TARGETS & RmStoryAllowed(2, 0, 1));
+            in.released = 1, in.freeBones = 1 << 24;
+            PlanAll(&g_sc[2][0], in, yes, &s1, NULL);
+            for (t = 0; t < RM_TARGET_N; ++t) {
+                if (RM_GHOST_TARGETS >> t & 1u) ghosts += s1.byTarget[t];
+                if ((RM_GHOST_TARGETS >> t & 1u) && !(in.world >> t & 1u)) outside += s1.byTarget[t];
+            }
+        }
+        CHECK(ghosts > 100 && !outside, "v3.56 RE356: Same World in the Subway: its own victims' ghosts only (%d, %d of another world)",
+              ghosts, outside);
+        // a monster rolled a ghost is retyped like any target: its record is Refined's and stays out of a save
+        for (room = 1; room < RZ_ROOMS && okSave; ++room) {
+            static unsigned char recs[RM_REC_N * RM_REC_SIZE];
+            static RmProv pv;
+            int idx[RM_ROOM_MAX], m = RoomIdx(sc, room, idx), k2;
+            RmRec rec[RM_ROOM_MAX];
+            RmPick pk[RM_ROOM_MAX];
+            RmPlanStat ps;
+            RmPlanIn in = In(RMM_ALL, 77, 4, 1, room, 0, RM_ALL_TARGETS, RM_GHOST_TARGETS);  // (ghosts only: every placement a ghost)
+            if (!m) continue;
+            in.freeBones = 1 << 24;
+            memset(recs, 0, sizeof recs), memset(&pv, 0, sizeof pv);
+            NoRecs(rec, m);
+            RmPlanRoom(&in, sc, idx, m, rec, yes, pk, &ps);
+            for (k2 = 0; k2 < m && k2 < RM_REC_N; ++k2) {
+                unsigned char *r = recs + RM_REC_SIZE * k2;
+                const unsigned id = EnmScriptId(4, 1, room, sc->s[idx[k2]].n);
+                const short ty = (short)pk[k2].type, stt = 1;
+                okSave &= RmIsGhostTarget(pk[k2].type);
+                RmProvPut(&pv, id, pk[k2].type, pk[k2].variant, sc->s[idx[k2]].type, sc->s[idx[k2]].variant);
+                memcpy(r + 0x20, &id, 4), memcpy(r + 0x24, &ty, 2), memcpy(r + 0x26, &stt, 2);
+                r[0x33] = pk[k2].variant, r[0x36] = 4, r[0x37] = (unsigned char)room;
+            }
+            okSave &= RmSaveClean(recs, &pv) == (m < RM_REC_N ? m : RM_REC_N);
+        }
+        CHECK(okSave, "v3.56 RE356: monsters rolled victims' ghosts: their records are Refined's, every one left out of a save");
     }
     // Hummers: a walker only where a floor was found
     {
         const RmScan *h = &g_sc[5][1];  // Building 2nd half: 14 Hummer sources
-        PlanAll(h, In(RMM_WORLD, 5, 5, 1, 0, 0, RM_ALL_TARGETS, RM_ALL_TARGETS), no, &s1, NULL);
+        PlanAll(h, In(RMM_WORLD, 5, 5, 1, 0, 0, RM_MON_TARGETS, RM_MON_TARGETS), no, &s1, NULL);
         CHECK(!s1.flyerWalker, "no floor: a Hummer's spot never gets a walker");
-        PlanAll(h, In(RMM_WORLD, 5, 5, 1, 0, 0, RM_ALL_TARGETS, RM_ALL_TARGETS), yes, &s2, NULL);
+        PlanAll(h, In(RMM_WORLD, 5, 5, 1, 0, 0, RM_MON_TARGETS, RM_MON_TARGETS), yes, &s2, NULL);
         CHECK(s2.flyerWalker > 3, "with a floor: walkers at Hummer spots (%d)", s2.flyerWalker);
     }
     // the bone budget
@@ -336,7 +444,7 @@ static void TestPlans(void)
             RmRec rec[RM_ROOM_MAX];
             RmPick p[RM_ROOM_MAX];
             RmPlanStat st;
-            RmPlanIn in = In(RMM_WORLD, 3, 4, 1, room, 0, RM_ALL_TARGETS, RM_ALL_TARGETS);
+            RmPlanIn in = In(RMM_WORLD, 3, 4, 1, room, 0, RM_MON_TARGETS, RM_MON_TARGETS);
             if (m < 5) continue;
             NoRecs(rec, m);
             in.freeBones = 1408, in.totalBones = 1408;  // the stock pool
@@ -359,7 +467,7 @@ static void TestPlans(void)
         RmPlanStat st;
         RmPlanIn in;
         for (room = 1; room < RZ_ROOMS && (m = RoomIdx(sc, room, idx)) < 4; ++room) {}
-        in = In(RMM_ROOM, 77, 4, 1, room, 0, stockT, RM_ALL_TARGETS);
+        in = In(RMM_ROOM, 77, 4, 1, room, 0, stockT, RM_MON_TARGETS);
         CHECK(m >= 4, "a room with 4+ sources (room %d: %d)", room, m);
         sticky = sc->s[idx[0]].type == 8 ? 2 : 8;
         NoRecs(rec, m);
@@ -493,7 +601,7 @@ static void TestAdopt(void)
         RmRec rec[RM_ROOM_MAX];
         RmPick a[RM_ROOM_MAX], b[RM_ROOM_MAX];
         RmPlanStat sa, sb;
-        RmPlanIn in = In(RMM_WORLD, 794655925u, 4, 1, room, 0, 0, RM_ALL_TARGETS);
+        RmPlanIn in = In(RMM_WORLD, 794655925u, 4, 1, room, 0, 0, RM_MON_TARGETS);
         if (!m) continue;
         NoRecs(rec, m);
         RmPlanRoom(&in, sc, idx, m, rec, yes, a, &sa);
@@ -543,7 +651,7 @@ static void TestAdopt(void)
         RmPick b[RM_ROOM_MAX];
         RmPlanStat sb;
         for (room = 1; room < RZ_ROOMS && !found; ++room) {
-            RmPlanIn in = In(RMM_WORLD, 5, 4, 1, room, 0, 0, RM_ALL_TARGETS);
+            RmPlanIn in = In(RMM_WORLD, 5, 4, 1, room, 0, 0, RM_MON_TARGETS);
             if (!(m = RoomIdx(sc, room, idx))) continue;
             for (k = 0; k < m; ++k)
                 rec[k].type = sc->s[idx[k]].type, rec[k].variant = sc->s[idx[k]].variant, rec[k].here = 1, rec[k].ours = 0;
@@ -574,7 +682,7 @@ static void TestAdopt(void)
             RmRec rec[RM_ROOM_MAX];
             RmPick b[RM_ROOM_MAX];
             RmPlanStat sb;
-            RmPlanIn in = In(RMM_WORLD, 11, 5, 1, room, 0, RM_ALL_TARGETS, RM_ALL_TARGETS);
+            RmPlanIn in = In(RMM_WORLD, 11, 5, 1, room, 0, RM_MON_TARGETS, RM_MON_TARGETS);
             if (!m) continue;
             for (k = 0; k < m; ++k) rec[k].type = h->s[idx[k]].type, rec[k].variant = h->s[idx[k]].variant, rec[k].here = 1, rec[k].ours = 0;
             RmPlanRoom(&in, h, idx, m, rec, no, b, &sb);
@@ -597,7 +705,7 @@ static void TestAdopt(void)
         RmRec rec[RM_ROOM_MAX];
         RmPick b[RM_ROOM_MAX];
         RmPlanStat sb;
-        RmPlanIn in = In(RMM_WORLD, 794655925u, 5, 1, 11, 1, 1u << RmTargetIndex(2, 0), RM_ALL_TARGETS);
+        RmPlanIn in = In(RMM_WORLD, 794655925u, 5, 1, 11, 1, 1u << RmTargetIndex(2, 0), RM_MON_TARGETS);
         in.reroll = 1;
         for (k = 0; k < m; ++k) rec[k].type = b5->s[idx[k]].type, rec[k].variant = b5->s[idx[k]].variant, rec[k].here = 1, rec[k].ours = 0;
         RmPlanRoom(&in, b5, idx, m, rec, yes, b, &sb);
@@ -611,13 +719,13 @@ static void TestAllWorlds(void)
     unsigned char yes[RM_ROOM_MAX];
     Sum s1;
     int stage, h, t, by[RM_TARGET_N], outsideWorld = 0, gum = 0;
-    RmPlanIn in = In(RMM_ALL, 1, 4, 1, 0, 0, 0, RM_ALL_TARGETS);
+    RmPlanIn in = In(RMM_ALL, 1, 4, 1, 0, 0, 0, RM_MON_TARGETS);
     memset(yes, 1, sizeof yes), memset(by, 0, sizeof by);
-    CHECK(RmPool(&in) == RM_ALL_TARGETS, "v3.50 RM350 All Worlds: every target, nothing resident (%03X)", RmPool(&in));
-    in.allowed = RM_ALL_TARGETS & ~RM_GUM_TARGETS;
-    CHECK(RmPool(&in) == (RM_ALL_TARGETS & ~RM_GUM_TARGETS), "v3.50 RM350 All Worlds: Gum Heads only with the guard");
-    in.mode = RMM_WORLD, in.allowed = RM_ALL_TARGETS;
-    CHECK(RmPool(&in) == in.world && in.world != RM_ALL_TARGETS, "This World stays this world's (%03X)", RmPool(&in));
+    CHECK(RmPool(&in) == RM_MON_TARGETS, "v3.50 RM350 All Worlds: every target, nothing resident (%03X)", RmPool(&in));
+    in.allowed = RM_MON_TARGETS & ~RM_GUM_TARGETS;
+    CHECK(RmPool(&in) == (RM_MON_TARGETS & ~RM_GUM_TARGETS), "v3.50 RM350 All Worlds: Gum Heads only with the guard");
+    in.mode = RMM_WORLD, in.allowed = RM_MON_TARGETS;
+    CHECK(RmPool(&in) == in.world && in.world != RM_MON_TARGETS, "This World stays this world's (%03X)", RmPool(&in));
     in.mode = RMM_ROOM, in.resident = 1u << RmTargetIndex(2, 0);
     CHECK(RmPool(&in) == in.resident, "This Room stays the resident ones");
     for (stage = 2; stage <= 8; ++stage)
@@ -626,7 +734,7 @@ static void TestAllWorlds(void)
             const unsigned world = g_sc[stage][0].placed | (g_has1[stage] ? g_sc[stage][1].placed : 0u);
             Sum sw;
             if (!sc->n) continue;
-            in = In(RMM_ALL, 777, stage, h, 0, 0, 0, RM_ALL_TARGETS);
+            in = In(RMM_ALL, 777, stage, h, 0, 0, 0, RM_MON_TARGETS);
             in.freeBones = 1 << 24;
             PlanAll(sc, in, yes, &s1, NULL);
             CHECK(!s1.outside && s1.picks == sc->n, "All Worlds stage %d half %d: every pick in the pool", stage, h);
@@ -640,11 +748,11 @@ static void TestAllWorlds(void)
             for (t = 0; t < RM_TARGET_N; ++t)
                 CHECK((world >> t & 1u) || !sw.byTarget[t], "This World stage %d half %d: no %s from another world", stage, h,
                       kRmTargets[t].name);
-            in.mode = RMM_ALL, in.allowed = RM_ALL_TARGETS & ~RM_GUM_TARGETS;
+            in.mode = RMM_ALL, in.allowed = RM_MON_TARGETS & ~RM_GUM_TARGETS;
             PlanAll(sc, in, yes, &sw, NULL);
             CHECK(!sw.gum, "All Worlds stage %d half %d: no Gum Head without the guard", stage, h);
         }
-    for (t = 0; t < RM_TARGET_N; ++t) CHECK(by[t] > 5, "All Worlds: %s placed (%d)", kRmTargets[t].name, by[t]);
+    for (t = 0; t < 9; ++t) CHECK(by[t] > 5, "All Worlds: %s placed (%d)", kRmTargets[t].name, by[t]);  // v3.56 RE356: the monsters
     CHECK(outsideWorld > 50 && gum > 0, "All Worlds: %d placement(s) of another world's types (silent ones allowed)", outsideWorld);
 }
 // v3.50 RM350 (B2): a save made in a randomized room and loaded back gives a working room
@@ -664,7 +772,7 @@ static void TestSaveRoundTrip(void)
             if ((m = RoomIdx(sc, room, idx)) < 3) continue;
             memset(recs, 0, sizeof recs), memset(&pv, 0, sizeof pv);
             StockRecs(recs, sc, stage, half, room, 1);
-            RoomLoad(recs, &pv, sc, stage, half, room, In(RMM_WORLD, (unsigned)seed, stage, half, room, 0, 0, RM_ALL_TARGETS), p1, &st);
+            RoomLoad(recs, &pv, sc, stage, half, room, In(RMM_WORLD, (unsigned)seed, stage, half, room, 0, 0, RM_MON_TARGETS), p1, &st);
             ch = st.changed;
             found = ch > 0 && ch < m;
         }
@@ -673,7 +781,7 @@ static void TestSaveRoundTrip(void)
         CHECK(0, "save round trip: no room / seed with changed and kept placements");
         return;
     }
-    in = In(RMM_WORLD, (unsigned)seed, stage, half, room, 0, 0, RM_ALL_TARGETS);
+    in = In(RMM_WORLD, (unsigned)seed, stage, half, room, 0, 0, RM_MON_TARGETS);
     CHECK(ch > 0 && ch < m && st.adopted == m && st.drops == ch, "save round trip: room 4:%d seed %d: the save's %d stock records "
           "adopted, %d changed (their records deleted)", room, seed, m, ch);
     for (k = 0, okOurs = 1, n = 0; k < m; ++k) {
@@ -757,8 +865,9 @@ static void TestWords(void)
         RmRec rec[RM_ROOM_MAX];
         RmPick p[RM_ROOM_MAX];
         RmPlanStat ps;
-        RmPlanIn in = In(RMM_WORLD, 4242, stage, half, room, 0, RM_ALL_TARGETS, RM_ALL_TARGETS);
+        RmPlanIn in = In(RMM_WORLD, 4242, stage, half, room, 0, RM_ALL_TARGETS, RM_ALL_TARGETS & RmStoryAllowed(stage, 1, 1));  // v3.56 RE356: + ghosts
         if (!m) continue;
+        in.freeBones = 1 << 24;
         NoRecs(rec, m);
         RmPlanRoom(&in, sc, idx, m, rec, yes, p, &ps);
         d = RmStackPush(&st);
@@ -770,11 +879,10 @@ static void TestWords(void)
             RmStackAdd(&st, d, ImgPtr(s->typeVa), s->type, p[k].type);
             ++changed;
         }
-        RmScanScript(&w, Script(stage, half), stage, &after);  // the runner's view of the patched script
-        for (k = 0; k < m; ++k) {
-            const int j = RmSlotOf(&after, room, sc->s[idx[k]].n);
+        for (k = 0; k < m; ++k) {  // v3.56 RE356: the runner's view: the type word and the mode word's variant (a ghost is no source)
+            const RmSlot *s = &sc->s[idx[k]];
             ++total;
-            if (j >= 0 && after.s[j].type == p[k].type && after.s[j].variant == p[k].variant) ++match;
+            if (*ImgPtr(s->typeVa) == p[k].type && (*ImgPtr(s->modeVa) >> 8 & 0xFu) == p[k].variant) ++match;
             else ++mismatch;
         }
         CHECK(!mismatch, "room 4:%d: the patched script holds the planned types", room);
@@ -979,7 +1087,7 @@ static void TestEventDogs(void)
     CHECK(m == 3 && sc->s[idx[0]].event && sc->s[idx[1]].event && sc->s[idx[2]].event, "Subway room 2:2: 3 event dog sources (%d)", m);
     if (m != 3) return;
     for (seed = 1; seed <= 300; ++seed) {
-        RmPlanIn in = In(RMM_ALL, (unsigned)seed * 2654435761u, 2, 0, 2, 0, RM_ALL_TARGETS, RM_ALL_TARGETS);
+        RmPlanIn in = In(RMM_ALL, (unsigned)seed * 2654435761u, 2, 0, 2, 0, RM_MON_TARGETS, RM_MON_TARGETS);
         NoRecs(rec, m);
         RmPlanRoom(&in, sc, idx, m, rec, yes, p, &st);  // story flag 0x130 clear
         for (k = 0; k < m; ++k) okAsleep &= p[k].why == RMW_EVENT && p[k].type == 0x0A && !p[k].variant && !p[k].drop && !p[k].adopt;
@@ -999,7 +1107,7 @@ static void TestEventDogs(void)
           "130 set: the event dogs roll as the others (%d of %d changed; every type)", changed, plans);
     {   // records: the flag clear keeps the game's own stock record (not adopted) and deletes Refined's of another type here;
         // the flag set adopts the game's own ones (deleted when the roll gives another type)
-        RmPlanIn in = In(RMM_ALL, 5, 2, 0, 2, 3, RM_ALL_TARGETS, RM_ALL_TARGETS);
+        RmPlanIn in = In(RMM_ALL, 5, 2, 0, 2, 3, RM_MON_TARGETS, RM_MON_TARGETS);
         in.reroll = 1;
         for (k = 0; k < m; ++k) rec[k].type = 0x0A, rec[k].variant = 0, rec[k].here = 1, rec[k].ours = 0;
         rec[1].type = 8, rec[1].ours = 1;
@@ -1017,7 +1125,7 @@ static void TestEventDogs(void)
     {   // the planned words in a copy of the stock script: the retyped dogs are no event dogs any more; the restore is stock
         RzWin w = ExeWin();
         static RmScan after;
-        RmPlanIn in = In(RMM_ALL, 0, 2, 0, 2, 0, RM_ALL_TARGETS, RM_ALL_TARGETS);
+        RmPlanIn in = In(RMM_ALL, 0, 2, 0, 2, 0, RM_MON_TARGETS, RM_MON_TARGETS);
         int d, ok = 0, okRe = 1, tries;
         in.released = 1;
         for (tries = 0, seed = 1; tries < 1 && seed < 2000; ++seed) {  // a plan with a dog kept (any variant) and a dog retyped
@@ -1057,7 +1165,7 @@ static void TestEventDogs(void)
         RmPlanStat sa, sb;
         int okSeq = 1, n = 0;
         for (seed = 1; seed <= 40; ++seed) {
-            RmPlanIn in = In(RMM_ALL, (unsigned)seed * 977u, 2, 0, 2, 0, RM_ALL_TARGETS, RM_ALL_TARGETS);
+            RmPlanIn in = In(RMM_ALL, (unsigned)seed * 977u, 2, 0, 2, 0, RM_MON_TARGETS, RM_MON_TARGETS);
             memset(recs, 0, sizeof recs), memset(&pv, 0, sizeof pv);
             RoomLoad(recs, &pv, sc, 2, 0, 2, in, a, &sa);
             okSeq &= sa.event == 3 && pv.n == 0;
@@ -1077,7 +1185,7 @@ static void TestEventDogs(void)
         int vis;
         printf("  v3.51 SN351: the user's Subway room 2:2 (seed 1398963150, All Worlds, Change Each Visit On, roll again On):");
         for (vis = 1; vis <= 4; ++vis) {
-            RmPlanIn in = In(RMM_ALL, 1398963150u, 2, 0, 2, (unsigned)vis, RM_ALL_TARGETS, RM_ALL_TARGETS);
+            RmPlanIn in = In(RMM_ALL, 1398963150u, 2, 0, 2, (unsigned)vis, RM_MON_TARGETS, RM_MON_TARGETS);
             in.released = 1, in.reroll = 1, in.rollAgain = 1;
             NoRecs(rec, m);
             RmPlanRoom(&in, sc, idx, m, rec, yes, p, &st);
@@ -1107,7 +1215,7 @@ static void TestRollAgain(void)
         RmRec rec[RM_ROOM_MAX];
         RmPick a[RM_ROOM_MAX], b[RM_ROOM_MAX];
         RmPlanStat sa, sb;
-        RmPlanIn in = In(RMM_ALL, 1398963150u, 2, 0, kLog[i].room, kLog[i].visit, 0, RM_ALL_TARGETS);
+        RmPlanIn in = In(RMM_ALL, 1398963150u, 2, 0, kLog[i].room, kLog[i].visit, 0, RM_MON_TARGETS);
         in.reroll = 1;
         NoRecs(rec, m);
         RmPlanRoom(&in, sc, idx, m, rec, yes, a, &sa);
@@ -1139,7 +1247,7 @@ static void TestRollAgain(void)
                 RmRec rec[RM_ROOM_MAX];
                 RmPick a[RM_ROOM_MAX], b[RM_ROOM_MAX];
                 RmPlanStat sa, sb;
-                RmPlanIn in = In(RMM_ALL, (unsigned)seed * 7919u, 4, 1, room, 0, RM_ALL_TARGETS, RM_ALL_TARGETS);
+                RmPlanIn in = In(RMM_ALL, (unsigned)seed * 7919u, 4, 1, room, 0, RM_MON_TARGETS, RM_MON_TARGETS);
                 if (!m) continue;
                 in.freeBones = 1 << 24;
                 NoRecs(rec, m);
@@ -1168,7 +1276,7 @@ static void TestRollAgain(void)
         const RmScan *w4 = &g_sc[4][1];
         Sum s1;
         int diff;
-        RmPlanIn in = In(RMM_ROOM, 1234, 4, 1, 0, 0, 1u << RmTargetIndex(2, 0), RM_ALL_TARGETS);
+        RmPlanIn in = In(RMM_ROOM, 1234, 4, 1, 0, 0, 1u << RmTargetIndex(2, 0), RM_MON_TARGETS);
         PlanAll(w4, in, yes, &s1, g_pa);
         in.rollAgain = 1;
         PlanAll(w4, in, yes, &s1, g_pb);
@@ -1178,7 +1286,7 @@ static void TestRollAgain(void)
         Sum s1, s2;
         int seed, dogsOff = 0, dogsOn = 0, picks = 0;
         for (seed = 1; seed <= 200; ++seed) {
-            RmPlanIn in = In(RMM_WORLD, (unsigned)seed * 31u, 2, 0, 0, 0, 0, RM_ALL_TARGETS & ~RM_GUM_TARGETS);
+            RmPlanIn in = In(RMM_WORLD, (unsigned)seed * 31u, 2, 0, 0, 0, 0, RM_MON_TARGETS & ~RM_GUM_TARGETS);
             in.released = 1, in.freeBones = 1 << 24;
             PlanAll(sc, in, yes, &s1, NULL);
             in.rollAgain = 1;

@@ -324,6 +324,20 @@ static void AiCollect(const BYTE *task, BYTE *model);  // v3.29 AFTERIMAGE: afte
 static void AiPostDraw(void *dev, int look);  // v3.29 AFTERIMAGE: the trail after Thermal (1) / Spirit Vision (3)
 static void DfxCollect(const BYTE *task, BYTE *model);  // v3.31 DEPTH331: depthfix.inc (the bodies whose depth it restores)
 static volatile LONG g_aiZ;  // v3.29 AFTERIMAGE: set only while an after-image redraw runs: the glow override keeps the depth test
+// v3.56 PV356: preview.inc (the Effects page's preview: the pause's look layers, the title scene; included after shadows.inc)
+static void PvCollect(const BYTE *task, BYTE *model);  // 0x52AEB5: the capture frame's bodies / ghosts for the layers
+static void PvCyn(BYTE *model);                        // 0x4EE376: the trapped Cynthia, the same
+static void PvCapture(void);                           // 0x4EFBFD, the capture frame, after FxCaptureClean
+static void PvPageDraw(int where);                     // the layer of the filter over the page's / the pause's picture
+static int PvBackPick(void *dev);                      // FxBackdropC: the scene, the picture or the hallway
+static int PvSceneDraw(void *dev);
+static void PvBackNote(int back);
+static void PvFrameEnd(void);                          // FxAfterPost
+static void PvInstall(void);                           // ScreenFxInstall: [ScreenEffects] PreviewLayers / PreviewScene
+static int PvF7Hidden(void);                           // FxFilterDesc: no PreviewKey sentence while the scene is the backdrop
+static void PvBeforeReset(void);                       // shadows.inc ShBeforeReset: the layers' targets released
+static volatile LONG g_pvNoZw;                         // GvOverride: the preview's heat redraw writes no depth
+static int g_pvColl;                                   // GvNote: the preview's own collection logs no "collected" line
 
 typedef struct {
     BYTE tech, vigTex, specks, pad;
@@ -564,6 +578,7 @@ static const DWORD kPsPpComp[] = { PS_VER, PS_TEX(0), PS_TEX(1), PS_TEX(2), PS_T
 // GRADE: v3.44 CS344: post_sim.h's kPpGradePs (proven forms only: v3.43's `mad r0, 1-r1, c4, r0` was dropped silently by
 // GOG's translator, the frame came through unchanged); post_sim.h is pure (included again by post.inc: guarded)
 #include "post_sim.h"  // v3.44 CS344
+#include "preview_sim.h"  // v3.56 PV356: the Effects preview's rules (PVB_* for FxBackdropC; preview.inc draws)
 #define kPsPpGrade kPpGradePs  // v3.44 CS344
 // LENS: t0 / t1 / t2 = the frame at the red / green / blue warped coordinates; c0..c2 the channel masks
 static const DWORD kPsPpLens[] = { PS_VER, PS_TEX(0), PS_TEX(1), PS_TEX(2),
@@ -1696,7 +1711,7 @@ static void FxSceneFrame(void)
     const int capture = *(volatile int *)0x12E3E2C == 1 && *(volatile int *)0x1236D4C == 6;
     if (!g_fxOn) return;
     if (g_fx[FX_FILTER] <= 0) {  // no filter: only the clean grabs (PreviewKey; a pause preview is not needed)
-        if (capture) g_fxCopyLook = -1, FxCaptureClean();
+        if (capture) g_fxCopyLook = -1, FxCaptureClean(), PvCapture();  // v3.56 PV356: + the look layers (preview.inc)
         else FxPreviewKeyFrame();
         PpScene(capture);  // v3.43 PP343
         return;
@@ -1714,6 +1729,7 @@ static void FxSceneFrame(void)
     if (capture) {  // v3.22.0 G3: the capture frame: clean grabs first, then the filter the copy will keep
         const int on = FxSceneGate();
         FxCaptureClean();
+        PvCapture();  // v3.56 PV356: the pause's look layers for the Effects page (the clean frame is drawn back; preview.inc)
         PpScene(1);  // v3.43 PP343: the copy keeps them too
         if (on && FxPass(1)) {  // review V322-007: only a drawn filter marks the copy (else 0x55AC29's fallback runs and
             InterlockedExchange(&g_fxCapScene, g_fxFrame);  // the copy stays clean: the v3.18 overlay rules filter it)
@@ -1874,6 +1890,7 @@ static void __cdecl FxBackdropFrame(void)
         FxDrawPic(dev, tex, g_fxPauseTexW, g_fxPauseTexH);
         PpPaused();  // v3.43 PP343: bloom / grading / lens over the clean picture, before the filter
         g_fxBackLook = FxCurLook() <= 0 || FxPass(3) ? FxCurLook() : -1;  // (V322-007: a failed pass leaves it clean)
+        if (g_fxBackLook > 0) PvPageDraw(1);  // v3.56 PV356: Thermal's heat / Spirit Vision's ghosts of this pause over it (preview.inc)
         if (!s_logged++) Log("screen effects: the filter changed during a pause: the paused scene is shown with the new one");
     } __except (EXCEPTION_EXECUTE_HANDLER) {
     }
@@ -1917,8 +1934,17 @@ static void __cdecl FxBackdropC(void)
         FxDeviceCheck(dev);
         {
             UINT pw = 0, ph = 0;
-            if ((tex = FxPauseTex(dev)) != NULL) pw = g_fxPauseTexW, ph = g_fxPauseTexH, pause = 1;  // v3.22.0: the paused scene
-            else if ((tex = FxPrevLoad(dev)) != NULL) pw = g_fxPrevW, ph = g_fxPrevH;
+            PvBackNote(PVB_STOCK);  // v3.56 PV356: what this frame's backdrop is (the layer over it follows it)
+            if ((tex = FxPauseTex(dev)) != NULL) pw = g_fxPauseTexW, ph = g_fxPauseTexH, pause = 1, PvBackNote(PVB_PAUSE);  // v3.22.0: the paused scene
+            else {  // v3.56 PV356 (improvement 19): no paused game: SH4 Refined's own scene (PreviewScene=Scene), else / then PreviewImage
+                const int back = PvBackPick(dev);
+                if (back == PVB_SCENE && PvSceneDraw(dev)) {
+                    g_fxPrevDrew = 1;
+                    PvBackNote(PVB_SCENE);
+                    return;
+                }
+                if (back != PVB_STOCK && (tex = FxPrevLoad(dev)) != NULL) pw = g_fxPrevW, ph = g_fxPrevH, PvBackNote(PVB_PICTURE);
+            }
             if (!tex || !pw || !ph) return;
             if (!FxSave(dev, &sv, 0)) return;
             FxBase(dev);
@@ -2070,6 +2096,7 @@ static void __cdecl FxBackdropFilter(void)
     PpPreview();  // v3.43 PP343: bloom / grading / lens (the lens at full strength) before the noise and the filter
     FxPreviewNoise();
     FxPass(0);
+    PvPageDraw(0);  // v3.56 PV356 (issue 2, improvement 19): Thermal's heat / Spirit Vision's ghosts and fires over it (preview.inc)
     FxPanels();  // v3.22.0 (item 16)
     if (!s_logged++) Log("screen effects: the Screen Effects preview filter runs under the page text (0x526A53, %s)",
                          g_fxPrevDrew ? "preview picture" : "the stock hallway");
@@ -2277,6 +2304,7 @@ static void FxCaptureClean(void)
 static const char *FxFilterDesc(void)
 {
     static char s[64];
+    if (PvF7Hidden()) return "";  // v3.56 PV356: the page shows SH4 Refined's scene, not the F7 picture (PreviewScene=Scene)
     if (g_fxKeyVk >= VK_F1 && g_fxKeyVk <= VK_F12) {
         sprintf_s(s, sizeof s, OLW_FILTER_F7, g_fxKeyVk - VK_F1 + 1);  // v3.53 OL1: " F%d in play: new preview."
         return s;
@@ -2333,6 +2361,7 @@ static void __cdecl FxAfterPost(void)
         }                                                 // are taken there, FxCaptureClean)
     }
     ShFrameEnd();  // v3.40 SH340: the pause picture's frame, the Shadows preview's copies (before g_fxFrame moves on)
+    PvFrameEnd();  // v3.56 PV356: the Effects preview's page open / close, its layers at a pause's end (preview.inc)
     PerfFrame(1);  // v3.37 CP337: the performance overlay, over the finished frame (perfhud.inc)
     if (InterlockedIncrement(&g_fxFrame) == -1) InterlockedExchange(&g_fxFrame, 0);  // FX-002: at the end; never -1 (FX-003)
 }
@@ -2593,6 +2622,7 @@ static int __cdecl ThermDrawC(const BYTE *task, BYTE *model)  // 0x52AEB5: 0 = n
     AiCollect(task, model);  // v3.29 AFTERIMAGE: her frame and the shocked bodies (before any filter early-out)
     EchoCollect(task, model);  // v3.30 ECHO: the Echo double (her body drawn this frame, the 3D viewport)
     DfxCollect(task, model);  // v3.31 DEPTH331: the player / companions, for the depth restore (depthfix.inc)
+    PvCollect(task, model);  // v3.56 PV356: a pause's capture frame: the bodies / ghosts the Effects page's preview needs (preview.inc)
     if (GvLive()) {  // Ghost Vision (exclusive with Thermal): the ghost is drawn as usual and remembered for the glow
         GvCollect(task, model);
         return 1;
@@ -2646,6 +2676,7 @@ static int __cdecl ThermCynC(BYTE *model)
         Log("screen effects: Thermal: the trapped Cynthia's draw 004EE376 runs (filter %d, mode %d, sub-mode %d, phase %d, "
             "overlay %d; heat %s)", (int)g_fx[FX_FILTER], *(volatile int *)0x1236D4C, *(volatile int *)0x1236D50,
             *(volatile int *)0xFD5C20, *(volatile int *)0x107BF54, ThermHeatLive() ? "on" : "off");
+    PvCyn(model);  // v3.56 PV356: a pause's capture frame: her heat / soul for the Effects page's preview (preview.inc)
     if (GvLive()) {  // v3.24.0 (user item 2): Spirit Vision: her soul fire (the plain draw as before)
         GvFrameBegin();
         SvNpcNote(3, 0x4EE360);
@@ -2825,6 +2856,7 @@ static int GvNoiseOff(void)
 static void GvNote(int kind, int type, DWORD fn)
 {
     static BYTE seenType[0x13], seenKind[3];
+    if (g_pvColl) return;  // v3.56 PV356: the preview's own collection (Spirit Vision is not live): not "collected (glows)"
     if (kind == GVK_ACTOR) {
         if (type < 1 || type > 0x12 || seenType[type]) return;
         seenType[type] = 1;
@@ -3012,8 +3044,8 @@ static void __cdecl GvOverride(void)
         if (!g_thRedrawZ) ((SpSetRS_t)VT(dev, SPV_SETRS))(dev, 23 /*ZFUNC*/, 8 /*ALWAYS*/);  // v3.29.1: test only
         if (g_thOpaque) {  // a living body: solid; v3.24.0 (user item 1): and it writes its depth, so its near faces win
             ((SpSetRS_t)VT(dev, SPV_SETRS))(dev, 27 /*ALPHABLENDENABLE*/, 0);  // over its far ones even where the stock
-            ((SpSetRS_t)VT(dev, SPV_SETRS))(dev, 14 /*ZWRITEENABLE*/, 1);      // draw left no depth (the close-camera fade)
-        }
+            if (!g_pvNoZw) ((SpSetRS_t)VT(dev, SPV_SETRS))(dev, 14 /*ZWRITEENABLE*/, 1);  // draw left no depth (the close-camera fade)
+        }   // v3.56 PV356: not the preview's heat layer (g_pvNoZw: the capture frame's depth stays the game's for the live passes)
         ((SpSetDW_t)VT(dev, SPV_SETPS))(dev, g_thPs);
         ((FxPsc_t)VT(dev, FXV_SETPSC))(dev, 0, g_thC, 6);
         return;
@@ -5201,6 +5233,7 @@ static void ScreenFxInstall(void)
         }
         Log("screen effects: preview picture %s (%s); auto-capture %s; page backdrop hook %s", g_fxPrevPath,
             FxPrevExists() ? "present" : "none yet", g_fxPrevCapture ? "on" : "off", g_fxPrevHook ? "0x526A53" : "not in place (not stock)");
+        PvInstall();  // v3.56 PV356: [ScreenEffects] PreviewLayers / PreviewScene (preview.inc)
     }
     for (i = 0; i < (int)(sizeof kTSites / sizeof kTSites[0]); ++i)
         if (!SiteOk(&kTSites[i])) {

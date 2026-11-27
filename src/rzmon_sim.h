@@ -52,20 +52,49 @@
 // ---------------------------------------------------------------- the setting
 enum { RMM_OFF, RMM_ROOM, RMM_WORLD, RMM_ALL, RMM_N };  // v3.50 RM350: + RMM_ALL (All Worlds)
 // the host's default (the user's answers, 2026-11-25: a mix per enemy, any strength): This World
+// v3.56 RE356: the row is Enemies, Off / Same World / All Worlds (the user's v3.55 improvement 14: "This Room" goes). RMM_ROOM
+// stays only inside the planner (its tests); no row value and no ini text reaches it: an old "This Room" reads as Same World.
 #define RM_MON_DEFAULT RMM_WORLD
-static const char *const kRmMonName[RMM_N] = { "Off", "This Room", "This World", "All Worlds" };  // v3.50 RM350: + All Worlds
-// Monsters: Off / This Room / This World / All Worlds (also Room / World / All, 0 / 1 / 2 / 3); -1 = anything else (the
-// default, logged once). v3.50 RM350: the v3.49 values read as before.
+static const char *const kRmMonName[RMM_N] = { "Off", "This Room", "Same World", "All Worlds" };  // v3.50 RM350: + All Worlds  // v3.56 RE356: This World -> Same World
+#define RM_ROW_N 3  // v3.56 RE356: the row's values: Off / Same World / All Worlds
+static const int kRmRowMode[RM_ROW_N] = { RMM_OFF, RMM_WORLD, RMM_ALL };
+static int RmRowOfMode(int mode) { return mode == RMM_ALL ? 2 : mode == RMM_ROOM || mode == RMM_WORLD ? 1 : 0; }  // v3.56 RE356
+// Enemies (v3.56 RE356; [Randomizer] Monsters before): Off / Same World / All Worlds (also World / All, 0 / 2 / 3); the old
+// values This Room / This World / Room / 1 read as Same World; -1 = anything else (the default, logged once)
 static int RmMonOfText(const char *s)
 {
     int v;
+    if (RzTextIs(s, "This Room") || RzTextIs(s, "Room") || RzTextIs(s, "1")) return RMM_WORLD;  // v3.56 RE356: This Room is gone
+    if (RzTextIs(s, "This World")) return RMM_WORLD;                                              // v3.56 RE356: the old name
     for (v = 0; v < RMM_N; ++v)
-        if (RzTextIs(s, kRmMonName[v])) return v;
-    if (RzTextIs(s, "Room") || RzTextIs(s, "1")) return RMM_ROOM;
+        if (v != RMM_ROOM && RzTextIs(s, kRmMonName[v])) return v;
     if (RzTextIs(s, "World") || RzTextIs(s, "2")) return RMM_WORLD;
     if (RzTextIs(s, "All") || RzTextIs(s, "3")) return RMM_ALL;  // v3.50 RM350
     if (RzTextIs(s, "0")) return RMM_OFF;
     return -1;
+}
+// v3.56 RE356: a renamed ini key ([Randomizer] Monsters -> Enemies, Ghosts -> SpawnSite): which text decides. The new key's
+// text when it holds one (RZK_NEW, or RZK_BAD: not a value, the default); else the old key's (RZK_OLD: migrated once: the
+// caller writes the new key and removes the old one; RZK_OLDBAD: not a value, the default, migrated too); else nothing
+// (RZK_NONE: the default). *v = the value in force.
+enum { RZK_NONE, RZK_NEW, RZK_BAD, RZK_OLD, RZK_OLDBAD };
+static int RzKeyPick(const char *newText, const char *oldText, int (*parse)(const char *), int def, int *v)
+{
+    int x;
+    *v = def;
+    if (newText && newText[0]) {
+        x = parse(newText);
+        if (x < 0) return RZK_BAD;
+        *v = x;
+        return RZK_NEW;
+    }
+    if (oldText && oldText[0]) {
+        x = parse(oldText);
+        if (x < 0) return RZK_OLDBAD;
+        *v = x;
+        return RZK_OLD;
+    }
+    return RZK_NONE;
 }
 
 // ---------------------------------------------------------------- types
@@ -83,14 +112,35 @@ static int RmSourceVariantOk(int t, int v)
 // the targets (a type and variant a placement may become): the source types at variants below their stat rows. Gum Heads
 // only with a crash guard (RmPlanIn.allowed: rzmon.inc RmGumGuard), the Tremer at its first size.
 typedef struct { unsigned char type, variant; const char *name; } RmTarget;
+// v3.56 RE356 (the user's improvement 14: "include all victims and monsters from the whole game"; PLAN.md 2.1): + the
+// victims' ghosts: 0B v0..v3 (the male victims), 0C v1, 0D v1 (the old man). Never the story ghosts (Cynthia 0C v0, Jasper
+// 0D v0, Andrew 0E, Richard 0F), the Patient 11, Walter 10, Wall Men 05, Wheelchairs 06, mm 04. Two creates write a story
+// flag: 0B in stage 4 (EventKeyApplyEffect(0xC19): flag 0x2D3, Water Prison's "Secret Number Memo 1") and every 0D v1
+// (flag 0x23B, the Forest's "Forest Ghost"): RmStoryAllowed keeps them out while their flag is clear (the write a no-op then).
 static const RmTarget kRmTargets[] = {
     { 0x02, 0, "Whitestool" }, { 0x03, 0, "Hummer" }, { 0x07, 0, "Gum Head" }, { 0x07, 1, "Gum Head (v1)" },
     { 0x08, 0, "Twin Victim" }, { 0x08, 1, "Twin Victim (v1)" }, { 0x09, 0, "Tremer" }, { 0x0A, 0, "Sniffer Dog" },
     { 0x0A, 1, "Sniffer Dog (v1)" },
+    { 0x0B, 0, "Victim 0B v0" }, { 0x0B, 1, "Victim 0B v1" }, { 0x0B, 2, "Victim 0B v2" }, { 0x0B, 3, "Victim 0B v3" },  // v3.56 RE356
+    { 0x0C, 1, "Victim 0C v1" }, { 0x0D, 1, "Victim 0D v1" },                                                            // v3.56 RE356
 };
 #define RM_TARGET_N ((int)(sizeof kRmTargets / sizeof kRmTargets[0]))
 #define RM_ALL_TARGETS ((1u << RM_TARGET_N) - 1u)
 #define RM_GUM_TARGETS ((1u << 2) | (1u << 3))
+#define RM_MON_TARGETS 0x01FFu    // v3.56 RE356: the nine monster targets (bits 0-8)
+#define RM_GHOST_TARGETS 0x7E00u  // v3.56 RE356: the six victim ghosts (bits 9-14)
+#define RM_G0B_TARGETS 0x1E00u    // v3.56 RE356: 0B v0..v3
+#define RM_G0D1_TARGET 0x4000u    // v3.56 RE356: 0D v1
+typedef char RmTargetsFit[RM_TARGET_N == 15 && (RM_MON_TARGETS | RM_GHOST_TARGETS) == RM_ALL_TARGETS ? 1 : -1];
+static int RmIsGhostTarget(int type) { return type == 0x0B || type == 0x0C || type == 0x0D; }  // v3.56 RE356 (a target's type)
+// v3.56 RE356: the targets the story allows now (stage: gGame.stage; flag2D3 / flag23B: those story flags are set)
+static unsigned RmStoryAllowed(int stage, int flag2D3, int flag23B)
+{
+    unsigned m = RM_ALL_TARGETS;
+    if (stage == 4 && !flag2D3) m &= ~RM_G0B_TARGETS;
+    if (!flag23B) m &= ~RM_G0D1_TARGET;
+    return m;
+}
 static int RmTargetIndex(int type, int variant)
 {
     int i;
@@ -607,7 +657,7 @@ static int RmSaveClean(unsigned char *recs, const RmProv *p)
 // ---------------------------------------------------------------- patch-and-restore: one word list per room-script run
 // (rando_sim.h's RzPatchOne / RzRestoreAll; the same levels as the Items' list: push at the run's start, pop in the
 // __finally after the runner, the deepest first)
-#define RM_PATCH_MAX (3 * RM_ROOM_MAX)  // a type word, a mode word and a y word a placement at most
+#define RM_PATCH_MAX (5 * RM_ROOM_MAX)  // a type word, a mode word and a y word a placement at most  // v3.56 RE356: + x / z (Spawn Site: 5)
 typedef struct { RzPatchRec rec[RZ_DEPTH][RM_PATCH_MAX]; int n[RZ_DEPTH]; int depth; } RmPatchStack;
 static int RmStackPush(RmPatchStack *s)
 {

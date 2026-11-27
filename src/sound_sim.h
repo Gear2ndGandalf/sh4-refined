@@ -206,4 +206,98 @@ static const char *SndSpeakerName(unsigned long cfg)
     return "unknown";
 }
 
+// ---------------------------------------------------------------- v3.56 SD356: the background, keep-awake and device watch
+// (staging/v356_feedback/w8_sound/PLAN.md; the user's v3.55 issues 4 and 5). Checked against SH4Decomp/orig/sh4.exe:
+// - The game's DirectSound: DirectSoundCreate8(NULL) (the default device at that moment: DirectSound stays on it for the
+//   session), SetCooperativeLevel(hwnd [0x6E7D90], DSSCL_PRIORITY) (SndMgr 0x40C0F0). Its buffers are made per play, none with
+//   DSBCAPS_GLOBALFOCUS (0x8000): DirectSound mutes them while another window is in front (Refined keeps the game running
+//   behind other windows, so its sounds go on, muted; a wireless headset then gets a silent stream and may fall asleep, and
+//   takes seconds to wake when the game comes back).
+// - The four places the game makes a buffer; each one's flags carry 0x8000 when the flags' second byte is 0x80 (the
+//   immediate's bits 8..15; every stock one is 0x00): Background Play writes 0x80, Mute the stock 0x00 (one byte, one store).
+#define SND_DSBCAPS_GLOBALFOCUS 0x8000u
+enum { SND_BG_MUTE, SND_BG_PLAY, SND_BG_N };
+static const char *const kSndBgName[SND_BG_N] = { "Mute", "Play" };
+typedef struct { unsigned long va; int len; unsigned char stock[8]; int at; const char *what; } SndBgSite;
+static const SndBgSite kSndBgSites[4] = {
+    { 0x4095FE, 6, { 0x81, 0xC2, 0xC0, 0x00, 0x00, 0x00 }, 3, "Play2D 00409530 (add edx,0C0h)" },
+    { 0x409B02, 5, { 0x05, 0x90, 0x00, 0x00, 0x00 }, 2, "Play3D 00409A30 (add eax,90h)" },
+    { 0x40A14C, 8, { 0xC7, 0x44, 0x24, 0x38, 0xC0, 0x00, 0x00, 0x00 }, 5, "PlayMusic 0040A080 (mov [esp+38h],0C0h)" },
+    { 0x40A723, 8, { 0xC7, 0x44, 0x24, 0x20, 0xC0, 0x00, 0x00, 0x00 }, 5, "SndVoice::CreateBuffer 0040A6D0 (mov [esp+20h],0C0h)" },
+};
+static unsigned char SndBgByte(int play) { return (unsigned char)(play ? SND_DSBCAPS_GLOBALFOCUS >> 8 : 0); }
+// [Sound] Background: Mute / Play (also 0 / 1); -1 = neither
+static int SndParseBg(const char *s)
+{
+    if (!s) return -1;
+    while (*s == ' ') ++s;
+    if (!_stricmp(s, "Mute") || !strcmp(s, "0")) return SND_BG_MUTE;
+    if (!_stricmp(s, "Play") || !strcmp(s, "1")) return SND_BG_PLAY;
+    return -1;
+}
+// The keep-awake signal: a 45 Hz sine (490 samples a period at 22050 Hz; one second = 45 whole periods, so the loop has no
+// seam), mono 16-bit, amplitude `level` of 32767 (8 = -72 dBFS, far below hearing at 45 Hz; 0 = digital silence, which
+// still keeps the stream open but not a headset that sleeps on silence). It never carries pure digital silence.
+#define SND_KA_RATE 22050
+#define SND_KA_PERIOD 490
+#define SND_KA_SAMPLES 22050
+#define SND_KA_LEVEL_DEF 8
+#define SND_KA_LEVEL_MAX 64
+static void SndKeepAwakeFill(short *s, int n, int level)
+{
+    const double kPi = 3.14159265358979323846;
+    int i;
+    if (level < 0) level = 0;
+    if (level > SND_KA_LEVEL_MAX) level = SND_KA_LEVEL_MAX;
+    for (i = 0; i < n; ++i) {
+        const double v = level * sin(2.0 * kPi * (i % SND_KA_PERIOD) / SND_KA_PERIOD);
+        s[i] = (short)(v >= 0 ? v + 0.5 : v - 0.5);
+    }
+}
+static int SndKeepLevelOk(int v) { return v >= 0 && v <= SND_KA_LEVEL_MAX; }
+// its peak in tenths of a dB below full scale (8 -> -722); level 0 -> -1000 (silence)
+static int SndKeepLevelDb10(int level)
+{
+    double d;
+    if (level <= 0) return -1000;
+    d = 200.0 * log10(level / 32768.0);
+    return (int)(d >= 0 ? d + 0.5 : d - 0.5);
+}
+// The device watch (IMMNotificationClient::OnDefaultDeviceChanged, render / console role: DirectSound's default device).
+// isGame = the new default is the device the game's DirectSound plays on; *pending = a different default was announced.
+enum { SND_DEV_SAME, SND_DEV_NEW, SND_DEV_NEW_AGAIN, SND_DEV_BACK };
+static int SndDevStep(int isGame, int *pending)
+{
+    if (!isGame) {
+        const int was = *pending;
+        *pending = 1;
+        return was ? SND_DEV_NEW_AGAIN : SND_DEV_NEW;
+    }
+    if (*pending) {
+        *pending = 0;
+        return SND_DEV_BACK;
+    }
+    return SND_DEV_SAME;
+}
+// a device's state (DEVICE_STATE_ACTIVE 1, DISABLED 2, NOTPRESENT 4, UNPLUGGED 8) in words
+static const char *SndDevStateName(unsigned long st)
+{
+    switch (st) {
+    case 1: return "active";
+    case 2: return "disabled";
+    case 4: return "not present";
+    case 8: return "unplugged";
+    }
+    return "in an unknown state";
+}
+// a device name (UTF-16) for the log: ASCII only (anything else '?'), at most n - 1 characters, no control characters
+static void SndDevNameAscii(const unsigned short *w, char *out, int n)
+{
+    int i = 0;
+    if (n <= 0) return;
+    if (w)
+        for (; *w && i < n - 1; ++w) out[i++] = *w >= 0x20 && *w < 0x7F && *w != '"' ? (char)*w : '?';
+    out[i] = 0;
+}
+
 #endif

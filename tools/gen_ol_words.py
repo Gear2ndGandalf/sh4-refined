@@ -32,7 +32,7 @@ MAX = {'L': 18, 'V': 13, 'D': 52, 'T': 28, 'S': 52}  # label, value, description
 # PLAN section 3: delayed settings end with "Next room.". The plan's Randomizer value lines drop it "to stay one line";
 # every one of them still fits 52 with it, so R1 keeps the delay on screen: the _VDT_ / _DT variants (lint-checked)
 TAG = ' Next room.'
-TAGGED = {'rando'}
+TAGGED = set()  # v3.56 RI356: was {'rando'}; the user (v3.55 QA, improvement 11): no "Next room." on the Randomizer page
 
 # (name, kind, text): the R1 texts (the rows where they are today; PLAN section 9, R1)
 EXTRA = [
@@ -65,6 +65,7 @@ EXTRA = [
     ('OLW_SND_PAN_NA', 'D', "The game's own steep pan (see SH4Refined.log)."),
     ('OLW_SND_WIDTH_STOCK', 'D', "PanLaw=Stock: the game's own pan; no width."),
     ('OLW_SND_REV_NOPROBE', 'D', 'DirectSound has no reverb here (see SH4Refined.log).'),
+    ('OLW_SND_DEVICE_NEW', 'D', 'New sound device: restart the game to use it.'),  # v3.56 SD356 (Sound Mode's line)
     ('OLW_FONT_MISSING', 'D', 'Font not loaded (see SH4Refined.log): stock shown.'),
     ('OLW_FONT_FAILED', 'D', 'HD font failed (see SH4Refined.log): next start.'),
     ('OLW_REND_16BIT', 'D', '16-bit Direct3D 11: more lag, AMD only. Next start.'),
@@ -218,6 +219,23 @@ def main():
                 continue
             out.append("    X(%s, %s, '%s', %s) \\" % (cstr(p['id']), cstr(r['name']), KIND_CHAR[r['kind']],
                                                     cstr(r['opens'] or '')))  # v3.55 OL56: + the page a folder opens
+    out.append('')
+    # v3.56 MN356: every value line of the plan by its row (USER_FEEDBACK_v355 issue 3: a value must never show the row's
+    # line); src\vlines.inc answers these for a row whose own code still returns the row's line for that value
+    out.append('// v3.56 MN356: the value lines by row (page id, row name, the row\'s line, the value\'s screen word, the value\'s line), for')
+    out.append('// src\\vlines.inc (a value whose row code still answers the row\'s line gets its own) and test\\vlines_test.c')
+    out.append('#define OL_PLAN_VLINES(X) \\')
+    for p in L.PAGES:
+        pg = ident(p['id'])
+        for r in p['rows']:
+            if r['kind'] != 'value' or not r['desc']:
+                continue
+            rn = pg + '_' + ident(r['name'])
+            for v in r['values']:
+                vi = ident(v['label'])
+                if not vi or not v['desc']:
+                    continue
+                out.append('    X(%s, %s, OLW_%s_D, OLW_%s_V_%s, OLW_%s_VD_%s) \\' % (cstr(p['id']), cstr(r['name']), rn, rn, vi, rn, vi))
     out.append('')
     out.append('static const OlMapEntry kOlMap[] = {')
     for m in maps:

@@ -5,6 +5,15 @@
 // fixed order (BG_L*), down when frames run late while the effects cost a real share of the frame, back up after a calm
 // period, with hysteresis (a hold after every step, a back-off that grows when a step up had to be taken back).
 // budget.inc measures (QueryPerformanceCounter) and applies the levels (each effect fades what it thins: no popping).
+// v3.56 PW356 (staging/v356_feedback/w5_powers/PLAN.md; the user's v3.55 request 10: "a fallback to reduce all powers
+// effects if they slow down the game in 120fps or higher"): at a high rate (a frame target of 1000 / 115 ms or less) a
+// frame is late from 1.06 x the target (a true logic rate slows the game on every miss), the effects' measured share
+// counts from a quarter of their target, two spark levels come first (BGL_SPARK1 / 2: After Shock's arcs, tendrils,
+// sparks and streak glow, Death Presence's trail fire and wisps at 60 / 35 %, Echo's light look), and frames that run
+// late while the effects draw but cost little CPU (their GPU share is not measurable under d3d8) may take a BLIND step:
+// kept only when the frames get 2 % shorter by its settle time, else taken back and not tried again for 20 s (doubling
+// to 120 s). Below 115 fps the ladder and every rule are v3.55's (the spark levels are skipped). BgRateMayStep tells the
+// frame-rate guard (w7 FR356) when the budget has nothing left to shed.
 #ifndef BUDGET_SIM_H
 #define BUDGET_SIM_H
 #include <math.h>
@@ -69,20 +78,26 @@ static int BgTopText(const float ms[BGC_N], int max, float minMs, char *out, siz
 // current settings (Echo with one shadow has no 3rd body to thin) is skipped (the `useful` mask, budget.inc BgUseful).
 enum {
     BGL_FULL,        // 0: everything as v3.34
-    BGL_ECHO3,       // 1: Echo: the 3rd shadow's body fades into its smoke (its flame coat, eyes and strikes stay)
-    BGL_ECHOWEP,     // 2: Echo: no weapon redraw on the 2nd / 3rd shadow (v3.31's level 1)
-    BGL_ECHOLITE,    // 3: Echo: the light look on the 2nd / 3rd (half the smoke, no edge layer) (v3.31's level 2)
-    BGL_ECHO2,       // 4: Echo: the 2nd shadow's body fades into its smoke too
-    BGL_AI5,         // 5: After Shock: fewer copies along the same path (Long 8 -> 5, Medium 5 -> 4; the stun keeps all)
-    BGL_ECHOALL,     // 6: Echo: no weapon redraw at all, the ground discs fade (v3.31's level 3)
-    BGL_AI3DP,       // 7: After Shock 3 copies; Death Presence 70 % of its volume's smoke puffs
-    BGL_DP50,        // 8: Death Presence 50 %
-    BGL_ECHO1,       // 9: Echo: the last shadow's body fades into its smoke too (the last resort)
-    BGL_N
+    BGL_SPARK1,      // 1: v3.56 PW356, at a high rate only: the sparks, arcs and smoke at 60 % (After Shock's aura arcs, tendrils,
+                     //    sparks and streak glow, Death Presence's trail fire and wisps; Echo's light look on the 2nd / 3rd shadow)
+    BGL_SPARK2,      // 2: v3.56 PW356, at a high rate only: the same at 35 % (+ no feet streaks; Echo's light look on every shadow)
+    BGL_ECHO3,       // 3: Echo: the 3rd shadow's body fades into its smoke (its flame coat, eyes and strikes stay)
+    BGL_ECHOWEP,     // 4: Echo: no weapon redraw on the 2nd / 3rd shadow (v3.31's level 1)
+    BGL_ECHOLITE,    // 5: Echo: the light look on the 2nd / 3rd (half the smoke, no edge layer) (v3.31's level 2)
+    BGL_ECHO2,       // 6: Echo: the 2nd shadow's body fades into its smoke too
+    BGL_AI5,         // 7: After Shock: fewer copies along the same path (Long 8 -> 5, Medium 5 -> 4; the stun keeps all)
+    BGL_ECHOALL,     // 8: Echo: no weapon redraw at all, the ground discs fade (v3.31's level 3)
+    BGL_AI3DP,       // 9: After Shock 3 copies; Death Presence 70 % of its volume's smoke puffs
+    BGL_DP50,        // 10: Death Presence 50 %
+    BGL_ECHO1,       // 11: Echo: the last shadow's body fades into its smoke too (the last resort)
+    BGL_N            // (v3.56 PW356: the levels 1 .. 9 of v3.35 - v3.55 are 3 .. 11 now; the log names each level's text)
 };
 #define BG_MAX (BGL_N - 1)
+#define BG_HR_LEVELS (1u << BGL_SPARK1 | 1u << BGL_SPARK2)  // v3.56 PW356: the levels taken only at a high rate
 static const char *const kBgLevelText[BGL_N] = {
     "everything full",
+    "high rate: the sparks, arcs and smoke at 60 %",  // v3.56 PW356
+    "high rate: the sparks, arcs and smoke at 35 %",  // v3.56 PW356
     "Echo: the 3rd shadow's body fades into its smoke",
     "Echo: no weapon redraw on the 2nd / 3rd shadow",
     "Echo: the light look on the 2nd / 3rd shadow",
@@ -112,6 +127,18 @@ static const char *const kBgLevelText[BGL_N] = {
 #define BG_SETTLE_S   1.50f   // the cost a level settles at: its smoothed cost this long after it was taken
 #define BG_LIGHTER    0.70f   // the scene got lighter: the cost under 70 % of that: back up after BG_UP_S, the back-off forgotten
 #define BG_SPIKE_MS  100.0f   // a frame this long is a hitch (a load, a first use, a disk read): not counted at all
+// v3.56 PW356: the high frame-rate fallback
+#define BG_HR_FRAME_MS (1000.0f / 115.0f)  // a frame target this short or shorter (120, 144, 180 fps) is a high rate
+#define BG_HR_LATE_K    1.06f  // at a high rate a frame over 1.06 x the target is late (a true logic rate: every miss slows the game)
+#define BG_HR_CALM      0.15f  // ... and calm under 15 % late (a frame limiter's jitter at 5.6 ms is not a miss)
+#define BG_HR_COST_ON   0.25f  // the effects' measured work that counts as evidence at a high rate (x their target)
+#define BG_HR_ACTIVE_MS 0.05f  // the effects draw at all (their smoothed work): a blind step may be tried
+#define BG_HR_GAIN      0.03f  // a blind step must make the frames 3 % shorter (their mean from 0.5 s after it to its settle time
+                               // against the smoothed length when it was taken), else it is taken back
+#define BG_HR_POST0     0.50f  // s after a blind step: its frames' mean starts (the fade of what it thinned is done by then)
+#define BG_HR_RETRY    20.0f   // s before the next blind try after a take-back; doubles each time ...
+#define BG_HR_RETRY_MAX 120.0f // ... to this; a new room starts again at BG_HR_RETRY
+#define BG_YIELD_S      1.0f   // BgRateMayStep: frames have missed this long with nothing the budget can shed
 
 static float BgTargetMs(float t60, float frameMs)
 {
@@ -131,13 +158,38 @@ typedef struct {
     float backoff;          // s of calm a step up needs now
     float settled;          // the cost this level settled at (BG_SETTLE_S after it was taken; 0 = not yet)
     int downs, ups, primed;
+    // v3.56 PW356: the high-rate fallback
+    int hr;                 // the last counted frame's target was a high rate
+    int hrOff;              // set by the caller: no high-rate rule at any rate (v3.55's governor; [Graphics] EffectBudgetHighRate=0)
+    float frameE;           // smoothed frame length (ms; the blind steps' verdict)
+    int blindPend, blindBase;  // a blind step waits for its verdict; the level it was taken from
+    float blindAt, blindGain;  // frameE when it was taken; the last verdict's gain (share)
+    double postSum, postW;  // the frames since BG_HR_POST0 after it: their mean weighted by their length (as frameE's
+                            // smoothing weights them: a time mean), sum(ms x ms) / sum(ms)
+    float blindHold, blindRetry;  // s until a blind step may be tried again; the next hold-off
+    int verdict;            // this frame: 1 a blind step kept, 2 taken back (0 none)
+    int lastBlind;          // the last step down was blind
+    int blindSteps, blindKept, takeBacks;
+    float yieldT;           // s of frames missing at a high rate with nothing the budget can shed (BgRateMayStep)
 } BgGov;
 static void BgGovReset(BgGov *g)
 {
     memset(g, 0, sizeof *g);
     g->backoff = BG_UP_S;
     g->holdT = g->sinceUp = g->sinceDown = 1.0e6f;
+    g->blindRetry = BG_HR_RETRY;  // v3.56 PW356
 }
+// v3.56 PW356: a frame target of a high rate (120 fps and up)
+static int BgHighRate(float targetFrameMs) { return targetFrameMs > 1.0f && targetFrameMs <= BG_HR_FRAME_MS + 1e-3f; }
+// v3.56 PW356: a new room: a blind step may be tried at once again (a new scene), the hold-off starts at BG_HR_RETRY
+static void BgGovRoomNew(BgGov *g)
+{
+    g->blindHold = 0.0f;
+    g->blindRetry = BG_HR_RETRY;
+}
+// v3.56 PW356: the frame-rate guard (w7 FR356) may lower the logic rate now: frames have missed at a high rate for
+// BG_YIELD_S while the budget had nothing to shed (no useful level left, no power drawing, or blind steps on hold)
+static int BgRateMayStep(const BgGov *g) { return g->hr && g->yieldT >= BG_YIELD_S; }
 // the next useful level above / below `from` (useful bit L = level L changes something now); -1 none
 static int BgNextUp(unsigned useful, int from)  // a heavier thinning
 {
@@ -157,31 +209,77 @@ static int BgNextDown(unsigned useful, int from)  // a lighter one (0 is always 
 // (1000 / rate), t60 the target share at 60 fps (BgTargetMs scales it). skip: a frame that must not count (the room's or
 // a load's first 1.5 s, a warm-up, the first frames after a pause; the caller decides). Returns +1 a level down (thinner),
 // -1 a level up, 0 no change.
+// v3.56 PW356: at a high rate (BgHighRate) the late rule is BG_HR_LATE_K, the effects' evidence BG_HR_COST_ON, calm
+// BG_HR_CALM, the spark levels are useful, and a blind step (late frames, the effects drawing, too little CPU work to
+// be evidence) is judged at its settle time: kept (verdict 1) or taken back (verdict 2, returns -1). Below a high rate
+// every rule is v3.55's and the spark levels are masked out.
 static int BgGovStep(BgGov *g, float dtS, float frameMs, float costMs, float targetFrameMs, float t60, unsigned useful, int skip)
 {
     const float T = BgTargetMs(t60, targetFrameMs);
+    const int hr = !g->hrOff && BgHighRate(targetFrameMs);  // v3.56 PW356
     float a, late;
-    int over, calm, nx;
+    int over, calm, nx, ev;
+    g->verdict = 0;  // v3.56 PW356
     if (skip || !(dtS > 0.0f) || dtS > 0.5f || !(frameMs > 0.0f) || frameMs >= BG_SPIKE_MS || !(targetFrameMs > 1.0f)) return 0;
+    if (!hr) useful &= ~BG_HR_LEVELS;  // v3.56 PW356: the spark levels only at a high rate
     if (!(costMs >= 0.0f)) costMs = 0.0f;
     if (costMs > 4.0f * T) costMs = 4.0f * T;  // (one slow part does not swamp the smoothing)
-    late = frameMs > BG_LATE_K * targetFrameMs ? 1.0f : 0.0f;
+    late = frameMs > (hr ? BG_HR_LATE_K : BG_LATE_K) * targetFrameMs ? 1.0f : 0.0f;  // v3.56 PW356: BG_HR_LATE_K at a high rate
     a = 1.0f - expf(-dtS / BG_TAU);
-    if (!g->primed) g->primed = 1, g->lateE = late, g->costE = costMs;
-    else g->lateE += (late - g->lateE) * a, g->costE += (costMs - g->costE) * a;
+    if (!g->primed) g->primed = 1, g->lateE = late, g->costE = costMs, g->frameE = frameMs;
+    else g->lateE += (late - g->lateE) * a, g->costE += (costMs - g->costE) * a, g->frameE += (frameMs - g->frameE) * a;
+    g->hr = hr;
     g->holdT += dtS, g->sinceUp += dtS, g->sinceDown += dtS;
+    if (g->blindHold > 0.0f) g->blindHold -= dtS;  // v3.56 PW356
     if (g->sinceDown > BG_FORGET) g->backoff = BG_UP_S;
     if (!(g->settled > 0.0f) && g->holdT >= BG_SETTLE_S) g->settled = g->costE > 0.01f ? g->costE : 0.01f;
-    over = (g->lateE >= BG_LATE_ON && g->costE >= BG_COST_ON * T) || g->costE >= BG_COST_HARD * T;
-    calm = g->lateE < BG_LATE_CALM && g->costE < BG_COST_HARD * T;
+    if (hr) {  // v3.56 PW356: evidence from the measured work, or a blind try while the effects draw
+        ev = (g->lateE >= BG_LATE_ON && g->costE >= BG_HR_COST_ON * T) || g->costE >= BG_COST_HARD * T;
+        over = ev || (g->lateE >= BG_LATE_ON && g->costE >= BG_HR_ACTIVE_MS && !(g->blindHold > 0.0f) && !g->blindPend);
+        calm = g->lateE < BG_HR_CALM && g->costE < BG_COST_HARD * T;
+        {   // the frame-rate guard's go-ahead: frames miss and nothing can be shed now
+            const int canHelp = g->blindPend || (BgNextUp(useful, g->level) > 0 && (ev || (g->costE >= BG_HR_ACTIVE_MS && !(g->blindHold > 0.0f))));
+            g->yieldT = g->lateE >= BG_LATE_ON && !canHelp ? g->yieldT + dtS : 0.0f;
+        }
+    } else {
+        ev = over = (g->lateE >= BG_LATE_ON && g->costE >= BG_COST_ON * T) || g->costE >= BG_COST_HARD * T;
+        calm = g->lateE < BG_LATE_CALM && g->costE < BG_COST_HARD * T;
+        g->yieldT = 0.0f;
+    }
     if (over) g->overT += dtS, g->calmT = 0.0f;
     else {
         g->overT -= dtS;
         if (g->overT < 0.0f) g->overT = 0.0f;
         g->calmT = calm ? g->calmT + dtS : 0.0f;
     }
-    if (g->overT >= BG_DOWN_S && g->holdT >= BG_HOLD_DOWN && (nx = BgNextUp(useful, g->level)) > 0) {
+    if (g->blindPend && hr && g->holdT >= BG_HR_POST0) g->postSum += (double)frameMs * frameMs, g->postW += frameMs;  // v3.56 PW356
+    if (g->blindPend && (!hr || g->holdT >= BG_SETTLE_S)) {  // v3.56 PW356: the blind step's verdict (none when the rate fell)
+        const float post = g->postW > 0.0 ? (float)(g->postSum / g->postW) : g->frameE;
+        const float gain = g->blindAt > 0.0f ? (g->blindAt - post) / g->blindAt : 0.0f;
+        g->blindPend = 0;
+        if (hr) {
+            g->blindGain = gain;
+            if (gain >= BG_HR_GAIN) {
+                g->verdict = 1;
+                ++g->blindKept;
+            } else {  // no faster: taken back, no blind try for the hold-off (it doubles)
+                g->verdict = 2;
+                ++g->takeBacks;
+                g->level = g->blindBase;
+                g->holdT = g->sinceUp = 0.0f;
+                g->overT = g->calmT = 0.0f;
+                g->settled = 0.0f;
+                g->blindHold = g->blindRetry;
+                g->blindRetry = g->blindRetry * 2.0f > BG_HR_RETRY_MAX ? BG_HR_RETRY_MAX : g->blindRetry * 2.0f;
+                ++g->ups;
+                return -1;
+            }
+        }
+    }
+    if (g->overT >= BG_DOWN_S && g->holdT >= BG_HOLD_DOWN && !g->blindPend && (nx = BgNextUp(useful, g->level)) > 0) {
         if (g->sinceUp < BG_REBOUND) g->backoff = g->backoff * 2.0f > BG_UP_MAX ? BG_UP_MAX : g->backoff * 2.0f;
+        g->lastBlind = hr && !ev;  // v3.56 PW356: no evidence now: a blind step (judged at its settle time)
+        if (g->lastBlind) g->blindPend = 1, g->blindBase = g->level, g->blindAt = g->frameE, g->postSum = g->postW = 0.0, ++g->blindSteps;
         g->level = nx;
         g->holdT = g->sinceDown = 0.0f;
         g->overT = g->calmT = 0.0f;
@@ -233,6 +331,26 @@ static int BgAiKeep(int k, int n, int m)
     return 0;
 }
 static float BgDpKeep(int L) { return L >= BGL_DP50 ? 0.5f : L >= BGL_AI3DP ? 0.7f : 1.0f; }
+// v3.56 PW356: the sparks, arcs and smoke kept at level L (1 below a high rate: the spark levels belong to it)
+static float BgSparkK(int L, int hr) { return !hr ? 1.0f : L >= BGL_SPARK2 ? 0.35f : L >= BGL_SPARK1 ? 0.6f : 1.0f; }
+// v3.56 PW356: n things thinned to the share k: how many to make (at least `min`, at most n), and the last one's alpha
+// (its fraction of a whole one: as k falls the last one fades before it goes; 1 when nothing is thinned)
+static int BgThinN(int n, float k, int min, float *lastA)
+{
+    float x;
+    int m;
+    if (lastA) *lastA = 1.0f;
+    if (n <= 0) return 0;
+    if (!(k < 0.999f)) return n;
+    if (!(k > 0.0f)) k = 0.0f;
+    x = (float)n * k;
+    m = (int)ceilf(x - 1e-4f);
+    if (m < min) m = min, x = (float)min;
+    if (m > n) m = n, x = (float)n;
+    if (lastA && m >= 1 && x < (float)m) *lastA = x - (float)(m - 1);
+    if (lastA && *lastA > 1.0f) *lastA = 1.0f;  // (x a hair over a whole number)
+    return m;
+}
 // a fade toward `to` at `perS` a second (the same at any frame rate)
 static float BgRamp(float cur, float to, float dtS, float perS)
 {

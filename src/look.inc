@@ -416,6 +416,7 @@ static int LkPageGlyphs(int lp, int *title, int *strip, int *rows, int *desc, in
         }
         if (i == cur && r[6]) *desc = LkGlyphs(LkMsg((DWORD)((int(__cdecl *)(void))(ULONG_PTR)r[6])()));
     }
+    *desc += RzSeedGlyphs(lp);  // v3.56 RI356: the Randomizer page's seed line under the description (randomizer.inc)
     return 2 * (*title + *strip + *rows + *desc) + *flash;
 }
 // descfit.inc DescText (after the description: the queue holds everything the page drew), or the row-0 draw without it
@@ -454,13 +455,15 @@ static void LkGlyphNote(int measured)
 // page change branch 0x525B7A = hkPageSwitch) when the cursor is on another page's name of the strip shown at rest and that
 // page can be reached (LkStripRoute). hkPageSwitch's PageKeyFade then slides there (another slot) or fades there (REQ_JUMP:
 // from a hidden page, or to the top page in the same slot). No exe site of its own; only while the strip is drawn (Look=1).
+static const char *FcBusy(void);  // v3.56 MERGE: menuclick.inc (MN356): the one mid-slide / fade / waiting-click refusal
 static int LkStripClick(DWORD ret)
 {
     static LONG s_q;
     float cx = 0.0f, cy = 0.0f;
     int t, go;
     if (ret != 0x525B61 || !g_lkOn || !g_olOn || !g_cursorTramp || g_lkHitLp < 0 || g_lkHitLp != g_lpage) return 0;
-    if (g_pending >= 0 || g_lkStripGo >= 0) return 0;  // v3.55 OL56-001 (Codex): no click while a slide / fade is pending or a click waits
+    if (FcBusy()) return 0;  // v3.55 OL56-001 (Codex): no click while a slide / fade is pending or a click waits; v3.56 MERGE: the folder
+                             // click's own test (g_pending, g_subReq, g_lkStripGo), shared with MN356's menuclick.inc
     __try {
         MenuCursor(&cx, &cy);
     } __except (EXCEPTION_EXECUTE_HANDLER) {

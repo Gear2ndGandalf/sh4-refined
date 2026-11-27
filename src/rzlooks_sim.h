@@ -37,13 +37,13 @@ enum { RZG_OFF, RZG_SPOTS, RZG_N };   // [Randomizer] Ghosts
 #define RZO_DEFAULT RZO_RANDOM
 #define RZG_DEFAULT RZG_SPOTS
 static const char *const kRzoName[RZO_N] = { "Off", "Random" };
-static const char *const kRzgName[RZG_N] = { "Off", "Spots" };
+static const char *const kRzgName[RZG_N] = { "Off", "On" };  // v3.56 RE356: Spawn Site Off / On (was Ghosts Off / Spots)
 static int RzoOfText(const char *s)  // Off / Random (and 0 / 1, On / Off, Yes / No); -1 = anything else
 {
     if (RzTextIs(s, "Random")) return RZO_RANDOM;
     return RzOnOffOfText(s);
 }
-static int RzgOfText(const char *s)  // Off / Spots (and 0 / 1, On / Off, Yes / No); -1 = anything else
+static int RzgOfText(const char *s)  // Off / Spots (and 0 / 1, On / Off, Yes / No); -1 = anything else  // v3.56 RE356: Spawn Site: On / Off; the old Spots reads as On
 {
     if (RzTextIs(s, "Spots")) return RZG_SPOTS;
     return RzOnOffOfText(s);

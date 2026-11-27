@@ -852,7 +852,11 @@ static void LhFrameEndC(void)
         ++g_lhPlayRun;
         // v3.35 FX335: the effect budget: not the room's or a load's first 1.5 s, a warm-up frame, or the first 20 frames after
         // a pause / cut-scene (their first frames are not the effects' doing)
-        BgFrame(dt, target, BgEffectsMs(led), since < 1500.0f || sinceLoad < 1500.0f || led[BGC_WARM] > 0.5f || g_lhPlayRun < 20, 1, key);
+        {   // v3.56 MERGE: preview.inc's pause capture drew in this interval: not the effects' doing (a skip frame)
+            static LONG s_pvSeen;
+            const int pvCap = PvCapNew(&s_pvSeen);
+            BgFrame(dt, target, BgEffectsMs(led), since < 1500.0f || sinceLoad < 1500.0f || led[BGC_WARM] > 0.5f || g_lhPlayRun < 20 || pvCap, 1, key);
+        }
     } else {
         g_lhPlayRun = 0;  // v3.35 FX335
         BgFrame(dt, 0.0f, 0.0f, 1, 0, key);

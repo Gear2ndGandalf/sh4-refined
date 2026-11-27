@@ -209,8 +209,72 @@ static void TestModes(void)
           !strcmp(SndSpeakerName(9), "5.1 surround") && !strcmp(SndSpeakerName(77), "unknown"), "speaker names");
 }
 
+// v3.56 SD356: the four buffer sites (the flags' immediate gains exactly GLOBALFOCUS), Background's parser, the keep-awake
+// signal (seamless loop, never all silence, peak = the level), the device watch's steps and names
+static void TestSd356(void)
+{
+    int i, k, nz = 0, peak = 0, pending = 0;
+    static short pcm[SND_KA_SAMPLES];
+    char nm[16];
+    const unsigned short wide[] = { 'H', 'e', 'a', 'd', 0x00E9, '"', 1, 'x', 0 };
+    for (i = 0; i < 4; ++i) {
+        const SndBgSite *s = &kSndBgSites[i];
+        unsigned char b[8];
+        unsigned long before, after;
+        int immAt = s->at - 1;
+        CHECK(s->len <= 8 && s->at >= 1 && s->at < s->len && s->stock[s->at] == 0x00, "site %d: the flags' second byte is 00", i);
+        memcpy(b, s->stock, sizeof b);
+        memcpy(&before, b + immAt, 4);
+        b[s->at] = SndBgByte(1);
+        memcpy(&after, b + immAt, 4);
+        CHECK(after == (before | SND_DSBCAPS_GLOBALFOCUS) && !(before & SND_DSBCAPS_GLOBALFOCUS), "site %d: Play adds GLOBALFOCUS only (%lX -> %lX)",
+              i, before, after);
+        CHECK((before == 0xC0 || before == 0x90) && (after & 0xFFFF00FFu) == before, "site %d: CTRLPAN / CTRL3D | CTRLVOLUME kept", i);
+        b[s->at] = SndBgByte(0);
+        CHECK(!memcmp(b, s->stock, s->len), "site %d: Mute is the stock byte", i);
+        for (k = 0; k < i; ++k) CHECK(kSndBgSites[k].va + kSndBgSites[k].len <= s->va, "sites %d / %d apart, in order", k, i);
+    }
+    // the sites the v3.52 sound round and Playable Eileen write are elsewhere (0x409AD0 / 0x409691 / 0x409BC5 / 0x40AB4A)
+    CHECK(kSndBgSites[1].va > 0x409AD0 + 6 && kSndBgSites[1].va + 5 <= 0x409BC5 && kSndBgSites[0].va + 6 <= 0x409691, "apart from PE / SND352");
+    CHECK(SndParseBg("Mute") == SND_BG_MUTE && SndParseBg("play") == SND_BG_PLAY && SndParseBg(" PLAY") == SND_BG_PLAY &&
+          SndParseBg("0") == 0 && SndParseBg("1") == 1 && SndParseBg("On") == -1 && SndParseBg("") == -1 && SndParseBg(NULL) == -1,
+          "Background parser");
+    for (k = 0; k < SND_BG_N; ++k) CHECK(SndParseBg(kSndBgName[k]) == k, "Background name %s", kSndBgName[k]);
+    SndKeepAwakeFill(pcm, SND_KA_SAMPLES, SND_KA_LEVEL_DEF);
+    for (i = 0; i < SND_KA_SAMPLES; ++i) {
+        nz += pcm[i] != 0;
+        if (SndAbs(pcm[i]) > peak) peak = SndAbs(pcm[i]);
+    }
+    CHECK(SND_KA_SAMPLES % SND_KA_PERIOD == 0 && SND_KA_RATE / SND_KA_PERIOD == 45, "a whole number of 45 Hz periods");
+    CHECK(peak == SND_KA_LEVEL_DEF && nz > SND_KA_SAMPLES * 9 / 10, "keep-awake: peak %d, %d of %d samples not zero", peak, nz, SND_KA_SAMPLES);
+    for (i = 0; i + SND_KA_PERIOD < SND_KA_SAMPLES; i += 97) CHECK(pcm[i] == pcm[i + SND_KA_PERIOD], "keep-awake: periodic at %d", i);
+    CHECK(pcm[0] == 0 && SndAbs(pcm[SND_KA_SAMPLES - 1]) <= 1, "keep-awake: the loop is seamless (%d .. %d)", pcm[SND_KA_SAMPLES - 1], pcm[0]);
+    SndKeepAwakeFill(pcm, 100, 0);
+    for (i = 0, nz = 0; i < 100; ++i) nz += pcm[i] != 0;
+    CHECK(nz == 0, "keep-awake level 0 = digital silence");
+    SndKeepAwakeFill(pcm, SND_KA_SAMPLES, 1000);
+    for (i = 0, peak = 0; i < SND_KA_SAMPLES; ++i) if (SndAbs(pcm[i]) > peak) peak = SndAbs(pcm[i]);
+    CHECK(peak == SND_KA_LEVEL_MAX, "keep-awake level clamped to %d (%d)", SND_KA_LEVEL_MAX, peak);
+    CHECK(SndKeepLevelOk(0) && SndKeepLevelOk(64) && !SndKeepLevelOk(65) && !SndKeepLevelOk(-1), "level range");
+    CHECK(SndKeepLevelDb10(8) == -722 && SndKeepLevelDb10(64) == -542 && SndKeepLevelDb10(1) == -903 && SndKeepLevelDb10(0) == -1000,
+          "level in dB (%d)", SndKeepLevelDb10(8));
+    CHECK(SndDevStep(1, &pending) == SND_DEV_SAME && !pending, "the game's device again: nothing");
+    CHECK(SndDevStep(0, &pending) == SND_DEV_NEW && pending, "a new default");
+    CHECK(SndDevStep(0, &pending) == SND_DEV_NEW_AGAIN && pending, "another new default");
+    CHECK(SndDevStep(1, &pending) == SND_DEV_BACK && !pending, "back to the game's device");
+    CHECK(!strcmp(SndDevStateName(1), "active") && !strcmp(SndDevStateName(8), "unplugged") && !strcmp(SndDevStateName(3), "in an unknown state"),
+          "device states");
+    SndDevNameAscii(wide, nm, sizeof nm);
+    CHECK(!strcmp(nm, "Head???x"), "device name in ASCII (%s)", nm);
+    SndDevNameAscii(wide, nm, 3);
+    CHECK(!strcmp(nm, "He"), "device name cut (%s)", nm);
+    SndDevNameAscii(NULL, nm, sizeof nm);
+    CHECK(nm[0] == 0, "no name");
+}
+
 int main(void)
 {
+    TestSd356();  // v3.56 SD356
     TestStockTable();
     TestSmooth();
     TestFloor();

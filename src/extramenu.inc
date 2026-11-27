@@ -476,10 +476,20 @@ static void __cdecl pm_layout_c(void)  // from the naked stubs (pushad around it
 }
 
 // ---------------------------------------------------------------- draw (pm_text CT 2142, pm_draw CT 2175-2327)
+// v3.56 MN356 (the v3.55 QA screenshot extra_menu_doubled_text.webp: "a second, dark copy" under Eileen Outfit / Camera /
+// Back): every glyph the text pass 0x559A10 draws already has its own shadow quad (+2, +2, black: subtitles.inc's D1); the
+// stock pause draw (0x4F8A30, CT pm_text) also draws the whole string again at +2, +2 in palette 8 (0x202020), whose own
+// glyph shadows land at +4, +4. Over the frozen picture's dark parts the two copies vanish; over a bright one (companion
+// Eileen's body behind the Extra Menu's lower rows) they read as a second, darker row of text 4 - 13 px lower, sharper
+// with an HD Menu Font. Now each row draws once with its glyphs' own shadow; hidden [ExtraMenu] StockShadow=1 keeps the
+// stock string shadow (v3.55).
+static int g_emStockShadow;
 static void pm_text(int bank, int id, int x, int y, int align)
 {
-    ((void(__cdecl *)(int))0x556A50)(8);  // shadow: palette 8
-    ((EmText)0x50B5B0)(bank, id, x + 2, y + 2, align, 0);
+    if (g_emStockShadow) {  // v3.56 MN356: only with StockShadow=1
+        ((void(__cdecl *)(int))0x556A50)(8);  // shadow: palette 8
+        ((EmText)0x50B5B0)(bank, id, x + 2, y + 2, align, 0);
+    }
     ((void(__cdecl *)(DWORD))0x556A90)(pm_col);
     ((EmText)0x50B5B0)(bank, id, x, y, align, 0);
 }
@@ -550,7 +560,7 @@ static void pm_draw_body(void)
         rid = pm_vis[i];
         y = pm_y0 + i * 0x1C;
         pm_col = i == EM_CUR ? 0x808080 : pm_okt[rid] ? 0x404040 : 0x101010;
-        if (rid == PM_EILEEN && pm_eo_label) {  // pm_draw_eo: "Eileen" right-aligned at pm_eo_x + the value after it  // v3.55 OL56: "Eileen Outfit"
+        if (rid == PM_EILEEN && pm_eo_label) {  // pm_draw_eo: "Eileen" right-aligned at pm_eo_x + the value after it  // v3.55 OL56: "Eileen Outfit"  // v3.56 MN356: "Eileen" again
             int vb = -1, vid = 0, c;
             if (pm_eo4()) {
                 vid = EM_RAW(pm_eo_strs[pm_eo_val() + 1]);
@@ -568,8 +578,10 @@ static void pm_draw_body(void)
     }
     // the Quick Save row's feedback line (QsFrame, from the HUD hook, does not run in the pause): QsFrame's draw
     if (g_qsMsgUntil && (int)(g_qsMsgUntil - GetTickCount()) > 0) {
-        ((void(__cdecl *)(int))0x556A50)(8);
-        ((EmText)0x50B5B0)(-1, EM_RAW(g_qsMsg), 256 + 2, 392 + 2, 1, 0);
+        if (g_emStockShadow) {  // v3.56 MN356: one draw (as pm_text)
+            ((void(__cdecl *)(int))0x556A50)(8);
+            ((EmText)0x50B5B0)(-1, EM_RAW(g_qsMsg), 256 + 2, 392 + 2, 1, 0);
+        }
         ((void(__cdecl *)(DWORD))0x556A90)(g_qsMsgCol);
         ((EmText)0x50B5B0)(-1, EM_RAW(g_qsMsg), 256, 392, 1, 0);
     }
@@ -1855,7 +1867,7 @@ static void ExtraInstall(void)
     Encode(pm_str_qsave, sizeof pm_str_qsave, "Quick Save");
     Encode(pm_str_qload, sizeof pm_str_qload, "Quick Load");
     Encode(pm_str_pe, sizeof pm_str_pe, "Playable Eileen");
-    Encode(pm_str_eileen, sizeof pm_str_eileen, OLW_PAUSE_EILEEN_OUTFIT_L);  // v3.55 OL56 (R6, PLAN section 8): "Eileen Outfit" (was "Eileen")
+    Encode(pm_str_eileen, sizeof pm_str_eileen, OLW_PAUSE_EILEEN_L);  // v3.55 OL56 (R6, PLAN section 8): "Eileen Outfit" (was "Eileen")  // v3.56 MN356: "Eileen" again (QA item 9: "Eileen Default", "Eileen Nurse" ...)
     Encode(pm_str_def, sizeof pm_str_def, "Default");
     Encode(pm_str_dress, sizeof pm_str_dress, "Dress");
     Encode(pm_str_nurse, sizeof pm_str_nurse, "Nurse");
@@ -1868,7 +1880,7 @@ static void ExtraInstall(void)
         static const int kStock[6][2] = { { 0, 0x7A }, { -1, 0 }, { 0, 0x7B }, { 0, 0x7C }, { 0, 0x7D }, { 0, 0x7E } };
         const BYTE *raw[PM_IDS] = { NULL, pm_str_cheats, NULL, NULL, NULL, NULL, pm_str_chest, pm_str_save,
                                     pm_str_load, pm_str_eileen, pm_str_back, pm_str_qsave, pm_str_qload, pm_str_pe, pm_str_camera };  // v3.55 OL56: PM_EILEEN's
-                                    // own row (no outfit value to show) says Eileen Outfit too (was the game's 0CAh "Eileen Costume")
+                                    // own row (no outfit value to show) says Eileen Outfit too (was the game's 0CAh "Eileen Costume")  // v3.56 MN356: "Eileen"
         for (i = PM_CAMR0; i <= PM_CAMBACK; ++i) raw[i] = pm_str_back;  // v3.37 CP337 (the page draws its own rows)
         for (i = 0; i < PM_IDS; ++i) {
             pm_rows[i][0] = raw[i] ? -1 : 0;
@@ -1919,6 +1931,11 @@ static void ExtraInstall(void)
     g_emSeamless = GetPrivateProfileIntA("ExtraMenu", "Seamless", 1, g_iniPath) != 0;
     Log("extra menu: Storage Chest / Save Game / Load Game %s", g_emSeamless ? "open and close inside the pause (the "
         "world stays frozen)" : "close and reopen the pause (Seamless=0: v3.31)");
+    // v3.56 MN356: hidden [ExtraMenu] StockShadow (default 0: each row once, with its glyphs' own shadow; 1 = v3.55's second
+    // shadow string at +2, +2 in palette 8)
+    g_emStockShadow = GetPrivateProfileIntA("ExtraMenu", "StockShadow", 0, g_iniPath) != 0;
+    Log("extra menu: text drawn %s ([ExtraMenu] StockShadow=%d)", g_emStockShadow ? "with the stock pause's second shadow string (v3.55)"
+        : "once, with its glyphs' own shadow (no second dark copy under bright parts of the picture)", g_emStockShadow);
     // v3.51 MU351: hidden [ExtraMenu] PauseSound (default 1); 0 = v3.50's sound (the music back at 0.2 in the three menus)
     g_emPauseSound = GetPrivateProfileIntA("ExtraMenu", "PauseSound", 1, g_iniPath) != 0;
     if (g_emSeamless)

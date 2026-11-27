@@ -76,6 +76,26 @@ V335 = """10:00:00.001 SH4 Refined v3.35.0 loading (winmm.dll proxy, game base 0
 """
 
 
+# v3.56 PW356: the effect budget's high-rate fallback (budget.inc: the rules line, blind steps, a verdict, a take-back, the
+# frame-rate guard's go-ahead, the room line's high-rate part) and After Shock's over-the-shoulder fade (afterimage.inc)
+V356PW = V335 + """10:03:00.000 budget: high rate fallback in (v3.56: at 115 fps and up a frame over 1.06 x the target is late; the effects' work counts from 25 % of their target; first the sparks, arcs and smoke at 60 / 35 %; a late run while the powers draw but cost little CPU takes a blind step, kept only if the frames get 3 % shorter in 1.5 s, else taken back and not tried for 20 s (to 120); [Graphics] EffectBudgetHighRate=0 = v3.55's rules)
+10:03:00.100 after shock: [Gameplay] AfterImageOtsFade=45: a copy over her in the over-the-shoulder camera keeps 45 % of its light
+10:03:02.000 [v] budget: 180 fps: the high-rate rules (late from 1.06 x the frame, the spark levels, blind steps)
+10:03:03.000 [v] after shock: over-the-shoulder camera on: the copies between it and her fade where they cover her (to the light kept below; beside or behind her as before)
+10:03:03.000 [v] after shock: over-the-shoulder fade: a copy right over her keeps 45 % of its light; her box 92 x 341 u (hips 24.1 u apart: a slight body, Eileen's build)
+10:03:05.000 [v] budget: level 0 -> 1 (frames run over, no CPU evidence: a blind try; 41 % of frames late, the effects 0.3 ms a frame against 2.0; stage 2 room 6): high rate: the sparks, arcs and smoke at 60 %
+10:03:06.500 [v] budget: the blind step to level 1 is kept: the frames 5 % shorter (5.70 ms a frame now, target 5.56; stage 2 room 6)
+10:03:07.500 [v] budget: level 1 -> 2 (frames run over, no CPU evidence: a blind try; 30 % of frames late, the effects 0.3 ms a frame against 2.0; stage 2 room 6): high rate: the sparks, arcs and smoke at 35 %
+10:03:09.000 [v] budget: level 2 -> 1 (a blind try taken back: the frames 0.4 % shorter, 3 % needed; 33 % of frames late, the effects 0.3 ms a frame against 2.0; stage 2 room 6): high rate: the sparks, arcs and smoke at 35 % comes back
+10:03:10.000 [v] budget: nothing left to shed at 180 fps (level 1, high rate: the sparks, arcs and smoke at 60 %; 33 % of frames late, the effects 0.30 ms a frame; blind tries on hold): the frame-rate guard may step the rate down
+10:03:30.000 [v] after shock: over-the-shoulder camera off: the copies as before
+10:03:08.000 after shock: stage 2 room 6 (look full, Long trail): her model drawn (36 bones, 36 kept), ring 64 samples, 8 echoes and 40 sprites this frame, 0 stun(s) so far, the slowest frame 1.20 ms; charge 1.00, copies in line (her view distance 0 u); no glow on her body (Thermal hot points over 0 outline points; body build 0.00, radii x1.00)
+10:04:00.500 [v] after shock: over-the-shoulder fade in stage 2 room 6: on 5400 frame(s), 21000 copy draw(s) dimmed, the least light 45 %
+10:04:00.000 [v] room: 2:06 left after 60.0 s (play 60.0, cutscene 0.0, paused 0.0); 10800 frames: mean 5.7 ms, p99 6.4, worst 9.1 at +30.0 s (in play; Refined 0.90 ms; after shock 0.6 ms; budget level 1), spikes 0 (over 50 ms), stalls 0; VA 1057 of 2047 MB (margin 990)
+10:04:00.001 [v] budget: room 2:06: level 1 now (high rate: the sparks, arcs and smoke at 60 %), at most 2 this room; 2 step(s) down, 1 up; 80 % of its play frames thinned; the effects 0.3 ms a frame on average, 0.5 at most (target 2.0); 33.0 % of the frames late; high rate: 10800 frame(s), 2 blind step(s), 1 kept, 1 taken back; the sparks at 60 %
+"""
+
+
 # v3.36 TP336: the task / IK pools' install lines and per-room lines (pools.inc)
 V336 = """11:00:00.001 SH4 Refined v3.36.0 loading (winmm.dll proxy, game base 00400000)
 11:00:00.100 task pool: 400 slots (was 300) at 011B6020..0121EB20, in place: the draw packet buffer behind it now starts at 0121EB20 with 87 KB (was 192 KB at 01204860; its use on PC is under 1 KB a frame). Slots 300 and up are taken only when the first 300 are all in use (a full pool crashes the game)
@@ -558,6 +578,26 @@ V348RZB = V333_END + """10:00:00.040 randomizer: [Randomizer] Items "Randomize" 
 10:00:06.000 ANOMALY: randomizer: stage 2 visit 1: the script at 00683AA0 is not the stock one (17 plain pickup(s), 7 weapon spot(s)): its pickups are left alone
 10:00:07.000 randomizer: stage 5 visit 1: Shuffle, 25 of 25 pickup(s) in the pool (5 weapon spot(s)), 20 changed (seed 1, Keep Specials Off, Room 302 In, Change Each Visit On, world visit 3); Holy Candle 4 (stock 4), Saint Medallion 1 (stock 1), Sword of Obedience 1 (stock 1), weapons 5 (stock 5); SOME ITEMS COULD NOT BE PLACED (they keep their spots)
 """
+# v3.56 RI356: v3.56's Randomizer lines: v3.55's keys migrated, the new start / plan / change / session words, the seed line,
+# the world-visit rule (worldvisit.inc)
+V356RZ = V333_END + """10:00:00.039 randomizer: [Randomizer] KeepSpecials=Off (v3.55) is Specials=On now (turned round: Specials On = they are drawn too): migrated once
+10:00:00.040 randomizer: [Randomizer] Room302=In (v3.55) is Room302=Random now (In = drawn like Items): migrated once
+10:00:00.041 randomizer: [Randomizer] PerVisit=Off (v3.55) is Reroll=By World now (Off = one fixed draw a seed, folded into By World: one draw a world visit): NOT written (applies for this session; read again at the next start)
+10:00:00.042 randomizer: [Randomizer] Reroll "Sometimes" is not By Room / By World: By Room (the default)
+10:00:00.043 randomizer: [Randomizer] Items Random, Specials On, Room302 Random, Reroll By World, Seed 123456; self-check: 137 plain pickup(s) and 27 weapon spot(s) in 17 script(s) (stock 137 / 27): the stock scripts; 19 weapons may move; applied at each room load through 004F0AF8 (patch-and-restore of the item and record words, no exe patch)
+10:00:04.000 visits: world visit 1A2B3C4D begins: stage 1 entered (room 3; world entry 1 of this session, after a New Game / title load)
+10:00:05.000 visits: world visit 0BADF00D begins: stage 2 entered (room 1; world entry 2 of this session)
+10:00:05.001 randomizer: stage 2 visit 0: Random, 12 of 12 pickup(s) in the pool (7 weapon spot(s)), 10 changed (seed 123456, Specials On, Room 302 Items Random, Reroll By World, world visit 195948557); Holy Candle 1 (stock 0), Saint Medallion 0 (stock 0), Sword of Obedience 0 (stock 0), weapons 4 (stock 7)
+10:00:06.000 randomizer: the seed 123456 is drawn under the page's description (x 64, y 386, 24 glyph(s), the smaller size)
+10:00:07.000 randomizer: Reroll By Room (was By World; applies at the next room load)
+10:00:07.100 randomizer: Room302 Shuffle (was Random; applies at the next room load)
+10:00:07.200 randomizer: Specials Off (was On; applies at the next room load)
+10:00:08.000 randomizer: [Randomizer] Reroll read again: By World (applies at the next room load)
+10:00:30.000 visits: room 2:5 after a load (the save's apply): no room or world entry; world visit 0BADF00D goes on (room entries 2)
+10:00:40.000 visits: room 4:2 after a load (the room of the save image): no room or world entry; world visit 00000000 = the seed's own (no visit of this stage this session) (room entries 0)
+10:09:00.000 visits: session: 12 room entries, 2 world visit(s), 2 load(s) (0 resumed a stage's visit, 1 the seed's own), 1 world reset(s), 3 room load(s) ignored (room 0)
+10:09:00.001 randomizer: session: Items Random (seed 123456, Specials Off, Room 302 Items Shuffle, Reroll By World): 14 room load(s), 3 with pickups in the pool, 4 pickup(s) changed, 2 weapon(s) placed, 1 plan(s), 0 word(s) left as found
+"""
 # v3.49 RZ349: the Randomizer's Monsters (rzmon.inc)
 RZM_INSTALL = ('randomizer: [Randomizer] Monsters %s; self-check: %d source placement(s) of 783 enemy placement(s) in 17 script(s) (stock '
                '235 / 783)%s; targets Whitestool, Hummer, Gum Head, Gum Head (v1), Twin Victim, Twin Victim (v1), Tremer, Sniffer Dog, '
@@ -628,6 +668,33 @@ V351SN = V333_END + """10:00:00.042 """ + RZM_INSTALL.replace('235 / 783', '238 
 10:09:00.001 randomizer: monsters session: All Worlds (seed 1398963150, Change Each Visit On): 40 room load(s), 3 with source placements randomized, 3 placement(s) changed, 0 kept their record's type, 3 record(s) deleted (+0 with Monsters off); kept as placed: 0 for the bone budget, 0 for files, 0 without a floor; files loaded 0 time(s) (0 KB); 0 room load(s) with the cheat table's Enemy Randomizer on; 0 save(s), 0 record(s) left out; 0 word(s) left as found
 10:09:00.002 randomizer: monsters session: the game's own records: 4 adopted (3 made as another type); stock type kept: 1 rolled it, 0 by a stock record, 0 recorded elsewhere, 0 with no target
 10:09:00.003 randomizer: monsters session: 2 placement(s) rolled again for their own type (MonsterRollAgain On); event dogs: 3 planned with story flag 130 set, 3 kept as placed for their event (flag clear)
+"""
+# v3.56 RE356: Enemies (Monsters renamed, + the victims' ghosts, the story rule) and Spawn Site (Ghosts renamed: every monster
+# and victim at a site of its room), the renamed keys read once, in the dll's formats
+RE356_INSTALL = ('randomizer: [Randomizer] Enemies %s; self-check: 238 source placement(s) of 783 enemy placement(s) in 17 script(s) (stock '
+                 '238 / 783): the stock scripts; targets Whitestool, Hummer, Gum Head, Gum Head (v1), Twin Victim, Twin Victim (v1), Tremer, '
+                 'Sniffer Dog, Sniffer Dog (v1), Victim 0B v0, Victim 0B v1, Victim 0B v2, Victim 0B v3, Victim 0C v1, Victim 0D v1 (Gum Heads '
+                 "only with a crash guard; victims' ghosts by the story rule); applied at each room load through 004F0AF8 (patch-and-restore "
+                 'of the type / mode / position words); save filter 00465468 in')
+V356RE = V333_END + """10:00:00.030 randomizer: [Randomizer] Monsters "This World" is now Enemies Same World (v3.56: the row was renamed; written, the old key removed)
+10:00:00.031 randomizer: [Randomizer] Ghosts "Spots" is now SpawnSite On (v3.56: the row was renamed; written, the old key removed)
+10:00:00.041 randomizer: looks: [Randomizer] EileenOutfit Random, SpawnSite On (companion Eileen's outfit among every outfit, Dress and Nurse: at every room load of her world with Change Each Visit On, else once per world visit; every monster and victim a room places at a site of the room: monsters on floor you can walk to, ghosts anywhere in the room's box, their records in the room moved too: patch-and-restore of their position words, no exe patch)
+10:00:00.042 """ + RE356_INSTALL % 'Same World' + """
+10:00:05.000 randomizer: looks: the first room load (stage 2 room 4): Eileen Outfit Random, the companion only: Playable Eileen dresses the player ([Variant] in SH4PlayableEileen.ini); Spawn Site On, monsters and victim ghosts, never the story ghosts
+10:00:05.001 randomizer: monsters: the first room with source placements (stage 2 room 4): Enemies Same World
+10:00:05.002 randomizer: monsters: story rule in stage 2: no old man's ghost (0D v1) before story flag 23B (their create sets that flag; in the pool once it is set)
+10:00:05.003 randomizer: spawn site: room 2:4 (#1): 1 of 1 monster(s) at a new site, 1 record(s) moved with them; floor map 1834 cell(s) (2.1 ms)
+10:00:05.004 randomizer: monsters: room 2:4 (visit 0, #1): 1 of 1 placement(s) changed (Same World): victim ghost 1; 0 kept their record's type, 1 record(s) deleted; kept as placed: 0 for the bone budget, 0 for files, 0 without a floor; files loaded for 1 type(s) (812 KB); the game's own records: 1 adopted (1 made as another type); stock type kept: 0 rolled it, 0 by a stock record, 0 recorded elsewhere, 0 for another writer's record, 0 with no target
+10:00:05.005 [v] randomizer: monsters: room 2:4: n1 Sniffer Dog v0 -> victim ghost v3 [the game's record, adopted and deleted] at a new site
+10:00:40.000 randomizer: spawn site: room 2:5 (#2): 2 of 3 monster(s) at a new site, 0 record(s) moved with them; floor map 2210 cell(s) (3.0 ms) (kept or refused: asleep for its event 1, near where you arrive 12, in a wall 3)
+10:00:50.000 randomizer: spawn site: no floor map in room 2:9 (no solid map): its monsters keep their spots (said once)
+10:01:00.000 randomizer: Enemies All Worlds (was Same World; applies at the next room load)
+10:01:05.000 randomizer: SpawnSite Off (was On; applies at the next room load)
+10:01:10.000 randomizer: [Randomizer] Enemies read again: Same World (applies at the next room load)
+10:01:20.000 ANOMALY: randomizer: spawn site: room 2:6: 1 placement word(s) did not hold the stock value (another mod?): left as found
+10:09:00.001 randomizer: monsters session: Same World (seed 123456, Change Each Visit On): 40 room load(s), 2 with source placements randomized, 1 placement(s) changed, 0 kept their record's type, 1 record(s) deleted (+0 with Monsters off); kept as placed: 0 for the bone budget, 0 for files, 0 without a floor; files loaded 1 time(s) (812 KB); 0 room load(s) with the cheat table's Enemy Randomizer on; 0 save(s), 0 record(s) left out; 0 word(s) left as found
+10:09:00.002 randomizer: looks session: Eileen Outfit Random: 1 world visit(s), 1 world draw(s) (all draws: Dress 1, Nurse 0), 0 room draw(s) (0 changed her outfit), 0 back to the set outfit, 0 chosen in the Extra Menu; Spawn Site On: 1 room load(s) with victims, 1 victim(s), 1 moved (1 of them 800 or more, 0 record(s) moved), 0 kept (0 by a pinned or down record), 0 left as found
+10:09:00.003 randomizer: spawn site session: On: 2 room load(s) with monsters, 3 monster(s) at a new site, 1 kept, 1 record(s) moved; 2 floor map(s) (4044 cell(s), 5.1 ms in all), 1 room load(s) without a map; 1 ghost(s) at a site in the room's box
 """
 # v3.49 RZ349L: the Randomizer's looks (rzlooks.inc), in the formats the dll writes
 V349RZL = V333_END + """10:00:00.040 randomizer: [Randomizer] Ghosts "Rooms" is not Off / Spots: Spots (the default)
@@ -930,6 +997,31 @@ V352SND1 = V333_END + """10:00:00.005 sound: volume (004090A6 / 00409285 / 0040B
 10:00:01.000 ANOMALY: sound: Room Reverb: DirectSound would not make a buffer with the Waves Reverb (3D buffer hr 88780078, SetFX hr 80004005 result 0, reverb object hr 80004005; -): no reverb this session
 10:00:01.000 """ + SND_START % ('Mono', 0, 0, 'Stock', 100, 'On', 'PROBE FAILED: none', 'Off') + """
 """
+# v3.56 SD356: Background, the keep-awake signal, focus changes, the device watch (sound.inc)
+SD_BG_IN = ('sound: background: [Sound] Background Mute (the buffer sites 004095FE / 00409B02 / 0040A14C / 0040A723 in); keep-awake on '
+            'at the first frame; device watch on at the first frame')
+SD_SPK = 'Speakers (Realtek(R) Audio)'
+V356SD = V333_END + "10:00:00.010 " + SND_IN_OK + """
+10:00:00.011 """ + SD_BG_IN + """
+10:00:01.000 """ + SND_START % ('Stereo', 1, 1, 'Smooth', 100, 'On', 'probe ok', 'Off') + """
+10:00:01.000 sound: keep-awake: on: a 45 Hz tone at -72.2 dBFS (level 8 of 32767, far below hearing) loops under the game's sound, also while another window is in front (DirectSound's global focus): the sound device never carries a silent stream, so a wireless headset stays awake
+10:00:01.100 sound: device: the game plays on \"""" + SD_SPK + """\" (Windows' default when its sound started); a change of Windows' default device is logged (DirectSound stays on the device it started with: restart the game to use another one)
+10:02:01.000 sound: focus: another window is in front (the game was in front 120.5 s): Background Mute: DirectSound mutes the game's sounds; keep-awake plays on (the device stays awake)
+10:02:46.200 sound: focus: the game is in front again after 45.2 s behind other windows: its sounds play (the keep-awake signal kept the device awake)
+10:02:50.000 sound: Background Mute -> Play (Options): sounds that start from now on go on while another window is in front (DirectSound's global focus); the ones playing keep theirs until they end
+10:03:00.000 sound: device: the default sound device changed to "Headset (Arctis 7)"; restart the game to use it (the game keeps playing on \"""" + SD_SPK + """\": DirectSound stays on the device it started with; following it live is not built)
+10:03:30.000 sound: device: the game's sound device \"""" + SD_SPK + """\" is unplugged: no game sound until it is back (restart the game to use another device)
+10:03:32.000 sound: keep-awake: it had stopped (status 00000002, the buffer was lost): restore hr 00000000, fill hr 00000000, play hr 00000000
+"""
+# v3.56 SD356: the sites not stock, no keep-awake buffer, no device watch, a bad ini value, the default back on the game's device
+V356SD1 = V333_END + """10:00:00.005 sound: [Sound] Background="Loud" is not Mute / Play: Mute
+10:00:00.006 sound: Background: 004095FE is not the GOG v7 code (E9 11 22 33 ...; another mod?; Play2D 00409530 (add edx,0C0h)): not installed, the game's own focus (muted while another window is in front)
+10:00:00.010 sound: background: [Sound] Background Mute (the buffer sites 004095FE / 00409B02 / 0040A14C / 0040A723 NOT IN: the game's own focus); keep-awake on at the first frame; device watch on at the first frame
+10:00:01.000 ANOMALY: sound: keep-awake: DirectSound would not make or play its buffer (create hr 88780078, fill hr 80004005, play hr 80004005): none this session (a wireless headset may still fall asleep behind other windows)
+10:00:01.100 sound: device watch: no MMDevice enumerator (hr 80040154): no device watch
+10:05:00.000 sound: device: the default sound device changed to "Headset"; restart the game to use it (the game keeps playing on "Speakers": DirectSound stays on the device it started with; following it live is not built)
+10:05:10.000 sound: device: the default sound device is the game's "Speakers" again: nothing to do
+"""
 # v3.53 OL2: the Options look: the install line, the glyph lines (a page logged twice, the larger kept), a key on a grey
 # v3.54 OL34: the Options layout's lines (install, a row left out, two openings)
 V354LY = ("10:00:00.030 options layout: R3 + R4 (OL34): the cycle Display, Controls, Interface, Sound, Effects, Gameplay; 19 "
@@ -1035,6 +1127,25 @@ V351PT3 = V333_END + """10:00:00.300 """ + FI_INSTALL351 % ("NOT available (Fade
 10:00:09.020 fade in: a blood portal drawn (viewport 3D 2560x1440, the exact depth of 012E3ED0)
 10:00:20.000 fade in: room 2:2: 1 fade(s) (room load 0, follower 1, wanderer 0, copy 0, revive 0, ghost 0, monster 0), 1 portal(s) (the game's own draw 0, Refined's 0, vortex 1; 0 held; portal draw 0.000 ms a frame, max 0.000); 0 not faded (stage 0, cut-scene 0, type 0, boss 0, event 0, dead 0, own draw 0, own portal 0, own fade 0)
 """
+
+
+# v3.56 MN356: the value lines, the folder click and the Extra Menu's text
+V356MN = ("10:00:00.020 extra menu: text drawn once, with its glyphs' own shadow (no second dark copy under bright parts of the "
+          "picture) ([ExtraMenu] StockShadow=0)\n"
+          "10:00:00.030 options: value lines: 90 row(s) carry the plan's 277 value lines (277 in the plan); a value whose row code "
+          "answers the row's line shows its own line (text ids V56 + 0 .. 15)\n"
+          "10:00:05.000 options: folder rows open on a mouse click anywhere on the row (label, triangle, value column; a combo row "
+          "on its label) ([Options] FolderClick=1)\n"
+          "10:00:06.000 [v] options: value lines: items / Supply Drops: \"Off: kills leave nothing, as the game.\" (its row code "
+          "answered the row's line)\n"
+          "10:00:07.000 [v] options: value lines: camera / Field of View value 3 \"65\" has no line in the plan (a number or a "
+          "range): the row's line stays\n"
+          "10:00:08.000 [v] options: a click on page 1 (Controls) row 4 (a folder-kind row, the cursor moved there): its input runs "
+          "as for a click on its value column\n"
+          "10:00:09.000 [v] options: a click on page 5 row -1 not taken: a page slide is under way (click again)\n")
+V356MN_OFF = ("10:00:00.020 extra menu: text drawn with the stock pause's second shadow string (v3.55) ([ExtraMenu] StockShadow=1)\n"
+              "10:00:05.000 options: folder rows open on a mouse click only as in v3.55 (Enter) ([Options] FolderClick=0; no Menus43 "
+              "mouse hooks: on the cursor row's value column only)\n")
 
 
 def sess(t0, ver, rend, chain, rooms, end=True, started=None, anomalies=0, perf=None, title=None):
@@ -1235,6 +1346,28 @@ V352HB = V333_END + """10:00:01.000 [v] hud bars: no bar for FFFF0007 (type 0B) 
 """
 
 
+# v3.56 FR356: the rate guard (rateguard.inc) and the final room's sites (true60_final.inc): a run at 180 that could not hold
+# it (two missed windows, one held while the effect budget shed, the step 180 -> 120), the retry after 10 minutes, the step
+# back up at a room change, a second step down (locked), and the Frame Rate row starting it again
+V356FR = V333_END + """10:00:00.040 rate guard: on (hidden [Window] RateGuard=0 turns it off): above 60 fps, when the play frames' mean over 3 s is over 1.15 x the frame in 2 windows in a row (the effect budget sheds first: up to 3 windows held), the game steps down 180 -> 120 -> 60 for this run; back up after 10 minutes clean at the next room change, a rate stepped down from 2 times stays down; the ini's FrameRate never changes (top now 180)
+10:00:01.000 true 60: 3/3 final-room sites follow the rate (stage 9 room 2: the contraption's swing 0.0785 a tick at 30, the spear spot's step 0.20)
+10:00:10.000 [v] rate guard: a 3 s window at 180 missed: 7.10 ms on average against 5.56 (1.28 x); held: the effect budget is still shedding
+10:00:13.000 [v] rate guard: a 3 s window at 180 missed: 7.05 ms on average against 5.56 (1.27 x)
+10:00:16.000 [v] rate guard: a 3 s window at 180 missed: 7.40 ms on average against 5.56 (1.33 x)
+10:00:16.001 rate guard: 180 -> 120: the play frames took 7.40 ms on average against 5.56 (1.33 x) in 2 windows of 3 s in a row (stage 2 room 4; effect budget level 3); [Window] FrameRate stays 180
+10:10:20.000 rate guard: 10 minutes clean at 120 (7.10 ms against 8.33): 180 is tried again at the next room change
+10:11:00.000 rate guard: 120 -> 180 at the room change to 2:05 (a try after 10 minutes clean at 120)
+10:11:09.000 [v] rate guard: a 3 s window at 180 missed: 7.20 ms on average against 5.56 (1.30 x)
+10:11:12.000 [v] rate guard: a 3 s window at 180 missed: 7.30 ms on average against 5.56 (1.31 x)
+10:11:12.001 rate guard: 180 -> 120: the play frames took 7.30 ms on average against 5.56 (1.31 x) in 2 windows of 3 s in a row (stage 2 room 5; effect budget level 8); stepped down from it twice: not tried again this run; [Window] FrameRate stays 180
+10:20:00.000 rate guard: the Frame Rate row chose 120: the guard starts again (it held the game at 120)
+"""
+V356FR_OFF = V333_END + """10:00:00.040 rate guard: off (hidden [Window] RateGuard=0): a rate this PC cannot hold runs the game in slow motion
+10:00:01.000 true 60: 004E4CCE (the final room's contraption: its parts' swing step a tick (0.0785)) is not stock: none of the 3 final-room sites is used
+"""
+V356FR_FM1 = V333_END + """10:00:00.040 rate guard: not used (FrameMode 1: the game runs at 30)
+"""
+
 def run(text, name='SH4Refined.log'):
     d = tempfile.mkdtemp(prefix='logcheck_')
     p = os.path.join(d, name)
@@ -1262,8 +1395,100 @@ V352FXN = V333_END + """10:00:00.050 post effects: [ScreenEffects] Bloom=High (v
 10:00:00.060 post effects: in place (drawn in the scene pass before the filter; device reset 00402DF4 hooked); Bloom Medium, Colour Grading Off, Otherworld Lens Off (the lens at 70 % while a ghost or haunting is in the room, full halfway into its aura)
 """
 
+# v3.56 ER356: Enemies Return Off / By Room / By World and the world visit: the one-time migration of v3.55's On, the install
+# line with the Tremer site, world entries and loads, a By Room room's revive line, a By World entry pass, a load that
+# brings nothing back, the Tremer bodies kept, a change in the menu
+V356ER = V333_END + """10:00:00.040 gameplay: EnemyRevive On (v3.30 - v3.55) is By Room now (Enemies Return: Off, By Room, By World): written to SH4Refined.ini
+10:00:00.200 enemies: in (room load 004F0AF8, kill count 00450DB0, bone pool 00419830, victims 00486199, room change 004F0A5A, save 00465438, Tremer bodies 0048ACE5); EnemyCopies Off, EnemyFollow Monsters + Victims, EnemyRevive By Room, BonePool -1 (-1 Auto = 4096 while Copies or Follow is on), FollowMax 32
+10:00:10.000 world visit: entered world 2 at room 1 (from stage 1): world entry 1 of this session
+10:00:20.000 enemies: revive: room 2:4: killed monsters stand again (1 body taken away, 2 kill bit(s) cleared, 0 bodies of other rooms' monsters: they stand at home), 3 killed copies come back
+10:00:30.000 world visit: room 2:4 after a save load: no room change, no world entry (the save's world visit goes on)
+10:00:30.001 enemies: return: room 2:4 after a load: nothing returns (By Room: a load is no room change and no world entry; the save's dead stay dead)
+10:00:40.000 gameplay: EnemyRevive By World
+10:00:41.000 enemies: return: Enemies Return By World from this room load on (killed monsters stand again when you enter the world again; a load is no entry)
+10:00:50.000 [v] world visit: left world 2 for stage 1 room 1
+10:01:00.000 world visit: entered world 2 at room 1 (from stage 1): world entry 2 of this session
+10:01:00.001 enemies: return: entered world 2 (By World): 21 room(s) walked, 7 killed monster(s) stand again (4 bodies taken away, 3 kill bit(s) cleared), 3 released event dog(s) awake at their room's next load, 0 recorded alive left as they are, 3 story room(s) left as they are; the entry room 1 next
+10:01:10.000 [v] enemies: return: room 2:2 (By World): 3 released event dog(s) marked at the world entry are made awake after the room's script
+10:01:20.000 [v] enemies: return: 2 killed Tremer(s) kept their body at a room exit this session (By World: dead until you enter the world again)
+10:01:30.000 world visit: room 2:3 after a save load: no room change, no world entry (the save's world visit goes on)
+10:01:30.001 enemies: return: room 2:3 after a load: nothing returns (By World: a load is no room change and no world entry; the save's dead stay dead)
+10:01:40.000 [v] enemies: return: 3 killed Tremer(s) kept their body at a room exit this session (By World: dead until you enter the world again)
+"""
+V356ER_OLD = V333_END + """10:00:00.200 enemies: in (room load 004F0AF8, kill count 00450DB0, bone pool 00419830); EnemyCopies Off, EnemyFollow Off, EnemyRevive On, BonePool -1
+"""
+V356ER_NOT = V333_END + """10:00:00.040 gameplay: EnemyRevive On (v3.30 - v3.55) is By Room now (Enemies Return: Off, By Room, By World): could not be written to SH4Refined.ini (used for this start; tried again at the next)
+10:00:00.100 enemies: return: 0048ACE0 or 004215D0 differs from the GOG v7 exe (another mod?): By World leaves Tremers the game's own rule
+10:00:00.200 enemies: in (room load 004F0AF8, kill count 00450DB0, bone pool 00419830); EnemyCopies Off, EnemyFollow Off, EnemyRevive By Room, BonePool -1
+"""
+
+
+def test_er356():  # v3.56 ER356
+    s, r = run(V356ER)
+    print(r)
+    e = s.er
+    check(s.er_mode == 'By Room' and s.er_tsite == 'in' and s.er_modes == [('10:00:40', 'By World')],
+          'v3.56 ER356: the start, the Tremer site, the change (%r %r %r)' % (s.er_mode, s.er_tsite, s.er_modes))
+    check(e['migr'] == 1 and e['migr_fail'] == 0 and e['entries'] == 2 and e['loads'] == 2 and e['rooms'] == 1 and
+          e['r_bodies'] == 1 and e['r_bits'] == 2 and e['r_copies'] == 3 and e['worlds'] == 1 and e['w_back'] == 7 and
+          e['w_dogs'] == 3 and e['w_story'] == 3 and e['loadnone'] == 2 and e['tremer'] == 3, 'v3.56 ER356: the counts (%r)' % dict(e))
+    check('  enemies return: By Room at the start; EnemyRevive On migrated to By Room; 1 change(s): By World [10:00:40]; world '
+          'visits: 2 entr(ies), 2 load(s) (no room change); By Room: 1 room(s) brought back their dead (1 bod(ies), 2 kill bit(s), 0 '
+          'of other rooms, 3 cop(ies)); By World: 1 world entr(ies) brought back 7 killed monster(s) (3 event dog(s) marked, 3 story '
+          'room(s) left); 2 load(s) brought nothing back; Tremer site in, 3 Tremer bod(ies) kept' in r.splitlines(),
+          'v3.56 ER356: the summary line')
+    check('enemies follow setting: Monsters + Victims at the start' in r, 'v3.56 ER356: the install line still reads for Follow')
+    check(not [v for v in s.warnings.values() if 'return' in v[3] or 'world visit' in v[3]], 'v3.56 ER356: no line lands in the warnings')
+    s, r = run(V356ER_OLD)
+    check(s.er_mode == 'On' and "enemies return: On at the start (v3.55's On: read as By Room)" in r and 'Tremer site not in' in r,
+          'v3.56 ER356: a v3.55 log (%r)' % s.er_mode)
+    s, r = run(V356ER_NOT)
+    check(s.er_tsite == 'off' and s.er['migr_fail'] == 1 and 'NOT written: tried again at the next start' in r and
+          'Tremer site off' in r, 'v3.56 ER356: the write failed, the site differs (%r %r)' % (s.er_tsite, dict(s.er)))
+    s, r = run(V333_END)
+    check(s.er_mode is None and 'enemies return:' not in r, 'v3.56 ER356: no lines, no summary')
+    # v3.56 MERGE: the one world-visit rule writes RI356's visits lines; Enemies Return's summary counts them (worlds 2..8)
+    m = (V356ER.replace('10:00:10.000 world visit: entered world 2 at room 1 (from stage 1): world entry 1 of this session',
+                        '10:00:05.000 visits: world visit 1A2B3C4D begins: stage 1 entered (room 3; world entry 1 of this session)\n'
+                        '10:00:10.000 visits: world visit 0F0E0D0C begins: stage 2 entered (room 1; world entry 2 of this session)')
+         .replace("10:00:30.000 world visit: room 2:4 after a save load: no room change, no world entry (the save's world visit goes on)",
+                  "10:00:30.000 visits: room 2:4 after a load (a save applied: the enemy manager's stage -2): no room or world entry; "
+                  'world visit 0F0E0D0C goes on (room entries 1)')
+         .replace('10:01:00.000 world visit: entered world 2 at room 1 (from stage 1): world entry 2 of this session',
+                  '10:01:00.000 visits: world visit 22334455 begins: stage 2 entered (room 1; world entry 4 of this session)')
+         .replace("10:01:30.000 world visit: room 2:3 after a save load: no room change, no world entry (the save's world visit goes on)",
+                  "10:01:30.000 visits: room 2:3 after a load (a save applied: the enemy manager's stage -2): no room or world entry; "
+                  'world visit 22334455 goes on (room entries 2)'))
+    check(m.count('visits: ') == 5 and 'world visit: entered' not in m and 'after a save load' not in m, 'v3.56 MERGE: the merged log made')
+    s, r = run(m)
+    check(s.er['entries'] == 2 and s.er['loads'] == 2 and 'world visits: 2 entr(ies), 2 load(s) (no room change)' in r,
+          'v3.56 MERGE: Enemies Return counts the visits lines (worlds only) (%r)' % dict(s.er))
+    vl = [x for x in r.splitlines() if x.startswith('  visits: ')]
+    check(len(vl) == 1 and '3 world visit(s) begun' in vl[0] and "marked by a save applied: the enemy manager's stage -2 2" in vl[0],
+          'v3.56 MERGE: the visits summary (%r)' % vl)
+    s, r = run(V333_END + '10:00:10.000 visits: world visit 0F0E0D0C begins: stage 2 entered (room 1; world entry 2 of this session)\n')
+    check('enemies return:' not in r, 'v3.56 MERGE: visit counts alone do not make the Enemies Return line speak')
+
+
+# v3.56 PV356: the Effects page's preview (preview.inc): the install line, two pauses' look layers, one not kept, the page
+# over a pause (Thermal with its heat layer, Spirit Vision with its spirit layer), the title scene, a failure, an ANOMALY
+V356PV = """10:00:00.050 screen effects: the Effects page's preview: with no paused game SH4 Refined's own scene (PreviewScene=Scene); a pause keeps Thermal's heat and Spirit Vision's ghosts and soul fires for it: on (PreviewLayers=1)
+10:00:10.000 [v] screen effects: the preview scene laid out for 2560x1440: 1932 room, 180 light, 126 figure, 105 ghost, 114 cabinet vertices
+10:00:11.000 screen effects: the Effects page's preview: Thermal over SH4 Refined's preview scene with the scene's heat (figure, footprints)
+10:00:12.000 screen effects: the Effects page's preview: Spirit Vision over SH4 Refined's preview scene with the scene's spirit (ghost glow, soul fire)
+10:00:13.000 screen effects: the Effects page's preview: CRT over SH4 Refined's preview scene
+10:01:00.000 [v] screen effects: the pause's look layers kept for the Effects page: heat on (3 bodies, 2 footprint(s)), spirit on (1 ghost(s), 3 soul fire(s), 40 aura sprite(s)); 2560x1440, targets made (the preview's 28.1 MB), 1.84 ms
+10:01:05.000 screen effects: the Effects page's preview: Thermal over the paused scene with the pause's heat layer (3 bodies, 2 footprint(s))
+10:01:06.000 screen effects: the Effects page's preview: Spirit Vision over the paused scene with the pause's spirit layer (1 ghost(s), 3 soul fire(s), 40 aura sprite(s))
+10:02:00.000 [v] screen effects: the pause's look layers kept for the Effects page: heat on (1 body, 0 footprint(s)), spirit off (0 ghost(s), 0 soul fire(s), 0 aura sprite(s)); 2560x1440, targets kept from an earlier pause (the preview's 28.1 MB), 0.92 ms
+10:03:00.000 [v] screen effects: the pause's look layers not kept: the pause picture is not on the GPU this time (Thermal / Spirit Vision show their palette / edges on the Effects page from this pause)
+10:04:00.000 screen effects: the pause's look layers could not be copied (00000000 at 00000000; 1 of 3 before they are off); the clean picture was drawn back
+10:05:00.000 ANOMALY: screen effects: the preview scene's draw faulted: off for this session (PreviewImage / the hallway instead)
+"""
+
 
 def main():
+    test_er356()  # v3.56 ER356
     s, r = run(V333)
     print(r)
     check(s.version == '3.33.0' and s.level == 2, 'version and log level read')
@@ -1284,6 +1509,19 @@ def main():
     check(len(r.splitlines()) <= 40, 'the report stays short (%d lines)' % len(r.splitlines()))
     s, r = run(V333_END)
     check('end: end (process exit)' in r and 'MISSING' not in r, 'the end line is shown, no MISSING')
+    s, r = run(V356PW)  # v3.56 PW356
+    print(r)
+    check('effect budget: in; 4 step(s) down, 2 up, deepest level 6; thinned in 2 of 3 room line(s)' in r,
+          'v3.56 PW356: the effect budget summary counts the blind steps and the take-back as steps')
+    check('effect budget high rate: in; 1 room line(s) at a high rate; 2 blind step(s): 1 kept, 1 taken back; nothing left to shed 1 time(s); '
+          'rates: 180 fps high-rate rules [10:03:02]; the last go-ahead 180 fps at level 1 [10:03:10]' in r, 'v3.56 PW356: the high-rate summary')
+    check('    2:06: 10800 high-rate frame(s), 2 blind step(s), 1 kept, 1 taken back; the sparks at 60 %' in r, 'v3.56 PW356: the high-rate room')
+    check('after shock over-the-shoulder: a copy over her keeps 45 %, her box 92 x 341 u; camera on 1 / off 1 time(s); 1 visit line(s) with the '
+          'fade: 21000 copy draw(s) dimmed, the least light 45 %; [Gameplay] AfterImageOtsFade=45' in r, 'v3.56 PW356: the over-the-shoulder summary')
+    check(len(s.budget_rooms) == 3 and s.budget_rooms[2][2]['now'] == 1 and s.budget_rooms[2][2]['late'] == 33.0,
+          'v3.56 PW356: the room line with its high-rate part still parses as a budget room line')
+    s, r = run(V335)
+    check('effect budget high rate' not in r and 'after shock over-the-shoulder' not in r, 'v3.56 PW356: a v3.35 log has neither new line')
     s, r = run(V335)  # v3.35 FX335
     print(r)
     check(len(s.rooms) == 2 and s.rooms[0][2]['why'].startswith('after a load; Refined 259.68 ms; after shock 259.2 ms'),
@@ -1874,6 +2112,32 @@ def main():
           'unknown ini values: Items "Randomize" -> Random' in r and 'self-check 136 of 137' in r and 'NOT the stock' not in r and
           '1 plan(s) COULD NOT PLACE every item' in r and s.rz_plans[0][17],
           'v3.48: an unknown ini value, a script that is not the stock one, an unplaced plan (%r %r)' % (s.rz_bad, s.rz))
+    s, r = run(V356RZ)  # v3.56 RI356
+    print(r)
+    check(s.rz == ('Random', 'On', 'Random', 123456, 137, 17, 137, 'the stock scripts', 'By World', 27, 27, 19) and s.rz_v356,
+          'v3.56: the new start line parses into the v3.48 tuple (%r)' % (s.rz,))
+    check([m[1:] for m in s.rz_migs] == [('KeepSpecials', 'Off', 'Specials', 'On', 'migrated once'),
+                                         ('Room302', 'In', 'Room302', 'Random', 'migrated once'),
+                                         ('PerVisit', 'Off', 'Reroll', 'By World', 'NOT written')],
+          'v3.56: the three migrations parse (%r)' % (s.rz_migs,))
+    check(s.rz_bad == [('Reroll', 'Sometimes', 'By Room')], 'v3.56: an unknown Reroll value (%r)' % (s.rz_bad,))
+    check([p[1:4] + (p[15], p[16]) for p in s.rz_plans] == [(2, 0, 'Random', 'By World', 195948557)],
+          'v3.56: the plan line with the new words parses (%r)' % (s.rz_plans,))
+    check([x[1:] for x in s.rz_sets] == [('Reroll', 'By Room', 'By World'), ('Room302', 'Shuffle', 'Random'), ('Specials', 'Off', 'On'),
+                                         ('Reroll', 'By World', '[Randomizer] read again')],
+          'v3.56: the changes parse (%r)' % (s.rz_sets,))
+    check(s.rz_sess is not None and s.rz_sess[2:5] == ('Off', 'Shuffle', 'By World') and s.rz_seedline == (123456, 64, 386, 24, 'the smaller size'),
+          'v3.56: the session line and the seed line parse (%r %r)' % (s.rz_sess, s.rz_seedline))
+    check(len(s.wv_worlds) == 2 and s.wv_worlds[0][5] and not s.wv_worlds[1][5] and
+          [l[5] for l in s.wv_loads] == ['goes on', "= the seed's own"] and s.wv_sess == (12, 2, 2, 0, 1, 1, 3),
+          'v3.56: the world-visit lines parse (%r %r %r)' % (s.wv_worlds, s.wv_loads, s.wv_sess))
+    check('randomizer: Items Random (Specials On, Room 302 Items Random, Reroll By World, seed 123456) at the start' in r and
+          'v3.55 keys: KeepSpecials=Off -> Specials=On (migrated once), Room302=In -> Room302=Random (migrated once), PerVisit=Off -> '
+          'Reroll=By World (NOT written)' in r and 'seed line 24 glyph(s) at y 386 (small)' in r,
+          'v3.56: the Randomizer summary names the new rows, the migrations and the seed line')
+    check("visits: 2 world visit(s) begun (stages 1, 2), 1 after a New Game / title load; 2 load(s), never a room or world entry "
+          "(1 = the seed's own, 1 goes on; marked by the room of the save image 1, the save's apply 1); session: 12 room entries, "
+          "2 world visit(s), 2 load(s) (0 resumed, 1 the seed's own), 1 reset(s), 3 room 0" in r, 'v3.56: the visits summary line')
     s, r = run(V349RZL)  # v3.49 RZ349L
     check(s.rzl == ('Random', 'Spots') and s.rzl_bad == [('Ghosts', 'Rooms', 'Spots')] and s.rzl_first[1:4] == (7, 1, 'Random') and
           s.rz is None and not s.rz_sets and s.rz_anom == 0 and s.rzl_anom == 1,  # v3.49 MERGE: rz_anom 0 (the looks' ANOMALY counted apart)
@@ -2052,6 +2316,30 @@ def main():
           'v3.50: a v3.49 log has no reasons part')
     s, r = run(V350RZMB)
     check(s.rzm_bad == ('Everywhere', 'This World'), 'v3.50: the unknown-value line with All Worlds in its list parses (%r)' % (s.rzm_bad,))
+    s, r = run(V356RE)  # v3.56 RE356: Enemies and Spawn Site
+    ss = [x for x in r.splitlines() if x.startswith('  randomizer spawn site: ')]
+    check(s.rzm and s.rzm[0] == 'Same World' and s.rzm[1] == 238 and 'Victim 0D v1' in s.rzm[7] and s.rzm[8] == 'in',
+          'v3.56 RE356: the Enemies start line parses (%r)' % (s.rzm,))
+    check(s.rz_mig == [('Monsters', 'This World', 'Enemies', 'Same World', True), ('Ghosts', 'Spots', 'SpawnSite', 'On', True)],
+          'v3.56 RE356: the two renamed keys (%r)' % (s.rz_mig,))
+    check(s.rzm_story == [(2, "no old man's ghost (0D v1) before story flag 23B")] and s.rzm_first and s.rzm_first[3] == 'Same World',
+          'v3.56 RE356: the story rule and the first room (%r %r)' % (s.rzm_story, s.rzm_first))
+    check(s.rzm_rooms['rooms'] == 1 and s.rzm_rooms['changed'] == 1 and s.rzm_by.get('victim ghost') == 1,
+          'v3.56 RE356: a room line with Same World and a victim ghost (%r %r)' % (s.rzm_rooms, dict(s.rzm_by)))
+    check(s.ss_rooms['rooms'] == 2 and s.ss_rooms['moved'] == 3 and s.ss_rooms['n'] == 4 and s.ss_rooms['recs'] == 1 and
+          s.ss_rooms['cells'] == 4044 and s.ss_kept['near where you arrive'] == 12 and s.ss_kept['asleep for its event'] == 1 and
+          s.ss_nomap == [(2, 9, 'no solid map')] and s.ss_sess and s.ss_sess[0] == 'On' and s.ss_anom == 1,
+          'v3.56 RE356: the spawn site lines parse (%r %r %r %r)' % (s.ss_rooms, s.ss_kept, s.ss_nomap, s.ss_sess))
+    check(len(ss) == 1 and 'ini migrated: Monsters "This World" -> Enemies Same World, Ghosts "Spots" -> SpawnSite On' in ss[0] and
+          '2 room load(s) with monsters (1 of them a room visited again), 3 of 4 monster(s) at a new site, 1 record(s) moved' in ss[0] and
+          'NO floor map: 2:9 (no solid map)' in ss[0] and '1 ANOMALY line(s)' in ss[0], 'v3.56 RE356: the spawn site summary (%r)' % ss)
+    check(s.rzl and s.rzl_first and [x for x in s.rzm_sets if x[1] == 'All Worlds'] and s.rzl_sess2 and s.rzl_sess2[10] == 'On',
+          'v3.56 RE356: the looks lines with SpawnSite / Spawn Site and the Enemies change parse (%r %r)' % (s.rzl_sess2, s.rzm_sets))
+    check(not [v for v in s.warnings.values() if 'spawn site' in v[3].lower() and 'floor map' not in v[3].lower()] and
+          not [v for v in s.warnings.values() if 'monsters' in v[3].lower()],
+          'v3.56 RE356: only the no-map line lands in the warnings (%r)' % (list(s.warnings.values()),))
+    s, r = run(V349RZM)
+    check(not s.rz_mig and not s.ss_rooms and 'randomizer spawn site' not in r, 'v3.56 RE356: a v3.49 log has no spawn site line')
     s, r = run(V351SN)  # v3.51 SN351: the event dogs and the second roll
     print(r)
     check(s.rzm and s.rzm[1] == 238 and s.rzm[4] == 238 and s.rzm_ev == (3, 3, 'On') and s.rzm_sess4 == (2, 'On', 3, 3),
@@ -2195,6 +2483,30 @@ def main():
           "first start: Mode Mono from the save's Sound 0  [10:00:01]; NOT the GOG code: volume (004090A6 / 00409285 / 0040B5E7) "
           "004090A6; 1 ANOMALY line(s)" in r, 'v3.52: the first start, PanLaw=Stock, a site not stock, the probe failed (%r %r)' % (
               s.snd_in, s.snd_first))
+    s, r = run(V356SD)  # v3.56 SD356: Background, keep-awake, focus, the device watch
+    print(r)
+    check(s.sd_bg == ('Mute', 'in', 'on', 'on') and s.sd_keep == ('10:00:01', '-72.2', '8') and s.sd_keep_re == 1 and
+          [x[1] for x in s.sd_focus] == ['away', 'back'] and s.sd_dev == ('10:00:01', SD_SPK, "Windows' default when its sound started") and
+          [x[1] for x in s.sd_dev_ev] == ['new', 'unplugged'] and s.snd_changes[-1][1:] == ('Background', 'Mute', 'Play', 'Options') and
+          not s.snd_anom, 'v3.56: the SD356 lines read (%r %r %r %r %r)' % (s.sd_bg, s.sd_keep, s.sd_focus, s.sd_dev, s.sd_dev_ev))
+    check('sound background: Background Mute (buffer sites in); keep-awake on at -72.2 dBFS (level 8)  [10:00:01]; keep-awake '
+          'restarted / not readable 1 time(s); 1 time(s) behind other windows (longest 45.2 s); the game plays on "Speakers (Realtek(R) '
+          'Audio)" (Windows\' default when its sound started)  [10:00:01]; 2 device event(s): a new default "Headset (Arctis 7)" '
+          '[10:03:00], the game\'s device unplugged "Speakers (Realtek(R) Audio)" [10:03:30]; at the end another default device: a '
+          'restart takes it' in r, 'v3.56: the SD356 summary line')
+    check('Background Mute -> Play (Options) [10:02:50]' in r, 'v3.56: the Background change in the Sound line')
+    check(not [v for v in s.warnings.values() if v[3].startswith('sound: ')], 'v3.56: no SD356 line lands in the warnings')
+    s, r = run(V356SD1)
+    print(r)
+    check(s.sd_bg == ('Mute', 'NOT IN', 'on', 'on') and s.sd_keep == 'FAILED' and s.snd_anom == 1 and
+          s.sd_dev_off == ('10:00:01', 'no MMDevice enumerator (hr 80040154): no device watch') and
+          [x[1] for x in s.sd_dev_ev] == ['new', 'back'] and dict(s.sd_cfg) == {'Background': 1} and
+          s.snd_notin == [('Background', '004095FE')], 'v3.56: sites not stock, no keep-awake, no watch (%r %r %r %r)' % (
+              s.sd_bg, s.sd_keep, s.sd_dev_off, s.snd_notin))
+    check('keep-awake FAILED (ANOMALY)' in r and 'no device watch: no MMDevice enumerator' in r and 'ini read as the default: Background' in r
+          and 'at the end another default' not in r, 'v3.56: the SD356 failure summary')
+    s, r = run(V352SND)
+    check(s.sd_line() is None and 'sound background:' not in r, 'v3.56: a v3.52 log has no SD356 line')
     s, r = run(V333_END + '10:00:00.010 sound: [Sound] Enabled=0: the game\'s own sound and Sound row (no Refined sound site)\n')
     check(s.snd_in == 'off' and "sound: off ([Sound] Enabled=0: the game's own)" in r, 'v3.52: Enabled=0')
     s, r = run(V333_END)
@@ -2302,6 +2614,67 @@ def main():
     check(s.ly_off and 'options layout: off' in r, 'v3.54 OL34: no Options pages')
     s, r = run(V333_END)
     check(s.ly_in is None and not s.ly_open and 'options layout:' not in r, 'v3.54 OL34: no layout lines, no summary line')
+    # v3.56 FR356: the rate guard and the final room's sites
+    s, r = run(V356FR)
+    fr = [x for x in r.splitlines() if x.startswith('  rate guard: ')]
+    check(s.frg == ('on', 180, '10:00:00') and s.t60f == (3, 3), 'v3.56 FR356: the start line and the final-room sites read (%r %r)' % (s.frg, s.t60f))
+    check(len(s.frg_downs) == 2 and s.frg_downs[0][1:3] == (180, 120) and s.frg_downs[0][8] == 3 and not s.frg_downs[0][9] and
+          s.frg_downs[1][9] and s.frg_downs[1][6:8] == ('2', '5'), 'v3.56 FR356: both steps down read, the second locked (%r)' % (s.frg_downs,))
+    check(len(s.frg_ups) == 1 and s.frg_ups[0][1:] == (120, 180, '2', '05') and len(s.frg_retry) == 1 and s.frg_retry[0][1:] == (10, 120, 180),
+          'v3.56 FR356: the retry and the step back up (%r %r)' % (s.frg_ups, s.frg_retry))
+    check(s.frg_miss == [4, 1] and s.frg_worst[0] == 1.33 and s.frg_worst[1] == 180, 'v3.56 FR356: missed windows 4 counted, 1 held (%r %r)' % (s.frg_miss, s.frg_worst))
+    check(s.frg_resets == [('10:20:00', 120, 120)], 'v3.56 FR356: the row reset read (%r)' % (s.frg_resets,))
+    check(len(fr) == 1 and 'on at the start (top 180)' in fr[0] and '2 step(s) down: 180 -> 120 (7.40 ms against 5.56, 1.33 x, stage 2 room 4, budget level 3)' in fr[0] and
+          ', locked)' in fr[0] and '1 step(s) back up: 120 -> 180 at 2:05' in fr[0] and '4 counted, 1 held' in fr[0] and
+          'the Frame Rate row chose 120' in fr[0] and 'final-room sites 3/3' in fr[0], 'v3.56 FR356: the summary line (%r)' % fr)
+    check(not [v for v in s.warnings.values() if 'rate guard' in v[3] or 'final-room' in v[3]], 'v3.56 FR356: no guard line among the warnings')
+    s, r = run(V356FR_OFF)
+    fr = [x for x in r.splitlines() if x.startswith('  rate guard: ')]
+    check(s.frg[0] == 'off' and s.t60f == ('NOT', '004E4CCE') and len(fr) == 1 and 'off at the start' in fr[0] and 'no step down' in fr[0] and
+          'final-room sites NOT in (004E4CCE)' in fr[0], 'v3.56 FR356: guard off, a site not stock (%r)' % fr)
+    check([v for v in s.warnings.values() if 'final-room sites is used' in v[3]], 'v3.56 FR356: the site not stock is also a warning')
+    s, r = run(V356FR_FM1)
+    check(s.frg[0] == 'not used' and 'rate guard: not used at the start' in r, 'v3.56 FR356: FrameMode 1')
+    s, r = run(V333_END)
+    check(s.frg is None and s.t60f is None and 'rate guard:' not in r, 'v3.56 FR356: no guard lines, no summary line')
+    s, r = run(V333_END + V356PV)  # v3.56 PV356
+    pv = [x for x in r.splitlines() if x.startswith('  effects preview: ')]
+    check(s.pv_set and s.pv_set[1:] == ('scene', '1') and s.pv['kept'] == 2 and s.pv['heat'] == 2 and s.pv['spirit'] == 1 and
+          s.pv['made'] == 1 and s.pv['kept_t'] == 1 and s.pv_max == [3, 1, 3, 1.84] and s.pv['notkept'] == 1 and s.pv['fail'] == 1 and
+          s.pv['laid'] == 1 and s.pv_anom == 1, 'v3.56 PV356: the preview lines read (%r %r %r %r)' % (s.pv_set, s.pv, s.pv_max, s.pv_anom))
+    check(s.pv_page[('Thermal', "a pause + its heat layer")] == 1 and s.pv_page[('Spirit Vision', "a pause + its spirit layer")] == 1 and
+          s.pv_page[('Thermal', "the scene + the scene's heat")] == 1 and s.pv_page[('CRT', 'the scene')] == 1,
+          'v3.56 PV356: the page lines by filter and backdrop (%r)' % s.pv_page)
+    check(len(pv) == 1 and "with no paused game SH4 Refined's scene; the pause layers on at the start" in pv[0] and
+          '2 pause(s) kept layers (heat in 2, at most 3 bodies; spirit in 1, at most 1 ghost(s), 3 soul fire(s); targets made 1, kept 1; '
+          'the slowest 1.84 ms), 1 not: the pause picture is not on the GPU this time x1' in pv[0] and
+          'Thermal over a pause + its heat layer x1' in pv[0] and '1 failure(s)' in pv[0] and '1 ANOMALY line(s)' in pv[0],
+          'v3.56 PV356: the summary line (%r)' % pv)
+    check(not [v for v in s.warnings.values() if v[3].startswith(('screen effects: the pause', "screen effects: the Effects page"))],
+          'v3.56 PV356: no preview line lands in the warnings')
+    s, r = run(V333_END)
+    check(s.pv_set is None and 'effects preview:' not in r, 'v3.56 PV356: no preview lines, no summary line')
+    # v3.56 MN356: the value lines, the folder click and the Extra Menu's text
+    s, r = run(V333_END + V356MN)
+    mn = [x for x in r.splitlines() if x.startswith('  options menu (v3.56): ')]
+    check(s.mn_vl == (90, 277, 277, False) and s.mn_vl_ans == [('10:00:06', 'items', 'Supply Drops', 'Off: kills leave nothing, as the game.')]
+          and s.mn_vl_miss == [('camera', 'Field of View', 3, '65')] and s.mn_fc == ('row', 1, '') and
+          [a[1:4] for a in s.mn_fc_open] == [(1, 'Controls', 4)] and s.mn_fc_refuse == [('10:00:09', 5, -1, 'a page slide is under way')]
+          and s.mn_em_text == ('once', 0), 'v3.56 MN356: the lines read (%r %r %r %r %r %r %r)' % (
+              s.mn_vl, s.mn_vl_ans, s.mn_vl_miss, s.mn_fc, s.mn_fc_open, s.mn_fc_refuse, s.mn_em_text))
+    check(len(mn) == 1 and 'value lines in 90 row(s) (277 lines of the plan\'s 277)' in mn[0] and
+          'Supply Drops: "Off: kills leave nothing, as the game."' in mn[0] and 'Field of View 65' in mn[0] and
+          '1 click(s) opened a row (1 moved the cursor there), the last Controls row 4 [10:00:08]; 1 click(s) not taken '
+          '(a page slide is under way [10:00:09])' in mn[0] and 'Extra Menu text drawn once (StockShadow=0)' in mn[0],
+          'v3.56 MN356: the summary line (%r)' % mn)
+    check(not [v for v in s.warnings.values() if v[3].startswith(('options', 'extra menu'))], 'v3.56 MN356: no line lands in the warnings')
+    s, r = run(V333_END + V356MN_OFF)
+    mn = [x for x in r.splitlines() if x.startswith('  options menu (v3.56): ')]
+    check(s.mn_fc == ('v3.55', 0, "no Menus43 mouse hooks: on the cursor row's value column only") and s.mn_em_text == ('stock', 1)
+          and len(mn) == 1 and 'value lines: no build line' in mn[0] and 'as v3.55 (Enter) (FolderClick=0;' in mn[0] and
+          'with the stock second shadow (StockShadow=1)' in mn[0], 'v3.56 MN356: the switches off (%r %r)' % (s.mn_fc, mn))
+    s, r = run(V333_END)
+    check(s.mn_vl is None and not s.mn_fc_open and 'options menu (v3.56)' not in r, 'v3.56 MN356: none of its lines, no summary line')
     test_compare()  # v3.40 LG340
     print('%d failure(s)' % len(FAILS))
     return 1 if FAILS else 0

@@ -15,7 +15,7 @@
 #include <string.h>
 #include "../src/ol_words.h"
 #include "../src/fadein_sim.h"   // kFiModeName (the [Gameplay] FadeIn words)
-#include "../src/rando_sim.h"    // kRzR302Name (the [Randomizer] Room302 words)
+#include "../src/rando_sim.h"    // kRzR302Name (the [Randomizer] Room302 words)  // v3.56 RI356: checked equal to the row's values below
 #include "../src/font_sim.h"     // kFnRowStem (the [Textures] MenuFont words)
 
 static int g_fail, g_n;
@@ -83,13 +83,13 @@ static const MapIni kMapIni[] = {
     { OLM_SUBTITLES_EDGE, kSubEdge, 4, "sh4windowmod.c kSubName[SUB_EDGE]" },
     { OLM_EFFECTS_FILTER, kFxFilter, 10, "sh4windowmod.c kFxName[FX_FILTER]" },
     { OLM_ENEMIES_FADE_IN, kFiModeName, FI_MODE_N, "fadein_sim.h kFiModeName" },
-    { OLM_RANDO_ROOM_302_ITEMS, kRzR302Name, 2, "rando_sim.h kRzR302Name" },
+    // v3.56 RI356: Room 302 Items shows its ini words (Off / Shuffle / Random): no map any more
     { OLM_INTERFACE_MENU_FONT, kFnRowStem, FN_ROW_N, "font_sim.h kFnRowStem" },
     { OLM_ITEMS_TOOLBELT, kInvOnOff, 2, "inventory.inc kInvName" },
     { OLM_COMBAT_LIFE_STEAL, kPcSteal, 3, "playercheats.inc kPcIni" },
     { OLM_PAUSE_STORAGE_CHEST, kZeroOne, 2, "[ExtraMenu] Chest" }, { OLM_PAUSE_SAVE_GAME, kZeroOne, 2, "[ExtraMenu] Save" },
     { OLM_PAUSE_LOAD_GAME, kZeroOne, 2, "[ExtraMenu] Load" }, { OLM_PAUSE_QUICK_SAVE, kZeroOne, 2, "[ExtraMenu] QuickSave" },
-    { OLM_PAUSE_QUICK_LOAD, kZeroOne, 2, "[ExtraMenu] QuickLoad" }, { OLM_PAUSE_EILEEN_OUTFIT, kZeroOne, 2, "[ExtraMenu] Eileen" },
+    { OLM_PAUSE_QUICK_LOAD, kZeroOne, 2, "[ExtraMenu] QuickLoad" }, { OLM_PAUSE_EILEEN, kZeroOne, 2, "[ExtraMenu] Eileen" },  // v3.56 MN356
     { OLM_CAMERA_CAMERA, kZeroOne, 2, "[Camera] Enable" }, { OLM_CONTROLS_DEFAULT_SPEED, kZeroOne, 2, "cfg+0x18" },
     { OLM_SUBTITLES_SUBTITLES, kZeroOne, 2, "cfg+0x12" }, { OLM_GRAIN_FILM_GRAIN, kZeroOne, 2, "cfg+0x14" },
     { OLM_SHADOWS_SHADOWS, kZeroOne, 2, "cfg+0x19" },

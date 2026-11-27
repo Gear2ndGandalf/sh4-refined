@@ -40,7 +40,7 @@ typedef char OlIdsFit[LP_MAX <= 24 && OL_ROWS <= 16 ? 1 : -1];  // look.inc's pe
 // v3.55 OL56: + MSG_V55 + 0 .. 63 (MSG_V55 = MSG_V54 + 128: one pool of 192 ids handed out in order; the test counts each
 // layout's texts)
 #define OL4_N 192
-typedef char Ol4PoolFits[MSG_V55 == MSG_V54 + 128 && MSG_END == MSG_V55 + 64 && OL4_N == 128 + 64 ? 1 : -1];
+typedef char Ol4PoolFits[MSG_V55 == MSG_V54 + 128 && MSG_V56 == MSG_V55 + 64 && OL4_N == 128 + 64 ? 1 : -1];  // v3.56 MERGE: the pool ends where MSG_V56 starts (was MSG_END; written by seven workers, kept once)
 static BYTE g_txtOl4[OL4_N][96];
 static const char *g_ol4Src[OL4_N];
 static int g_ol4Used, g_ol4Full;
@@ -64,6 +64,8 @@ static int Ol4Add(const char *s)  // the id of text s (the same text: the same i
     Encode(g_txtOl4[g_ol4Used], sizeof g_txtOl4[0], s);
     return MSG_V54 + g_ol4Used++;
 }
+
+#include "vlines.inc"  // v3.56 MN356: every value its own line (VlWrapRow / VlBuilt)
 
 // ---------------------------------------------------------------- the per-row tables of the live pages
 static DWORD g_olLive[LP_MAX][OL_ROWS * 7 + 1];
@@ -246,6 +248,7 @@ static void OlSrcIn(int s, const void **a, const void **b)
     case OLS_WIDTH: *a = SndWidthIn; break;
     case OLS_REVERB: *a = SndRevIn; break;
     case OLS_NIGHT: *a = SndNightIn; break;
+    case OLS_SNDBG: *a = SndBgIn; break;  // v3.56 SD356
     case OLS_FILTER: *a = FxIn3; break;
     case OLS_CUT: *a = FxIn4; break;
     case OLS_BLOOM: *a = PpIn0; break;
@@ -288,9 +291,7 @@ static void OlSrcIn(int s, const void **a, const void **b)
     case OLS_RZ_MON: *a = RmInMon; break;
     case OLS_RZ_GHOSTS: *a = RzlInGhosts; break;
     case OLS_RZ_OUTFIT: *a = RzlInOutfit; break;
-    case OLS_RZ_PERVISIT: *a = RzInPerVisit; break;
-    case OLS_RZ_SEED: *a = RzInSeed; break;
-    case OLS_RZ_NEW: *a = RzInNew; break;
+    case OLS_RZ_PERVISIT: *a = RzInPerVisit; break;  // v3.56 RI356: Reroll Visits (OLS_RZ_KEEP = Specials); Seed / New Seed gone
     }
 }
 static int OlFindSrc(int s, int *op, int *orow)  // the origin record of source s (first match over the origin pages)
@@ -391,6 +392,7 @@ static int OlBuildPage(int lp, const DWORD *stockExit)
         default:
             continue;
         }
+        VlWrapRow(r, kind, d);  // v3.56 MN356: the plan's value line where the row's code answers the row's line
         r[2] = 0;
         g_olOp[lp][n] = (signed char)op, g_olOr[lp][n] = (signed char)orow;
         g_olKind[lp][n] = (BYTE)kind, g_olArg[lp][n] = (BYTE)arg;
@@ -480,6 +482,7 @@ static void OlLayoutBuild(void)
         if (g_lpCount[lp]) ++pages;
     }
     g_olOn = 1;
+    VlBuilt();  // v3.56 MN356
     SetLogicalPage(0);  // (g_stockView 7 from here on: R0 R4-1)
     {   // shadows.inc: its page is in with its own rows (its changed / preview tests ask)  // v3.55 OL56: + its own rows (the
         int r, own = 0;                                                                     // switch alone is not its page)

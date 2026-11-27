@@ -79,8 +79,8 @@ static void TestTexts(void)
     CHECK(RzSeedOfText("1") == 1u && RzSeedOfText(" 4294967295 ") == 4294967295u && RzSeedOfText("4294967296") == 0 &&
           RzSeedOfText("0") == 0 && RzSeedOfText("") == 0 && RzSeedOfText("12a") == 0 && RzSeedOfText("-5") == 0 &&
           RzSeedOfText("00000000123") == 0 && RzSeedOfText("0000000123") == 123u && RzSeedOfText(NULL) == 0, "Seed texts");
-    CHECK(RZ_ITEMS_DEFAULT == RZI_RANDOM && RZ_KEEP_DEFAULT == 0 && RZ_R302_DEFAULT == 1 && RZ_PERVISIT_DEFAULT == 1,
-          "the user's defaults: Random, Keep Specials Off, Room 302 In, Change Each Visit On");
+    CHECK(RZ_ITEMS_DEFAULT == RZI_RANDOM && RZ_SPECIALS_DEFAULT == 1 && RZ_R302_DEFAULT == RZI_RANDOM && RZ_REROLL_DEFAULT == RZR_ROOM,
+          "the user's defaults: Random, Specials On (v3.55's Keep Specials Off), Room 302 Items Random (In), Reroll By Room (On)");  // v3.56 RI356
     {
         unsigned a = RzSeedRoll(1, 2, 3), b = RzSeedRoll(1, 2, 4);
         CHECK(a && b && a != b && RzSeedRoll(0, 0, 0) != 0, "seed rolls (never 0)");
@@ -91,6 +91,39 @@ static void TestTexts(void)
     CHECK(!strcmp(RzItemName(0x35), "Chainsaw") && !strcmp(RzItemName(0x10), "Pistol") && !strcmp(RzItemName(0x2B), "Putter") &&
           !strcmp(RzItemName(0x31), "Pickaxe of Despair"), "weapon names");
     CHECK(RzVisitKey(1234, 0) == 1234 && RzVisitKey(1234, 1) != 1234 && RzVisitKey(1234, 1) != RzVisitKey(1234, 2), "visit keys");
+}
+
+// ---------------------------------------------------------------- v3.56 RI356: the new rows' words and v3.55's migrations
+static void TestMigrations(void)
+{
+    int old, i;
+    // Specials: v3.55's KeepSpecials turned round (KeepSpecials On = they stay = Specials Off)
+    CHECK(RzSpecialsOfKeep(1) == 0 && RzSpecialsOfKeep(0) == 1, "KeepSpecials On -> Specials Off, Off -> On");
+    CHECK(RzSpecialsOfKeep(RzOnOffOfText("On")) == 0 && RzSpecialsOfKeep(RzOnOffOfText("off")) == 1 &&
+          RzSpecialsOfKeep(RzOnOffOfText("Yes")) == 0, "KeepSpecials texts migrate");
+    // Room302: the new words, and v3.55's In / Out (In = drawn like Items: the Items value in force)
+    CHECK(RzR302Parse("Off", RZI_RANDOM, &old) == RZI_OFF && !old && RzR302Parse(" shuffle ", RZI_RANDOM, &old) == RZI_SHUFFLE && !old &&
+          RzR302Parse("Random", RZI_OFF, &old) == RZI_RANDOM && !old && RzR302Parse("0", 1, &old) == RZI_OFF && !old &&
+          RzR302Parse("2", 1, &old) == RZI_RANDOM && !old, "Room302 new words (no migration)");
+    for (i = 0; i < RZI_N; ++i) {
+        CHECK(RzR302Parse("In", i, &old) == i && old, "Room302 In with Items %s -> %s", kRzItemsName[i], kRzItemsName[i]);
+        CHECK(RzR302Parse("On", i, &old) == i && old && RzR302Parse("1", i, &old) == i && old, "Room302 On / 1 -> the Items value");
+        CHECK(RzR302Parse("Out", i, &old) == RZI_OFF && old && RzR302Parse("No", i, &old) == RZI_OFF && old, "Room302 Out / No -> Off");
+    }
+    CHECK(RzR302Parse("In", 7, &old) == RZ_ITEMS_DEFAULT && old, "Room302 In with an Items value out of range: the default");
+    CHECK(RzR302Parse("Inside", 1, &old) == -1 && RzR302Parse("", 1, &old) == -1 && RzR302Parse(NULL, 1, &old) == -1, "Room302 junk");
+    CHECK(!strcmp(kRzR302Name[0], "Off") && !strcmp(kRzR302Name[1], "Shuffle") && !strcmp(kRzR302Name[2], "Random"),
+          "Room302 writes Off / Shuffle / Random");
+    // Reroll: By Room / By World; v3.55's PerVisit On -> By Room, Off (one fixed draw a seed) -> By World
+    CHECK(RzRerollOfText("By Room") == RZR_ROOM && RzRerollOfText(" by world ") == RZR_WORLD && RzRerollOfText("ByRoom") == RZR_ROOM &&
+          RzRerollOfText("World") == RZR_WORLD && RzRerollOfText("On") == -1 && RzRerollOfText("") == -1 && RzRerollOfText(NULL) == -1,
+          "Reroll words");
+    CHECK(RzRerollOfPerVisit(1) == RZR_ROOM && RzRerollOfPerVisit(0) == RZR_WORLD, "PerVisit On -> By Room, Off -> By World");
+    CHECK(!strcmp(kRzRerollName[RZR_ROOM], "By Room") && !strcmp(kRzRerollName[RZR_WORLD], "By World"), "Reroll writes its words");
+    // the stage's mode: Room 302 (stages 1 and 10) has its own row
+    CHECK(RzStageMode(1, RZI_RANDOM, RZI_OFF) == RZI_OFF && RzStageMode(0x0A, RZI_OFF, RZI_SHUFFLE) == RZI_SHUFFLE &&
+          RzStageMode(2, RZI_SHUFFLE, RZI_RANDOM) == RZI_SHUFFLE && RzStageMode(8, RZI_OFF, RZI_RANDOM) == RZI_OFF,
+          "Room 302's mode is its own; the worlds take Items");
 }
 
 // ---------------------------------------------------------------- Random's groups = Supply Drops'
@@ -234,6 +267,7 @@ static RzPlanIn In(int mode, int keep, int r302, int share, unsigned seed, unsig
     RzPlanIn in;
     in.mode = mode, in.keep = keep, in.r302 = r302, in.share = share, in.seed = seed, in.worldSalt = world;
     in.roomSalt = rooms, in.owned = owned, in.wt = wt, in.taken = NULL;
+    in.roomAll = 0;  // v3.56 RI356
     return in;
 }
 static int Counts(const RzScan *v, const unsigned char *items, const unsigned char *pool, int *c)
@@ -420,6 +454,40 @@ static void TestPlans(void)
 // ---------------------------------------------------------------- made-up scripts
 static unsigned g_buf[512];
 static int g_bn;
+// v3.56 RI356: Random By World: every room of the world keyed by the world visit (roomAll) = By Room with every room at that
+// count; another world visit draws anew; 0 = v1's fixed draw
+static void TestRerollWorld(void)
+{
+    static unsigned rooms[RZ_ROOMS];
+    int stage, i, same = 1, v1 = 1, diff = 0, n = 0;
+    for (stage = 1; stage <= 8; ++stage) {
+        VPlan a, b, c, d, e, f, g, h;
+        RzPlanIn w = In(RZI_RANDOM, 0, 1, 0, 31337, 0, NULL, 0, &g_wt), r, w2, z;
+        for (i = 0; i < RZ_ROOMS; ++i) rooms[i] = 0xC0FFEEu;
+        w.roomAll = 0xC0FFEEu;
+        r = In(RZI_RANDOM, 0, 1, 0, 31337, 0, rooms, 0, &g_wt);
+        w2 = w, w2.roomAll = 0xC0FFEFu;
+        z = In(RZI_RANDOM, 0, 1, 0, 31337, 0, NULL, 0, &g_wt);
+        Plan(&w, stage, &a, &b);
+        Plan(&r, stage, &c, &d);
+        Plan(&w2, stage, &e, &f);
+        Plan(&z, stage, &g, &h);
+        same &= !memcmp(a.o, c.o, (size_t)g_sc[stage][0].n) && (!g_has1[stage] || !memcmp(b.o, d.o, (size_t)g_sc[stage][1].n));
+        for (i = 0; i < g_sc[stage][0].n; ++i) diff += a.p[i] && a.o[i] != e.o[i], n += a.p[i] != 0;
+        {
+            RzPlanIn z0 = z;
+            VPlan g2, h2;
+            z0.roomAll = 0;
+            Plan(&z0, stage, &g2, &h2);
+            v1 &= !memcmp(g.o, g2.o, (size_t)g_sc[stage][0].n);
+        }
+        CheckFit(&w, &g_sc[stage][0], &a, stage, 0);
+    }
+    CHECK(same, "By World: roomAll = every room at the world visit's count");
+    CHECK(n > 0 && diff > n / 3, "By World: another world visit, another draw (%d of %d changed)", diff, n);
+    CHECK(v1, "roomAll 0 = v1's fixed draw");
+}
+
 static void Put(unsigned tag, int argc, ...)
 {
     va_list ap;
@@ -636,9 +704,11 @@ int main(int argc, char **argv)
 {
     const char *exe = argc > 1 ? argv[1] : "sh4.exe";
     TestTexts();
+    TestMigrations();  // v3.56 RI356
     TestGroups();
     TestExe(exe);
     TestPlans();
+    TestRerollWorld();  // v3.56 RI356
     TestMadeUp();
     TestPatch();
     TestTakenSlots();  // v3.48 fix1 RZ-001

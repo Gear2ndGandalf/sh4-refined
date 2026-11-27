@@ -62,6 +62,14 @@
 //   outline is built only under Thermal). Also: the copies thin out by the effect budget (budget.inc: every other copy
 //   fades, the trail keeps its length; the stun still uses every copy), the copies' glow pass, the heat pass and each enemy
 //   type's shock pass are made ready at a room's first frame (AiWarm), and a slow frame names its part (AiSlowLog).
+// v3.56 PW356 (staging/v356_feedback/w5_powers/PLAN.md; the user's v3.55 requests 9 and 10):
+//   - the over-the-shoulder camera (camera.inc CamOtsDriving: Refined's or Playable Eileen's): the copies nearer the camera
+//     than her whose box on screen overlaps hers keep 30 % of their light at the least (ai_sim.h AiOtsK; her box from her
+//     own bones: Henry and Eileen alike), the streaks the same; copies beside or behind her and every stock camera as
+//     before; the rule fades in / out over 0.2 s. Hidden [Gameplay] AfterImageOtsFade=30 (%, 100 = v3.55).
+//   - the effect budget's high-rate spark levels (budget.inc BgSparkNow: 60 / 35 %): the aura's arcs and tendrils, the
+//     sparks, the ground strikes' odds, the streaks' glow (from 60 %) and the feet streaks (at 35 %), the copies' limb
+//     arcs and the chain thin; the copies themselves, the zaps, the shocked bodies and the stun (the gameplay) never do.
 #include "ai_sim.h"
 // v3.33 AS333: ai_sim.h's bone order (AIB_*) = kDpHerBone's (HB_*): the same numbers, checked one enum at a time
 typedef char AiHbOrderCheck[(HB_HEAD == 0 && HB_PELVIS == 3 && HB_LSH == 4 && HB_LHIP == 10 && HB_RFOOT == 15 && HB_N == 16) ? 1 : -1];
@@ -434,6 +442,20 @@ static float g_aiKeepK[AI_ECHO_MAX] = { 1, 1, 1, 1, 1, 1, 1, 1 };  // v3.35 FX33
 static int g_aiKeepN;                // v3.35 FX335: copies the budget lets through this frame (the log)
 static int g_aiWarmNow;              // v3.35 FX335: AiRedraw draws the warm-up (her own pose, zero light)
 static float g_aiMsPrep, g_aiMsRedraw, g_aiMsSpark;  // v3.35 FX335: this frame's parts (AiSlowLog)
+// v3.56 PW356: the over-the-shoulder see-her fade (ai_sim.h AiOtsK)
+static float g_aiOtsMin = AI_OTS_MIN_DEF;  // hidden [Gameplay] AfterImageOtsFade / 100
+static float g_aiOtsMix;             // the rule's weight (0 .. 1: CamOtsDriving, faded over 0.2 s)
+static float g_aiOtsBoxC[3], g_aiOtsW, g_aiOtsH;  // her box this frame
+static int g_aiOtsBoxOk, g_aiOtsSaid = -1;
+static unsigned g_aiOtsFrames, g_aiOtsFaded;  // the room: frames with the rule on, copy draws it dimmed (for the room line)
+static float g_aiOtsLow = 1.0f;      // the room: the lowest light a copy kept
+static float AiOtsAt(const float c[3])  // the light a copy (or a streak point) centred at c keeps now (1 without the rule)
+{
+    float k;
+    if (!g_aiOtsBoxOk || !(g_aiOtsMix > 0.0f)) return 1.0f;
+    k = 1.0f - g_aiOtsMix * (1.0f - AiOtsK(g_aiEye, g_aiOtsBoxC, g_aiOtsW, g_aiOtsH, c, g_aiOtsMin));
+    return k < 0.0f ? 0.0f : k;
+}
 static void AiCapture(const float pp[3])
 {
     BYTE *m = *(BYTE *const volatile *)(0x10A0F20 + 0x1B0);
@@ -543,6 +565,29 @@ static void AiFrame(const float pp[3])
     g_aiEchoN = 0;
     g_aiStreakN = 0;
     g_aiFanOk = 0;
+    {   // v3.56 PW356: the over-the-shoulder rule's weight and her box (her own bones: Henry or Eileen, whoever is drawn)
+        static volatile LONG s_q;
+        const int ots = CamOtsDriving();
+        g_aiOtsMix = g_aiOtsMin < 0.999f ? AiOtsMixStep(g_aiOtsMix, ots, (float)dtg) : 0.0f;
+        g_aiOtsBoxOk = g_aiOtsMix > 0.0f && g_aiHerOk && g_aiEyeOk &&
+                       AiOtsBox(g_aiHer[HB_HEAD], g_aiHer[HB_LFOOT], g_aiHer[HB_RFOOT], g_aiHer[HB_LHIP], g_aiHer[HB_RHIP], g_aiOtsBoxC,
+                                &g_aiOtsW, &g_aiOtsH);
+        if (g_aiOtsBoxOk) ++g_aiOtsFrames;
+        if (ots != g_aiOtsSaid && g_aiHerOk) {
+            if ((g_aiOtsSaid >= 0 || ots) && LogQuota(&s_q, 60))
+                LogV("after shock: over-the-shoulder camera %s: %s", ots ? "on" : "off", ots ? (g_aiOtsMin < 0.999f ?
+                     "the copies between it and her fade where they cover her (to the light kept below; beside or behind her as before)" :
+                     "AfterImageOtsFade=100: the copies as in the other cameras") : "the copies as before");
+            if (ots && g_aiOtsMin < 0.999f && LogQuota(&s_q, 60)) {
+                float c[3], w = 0.0f, h = 0.0f;
+                const int ok = AiOtsBox(g_aiHer[HB_HEAD], g_aiHer[HB_LFOOT], g_aiHer[HB_RFOOT], g_aiHer[HB_LHIP], g_aiHer[HB_RHIP], c, &w, &h);
+                LogV("after shock: over-the-shoulder fade: a copy right over her keeps %.0f %% of its light; her box %.0f x %.0f u%s (hips %.1f "
+                     "u apart: %s)", 100.0f * g_aiOtsMin, 2.0f * w, 2.0f * h, ok ? "" : " (her bones not usable now: no fade this frame)",
+                     AiLen3(g_aiHer[HB_LHIP], g_aiHer[HB_RHIP]), g_aiBody.build > 0.5f ? "a broad body, Henry's build" : "a slight body, Eileen's build");
+            }
+            g_aiOtsSaid = ots;
+        }
+    }
     // v3.32 AS332: the path back along the ring (a stalled ring draws no copies: no stale pose piles up), her charge
     fresh = g_aiHerOk && AiRingFresh(&g_aiRing, g_aiClock);
     if (fresh) AiRingCum(&g_aiRing, g_aiHer[HB_PELVIS], g_aiCum);
@@ -628,6 +673,19 @@ static void AiFrame(const float pp[3])
         E->alpha = 0.60f * AiFall(k, n) * gate * nr * (0.85f + 0.15f * fl) * g_aiKeepK[k - 1];  // Thermal: residual heat
         E->heat = 0.8f - 0.55f * u;
         for (j = 0; j < 3; ++j) E->col[j] = kAiColNear[j] + (kAiColTail[j] - kAiColNear[j]) * u;
+        if (g_aiOtsBoxOk) {  // v3.56 PW356: over her in the over-the-shoulder camera: less light (Thermal: less heat)
+            const float (*M)[16] = (const float(*)[16])g_aiEchoMtx[g_aiEchoN];
+            float c[3], w, h;
+            if (AiOtsBox(AiBone(M, HB_HEAD), AiBone(M, HB_LFOOT), AiBone(M, HB_RFOOT), AiBone(M, HB_LHIP), AiBone(M, HB_RHIP), c, &w, &h)) {
+                for (j = 0; j < 3; ++j) c[j] += sh[j];  // (where it is drawn: the lens fan, when on)
+                {
+                    const float ok = AiOtsAt(c);
+                    E->gain *= ok, E->alpha *= ok;
+                    if (ok < 0.98f) ++g_aiOtsFaded;
+                    if (ok < g_aiOtsLow) g_aiOtsLow = ok;
+                }
+            }
+        }
         if (E->gain < 0.004f) continue;
         if (sh[0] != 0.0f || sh[2] != 0.0f)  // the fan: the whole copy moved aside (row 3 of every bone matrix)
             for (b = 0; b < g_aiCopyN; ++b) g_aiEchoMtx[g_aiEchoN][b][12] += sh[0], g_aiEchoMtx[g_aiEchoN][b][14] += sh[2];
@@ -647,6 +705,11 @@ static void AiFrame(const float pp[3])
             AiFanVec(pel, sh);
             for (q = 0; q < 3; ++q) dp[q] = pel[q] + sh[q];
             g_aiStreakK[j] = AI_STREAK_K * AiGate(ps, AiDistXZ(pel, g_aiHer[HB_PELVIS])) * powf(1.0f - (float)j / (float)(J + 1), 1.2f) * AiNearAt(dp);
+            if (g_aiOtsBoxOk) {  // v3.56 PW356: the streaks through her in the over-the-shoulder camera, as the copies
+                float c[3];
+                for (q = 0; q < 3; ++q) c[q] = dp[q] + g_aiOtsBoxC[q] - g_aiHer[HB_PELVIS][q];
+                g_aiStreakK[j] *= AiOtsAt(c);
+            }
             for (s = 0; s < AI_STREAKS; ++s) {
                 const int bi = kDpHerBone[kAiStreakBone[s]];
                 for (q = 0; q < 3; ++q) g_aiStreakP[s][j][q] = g_aiMtx[i0][bi][12 + q] + (g_aiMtx[i1][bi][12 + q] - g_aiMtx[i0][bi][12 + q]) * f + sh[q];
@@ -655,7 +718,7 @@ static void AiFrame(const float pp[3])
         g_aiStreakN = j;
     }
     if (g_aiHerOk) {  // v3.32 AS332: the aura's shed sparks: 4 a second standing .. 22 at a run, from points on her body
-        g_aiAuraAcc += (float)dtg * 22.0f * AiSmooth(AI_CHARGE_IDLE - 0.12f, 1.0f, g_aiCharge);
+        g_aiAuraAcc += (float)dtg * 22.0f * AiSmooth(AI_CHARGE_IDLE - 0.12f, 1.0f, g_aiCharge) * BgSparkNow();  // v3.56 PW356: x the spark share
         if (g_aiAuraAcc > 4.0f) g_aiAuraAcc = 4.0f;
         while (g_aiAuraAcc >= 1.0f) {
             const int e = (int)(AiHash(g_aiSeed++) % 15u);
@@ -674,7 +737,7 @@ static void AiFrame(const float pp[3])
         const int src = g_aiEchoN < 2 ? g_aiEchoN : 2;
         float w = 0.0f;
         for (k = 0; k < src; ++k) w += g_aiEcho[k].gain / AI_G0;
-        g_aiMoteAcc += (float)dtg * 40.0f * (w > 1.0f ? 1.0f : w);
+        g_aiMoteAcc += (float)dtg * 40.0f * (w > 1.0f ? 1.0f : w) * BgSparkNow();  // v3.56 PW356: x the spark share
         if (g_aiMoteAcc > 8.0f) g_aiMoteAcc = 8.0f;
         while (src && g_aiMoteAcc >= 1.0f) {
             const int e = (int)(AiRnd01(g_aiSeed++) * (float)src) % src, b = kEnd[AiHash(g_aiSeed++) & 3];
@@ -991,7 +1054,11 @@ static void AiAura(int look)
     const float c = g_aiCharge, *arc = look == 1 ? kAiHotCol : kAiArcCol, *glow = look == 3 ? kAiColSv : kAiShockCol;
     const float nvk = look == 2 ? AI_NV_K : 1.0f;
     const AiU32 e50 = (AiU32)(long long)floor(now / 0.05), e12 = (AiU32)(long long)floor(now / 0.12);
-    const int nA = 2 + (int)(8.0f * c + 0.5f), nT = (int)(4.0f * c + 0.2f);
+    // v3.56 PW356: the arcs and tendrils thinned by the high-rate spark share (the last one fades before it goes)
+    const float sk = BgSparkNow();
+    float lastA, lastT;
+    const int nA0 = 2 + (int)(8.0f * c + 0.5f), nT0 = (int)(4.0f * c + 0.2f);
+    const int nA = BgThinN(nA0, sk, 2, &lastA), nT = BgThinN(nT0, sk, nT0 > 0 ? 1 : 0, &lastT);
     int i, j;
     if (!g_aiHerOk) return;
     for (i = 0; i < nA; ++i) {  // the crackle over her limbs
@@ -999,7 +1066,7 @@ static void AiAura(int look)
         const int e = (int)(h % 15u);
         const float *pa = g_aiHer[kDpHerEdge[e][0]], *pb = g_aiHer[kDpHerEdge[e][1]];
         float a[3], b[3], s0 = 0.5f * AiRnd01(h ^ 0x51u), s1 = s0 + 0.4f + 0.45f * AiRnd01(h ^ 0x73u);
-        const float k = (0.45f + 0.55f * c) * (0.75f + 0.25f * AiRnd01(h ^ 0x99u)) * nvk;
+        const float k = (0.45f + 0.55f * c) * (0.75f + 0.25f * AiRnd01(h ^ 0x99u)) * nvk * (i == nA - 1 ? lastA : 1.0f);  // v3.56 PW356: x lastA
         if (AiRnd01(h ^ 0x1Fu) > 0.55f + 0.4f * c) continue;  // lit: 67 % standing, 95 % at a run
         if (s1 > 1.0f) s1 = 1.0f;
         for (j = 0; j < 3; ++j) a[j] = pa[j] + (pb[j] - pa[j]) * s0, b[j] = pa[j] + (pb[j] - pa[j]) * s1;
@@ -1022,17 +1089,20 @@ static void AiAura(int look)
             a[j] = p[j] + side * w[j] * R;
             tip[j] = a[j] + side * w[j] * len + (j == 1 ? up * len : 0.0f);
         }
-        AiArc(a, tip, 5, 0.35f, h, 0.7f, 0.9f * c * nvk, arc);
-        if ((h >> 13) % 3u == 0u) {  // a fork from its middle
-            float mid[3], t2[3];
-            for (j = 0; j < 3; ++j) mid[j] = 0.5f * (a[j] + tip[j]), t2[j] = mid[j] + (AiRnd01(h + 7u + (AiU32)j) - 0.5f) * 0.8f * len;
-            AiArc(mid, t2, 4, 0.3f, h ^ 0xABu, 0.5f, 0.6f * c * nvk, arc);
+        {
+            const float tk = i == nT - 1 ? lastT : 1.0f;  // v3.56 PW356: the last kept tendril fades before it goes
+            AiArc(a, tip, 5, 0.35f, h, 0.7f, 0.9f * c * nvk * tk, arc);
+            if ((h >> 13) % 3u == 0u) {  // a fork from its middle
+                float mid[3], t2[3];
+                for (j = 0; j < 3; ++j) mid[j] = 0.5f * (a[j] + tip[j]), t2[j] = mid[j] + (AiRnd01(h + 7u + (AiU32)j) - 0.5f) * 0.8f * len;
+                AiArc(mid, t2, 4, 0.3f, h ^ 0xABu, 0.5f, 0.6f * c * nvk * tk, arc);
+            }
         }
     }
     {   // a ground strike while she moves: lit for the first 60 % of its 0.12 s
         const AiU32 h = AiHash(e12 * 0x7F4A7C15u + 0x77u);
         const float ph = (float)(now / 0.12 - floor(now / 0.12));
-        if (c > 0.45f && ph < 0.6f && AiRnd01(h) < 0.6f * c) {
+        if (c > 0.45f && ph < 0.6f && AiRnd01(h) < 0.6f * c * sk) {  // v3.56 PW356: x the spark share
             static const BYTE kEnd[4] = { HB_LFOOT, HB_RFOOT, HB_LHAND, HB_RHAND };
             const int src = kEnd[(h >> 5) & 3u];
             const float floorY = g_aiHer[HB_LFOOT][1] > g_aiHer[HB_RFOOT][1] ? g_aiHer[HB_LFOOT][1] : g_aiHer[HB_RFOOT][1];  // (Y down)
@@ -1057,17 +1127,20 @@ static void AiStreaks(int look)
     const AiU32 e50 = (AiU32)(long long)floor(g_aiClock / 0.05);
     const float *arc = look == 3 ? kAiColSv : kAiColNear;
     float P[AI_STREAK_PTS][3], W[AI_STREAK_PTS], K[AI_STREAK_PTS];
+    const float sk = BgSparkNow();  // v3.56 PW356: the high-rate spark share: no glow pass from 60 %, no feet streaks at 35 %
+    const int ns = sk < 0.5f ? 3 : AI_STREAKS, glow = sk >= 0.8f;
     int s, j, q, lit = 0;
     if (look == 1 || g_aiStreakN < 3) return;
     for (j = 1; j < g_aiStreakN; ++j) lit |= g_aiStreakK[j] > 0.01f;
     if (!lit) return;
-    for (s = 0; s < AI_STREAKS; ++s) {
+    for (s = 0; s < ns; ++s) {
         for (j = 0; j < g_aiStreakN; ++j) {
             const AiU32 h = AiHash(e50 * 0x6A09E667u + (AiU32)s * 131u + (AiU32)j * 7u);
             for (q = 0; q < 3; ++q) P[j][q] = g_aiStreakP[s][j][q] + (j ? (AiRnd01(h + (AiU32)q) - 0.5f) * 3.0f : 0.0f);
             W[j] = 0.8f, K[j] = g_aiStreakK[j] * (s == 0 ? 0.8f : s < 3 ? 1.0f : 0.6f) * (look == 2 ? AI_NV_K : 1.0f);  // head, hands, feet
         }
         DpRibbon((const float(*)[3])P, W, K, g_aiStreakN, arc, 0.75f * g_svUnit);
+        if (!glow) continue;  // v3.56 PW356
         for (j = 0; j < g_aiStreakN; ++j) W[j] = 3.0f, K[j] *= 0.35f;
         DpRibbon((const float(*)[3])P, W, K, g_aiStreakN, arc, 1.5f * g_svUnit);
     }
@@ -1118,9 +1191,10 @@ static void AiSparks(void *dev, const Viewport8 *vp, int look)
     for (e = 0; e < g_aiEchoN; ++e) {
         const AiEcho *E = &g_aiEcho[e];
         const float (*M)[16] = (const float(*)[16])g_aiEchoMtx[e], rel = E->gain / AI_G0;
+        const int nArc = BgSparkNow() < 0.8f ? 1 : 2;  // v3.56 PW356: one limb arc a copy from the spark share 60 %
         int j;
         if (rel < 0.05f) continue;
-        for (j = 0; j < 2; ++j) {  // crackle along the limbs: 2 arcs an echo, re-rolled every 60 ms (70 % of them lit)
+        for (j = 0; j < nArc; ++j) {  // crackle along the limbs: 2 arcs an echo, re-rolled every 60 ms (70 % of them lit)
             const AiU32 h = AiHash(e60 * 977u + (AiU32)E->k * 131u + (AiU32)j * 7u);
             const int edge = 3 + (int)(h % 12u);  // kDpHerEdge 3..14: shoulders, arms, hips, legs
             const float *pa = AiBone(M, kDpHerEdge[edge][0]), *pb = AiBone(M, kDpHerEdge[edge][1]);
@@ -1134,7 +1208,8 @@ static void AiSparks(void *dev, const Viewport8 *vp, int look)
     }
     if (look != 1) {
         const float ph = (float)(now / 0.08 - floor(now / 0.08));
-        for (e = 0; e + 1 < g_aiEchoN && ph < 0.75f; ++e) {  // the chain: one arc between consecutive echoes every 80 ms
+        const int every = BgSparkNow() < 0.5f ? 2 : 1;  // v3.56 PW356: every other link of the chain at the spark share 35 %
+        for (e = 0; e + 1 < g_aiEchoN && ph < 0.75f; e += every) {  // the chain: one arc between consecutive echoes every 80 ms
             const AiU32 h = AiHash(e80 * 2654435761u + (AiU32)g_aiEcho[e].k * 40503u);
             const int b = (int)(h % (AiU32)HB_N);
             const float rel = (g_aiEcho[e].gain < g_aiEcho[e + 1].gain ? g_aiEcho[e].gain : g_aiEcho[e + 1].gain) / AI_G0;
@@ -1259,6 +1334,12 @@ static void AiDrawC(void)
     room = *(volatile DWORD *)0xFD5A90 << 16 | (*(volatile DWORD *)0xFD5A94 & 0xFFFF);
     if (room != g_aiRoomKey || (room >> 16) == 1) return;  // the tick has not seen this room yet / Room 302
     if (room != g_aiDrawRoom) {  // a new visit: the post-filter looks are asked again, the budget starts again
+        if (g_aiOtsFrames) {  // v3.56 PW356: the last visit's over-the-shoulder fade (verbose, bounded)
+            static volatile LONG s_q;
+            if (LogQuota(&s_q, 400))
+                LogV("after shock: over-the-shoulder fade in stage %lX room %lX: on %u frame(s), %u copy draw(s) dimmed, the least light %.0f %%",
+                     g_aiDrawRoom >> 16, g_aiDrawRoom & 0xFFFF, g_aiOtsFrames, g_aiOtsFaded, 100.0f * g_aiOtsLow);
+        }
         g_aiDrawRoom = room;
         ++g_aiVisit;
         g_aiCap = AI_ECHO_MAX;
@@ -1266,6 +1347,7 @@ static void AiDrawC(void)
         g_aiMsMax = 0.0f;
         AiCutReset(&g_aiCut);  // v3.33 AS333
         memset(g_aiMote, 0, sizeof g_aiMote);
+        g_aiOtsFrames = g_aiOtsFaded = 0, g_aiOtsLow = 1.0f;  // v3.56 PW356
     }
     AiCapture(pp);
     AiFrame(pp);
@@ -1440,6 +1522,13 @@ static void AfterImageInstall(void)
         const int fan = GetPrivateProfileIntA("Gameplay", "AfterImageFan", AI_FAN_DEFAULT, g_iniPath);
         g_aiFanK = AiFanWidthK(fan);
         if (fan != AI_FAN_DEFAULT) Log("after shock: [Gameplay] AfterImageFan=%d: v3.32's lens fan x %.2f (0 = copies in line)", fan, g_aiFanK);
+    }
+    {   // v3.56 PW356: hidden AfterImageOtsFade (%): the light a copy right over her keeps in the over-the-shoulder camera
+        const int pct = GetPrivateProfileIntA("Gameplay", "AfterImageOtsFade", -1, g_iniPath);
+        g_aiOtsMin = AiOtsMinFromIni(pct);
+        if (pct >= 0)
+            Log("after shock: [Gameplay] AfterImageOtsFade=%d: a copy over her in the over-the-shoulder camera keeps %.0f %% of its light%s", pct,
+                100.0f * g_aiOtsMin, g_aiOtsMin >= 0.999f ? " (no fade: v3.55)" : "");
     }
     GetPrivateProfileStringA("Gameplay", "AfterImageSkip", "", buf, sizeof buf, g_iniPath);
     for (p = buf; *p;) {
