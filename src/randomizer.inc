@@ -138,13 +138,13 @@ static void RzTexts(void)
     Encode(g_txtRz[RZM_DR0 + RZI_RANDOM], 64, OLW_RANDO_ROOM_302_ITEMS_VD_RANDOM);
     RzSeedLabel();
     Encode(g_txtRz[RZM_NA], 64, OLW_NA_GAME);
-    Encode(g_txtRz[RZM_LP], 64, OLW_RANDO_REROLL_VISITS_L);  // v3.53 OL1: Reroll Visits (was Change Each Visit)
+    Encode(g_txtRz[RZM_LP], 64, OLW_RANDO_REROLL_L);  // v3.53 OL1: Reroll Visits (was Change Each Visit)  // v3.57 OLP1: Reroll
     for (k = 0; k < RZR_N; ++k) {  // v3.56 RI356: By Room / By World
         Encode(g_txtRz[RZM_VP0 + k], 64, kRzRerollName[k]);
         g_rzIdsReroll[k] = MSG_RZ0 + RZM_VP0 + k;
     }
-    Encode(g_txtRz[RZM_DP0 + RZR_ROOM], 64, OLW_RANDO_REROLL_VISITS_VD_BY_ROOM);
-    Encode(g_txtRz[RZM_DP0 + RZR_WORLD], 64, OLW_RANDO_REROLL_VISITS_VD_BY_WORLD);  // v3.49 RZ349: items and monsters
+    Encode(g_txtRz[RZM_DP0 + RZR_ROOM], 64, OLW_RANDO_REROLL_VD_BY_ROOM);  // v3.57 OLP1: the id (was _REROLL_VISITS_)
+    Encode(g_txtRz[RZM_DP0 + RZR_WORLD], 64, OLW_RANDO_REROLL_VD_BY_WORLD);  // v3.49 RZ349: items and monsters  // v3.57 OLP1: the id
     RzlTexts();  // v3.49 RZ349L
 }
 

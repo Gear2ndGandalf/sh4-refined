@@ -1384,7 +1384,8 @@ static void GtTextOn(void)  // the On line carries the cooldown in force
 {
     char d[64];
     if (g_gtCoolS > 0.0f)  // v3.49 GT349: hold to keep warping; no cooldown unless the ini asks for one
-        sprintf_s(d, sizeof d, OLW_TELEPORT_ON_CD, (double)g_gtCoolS);  // v3.53 OL1
+        sprintf_s(d, sizeof d, OLW_TELEPORT_ON_CD, (double)(int)(g_gtCoolS * 10.0f + 0.5f) / 10.0);  // v3.53 OL1  // v3.57 OLP1: to
+                                                                    // 0.1 s (%g at most 4 characters, "12.3": the line stays <= 52)
     else
         strcpy_s(d, sizeof d, OLW_POWERS_GHOST_TELEPORT_VD_ON);  // v3.53 OL1
     Encode(g_txtGt[GTM_D1], 64, d);

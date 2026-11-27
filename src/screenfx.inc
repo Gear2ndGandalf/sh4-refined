@@ -2306,7 +2306,7 @@ static const char *FxFilterDesc(void)
     static char s[64];
     if (PvF7Hidden()) return "";  // v3.56 PV356: the page shows SH4 Refined's scene, not the F7 picture (PreviewScene=Scene)
     if (g_fxKeyVk >= VK_F1 && g_fxKeyVk <= VK_F12) {
-        sprintf_s(s, sizeof s, OLW_FILTER_F7, g_fxKeyVk - VK_F1 + 1);  // v3.53 OL1: " F%d in play: new preview."
+        sprintf_s(s, sizeof s, OLW_FILTER_F7, g_fxKeyVk - VK_F1 + 1);  // v3.53 OL1: " F%d in play: new preview."  // v3.57 OLP1: " Press F%d in play for a new preview." (39 at most)
         return s;
     }
     return "";

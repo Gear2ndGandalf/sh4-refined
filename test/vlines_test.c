@@ -177,8 +177,8 @@ static void TestCoverage(void)
     printf("coverage: %d value words: %d with their own line, %d numbers keep the row's line", values, lines, numbers);
     for (e = 0; e < EXEMPT_N; ++e) printf(", %d %s (%s)", exempt[e], kExempt[e].row, kExempt[e].why);
     printf("\n");
-    CHECK(Has("OLW_ITEMS_SUPPLY_DROPS_VD_OFF") && !strcmp(OLW_ITEMS_SUPPLY_DROPS_VD_OFF, "Off: kills leave nothing, as the game."),
-          "issue 3: Supply Drops Off has its own line");
+    CHECK(Has("OLW_ITEMS_SUPPLY_DROPS_VD_OFF") && !strcmp(OLW_ITEMS_SUPPLY_DROPS_VD_OFF, "Off: kills leave nothing, as in the game."),
+          "issue 3: Supply Drops Off has its own line");  // v3.57 OLP1: "as in the game" (D7)
     CHECK(!strcmp(OLW_PAUSE_EILEEN_L, "Eileen"), "QA item 9: the pause row is \"Eileen\" (%s)", OLW_PAUSE_EILEEN_L);
     CHECK(!strcmp(OLW_RANDO_EILEEN_OUTFIT_L, "Eileen Outfit"), "the Randomizer's own Eileen Outfit row stays");
 }

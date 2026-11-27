@@ -138,7 +138,7 @@ static const OlRowDef kOlControls[] = {
     OLV(OLS_VIB, "controls", "Vibration"),
     OLV(OLS_OMNI, "controls", "Analog Movement"),
     OLV_S(OLS_HEADBOB, "room302", "Head Bob"),        // interim (StockMoves=0): above Camera (PLAN section 4)
-    OLV_S(OLS_LEFTRIGHT, "room302", "Left / Right"),  // interim (StockMoves=0)
+    OLV_S(OLS_LEFTRIGHT, "room302", "Turn or Strafe"),  // interim (StockMoves=0)  // v3.57 OLP1: the plan's name (was Left / Right)
     OLV_S(OLS_INVLOOK, "room302", "Invert Look"),     // interim (StockMoves=0)
     OLF(LP_CAMERA, OLW_CONTROLS_CAMERA_L, OLW_CONTROLS_CAMERA_D, "controls", "Camera"),
     OLF_S(LP_R302, OLW_CONTROLS_ROOM_302_L, 0, "controls", "Room 302"),  // (its line: room302.inc R3DescFolder, Playable Eileen's)
@@ -170,7 +170,7 @@ static const OlRowDef kOlR302[] = {
     OLV(OLS_R3_FEEL, "room302", "Look Smoothing"),
     OLV_M(OLS_INVLOOK, "room302", "Invert Look"),     // v3.55 OL56 (R5): the stock First Person Camera record (cfg+0x16)
     OLV_M(OLS_HEADBOB, "room302", "Head Bob"),        // the stock Head Motion record (cfg+0x08)
-    OLV_M(OLS_LEFTRIGHT, "room302", "Left / Right"),  // the stock First Person Movement record (cfg+0x17)
+    OLV_M(OLS_LEFTRIGHT, "room302", "Turn or Strafe"),  // the stock First Person Movement record (cfg+0x17)  // v3.57 OLP1
     OLV(OLS_R3_WALK, "room302", "Walk Speed"),
     OL_BACK(OLW_BACK_CONTROLS), OL_END };
 static const OlRowDef kOlInterface[] = {
@@ -250,7 +250,7 @@ static const OlRowDef kOlPowers[] = {
 static const OlRowDef kOlRando[] = {  // v3.56 RI356: Specials (was Keep Specials); no Seed / New Seed rows (the seed is drawn under the line)  // v3.56 RE356: Monsters -> Enemies, Ghosts -> Spawn Site
     OLV(OLS_RZ_ITEMS, "rando", "Items"), OLV(OLS_RZ_KEEP, "rando", "Specials"), OLV(OLS_RZ_R302, "rando", "Room 302 Items"),
     OLV(OLS_RZ_MON, "rando", "Enemies"), OLV(OLS_RZ_GHOSTS, "rando", "Spawn Site"), OLV(OLS_RZ_OUTFIT, "rando", "Eileen Outfit"),
-    OLV(OLS_RZ_PERVISIT, "rando", "Reroll Visits"),
+    OLV(OLS_RZ_PERVISIT, "rando", "Reroll"),  // v3.57 OLP1: the plan's name (was Reroll Visits)
     OL_BACK(OLW_BACK_GAMEPLAY), OL_END };
 
 // the page tree: parent (-1 = a top page; -2 = a free id), the title (a hidden page's leaf: look.inc draws "Parent > Page"),
@@ -296,7 +296,7 @@ static const OlInterim kOlInterim[] = {
     { "sound", "Effects Volume", "display", "R5 (still SE Volume)" },
     { "display", "Renderer", "effects", "PLAN 4 fallback: the sound rows stay on Display, so Renderer goes to Effects" },
     { "room302", "Head Bob", "controls", "R5 moves the first-person three; until then above Camera" },
-    { "room302", "Left / Right", "controls", "R5" },
+    { "room302", "Turn or Strafe", "controls", "R5" },  // v3.57 OLP1
     { "room302", "Invert Look", "controls", "R5" },
     { "subtitles", "Subtitles", "interface", "R5 makes the combo row a folder; until then the switch is Interface's row" },
     { "grain", "Film Grain", "interface", "R5 moves the stock Noise Effect switch" },

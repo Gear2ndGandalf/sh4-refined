@@ -322,7 +322,7 @@ static const Interim54 kV354[] = {
     { LP_DISPLAY, { "display/Resolution", "display/Aspect Ratio", "display/Display Mode", "display/Monitor", "display/Frame Rate",
                     "display/Brightness", "display/Gamma", "sound/Sound Mode", "sound/Music Volume", "sound/Effects Volume", "+" } },
     { LP_CONTROLS, { "controls/Buttons", "controls/Default Speed", "controls/Vibration", "controls/Analog Movement", "room302/Head Bob",
-                     "room302/Left / Right", "room302/Invert Look", "controls/Camera", "controls/Room 302", "+" } },
+                     "room302/Turn or Strafe", "room302/Invert Look", "controls/Camera", "controls/Room 302", "+" } },  // v3.57 OLP1: Turn or Strafe (was Left / Right)
     { LP_CAMERA, { "camera/Field of View", "camera/Camera", "camera/Distance", "camera/Side", "camera/Height", "camera/Tilt Down",
                    "camera/Fixed Angles", "camera/Steering", "+" } },
     { LP_STEER, { "steering/Turn Speed", "steering/Tilt Speed", "steering/Invert Turn", "steering/Invert Tilt", "steering/Wall Zoom",
@@ -345,7 +345,7 @@ static const Interim54 kV354[] = {
     { LP_ENEMIES, { "enemies/Extra Enemies", "enemies/Door Chase", "enemies/Pursuit", "enemies/Enemies Return", "enemies/Fade In", "+" } },
     { LP_POWERS, { "powers/Death Presence", "powers/After Shock", "powers/Echo Doubles", "powers/Echo Count", "powers/Ghost Teleport", "+" } },
     { LP_RANDO, { "rando/Items", "rando/Specials", "rando/Room 302 Items", "rando/Enemies", "rando/Spawn Site", "rando/Eileen Outfit",
-                  "rando/Reroll Visits", "+" } },  // v3.56 RI356: Specials (was Keep Specials); no Seed / New Seed rows; v3.56 RE356: Monsters -> Enemies, Ghosts -> Spawn Site
+                  "rando/Reroll", "+" } },  // v3.57 OLP1: Reroll (was Reroll Visits)  // v3.56 RI356: Specials (was Keep Specials); no Seed / New Seed rows; v3.56 RE356: Monsters -> Enemies, Ghosts -> Spawn Site
 };
 static void TestExactV354(void)
 {

@@ -76,6 +76,7 @@ static const char *const kZeroOne[] = { "0", "1" };                             
 static const char *const kPcSteal[] = { "Off", "5", "10" };                                      // playercheats.inc kPcIni[PC_LS]
 static const char *const kHeadMotion[] = { "Off", "Slight", "On" };                              // the game's Head Motion words
 static const char *const kFpMove[] = { "Rotate", "Sideways" }, *const kFpCam[] = { "Normal", "Reverse" };
+static const char *const kPcQc[] = { "Off", "1.5x", "2x", "3x" };                                 // playercheats.inc kPcIni[PC_QC]  // v3.57 OLP1
 static const MapIni kMapIni[] = {
     { OLM_POWERS_ECHO_DOUBLES, kGpEcho, 3, "gameplay.inc kGpName[GP_ECHO]" },
     { OLM_ENEMIES_DOOR_CHASE, kGpFollow, 4, "gameplay.inc kGpName[GP_FOLLOW]" },
@@ -96,7 +97,8 @@ static const MapIni kMapIni[] = {
     { OLM_INTERFACE_HEALTH_GAUGE, kInvOnOff, 2, "cfg+0x09 (the game's Off / On)" },
     { OLM_INTERFACE_ITEM_ICONS, kInvOnOff, 2, "cfg+0x0A (the game's Off / On)" },
     { OLM_ROOM302_HEAD_BOB, kHeadMotion, 3, "cfg+0x08 (the game's Off / Slight / On)" },
-    { OLM_ROOM302_LEFT_RIGHT, kFpMove, 2, "cfg+0x17 (the game's Rotate / Sideways)" },
+    { OLM_ROOM302_TURN_OR_STRAFE, kFpMove, 2, "cfg+0x17 (the game's Rotate / Sideways)" },  // v3.57 OLP1: Turn or Strafe (was Left / Right)
+    { OLM_COMBAT_QUICK_CHARGE, kPcQc, 4, "playercheats.inc kPcIni[PC_QC]" },  // v3.57 OLP1: x1.5 / x2 / x3 on screen, 1.5x / 2x / 3x in the ini
     { OLM_ROOM302_INVERT_LOOK, kFpCam, 2, "cfg+0x16 (the game's Normal / Reverse)" },
 };
 
@@ -143,6 +145,44 @@ static void TestMaps(void)
     printf("maps: %d maps, %d entries\n", OLM_N, OL_MAP_N);
 }
 
+// v3.57 OLP1: the renamed rows keep their ini words. Quick Charge shows x1.5 / x2 / x3 and the ini keeps 1.5x / 2x / 3x
+// (playercheats.inc writes kPcIni, read here from the source itself); Turn or Strafe keeps the game's Rotate / Sideways;
+// Reroll's values (By Room / By World) are its ini words (rando_sim.h kRzRerollName)
+static void TestIniWords(void)
+{
+    static const char *const kShow[4] = { OLW_COMBAT_QUICK_CHARGE_V_OFF, OLW_COMBAT_QUICK_CHARGE_V_X1_5, OLW_COMBAT_QUICK_CHARGE_V_X2,
+                                          OLW_COMBAT_QUICK_CHARGE_V_X3 };
+    static const char *const kWant[4] = { "Off", "x1.5", "x2", "x3" };
+    char line[4096];
+    int i, found = 0;
+    FILE *f = fopen("../src/playercheats.inc", "r");
+    for (i = 0; i < 4; ++i) {
+        CHECK(!strcmp(kShow[i], kWant[i]), "Quick Charge value %d shows %s, not %s", i, kShow[i], kWant[i]);
+        CHECK(!strcmp(OlShow(OLM_COMBAT_QUICK_CHARGE, kPcQc[i]), kShow[i]), "Quick Charge: ini %s shows %s", kPcQc[i],
+              OlShow(OLM_COMBAT_QUICK_CHARGE, kPcQc[i]));
+        CHECK(!strcmp(OlIni(OLM_COMBAT_QUICK_CHARGE, kShow[i]), kPcQc[i]), "Quick Charge: %s writes %s", kShow[i],
+              OlIni(OLM_COMBAT_QUICK_CHARGE, kShow[i]));
+    }
+    CHECK(!strcmp(OlIni(OLM_COMBAT_QUICK_CHARGE, "x1.5"), "1.5x") && !strcmp(OlIni(OLM_COMBAT_QUICK_CHARGE, "x2"), "2x") &&
+          !strcmp(OlIni(OLM_COMBAT_QUICK_CHARGE, "x3"), "3x"), "Quick Charge's ini words stay 1.5x / 2x / 3x");
+    CHECK(!strcmp(OlShow(OLM_COMBAT_QUICK_CHARGE, "1.5X"), "x1.5"), "Quick Charge: the ini reads case-blind");
+    CHECK(f != NULL, "../src/playercheats.inc not found (run from test\\)");
+    if (f) {
+        while (fgets(line, sizeof line, f))
+            if (strstr(line, "{ \"Off\", \"1.5x\", \"2x\", \"3x\" },")) ++found;
+        fclose(f);
+    }
+    CHECK(found == 1, "playercheats.inc kPcIni[PC_QC] is { \"Off\", \"1.5x\", \"2x\", \"3x\" } (%d line(s))", found);
+    CHECK(!strcmp(OlShow(OLM_ROOM302_TURN_OR_STRAFE, "Rotate"), OLW_ROOM302_TURN_OR_STRAFE_V_TURN) &&
+          !strcmp(OlShow(OLM_ROOM302_TURN_OR_STRAFE, "Sideways"), OLW_ROOM302_TURN_OR_STRAFE_V_STRAFE) &&
+          !strcmp(OlIni(OLM_ROOM302_TURN_OR_STRAFE, "Turn"), "Rotate") && !strcmp(OlIni(OLM_ROOM302_TURN_OR_STRAFE, "Strafe"), "Sideways"),
+          "Turn or Strafe: Turn / Strafe stand for the game's Rotate / Sideways");
+    CHECK(!strcmp(kRzRerollName[RZR_ROOM], OLW_RANDO_REROLL_V_BY_ROOM) && !strcmp(kRzRerollName[RZR_WORLD], OLW_RANDO_REROLL_V_BY_WORLD),
+          "Reroll: the screen words are the ini words By Room / By World");
+    CHECK(!strcmp(OLW_ROOM302_TURN_OR_STRAFE_L, "Turn or Strafe") && !strcmp(OLW_RANDO_REROLL_L, "Reroll"), "the two renamed labels");
+    printf("ini words: Quick Charge, Turn or Strafe, Reroll checked\n");
+}
+
 static void TestComposed(void)
 {
     // the combo rows: the longest value line + the Enter sentence (two lines at most: descfit wraps 416 px a line)
@@ -164,21 +204,29 @@ static void TestComposed(void)
     }
     for (i = 0; i < (int)(sizeof kFilter / sizeof kFilter[0]); ++i) {
         sprintf(t, "%s", kFilter[i]);
-        sprintf(t + strlen(t), OLW_FILTER_F7, 7);  // the default PreviewKey F7: one line
-        CHECK(i || strlen(t) <= 52, "Filter + F7: \"%s\" (%u; the row line stays one line)", t, (unsigned)strlen(t));
+        sprintf(t + strlen(t), OLW_FILTER_F7, 7);  // the default PreviewKey F7  // v3.57 OLP1: two lines at most (was: the row line one)
+        CHECK(strlen(t) <= 2 * 52, "Filter + F7: \"%s\" (%u; two lines at most)", t, (unsigned)strlen(t));
         sprintf(t, "%s", kFilter[i]);
-        sprintf(t + strlen(t), OLW_FILTER_F7, 12);  // F10 - F12: one character more (descfit tightens it)
-        CHECK(strlen(t) < 128 && (i || strlen(t) + 4 <= 64), "Filter + F12: \"%s\" (%u; g_txtFxD 64 / g_txtOlFilter 128)", t, (unsigned)strlen(t));
+        sprintf(t + strlen(t), OLW_FILTER_F7, 12);  // F10 - F12: one character more
+        CHECK(strlen(t) <= 2 * 52 && strlen(t) + 4 <= 128 && (i || strlen(t) + 4 <= 80), "Filter + F12: \"%s\" (%u; g_txtFxD 80 / g_txtOlFilter 128)",
+              t, (unsigned)strlen(t));  // v3.57 OLP1: g_txtFxD 64 -> 80
     }
     for (i = 0; i < (int)(sizeof kRend / sizeof kRend[0]); ++i) {  // + the longest backend text (perfhud_sim.h PerfBackendName)
         sprintf(t, "%s %s.", kRend[i], "Direct3D: GOG -> dgVoodoo2, a_manifest_variant_named_long");
         CHECK(strlen(t) < 160 && strlen(t) <= 3 * 52, "Renderer + backend: \"%s\" (%u)", t, (unsigned)strlen(t));
     }
-    for (i = 0; i < 3; ++i) CHECK(strstr(kRegen[i], "after 30 s") != NULL, "%s: regen.inc replaces \"after 30 s\" by the delay", kRegen[i]);
+    // v3.57 OLP1: only x1's line names the delay ("after 30 seconds"; x1.25 / x2 say "faster than x1"); with RegenDelay 120 it
+    // still fits one line
+    CHECK(strstr(kRegen[0], "after 30 seconds") != NULL, "%s: regen.inc replaces \"after 30 seconds\" by the delay", kRegen[0]);
+    for (i = 1; i < 3; ++i) CHECK(strstr(kRegen[i], "after 30") == NULL, "%s: no delay in this line (regen.inc leaves it)", kRegen[i]);
+    CHECK(strlen(kRegen[0]) + 1 <= 52, "x1's line with a 3-digit RegenDelay: %u", (unsigned)strlen(kRegen[0]) + 1);
     CHECK(strlen(OLW_CAMERA_CAMERA_VD_SHOULDER OLW_CAM_SETTINGS) < 96 && strlen(OLW_CAMERA_CAMERA_VD_GAME OLW_CAM_SETTINGS) < 96,
           "the Camera row's lines fit g_txtOl's 96 bytes");
     CHECK(strlen(OLW_DISPLAY_DISPLAY_MODE_D) + 4 <= 64, "Display Mode's line fits g_txtDispDesc[64]");
-    CHECK(strlen(OLW_EFFECTS_FILTER_D) + 26 + 4 <= 64, "Filter's row line + the F-key sentence fit g_txtFxD's 64 bytes");
+    CHECK(strlen(OLW_EFFECTS_FILTER_D) + strlen(OLW_FILTER_F7) + 1 + 4 <= 80, "Filter's row line + the F-key sentence fit g_txtFxD's 80 bytes");  // v3.57 OLP1: was 26 / 64
+    CHECK(strlen(OLW_REGEN_PE_LEGACY) - 2 + 3 <= 52 && strlen(OLW_REGEN_PE_LEGACY) - 2 + 3 + 4 <= 56, "Playable Eileen's Regeneration line with "
+          "RegenDelay 120 fits one line and gameplay.inc's d[56]");  // v3.57 OLP1
+    CHECK(strlen(OLW_TELEPORT_ON_CD) + 8 < 64, "Ghost Teleport's On line with a cooldown fits teleport.inc's d[64]");  // v3.57 OLP1
     printf("composed lines checked\n");
 }
 
@@ -186,6 +234,7 @@ int main(void)
 {
     TestLimits();
     TestMaps();
+    TestIniWords();  // v3.57 OLP1
     TestComposed();
     printf("%s: %d of %d checks passed\n", g_fail ? "FAILED" : "OK", g_n - g_fail, g_n);
     return g_fail ? 1 : 0;

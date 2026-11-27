@@ -673,7 +673,7 @@ static void GpSnapshot(void)
     if (g_peLoaded && RgRowModeNow() == RGR_LEGACY) {  // v3.47 RG347: PE's ini keys only while the row is their front end
         char d[56];
         const int delay = (int)GetPrivateProfileIntA("Defense", "RegenDelay", 30, g_peIni);  // review REV-010
-        sprintf_s(d, sizeof d, "Playable Eileen's healing after %d s unhurt.", delay < 10 ? 10 : delay > 120 ? 120 : delay);
+        sprintf_s(d, sizeof d, OLW_REGEN_PE_LEGACY, delay < 10 ? 10 : delay > 120 ? 120 : delay);  // v3.57 OLP1: the generated line ("Playable Eileen heals after %d seconds unhurt."; was a literal of v3.47)
         Encode(g_txtGp[GPM_D0 + GP_REGEN], 56, d);
         InterlockedExchange(&g_gp[GP_REGEN], GpRegenRead());  // PE's ini may have been edited since
         g_regenLock = GetPrivateProfileStringA("Defense", "Regen", "\x01", g_snapPeRegen, sizeof g_snapPeRegen, g_peIni) >=
@@ -784,7 +784,7 @@ static void GpTexts(void)
     Encode(g_txtGp[GPM_T_ENEMY], 56, OLW_T_ENEMIES);
     Encode(g_txtGp[GPM_R_PLAYER], 56, OLW_GAMEPLAY_PLAYER_L);
     Encode(g_txtGp[GPM_R_ENEMY], 56, OLW_GAMEPLAY_ENEMIES_L);
-    Encode(g_txtGp[GPM_D_PLAYER], 56, OLW_PLAYER_FOLDER_R1_D);  // PLAYER PACK (was: Movement, medallion and healing cheats.)  // v3.53 OL1: the plan's Player + Combat
+    Encode(g_txtGp[GPM_D_PLAYER], 56, OLW_GAMEPLAY_PLAYER_D);  // PLAYER PACK (was: Movement, medallion and healing cheats.)  // v3.53 OL1: the plan's Player + Combat  // v3.57 OLP1: the Player folder's own line (Codex OLP1-002: was OLW_PLAYER_FOLDER_R1_D, which named Combat's damage and ammo)
     Encode(g_txtGp[GPM_D_ENEMY], 56, OLW_GAMEPLAY_ENEMIES_D);  // v3.37 MN337 (One-Hit Kill moved to Player)
     Encode(g_txtGp[GPM_BACK], 56, OLW_BACK);
     Encode(g_txtGp[GPM_D_BACK], 56, OLW_BACK_GAMEPLAY);  // v3.53 OL1: was "Back to Option 5 (Gameplay)."

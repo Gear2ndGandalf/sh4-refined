@@ -19,7 +19,7 @@
 #define OLW_DISPLAY_ASPECT_RATIO_V_16_10             "16:10"  /* Display / Aspect Ratio */
 #define OLW_DISPLAY_ASPECT_RATIO_VD_16_10            "16:10: a little wider than 4:3."  /* Display / Aspect Ratio / 16:10 */
 #define OLW_DISPLAY_ASPECT_RATIO_V_16_9              "16:9"  /* Display / Aspect Ratio */
-#define OLW_DISPLAY_ASPECT_RATIO_VD_16_9             "16:9: widescreen, as most screens."  /* Display / Aspect Ratio / 16:9 */
+#define OLW_DISPLAY_ASPECT_RATIO_VD_16_9             "16:9: widescreen, like most screens."  /* Display / Aspect Ratio / 16:9 */
 #define OLW_DISPLAY_ASPECT_RATIO_V_21_9              "21:9"  /* Display / Aspect Ratio */
 #define OLW_DISPLAY_ASPECT_RATIO_VD_21_9             "21:9: an ultrawide screen."  /* Display / Aspect Ratio / 21:9 */
 #define OLW_DISPLAY_ASPECT_RATIO_V_32_9              "32:9"  /* Display / Aspect Ratio */
@@ -43,17 +43,17 @@
 #define OLW_DISPLAY_MONITOR_V_DISPLAY_5              "Display 5"  /* Display / Monitor */
 #define OLW_DISPLAY_MONITOR_VD_DISPLAY_5             "Display 5: the fifth screen Windows lists."  /* Display / Monitor / Display 5 */
 #define OLW_DISPLAY_FRAME_RATE_L                     "Frame Rate"  /* Display / Frame Rate */
-#define OLW_DISPLAY_FRAME_RATE_D                     "Frames a second. 60 is smoother."  /* Display / Frame Rate */
+#define OLW_DISPLAY_FRAME_RATE_D                     "Frames per second. Higher is smoother."  /* Display / Frame Rate */
 #define OLW_DISPLAY_FRAME_RATE_V_30                  "30"  /* Display / Frame Rate */
 #define OLW_DISPLAY_FRAME_RATE_VD_30                 "30: the game's own rate."  /* Display / Frame Rate / 30 */
 #define OLW_DISPLAY_FRAME_RATE_V_60                  "60"  /* Display / Frame Rate */
 #define OLW_DISPLAY_FRAME_RATE_VD_60                 "60: smoother; the game runs at 60 too."  /* Display / Frame Rate / 60 */
 #define OLW_DISPLAY_FRAME_RATE_V_120                 "120"  /* Display / Frame Rate */
-#define OLW_DISPLAY_FRAME_RATE_VD_120                "120: shown only with HighFrameRates=1."  /* Display / Frame Rate / 120 */
+#define OLW_DISPLAY_FRAME_RATE_VD_120                "120: experimental; needs a fast PC."  /* Display / Frame Rate / 120 */
 #define OLW_DISPLAY_FRAME_RATE_V_180                 "180"  /* Display / Frame Rate */
-#define OLW_DISPLAY_FRAME_RATE_VD_180                "180: shown only with HighFrameRates=1."  /* Display / Frame Rate / 180 */
+#define OLW_DISPLAY_FRAME_RATE_VD_180                "180: experimental; needs a fast PC."  /* Display / Frame Rate / 180 */
 #define OLW_DISPLAY_RENDERER_L                       "Renderer"  /* Display / Renderer */
-#define OLW_DISPLAY_RENDERER_D                       "How the game draws. Applies at the next start."  /* Display / Renderer */
+#define OLW_DISPLAY_RENDERER_D                       "How the game draws. Next start."  /* Display / Renderer */
 #define OLW_DISPLAY_RENDERER_V_DIRECT3D_11           "Direct3D 11"  /* Display / Renderer */
 #define OLW_DISPLAY_RENDERER_VD_DIRECT3D_11          "Direct3D 11: dgVoodoo2, the default. Next start."  /* Display / Renderer / Direct3D 11 */
 #define OLW_DISPLAY_RENDERER_V_DIRECT3D_12           "Direct3D 12"  /* Display / Renderer */
@@ -118,7 +118,7 @@
 #define OLW_CAMERA_CAMERA_V_GAME                     "Game"  /* Controls > Camera / Camera */
 #define OLW_CAMERA_CAMERA_VD_GAME                    "Game: each room's own cameras."  /* Controls > Camera / Camera / Game */
 #define OLW_CAMERA_CAMERA_V_SHOULDER                 "Shoulder"  /* Controls > Camera / Camera */
-#define OLW_CAMERA_CAMERA_VD_SHOULDER                "Shoulder: behind the player; you steer it."  /* Controls > Camera / Camera / Shoulder */
+#define OLW_CAMERA_CAMERA_VD_SHOULDER                "Shoulder: over your shoulder; you steer it."  /* Controls > Camera / Camera / Shoulder */
 #define OLW_CAMERA_DISTANCE_L                        "Distance"  /* Controls > Camera / Distance */
 #define OLW_CAMERA_DISTANCE_D                        "How far behind you. 0 is first person."  /* Controls > Camera / Distance */
 #define OLW_CAMERA_DISTANCE_V_800                    "800"  /* Controls > Camera / Distance */
@@ -168,7 +168,7 @@
 #define OLW_STEERING_WALL_ZOOM_V_ON                  "On"  /* Camera > Steering / Wall Zoom */
 #define OLW_STEERING_WALL_ZOOM_VD_ON                 "On: the camera moves in at walls."  /* Camera > Steering / Wall Zoom / On */
 #define OLW_STEERING_WALL_MARGIN_L                   "Wall Margin"  /* Camera > Steering / Wall Margin */
-#define OLW_STEERING_WALL_MARGIN_D                   "Gap kept from walls (Wall Zoom on)."  /* Camera > Steering / Wall Margin */
+#define OLW_STEERING_WALL_MARGIN_D                   "Gap the camera keeps from walls."  /* Camera > Steering / Wall Margin */
 #define OLW_STEERING_WALL_MARGIN_V_50                "50"  /* Camera > Steering / Wall Margin */
 #define OLW_ROOM302_FIELD_OF_VIEW_L                  "Field of View"  /* Controls > Room 302 / Field of View */
 #define OLW_ROOM302_FIELD_OF_VIEW_D                  "View angle in first person, in degrees."  /* Controls > Room 302 / Field of View */
@@ -210,9 +210,9 @@
 #define OLW_ROOM302_INVERT_LOOK_L                    "Invert Look"  /* Controls > Room 302 / Invert Look */
 #define OLW_ROOM302_INVERT_LOOK_D                    "Up and down the other way."  /* Controls > Room 302 / Invert Look */
 #define OLW_ROOM302_INVERT_LOOK_V_OFF                "Off"  /* Controls > Room 302 / Invert Look */
-#define OLW_ROOM302_INVERT_LOOK_VD_OFF               "Off: the stick up looks up."  /* Controls > Room 302 / Invert Look / Off */
+#define OLW_ROOM302_INVERT_LOOK_VD_OFF               "Off: push up to look up."  /* Controls > Room 302 / Invert Look / Off */
 #define OLW_ROOM302_INVERT_LOOK_V_ON                 "On"  /* Controls > Room 302 / Invert Look */
-#define OLW_ROOM302_INVERT_LOOK_VD_ON                "On: the stick up looks down."  /* Controls > Room 302 / Invert Look / On */
+#define OLW_ROOM302_INVERT_LOOK_VD_ON                "On: push up to look down."  /* Controls > Room 302 / Invert Look / On */
 #define OLW_ROOM302_HEAD_BOB_L                       "Head Bob"  /* Controls > Room 302 / Head Bob */
 #define OLW_ROOM302_HEAD_BOB_D                       "The view bobs as you walk."  /* Controls > Room 302 / Head Bob */
 #define OLW_ROOM302_HEAD_BOB_V_OFF                   "Off"  /* Controls > Room 302 / Head Bob */
@@ -221,12 +221,12 @@
 #define OLW_ROOM302_HEAD_BOB_VD_SLIGHT               "Slight: a little bob."  /* Controls > Room 302 / Head Bob / Slight */
 #define OLW_ROOM302_HEAD_BOB_V_FULL                  "Full"  /* Controls > Room 302 / Head Bob */
 #define OLW_ROOM302_HEAD_BOB_VD_FULL                 "Full: the game's own bob."  /* Controls > Room 302 / Head Bob / Full */
-#define OLW_ROOM302_LEFT_RIGHT_L                     "Left / Right"  /* Controls > Room 302 / Left / Right */
-#define OLW_ROOM302_LEFT_RIGHT_D                     "Turn, or step sideways."  /* Controls > Room 302 / Left / Right */
-#define OLW_ROOM302_LEFT_RIGHT_V_TURN                "Turn"  /* Controls > Room 302 / Left / Right */
-#define OLW_ROOM302_LEFT_RIGHT_VD_TURN               "Turn: left and right turn you."  /* Controls > Room 302 / Left / Right / Turn */
-#define OLW_ROOM302_LEFT_RIGHT_V_STRAFE              "Strafe"  /* Controls > Room 302 / Left / Right */
-#define OLW_ROOM302_LEFT_RIGHT_VD_STRAFE             "Strafe: left and right step sideways."  /* Controls > Room 302 / Left / Right / Strafe */
+#define OLW_ROOM302_TURN_OR_STRAFE_L                 "Turn or Strafe"  /* Controls > Room 302 / Turn or Strafe */
+#define OLW_ROOM302_TURN_OR_STRAFE_D                 "What left and right do."  /* Controls > Room 302 / Turn or Strafe */
+#define OLW_ROOM302_TURN_OR_STRAFE_V_TURN            "Turn"  /* Controls > Room 302 / Turn or Strafe */
+#define OLW_ROOM302_TURN_OR_STRAFE_VD_TURN           "Turn: left and right turn you."  /* Controls > Room 302 / Turn or Strafe / Turn */
+#define OLW_ROOM302_TURN_OR_STRAFE_V_STRAFE          "Strafe"  /* Controls > Room 302 / Turn or Strafe */
+#define OLW_ROOM302_TURN_OR_STRAFE_VD_STRAFE         "Strafe: left and right step sideways."  /* Controls > Room 302 / Turn or Strafe / Strafe */
 #define OLW_ROOM302_WALK_SPEED_L                     "Walk Speed"  /* Controls > Room 302 / Walk Speed */
 #define OLW_ROOM302_WALK_SPEED_D                     "Walking speed here. Game: 1."  /* Controls > Room 302 / Walk Speed */
 #define OLW_ROOM302_WALK_SPEED_V_0_5                 "0.5"  /* Controls > Room 302 / Walk Speed */
@@ -264,7 +264,7 @@
 #define OLW_INTERFACE_CURSE_METER_V_OFF              "Off"  /* Interface / Curse Meter */
 #define OLW_INTERFACE_CURSE_METER_VD_OFF             "Off: no ring."  /* Interface / Curse Meter / Off */
 #define OLW_INTERFACE_CURSE_METER_V_ON               "On"  /* Interface / Curse Meter */
-#define OLW_INTERFACE_CURSE_METER_VD_ON              "On: her ring; yours is Playable Eileen's."  /* Interface / Curse Meter / On */
+#define OLW_INTERFACE_CURSE_METER_VD_ON              "On: a ring shows her curse."  /* Interface / Curse Meter / On */
 #define OLW_INTERFACE_MENU_FONT_L                    "Menu Font"  /* Interface / Menu Font */
 #define OLW_INTERFACE_MENU_FONT_D                    "The menus' and subtitles' font."  /* Interface / Menu Font */
 #define OLW_INTERFACE_MENU_FONT_V_STOCK              "Stock"  /* Interface / Menu Font */
@@ -272,9 +272,9 @@
 #define OLW_INTERFACE_MENU_FONT_V_EB_GARAMOND        "EB Garamond"  /* Interface / Menu Font */
 #define OLW_INTERFACE_MENU_FONT_VD_EB_GARAMOND       "EB Garamond: closest to the game's serif, in HD."  /* Interface / Menu Font / EB Garamond */
 #define OLW_INTERFACE_MENU_FONT_V_CORMORANT          "Cormorant"  /* Interface / Menu Font */
-#define OLW_INTERFACE_MENU_FONT_VD_CORMORANT         "Cormorant Garamond: lighter and finer, in HD."  /* Interface / Menu Font / Cormorant */
+#define OLW_INTERFACE_MENU_FONT_VD_CORMORANT         "Cormorant: lighter and finer, in HD."  /* Interface / Menu Font / Cormorant */
 #define OLW_INTERFACE_MENU_FONT_V_CRIMSON            "Crimson"  /* Interface / Menu Font */
-#define OLW_INTERFACE_MENU_FONT_VD_CRIMSON           "Crimson Text: a heavier book serif, in HD."  /* Interface / Menu Font / Crimson */
+#define OLW_INTERFACE_MENU_FONT_VD_CRIMSON           "Crimson: a heavier book serif, in HD."  /* Interface / Menu Font / Crimson */
 #define OLW_INTERFACE_MENU_FONT_V_CUSTOM             "Custom"  /* Interface / Menu Font */
 #define OLW_INTERFACE_MENU_FONT_VD_CUSTOM            "Custom: the sheet SH4Refined.ini names."  /* Interface / Menu Font / Custom */
 #define OLW_INTERFACE_START_UP_L                     "Start-Up"  /* Interface / Start-Up */
@@ -284,7 +284,7 @@
 #define OLW_INTERFACE_START_UP_V_SKIP_LOGOS          "Skip Logos"  /* Interface / Start-Up */
 #define OLW_INTERFACE_START_UP_VD_SKIP_LOGOS         "Skip Logos: straight to the title. Next start."  /* Interface / Start-Up / Skip Logos */
 #define OLW_INTERFACE_START_UP_V_FAST                "Fast"  /* Interface / Start-Up */
-#define OLW_INTERFACE_START_UP_VD_FAST               "Fast: also no movie, a short intro. Next start."  /* Interface / Start-Up / Fast */
+#define OLW_INTERFACE_START_UP_VD_FAST               "Fast: no movie and a short intro. Next start."  /* Interface / Start-Up / Fast */
 #define OLW_INTERFACE_PAUSE_MENU_L                   "Pause Menu"  /* Interface / Pause Menu */
 #define OLW_INTERFACE_PAUSE_MENU_D                   "What the pause menu's Extra list shows."  /* Interface / Pause Menu */
 #define OLW_SUBTITLES_SUBTITLES_L                    "Subtitles"  /* Interface > Subtitles / Subtitles */
@@ -336,7 +336,7 @@
 #define OLW_SUBTITLES_BOX_L                          "Box"  /* Interface > Subtitles / Box */
 #define OLW_SUBTITLES_BOX_D                          "A dark box behind the line."  /* Interface > Subtitles / Box */
 #define OLW_SUBTITLES_BOX_V_NONE                     "None"  /* Interface > Subtitles / Box */
-#define OLW_SUBTITLES_BOX_VD_NONE                    "None: no box, as the game."  /* Interface > Subtitles / Box / None */
+#define OLW_SUBTITLES_BOX_VD_NONE                    "None: no box, as in the game."  /* Interface > Subtitles / Box / None */
 #define OLW_SUBTITLES_BOX_V_TRANSLUCENT              "Translucent"  /* Interface > Subtitles / Box */
 #define OLW_SUBTITLES_BOX_VD_TRANSLUCENT             "Translucent: a see-through dark box."  /* Interface > Subtitles / Box / Translucent */
 #define OLW_SUBTITLES_BOX_V_SOLID                    "Solid"  /* Interface > Subtitles / Box */
@@ -370,45 +370,45 @@
 #define OLW_PAUSE_STORAGE_CHEST_L                    "Storage Chest"  /* Interface > Pause Menu / Storage Chest */
 #define OLW_PAUSE_STORAGE_CHEST_D                    "The item box, from the pause."  /* Interface > Pause Menu / Storage Chest */
 #define OLW_PAUSE_STORAGE_CHEST_V_HIDDEN             "Hidden"  /* Interface > Pause Menu / Storage Chest */
-#define OLW_PAUSE_STORAGE_CHEST_VD_HIDDEN            "Hidden: the pause menu does not list it."  /* Interface > Pause Menu / Storage Chest / Hidden */
+#define OLW_PAUSE_STORAGE_CHEST_VD_HIDDEN            "Hidden: not in the pause Extra Menu."  /* Interface > Pause Menu / Storage Chest / Hidden */
 #define OLW_PAUSE_STORAGE_CHEST_V_SHOWN              "Shown"  /* Interface > Pause Menu / Storage Chest */
-#define OLW_PAUSE_STORAGE_CHEST_VD_SHOWN             "Shown: the pause Extra Menu lists it."  /* Interface > Pause Menu / Storage Chest / Shown */
+#define OLW_PAUSE_STORAGE_CHEST_VD_SHOWN             "Shown: in the pause Extra Menu."  /* Interface > Pause Menu / Storage Chest / Shown */
 #define OLW_PAUSE_SAVE_GAME_L                        "Save Game"  /* Interface > Pause Menu / Save Game */
 #define OLW_PAUSE_SAVE_GAME_D                        "Save anywhere, from the pause."  /* Interface > Pause Menu / Save Game */
 #define OLW_PAUSE_SAVE_GAME_V_HIDDEN                 "Hidden"  /* Interface > Pause Menu / Save Game */
-#define OLW_PAUSE_SAVE_GAME_VD_HIDDEN                "Hidden: the pause menu does not list it."  /* Interface > Pause Menu / Save Game / Hidden */
+#define OLW_PAUSE_SAVE_GAME_VD_HIDDEN                "Hidden: not in the pause Extra Menu."  /* Interface > Pause Menu / Save Game / Hidden */
 #define OLW_PAUSE_SAVE_GAME_V_SHOWN                  "Shown"  /* Interface > Pause Menu / Save Game */
-#define OLW_PAUSE_SAVE_GAME_VD_SHOWN                 "Shown: the pause Extra Menu lists it."  /* Interface > Pause Menu / Save Game / Shown */
+#define OLW_PAUSE_SAVE_GAME_VD_SHOWN                 "Shown: in the pause Extra Menu."  /* Interface > Pause Menu / Save Game / Shown */
 #define OLW_PAUSE_LOAD_GAME_L                        "Load Game"  /* Interface > Pause Menu / Load Game */
 #define OLW_PAUSE_LOAD_GAME_D                        "Load a save, from the pause."  /* Interface > Pause Menu / Load Game */
 #define OLW_PAUSE_LOAD_GAME_V_HIDDEN                 "Hidden"  /* Interface > Pause Menu / Load Game */
-#define OLW_PAUSE_LOAD_GAME_VD_HIDDEN                "Hidden: the pause menu does not list it."  /* Interface > Pause Menu / Load Game / Hidden */
+#define OLW_PAUSE_LOAD_GAME_VD_HIDDEN                "Hidden: not in the pause Extra Menu."  /* Interface > Pause Menu / Load Game / Hidden */
 #define OLW_PAUSE_LOAD_GAME_V_SHOWN                  "Shown"  /* Interface > Pause Menu / Load Game */
-#define OLW_PAUSE_LOAD_GAME_VD_SHOWN                 "Shown: the pause Extra Menu lists it."  /* Interface > Pause Menu / Load Game / Shown */
+#define OLW_PAUSE_LOAD_GAME_VD_SHOWN                 "Shown: in the pause Extra Menu."  /* Interface > Pause Menu / Load Game / Shown */
 #define OLW_PAUSE_QUICK_SAVE_L                       "Quick Save"  /* Interface > Pause Menu / Quick Save */
 #define OLW_PAUSE_QUICK_SAVE_D                       "A quick save, like F5."  /* Interface > Pause Menu / Quick Save */
 #define OLW_PAUSE_QUICK_SAVE_V_HIDDEN                "Hidden"  /* Interface > Pause Menu / Quick Save */
-#define OLW_PAUSE_QUICK_SAVE_VD_HIDDEN               "Hidden: the pause menu does not list it."  /* Interface > Pause Menu / Quick Save / Hidden */
+#define OLW_PAUSE_QUICK_SAVE_VD_HIDDEN               "Hidden: not in the pause Extra Menu."  /* Interface > Pause Menu / Quick Save / Hidden */
 #define OLW_PAUSE_QUICK_SAVE_V_SHOWN                 "Shown"  /* Interface > Pause Menu / Quick Save */
-#define OLW_PAUSE_QUICK_SAVE_VD_SHOWN                "Shown: the pause Extra Menu lists it."  /* Interface > Pause Menu / Quick Save / Shown */
+#define OLW_PAUSE_QUICK_SAVE_VD_SHOWN                "Shown: in the pause Extra Menu."  /* Interface > Pause Menu / Quick Save / Shown */
 #define OLW_PAUSE_QUICK_LOAD_L                       "Quick Load"  /* Interface > Pause Menu / Quick Load */
 #define OLW_PAUSE_QUICK_LOAD_D                       "The newest quick save, like F9."  /* Interface > Pause Menu / Quick Load */
 #define OLW_PAUSE_QUICK_LOAD_V_HIDDEN                "Hidden"  /* Interface > Pause Menu / Quick Load */
-#define OLW_PAUSE_QUICK_LOAD_VD_HIDDEN               "Hidden: the pause menu does not list it."  /* Interface > Pause Menu / Quick Load / Hidden */
+#define OLW_PAUSE_QUICK_LOAD_VD_HIDDEN               "Hidden: not in the pause Extra Menu."  /* Interface > Pause Menu / Quick Load / Hidden */
 #define OLW_PAUSE_QUICK_LOAD_V_SHOWN                 "Shown"  /* Interface > Pause Menu / Quick Load */
-#define OLW_PAUSE_QUICK_LOAD_VD_SHOWN                "Shown: the pause Extra Menu lists it."  /* Interface > Pause Menu / Quick Load / Shown */
+#define OLW_PAUSE_QUICK_LOAD_VD_SHOWN                "Shown: in the pause Extra Menu."  /* Interface > Pause Menu / Quick Load / Shown */
 #define OLW_PAUSE_EILEEN_L                           "Eileen"  /* Interface > Pause Menu / Eileen */
 #define OLW_PAUSE_EILEEN_D                           "Companion Eileen's outfit, from the pause."  /* Interface > Pause Menu / Eileen */
 #define OLW_PAUSE_EILEEN_V_HIDDEN                    "Hidden"  /* Interface > Pause Menu / Eileen */
-#define OLW_PAUSE_EILEEN_VD_HIDDEN                   "Hidden: the pause menu does not list it."  /* Interface > Pause Menu / Eileen / Hidden */
+#define OLW_PAUSE_EILEEN_VD_HIDDEN                   "Hidden: not in the pause Extra Menu."  /* Interface > Pause Menu / Eileen / Hidden */
 #define OLW_PAUSE_EILEEN_V_SHOWN                     "Shown"  /* Interface > Pause Menu / Eileen */
-#define OLW_PAUSE_EILEEN_VD_SHOWN                    "Shown: the pause Extra Menu lists it."  /* Interface > Pause Menu / Eileen / Shown */
+#define OLW_PAUSE_EILEEN_VD_SHOWN                    "Shown: in the pause Extra Menu."  /* Interface > Pause Menu / Eileen / Shown */
 #define OLW_PAUSE_SAVE_BANKS_L                       "Save Banks"  /* Interface > Pause Menu / Save Banks */
-#define OLW_PAUSE_SAVE_BANKS_D                       "More save files: Q / E switch banks."  /* Interface > Pause Menu / Save Banks */
+#define OLW_PAUSE_SAVE_BANKS_D                       "More save files; Q and E switch banks."  /* Interface > Pause Menu / Save Banks */
 #define OLW_PAUSE_SAVE_BANKS_V_OFF                   "Off"  /* Interface > Pause Menu / Save Banks */
-#define OLW_PAUSE_SAVE_BANKS_VD_OFF                  "Off: one bank, as the game."  /* Interface > Pause Menu / Save Banks / Off */
+#define OLW_PAUSE_SAVE_BANKS_VD_OFF                  "Off: one bank, as in the game."  /* Interface > Pause Menu / Save Banks / Off */
 #define OLW_PAUSE_SAVE_BANKS_V_ON                    "On"  /* Interface > Pause Menu / Save Banks */
-#define OLW_PAUSE_SAVE_BANKS_VD_ON                   "On: 99 banks; Q / E in the save list."  /* Interface > Pause Menu / Save Banks / On */
+#define OLW_PAUSE_SAVE_BANKS_VD_ON                   "On: 99 banks; Q and E switch in the save list."  /* Interface > Pause Menu / Save Banks / On */
 #define OLW_SOUND_SOUND_MODE_L                       "Sound Mode"  /* Sound / Sound Mode */
 #define OLW_SOUND_SOUND_MODE_D                       "How sound reaches your speakers."  /* Sound / Sound Mode */
 #define OLW_SOUND_SOUND_MODE_V_MONO                  "Mono"  /* Sound / Sound Mode */
@@ -432,7 +432,7 @@
 #define OLW_SOUND_ROOM_REVERB_L                      "Room Reverb"  /* Sound / Room Reverb */
 #define OLW_SOUND_ROOM_REVERB_D                      "The game's own room echo, off in the PC port."  /* Sound / Room Reverb */
 #define OLW_SOUND_ROOM_REVERB_V_OFF                  "Off"  /* Sound / Room Reverb */
-#define OLW_SOUND_ROOM_REVERB_VD_OFF                 "Off: dry sound, as the GOG port."  /* Sound / Room Reverb / Off */
+#define OLW_SOUND_ROOM_REVERB_VD_OFF                 "Off: dry sound, as in the GOG port."  /* Sound / Room Reverb / Off */
 #define OLW_SOUND_ROOM_REVERB_V_ON                   "On"  /* Sound / Room Reverb */
 #define OLW_SOUND_ROOM_REVERB_VD_ON                  "On: each area's own echo."  /* Sound / Room Reverb / On */
 #define OLW_SOUND_NIGHT_MODE_L                       "Night Mode"  /* Sound / Night Mode */
@@ -464,9 +464,9 @@
 #define OLW_EFFECTS_FILTER_V_OLD_FILM                "Old Film"  /* Effects / Filter */
 #define OLW_EFFECTS_FILTER_VD_OLD_FILM               "Old Film: flicker, dust and faded colour."  /* Effects / Filter / Old Film */
 #define OLW_EFFECTS_FILTER_V_NIGHT_VISION            "Night Vision"  /* Effects / Filter */
-#define OLW_EFFECTS_FILTER_VD_NIGHT_VISION           "Night Vision: green light amplifier."  /* Effects / Filter / Night Vision */
+#define OLW_EFFECTS_FILTER_VD_NIGHT_VISION           "Night Vision: a green light amplifier."  /* Effects / Filter / Night Vision */
 #define OLW_EFFECTS_FILTER_V_NIGHT_MONO              "Night Mono"  /* Effects / Filter */
-#define OLW_EFFECTS_FILTER_VD_NIGHT_MONO             "Night Mono: grey light amplifier."  /* Effects / Filter / Night Mono */
+#define OLW_EFFECTS_FILTER_VD_NIGHT_MONO             "Night Mono: a grey light amplifier."  /* Effects / Filter / Night Mono */
 #define OLW_EFFECTS_FILTER_V_THERMAL                 "Thermal"  /* Effects / Filter */
 #define OLW_EFFECTS_FILTER_VD_THERMAL                "Thermal: a heat camera."  /* Effects / Filter / Thermal */
 #define OLW_EFFECTS_FILTER_V_SPIRIT_VISION           "Spirit Vision"  /* Effects / Filter */
@@ -496,7 +496,7 @@
 #define OLW_EFFECTS_COLOUR_GRADE_V_OFF               "Off"  /* Effects / Colour Grade */
 #define OLW_EFFECTS_COLOUR_GRADE_VD_OFF              "Off: the game's colours."  /* Effects / Colour Grade / Off */
 #define OLW_EFFECTS_COLOUR_GRADE_V_PS2               "PS2"  /* Effects / Colour Grade */
-#define OLW_EFFECTS_COLOUR_GRADE_VD_PS2              "PS2: greener and foggy, like the console."  /* Effects / Colour Grade / PS2 */
+#define OLW_EFFECTS_COLOUR_GRADE_VD_PS2              "PS2: greener and foggier, like the console."  /* Effects / Colour Grade / PS2 */
 #define OLW_EFFECTS_COLOUR_GRADE_V_OTHERWORLD        "Otherworld"  /* Effects / Colour Grade */
 #define OLW_EFFECTS_COLOUR_GRADE_VD_OTHERWORLD       "Otherworld: cold."  /* Effects / Colour Grade / Otherworld */
 #define OLW_EFFECTS_COLOUR_GRADE_V_APARTMENT         "Apartment"  /* Effects / Colour Grade */
@@ -510,7 +510,7 @@
 #define OLW_EFFECTS_OTHERWORLD_LENS_V_ON             "On"  /* Effects / Otherworld Lens */
 #define OLW_EFFECTS_OTHERWORLD_LENS_VD_ON            "On: shows near ghosts and hauntings."  /* Effects / Otherworld Lens / On */
 #define OLW_EFFECTS_DEPTH_OF_FIELD_L                 "Depth of Field"  /* Effects / Depth of Field */
-#define OLW_EFFECTS_DEPTH_OF_FIELD_D                 "Blur by distance from the player."  /* Effects / Depth of Field */
+#define OLW_EFFECTS_DEPTH_OF_FIELD_D                 "Blur by distance from you."  /* Effects / Depth of Field */
 #define OLW_EFFECTS_DEPTH_OF_FIELD_V_OFF             "Off"  /* Effects / Depth of Field */
 #define OLW_EFFECTS_DEPTH_OF_FIELD_VD_OFF            "Off: everything stays sharp."  /* Effects / Depth of Field / Off */
 #define OLW_EFFECTS_DEPTH_OF_FIELD_V_CUT_SCENES      "Cut-scenes"  /* Effects / Depth of Field */
@@ -532,7 +532,7 @@
 #define OLW_GRAIN_FILM_GRAIN_V_OFF                   "Off"  /* Effects > Film Grain / Film Grain */
 #define OLW_GRAIN_FILM_GRAIN_VD_OFF                  "Off: a clean picture, no grain."  /* Effects > Film Grain / Film Grain / Off */
 #define OLW_GRAIN_FILM_GRAIN_V_ON                    "On"  /* Effects > Film Grain / Film Grain */
-#define OLW_GRAIN_FILM_GRAIN_VD_ON                   "On: grain over the picture, as the game."  /* Effects > Film Grain / Film Grain / On */
+#define OLW_GRAIN_FILM_GRAIN_VD_ON                   "On: grain over the picture, as in the game."  /* Effects > Film Grain / Film Grain / On */
 #define OLW_GRAIN_STRENGTH_L                         "Strength"  /* Effects > Film Grain / Strength */
 #define OLW_GRAIN_STRENGTH_D                         "How much grain. Normal is the game's."  /* Effects > Film Grain / Strength */
 #define OLW_GRAIN_STRENGTH_V_LOW                     "Low"  /* Effects > Film Grain / Strength */
@@ -582,7 +582,7 @@
 #define OLW_SHADOWS_SHADOWS_V_OFF                    "Off"  /* Effects > Shadows / Shadows */
 #define OLW_SHADOWS_SHADOWS_VD_OFF                   "Off: no real-time shadows."  /* Effects > Shadows / Shadows / Off */
 #define OLW_SHADOWS_SHADOWS_V_ON                     "On"  /* Effects > Shadows / Shadows */
-#define OLW_SHADOWS_SHADOWS_VD_ON                    "On: real-time shadows, as the game."  /* Effects > Shadows / Shadows / On */
+#define OLW_SHADOWS_SHADOWS_VD_ON                    "On: real-time shadows, as in the game."  /* Effects > Shadows / Shadows / On */
 #define OLW_SHADOWS_EDGE_L                           "Edge"  /* Effects > Shadows / Edge */
 #define OLW_SHADOWS_EDGE_D                           "The shadows' edge. Left of the line: the game's."  /* Effects > Shadows / Edge */
 #define OLW_SHADOWS_EDGE_V_STOCK                     "Stock"  /* Effects > Shadows / Edge */
@@ -604,11 +604,11 @@
 #define OLW_GAMEPLAY_ITEMS_L                         "Items"  /* Gameplay / Items */
 #define OLW_GAMEPLAY_ITEMS_D                         "Shine, toolbelt, stacks and drops."  /* Gameplay / Items */
 #define OLW_GAMEPLAY_ENEMIES_L                       "Enemies"  /* Gameplay / Enemies */
-#define OLW_GAMEPLAY_ENEMIES_D                       "How many, how they chase, if they return."  /* Gameplay / Enemies */
+#define OLW_GAMEPLAY_ENEMIES_D                       "How many, how they chase, when they return."  /* Gameplay / Enemies */
 #define OLW_GAMEPLAY_POWERS_L                        "Powers"  /* Gameplay / Powers */
-#define OLW_GAMEPLAY_POWERS_D                        "Dark powers for the player."  /* Gameplay / Powers */
+#define OLW_GAMEPLAY_POWERS_D                        "Fog, shock trails, doubles and warps."  /* Gameplay / Powers */
 #define OLW_GAMEPLAY_RANDOMIZER_L                    "Randomizer"  /* Gameplay / Randomizer */
-#define OLW_GAMEPLAY_RANDOMIZER_D                    "Shuffle items, monsters and ghosts."  /* Gameplay / Randomizer */
+#define OLW_GAMEPLAY_RANDOMIZER_D                    "Shuffle items, enemies and Eileen's outfit."  /* Gameplay / Randomizer */
 #define OLW_GAMEPLAY_BLOOD_COLOUR_L                  "Blood Colour"  /* Gameplay / Blood Colour */
 #define OLW_GAMEPLAY_BLOOD_COLOUR_D                  "The colour of all blood."  /* Gameplay / Blood Colour */
 #define OLW_GAMEPLAY_BLOOD_COLOUR_V_RED              "Red"  /* Gameplay / Blood Colour */
@@ -632,7 +632,7 @@
 #define OLW_GAMEPLAY_BLOOD_COLOUR_V_BLACK            "Black"  /* Gameplay / Blood Colour */
 #define OLW_GAMEPLAY_BLOOD_COLOUR_VD_BLACK           "Black: black blood."  /* Gameplay / Blood Colour / Black */
 #define OLW_PLAYER_MOVE_SPEED_L                      "Move Speed"  /* Gameplay > Player / Move Speed */
-#define OLW_PLAYER_MOVE_SPEED_D                      "How fast the player walks and runs."  /* Gameplay > Player / Move Speed */
+#define OLW_PLAYER_MOVE_SPEED_D                      "How fast you walk and run."  /* Gameplay > Player / Move Speed */
 #define OLW_PLAYER_MOVE_SPEED_V_NORMAL               "Normal"  /* Gameplay > Player / Move Speed */
 #define OLW_PLAYER_MOVE_SPEED_VD_NORMAL              "Normal: the game's own speed."  /* Gameplay > Player / Move Speed / Normal */
 #define OLW_PLAYER_MOVE_SPEED_V_X1_25                "x1.25"  /* Gameplay > Player / Move Speed */
@@ -640,17 +640,17 @@
 #define OLW_PLAYER_MOVE_SPEED_V_X1_5                 "x1.5"  /* Gameplay > Player / Move Speed */
 #define OLW_PLAYER_MOVE_SPEED_VD_X1_5                "x1.5: half again as fast."  /* Gameplay > Player / Move Speed / x1.5 */
 #define OLW_PLAYER_MOVE_SPEED_V_X2                   "x2"  /* Gameplay > Player / Move Speed */
-#define OLW_PLAYER_MOVE_SPEED_VD_X2                  "x2: may slip through thin walls."  /* Gameplay > Player / Move Speed / x2 */
+#define OLW_PLAYER_MOVE_SPEED_VD_X2                  "x2: twice as fast; you may slip through thin walls."  /* Gameplay > Player / Move Speed / x2 */
 #define OLW_PLAYER_REGENERATION_L                    "Regeneration"  /* Gameplay > Player / Regeneration */
 #define OLW_PLAYER_REGENERATION_D                    "Heals you slowly when unhurt."  /* Gameplay > Player / Regeneration */
 #define OLW_PLAYER_REGENERATION_V_OFF                "Off"  /* Gameplay > Player / Regeneration */
 #define OLW_PLAYER_REGENERATION_VD_OFF               "Off: no healing over time."  /* Gameplay > Player / Regeneration / Off */
 #define OLW_PLAYER_REGENERATION_V_X1                 "x1"  /* Gameplay > Player / Regeneration */
-#define OLW_PLAYER_REGENERATION_VD_X1                "x1: 15 % health a minute, after 30 s unhurt."  /* Gameplay > Player / Regeneration / x1 */
+#define OLW_PLAYER_REGENERATION_VD_X1                "x1: 15 % health a minute, after 30 seconds unhurt."  /* Gameplay > Player / Regeneration / x1 */
 #define OLW_PLAYER_REGENERATION_V_X1_25              "x1.25"  /* Gameplay > Player / Regeneration */
-#define OLW_PLAYER_REGENERATION_VD_X1_25             "x1.25: 18.75 % a minute, after 30 s unhurt."  /* Gameplay > Player / Regeneration / x1.25 */
+#define OLW_PLAYER_REGENERATION_VD_X1_25             "x1.25: a quarter faster than x1."  /* Gameplay > Player / Regeneration / x1.25 */
 #define OLW_PLAYER_REGENERATION_V_X2                 "x2"  /* Gameplay > Player / Regeneration */
-#define OLW_PLAYER_REGENERATION_VD_X2                "x2: 30 % a minute, after 30 s unhurt."  /* Gameplay > Player / Regeneration / x2 */
+#define OLW_PLAYER_REGENERATION_VD_X2                "x2: twice as fast as x1."  /* Gameplay > Player / Regeneration / x2 */
 #define OLW_PLAYER_MEDALLION_L                       "Medallion"  /* Gameplay > Player / Medallion */
 #define OLW_PLAYER_MEDALLION_D                       "How long the Saint Medallion lasts."  /* Gameplay > Player / Medallion */
 #define OLW_PLAYER_MEDALLION_V_NORMAL                "Normal"  /* Gameplay > Player / Medallion */
@@ -670,9 +670,9 @@
 #define OLW_PLAYER_GRAB_ESCAPE_V_INSTANT             "Instant"  /* Gameplay > Player / Grab Escape */
 #define OLW_PLAYER_GRAB_ESCAPE_VD_INSTANT            "Instant: shake off every grab at once."  /* Gameplay > Player / Grab Escape / Instant */
 #define OLW_PLAYER_NO_CLIP_L                         "No Clip"  /* Gameplay > Player / No Clip */
-#define OLW_PLAYER_NO_CLIP_D                         "Walk through walls (not in Room 302)."  /* Gameplay > Player / No Clip */
+#define OLW_PLAYER_NO_CLIP_D                         "Walk through walls, except in Room 302."  /* Gameplay > Player / No Clip */
 #define OLW_PLAYER_NO_CLIP_V_OFF                     "Off"  /* Gameplay > Player / No Clip */
-#define OLW_PLAYER_NO_CLIP_VD_OFF                    "Off: walls stop you, as the game."  /* Gameplay > Player / No Clip / Off */
+#define OLW_PLAYER_NO_CLIP_VD_OFF                    "Off: walls stop you, as in the game."  /* Gameplay > Player / No Clip / Off */
 #define OLW_PLAYER_NO_CLIP_V_ON                      "On"  /* Gameplay > Player / No Clip */
 #define OLW_PLAYER_NO_CLIP_VD_ON                     "On: through walls; stairs still carry you."  /* Gameplay > Player / No Clip / On */
 #define OLW_PLAYER_NO_CLIP_V_FLY                     "Fly"  /* Gameplay > Player / No Clip */
@@ -688,27 +688,27 @@
 #define OLW_COMBAT_DARK_PACT_V_OFF                   "Off"  /* Gameplay > Combat / Dark Pact */
 #define OLW_COMBAT_DARK_PACT_VD_OFF                  "Off: normal damage both ways."  /* Gameplay > Combat / Dark Pact / Off */
 #define OLW_COMBAT_DARK_PACT_V_PACT                  "Pact"  /* Gameplay > Combat / Dark Pact */
-#define OLW_COMBAT_DARK_PACT_VD_PACT                 "Pact: x1.5 both ways."  /* Gameplay > Combat / Dark Pact / Pact */
+#define OLW_COMBAT_DARK_PACT_VD_PACT                 "Pact: 1.5 times the damage, both ways."  /* Gameplay > Combat / Dark Pact / Pact */
 #define OLW_COMBAT_DARK_PACT_V_BLOOD                 "Blood"  /* Gameplay > Combat / Dark Pact */
-#define OLW_COMBAT_DARK_PACT_VD_BLOOD                "Blood: x2 both ways."  /* Gameplay > Combat / Dark Pact / Blood */
+#define OLW_COMBAT_DARK_PACT_VD_BLOOD                "Blood: double damage, both ways."  /* Gameplay > Combat / Dark Pact / Blood */
 #define OLW_COMBAT_QUICK_CHARGE_L                    "Quick Charge"  /* Gameplay > Combat / Quick Charge */
 #define OLW_COMBAT_QUICK_CHARGE_D                    "Charged swings fill faster."  /* Gameplay > Combat / Quick Charge */
 #define OLW_COMBAT_QUICK_CHARGE_V_OFF                "Off"  /* Gameplay > Combat / Quick Charge */
 #define OLW_COMBAT_QUICK_CHARGE_VD_OFF               "Off: the game's own charge speed."  /* Gameplay > Combat / Quick Charge / Off */
-#define OLW_COMBAT_QUICK_CHARGE_V_1_5X               "1.5x"  /* Gameplay > Combat / Quick Charge */
-#define OLW_COMBAT_QUICK_CHARGE_VD_1_5X              "1.5x: charged swings fill 1.5 times faster."  /* Gameplay > Combat / Quick Charge / 1.5x */
-#define OLW_COMBAT_QUICK_CHARGE_V_2X                 "2x"  /* Gameplay > Combat / Quick Charge */
-#define OLW_COMBAT_QUICK_CHARGE_VD_2X                "2x: charged swings fill twice as fast."  /* Gameplay > Combat / Quick Charge / 2x */
-#define OLW_COMBAT_QUICK_CHARGE_V_3X                 "3x"  /* Gameplay > Combat / Quick Charge */
-#define OLW_COMBAT_QUICK_CHARGE_VD_3X                "3x: charged swings fill three times as fast."  /* Gameplay > Combat / Quick Charge / 3x */
+#define OLW_COMBAT_QUICK_CHARGE_V_X1_5               "x1.5"  /* Gameplay > Combat / Quick Charge */
+#define OLW_COMBAT_QUICK_CHARGE_VD_X1_5              "x1.5: 1.5 times as fast."  /* Gameplay > Combat / Quick Charge / x1.5 */
+#define OLW_COMBAT_QUICK_CHARGE_V_X2                 "x2"  /* Gameplay > Combat / Quick Charge */
+#define OLW_COMBAT_QUICK_CHARGE_VD_X2                "x2: twice as fast."  /* Gameplay > Combat / Quick Charge / x2 */
+#define OLW_COMBAT_QUICK_CHARGE_V_X3                 "x3"  /* Gameplay > Combat / Quick Charge */
+#define OLW_COMBAT_QUICK_CHARGE_VD_X3                "x3: three times as fast."  /* Gameplay > Combat / Quick Charge / x3 */
 #define OLW_COMBAT_LIFE_STEAL_L                      "Life Steal"  /* Gameplay > Combat / Life Steal */
 #define OLW_COMBAT_LIFE_STEAL_D                      "Hits on monsters heal you."  /* Gameplay > Combat / Life Steal */
 #define OLW_COMBAT_LIFE_STEAL_V_OFF                  "Off"  /* Gameplay > Combat / Life Steal */
 #define OLW_COMBAT_LIFE_STEAL_VD_OFF                 "Off: hits do not heal you."  /* Gameplay > Combat / Life Steal / Off */
 #define OLW_COMBAT_LIFE_STEAL_V_5                    "5 %"  /* Gameplay > Combat / Life Steal */
-#define OLW_COMBAT_LIFE_STEAL_VD_5                   "5 %: heal 5 % of your damage to monsters."  /* Gameplay > Combat / Life Steal / 5 % */
+#define OLW_COMBAT_LIFE_STEAL_VD_5                   "5 %: you heal 5 % of the damage you deal."  /* Gameplay > Combat / Life Steal / 5 % */
 #define OLW_COMBAT_LIFE_STEAL_V_10                   "10 %"  /* Gameplay > Combat / Life Steal */
-#define OLW_COMBAT_LIFE_STEAL_VD_10                  "10 %: heal 10 % of your damage to monsters."  /* Gameplay > Combat / Life Steal / 10 % */
+#define OLW_COMBAT_LIFE_STEAL_VD_10                  "10 %: you heal 10 % of the damage you deal."  /* Gameplay > Combat / Life Steal / 10 % */
 #define OLW_COMBAT_AMMO_SAVER_L                      "Ammo Saver"  /* Gameplay > Combat / Ammo Saver */
 #define OLW_COMBAT_AMMO_SAVER_D                      "Spares pistol and revolver rounds."  /* Gameplay > Combat / Ammo Saver */
 #define OLW_COMBAT_AMMO_SAVER_V_NORMAL               "Normal"  /* Gameplay > Combat / Ammo Saver */
@@ -716,7 +716,7 @@
 #define OLW_COMBAT_AMMO_SAVER_V_SAVER                "Saver"  /* Gameplay > Combat / Ammo Saver */
 #define OLW_COMBAT_AMMO_SAVER_VD_SAVER               "Saver: every other shot is free."  /* Gameplay > Combat / Ammo Saver / Saver */
 #define OLW_COMBAT_AMMO_SAVER_V_ENDLESS              "Endless"  /* Gameplay > Combat / Ammo Saver */
-#define OLW_COMBAT_AMMO_SAVER_VD_ENDLESS             "Endless: never runs dry."  /* Gameplay > Combat / Ammo Saver / Endless */
+#define OLW_COMBAT_AMMO_SAVER_VD_ENDLESS             "Endless: the ammo never runs out."  /* Gameplay > Combat / Ammo Saver / Endless */
 #define OLW_ITEMS_ITEM_SHINE_L                       "Item Shine"  /* Gameplay > Items / Item Shine */
 #define OLW_ITEMS_ITEM_SHINE_D                       "A shine shows where items lie."  /* Gameplay > Items / Item Shine */
 #define OLW_ITEMS_ITEM_SHINE_V_OFF                   "Off"  /* Gameplay > Items / Item Shine */
@@ -728,17 +728,17 @@
 #define OLW_ITEMS_TOOLBELT_V_10_ITEMS                "10 Items"  /* Gameplay > Items / Toolbelt */
 #define OLW_ITEMS_TOOLBELT_VD_10_ITEMS               "10 Items: the game's belt."  /* Gameplay > Items / Toolbelt / 10 Items */
 #define OLW_ITEMS_TOOLBELT_V_20_ITEMS                "20 Items"  /* Gameplay > Items / Toolbelt */
-#define OLW_ITEMS_TOOLBELT_VD_20_ITEMS               "20 Items: Left / Right past the end flips."  /* Gameplay > Items / Toolbelt / 20 Items */
+#define OLW_ITEMS_TOOLBELT_VD_20_ITEMS               "20 Items: two pages of ten."  /* Gameplay > Items / Toolbelt / 20 Items */
 #define OLW_ITEMS_ITEM_STACKS_L                      "Item Stacks"  /* Gameplay > Items / Item Stacks */
 #define OLW_ITEMS_ITEM_STACKS_D                      "Same items share a slot, up to 99."  /* Gameplay > Items / Item Stacks */
 #define OLW_ITEMS_ITEM_STACKS_V_OFF                  "Off"  /* Gameplay > Items / Item Stacks */
-#define OLW_ITEMS_ITEM_STACKS_VD_OFF                 "Off: one item a slot, as the game."  /* Gameplay > Items / Item Stacks / Off */
+#define OLW_ITEMS_ITEM_STACKS_VD_OFF                 "Off: one item per slot, as in the game."  /* Gameplay > Items / Item Stacks / Off */
 #define OLW_ITEMS_ITEM_STACKS_V_ON                   "On"  /* Gameplay > Items / Item Stacks */
 #define OLW_ITEMS_ITEM_STACKS_VD_ON                  "On: pickups, gifts and the chest stack."  /* Gameplay > Items / Item Stacks / On */
 #define OLW_ITEMS_SUPPLY_DROPS_L                     "Supply Drops"  /* Gameplay > Items / Supply Drops */
 #define OLW_ITEMS_SUPPLY_DROPS_D                     "Kills sometimes leave an item."  /* Gameplay > Items / Supply Drops */
 #define OLW_ITEMS_SUPPLY_DROPS_V_OFF                 "Off"  /* Gameplay > Items / Supply Drops */
-#define OLW_ITEMS_SUPPLY_DROPS_VD_OFF                "Off: kills leave nothing, as the game."  /* Gameplay > Items / Supply Drops / Off */
+#define OLW_ITEMS_SUPPLY_DROPS_VD_OFF                "Off: kills leave nothing, as in the game."  /* Gameplay > Items / Supply Drops / Off */
 #define OLW_ITEMS_SUPPLY_DROPS_V_RARE                "Rare"  /* Gameplay > Items / Supply Drops */
 #define OLW_ITEMS_SUPPLY_DROPS_VD_RARE               "Rare: about 1 kill in 16."  /* Gameplay > Items / Supply Drops / Rare */
 #define OLW_ITEMS_SUPPLY_DROPS_V_NORMAL              "Normal"  /* Gameplay > Items / Supply Drops */
@@ -758,7 +758,7 @@
 #define OLW_ENEMIES_DOOR_CHASE_L                     "Door Chase"  /* Gameplay > Enemies / Door Chase */
 #define OLW_ENEMIES_DOOR_CHASE_D                     "Who follows you through doors."  /* Gameplay > Enemies / Door Chase */
 #define OLW_ENEMIES_DOOR_CHASE_V_OFF                 "Off"  /* Gameplay > Enemies / Door Chase */
-#define OLW_ENEMIES_DOOR_CHASE_VD_OFF                "Off: nobody follows, as the game."  /* Gameplay > Enemies / Door Chase / Off */
+#define OLW_ENEMIES_DOOR_CHASE_VD_OFF                "Off: nobody follows, as in the game."  /* Gameplay > Enemies / Door Chase / Off */
 #define OLW_ENEMIES_DOOR_CHASE_V_MONSTERS            "Monsters"  /* Gameplay > Enemies / Door Chase */
 #define OLW_ENEMIES_DOOR_CHASE_VD_MONSTERS           "Monsters: monsters follow you."  /* Gameplay > Enemies / Door Chase / Monsters */
 #define OLW_ENEMIES_DOOR_CHASE_V_VICTIMS             "Victims"  /* Gameplay > Enemies / Door Chase */
@@ -768,15 +768,15 @@
 #define OLW_ENEMIES_PURSUIT_L                        "Pursuit"  /* Gameplay > Enemies / Pursuit */
 #define OLW_ENEMIES_PURSUIT_D                        "How long they keep chasing."  /* Gameplay > Enemies / Pursuit */
 #define OLW_ENEMIES_PURSUIT_V_RELENTLESS             "Relentless"  /* Gameplay > Enemies / Pursuit */
-#define OLW_ENEMIES_PURSUIT_VD_RELENTLESS            "Relentless: once seen, never give up."  /* Gameplay > Enemies / Pursuit / Relentless */
+#define OLW_ENEMIES_PURSUIT_VD_RELENTLESS            "Relentless: once they see you, they never stop."  /* Gameplay > Enemies / Pursuit / Relentless */
 #define OLW_ENEMIES_PURSUIT_V_NORMAL                 "Normal"  /* Gameplay > Enemies / Pursuit */
-#define OLW_ENEMIES_PURSUIT_VD_NORMAL                "Normal: unseen 10 s, they give up."  /* Gameplay > Enemies / Pursuit / Normal */
+#define OLW_ENEMIES_PURSUIT_VD_NORMAL                "Normal: they give up after 10 seconds unseen."  /* Gameplay > Enemies / Pursuit / Normal */
 #define OLW_ENEMIES_PURSUIT_V_FORGETFUL              "Forgetful"  /* Gameplay > Enemies / Pursuit */
-#define OLW_ENEMIES_PURSUIT_VD_FORGETFUL             "Forgetful: unseen 4 s, they give up."  /* Gameplay > Enemies / Pursuit / Forgetful */
+#define OLW_ENEMIES_PURSUIT_VD_FORGETFUL             "Forgetful: they give up after 4 seconds unseen."  /* Gameplay > Enemies / Pursuit / Forgetful */
 #define OLW_ENEMIES_ENEMIES_RETURN_L                 "Enemies Return"  /* Gameplay > Enemies / Enemies Return */
 #define OLW_ENEMIES_ENEMIES_RETURN_D                 "When killed monsters come back."  /* Gameplay > Enemies / Enemies Return */
 #define OLW_ENEMIES_ENEMIES_RETURN_V_OFF             "Off"  /* Gameplay > Enemies / Enemies Return */
-#define OLW_ENEMIES_ENEMIES_RETURN_VD_OFF            "Off: as the game; some stay dead for good."  /* Gameplay > Enemies / Enemies Return / Off */
+#define OLW_ENEMIES_ENEMIES_RETURN_VD_OFF            "Off: as in the game; some stay dead for good."  /* Gameplay > Enemies / Enemies Return / Off */
 #define OLW_ENEMIES_ENEMIES_RETURN_V_BY_ROOM         "By Room"  /* Gameplay > Enemies / Enemies Return */
 #define OLW_ENEMIES_ENEMIES_RETURN_VD_BY_ROOM        "By Room: back each time you enter their room."  /* Gameplay > Enemies / Enemies Return / By Room */
 #define OLW_ENEMIES_ENEMIES_RETURN_V_BY_WORLD        "By World"  /* Gameplay > Enemies / Enemies Return */
@@ -784,7 +784,7 @@
 #define OLW_ENEMIES_FADE_IN_L                        "Fade In"  /* Gameplay > Enemies / Fade In */
 #define OLW_ENEMIES_FADE_IN_D                        "How monsters and ghosts appear."  /* Gameplay > Enemies / Fade In */
 #define OLW_ENEMIES_FADE_IN_V_OFF                    "Off"  /* Gameplay > Enemies / Fade In */
-#define OLW_ENEMIES_FADE_IN_VD_OFF                   "Off: at once, as the game."  /* Gameplay > Enemies / Fade In / Off */
+#define OLW_ENEMIES_FADE_IN_VD_OFF                   "Off: they appear at once, as in the game."  /* Gameplay > Enemies / Fade In / Off */
 #define OLW_ENEMIES_FADE_IN_V_FADE                   "Fade"  /* Gameplay > Enemies / Fade In */
 #define OLW_ENEMIES_FADE_IN_VD_FADE                  "Fade: they fade in."  /* Gameplay > Enemies / Fade In / Fade */
 #define OLW_ENEMIES_FADE_IN_V_PORTAL                 "Portal"  /* Gameplay > Enemies / Fade In */
@@ -794,25 +794,25 @@
 #define OLW_POWERS_DEATH_PRESENCE_V_OFF              "Off"  /* Gameplay > Powers / Death Presence */
 #define OLW_POWERS_DEATH_PRESENCE_VD_OFF             "Off: no fog."  /* Gameplay > Powers / Death Presence / Off */
 #define OLW_POWERS_DEATH_PRESENCE_V_WEAK             "Weak"  /* Gameplay > Powers / Death Presence */
-#define OLW_POWERS_DEATH_PRESENCE_VD_WEAK            "Weak: small; 2-8 % health a second."  /* Gameplay > Powers / Death Presence / Weak */
+#define OLW_POWERS_DEATH_PRESENCE_VD_WEAK            "Weak: a small fog that drains slowly."  /* Gameplay > Powers / Death Presence / Weak */
 #define OLW_POWERS_DEATH_PRESENCE_V_STRONG           "Strong"  /* Gameplay > Powers / Death Presence */
-#define OLW_POWERS_DEATH_PRESENCE_VD_STRONG          "Strong: wide; 5-20 % a second."  /* Gameplay > Powers / Death Presence / Strong */
+#define OLW_POWERS_DEATH_PRESENCE_VD_STRONG          "Strong: a wide fog that drains fast."  /* Gameplay > Powers / Death Presence / Strong */
 #define OLW_POWERS_AFTER_SHOCK_L                     "After Shock"  /* Gameplay > Powers / After Shock */
-#define OLW_POWERS_AFTER_SHOCK_D                     "Electric copies trail you, tasing foes."  /* Gameplay > Powers / After Shock */
+#define OLW_POWERS_AFTER_SHOCK_D                     "Electric copies trail you and stun monsters."  /* Gameplay > Powers / After Shock */
 #define OLW_POWERS_AFTER_SHOCK_V_OFF                 "Off"  /* Gameplay > Powers / After Shock */
 #define OLW_POWERS_AFTER_SHOCK_VD_OFF                "Off: no copies."  /* Gameplay > Powers / After Shock / Off */
 #define OLW_POWERS_AFTER_SHOCK_V_SHORT               "Short"  /* Gameplay > Powers / After Shock */
-#define OLW_POWERS_AFTER_SHOCK_VD_SHORT              "Short: 3 copies over 0.2 s."  /* Gameplay > Powers / After Shock / Short */
+#define OLW_POWERS_AFTER_SHOCK_VD_SHORT              "Short: a short trail of three copies."  /* Gameplay > Powers / After Shock / Short */
 #define OLW_POWERS_AFTER_SHOCK_V_MEDIUM              "Medium"  /* Gameplay > Powers / After Shock */
-#define OLW_POWERS_AFTER_SHOCK_VD_MEDIUM             "Medium: 5 copies over 0.35 s."  /* Gameplay > Powers / After Shock / Medium */
+#define OLW_POWERS_AFTER_SHOCK_VD_MEDIUM             "Medium: a trail of five copies."  /* Gameplay > Powers / After Shock / Medium */
 #define OLW_POWERS_AFTER_SHOCK_V_LONG                "Long"  /* Gameplay > Powers / After Shock */
-#define OLW_POWERS_AFTER_SHOCK_VD_LONG               "Long: 8 copies over 0.6 s."  /* Gameplay > Powers / After Shock / Long */
+#define OLW_POWERS_AFTER_SHOCK_VD_LONG               "Long: a long trail of eight copies."  /* Gameplay > Powers / After Shock / Long */
 #define OLW_POWERS_ECHO_DOUBLES_L                    "Echo Doubles"  /* Gameplay > Powers / Echo Doubles */
 #define OLW_POWERS_ECHO_DOUBLES_D                    "Shadow copies of you fight beside you."  /* Gameplay > Powers / Echo Doubles */
 #define OLW_POWERS_ECHO_DOUBLES_V_OFF                "Off"  /* Gameplay > Powers / Echo Doubles */
 #define OLW_POWERS_ECHO_DOUBLES_VD_OFF               "Off: no doubles."  /* Gameplay > Powers / Echo Doubles / Off */
 #define OLW_POWERS_ECHO_DOUBLES_V_COPY               "Copy"  /* Gameplay > Powers / Echo Doubles */
-#define OLW_POWERS_ECHO_DOUBLES_VD_COPY              "Copy: they repeat your moves, late."  /* Gameplay > Powers / Echo Doubles / Copy */
+#define OLW_POWERS_ECHO_DOUBLES_VD_COPY              "Copy: they repeat your moves a moment later."  /* Gameplay > Powers / Echo Doubles / Copy */
 #define OLW_POWERS_ECHO_DOUBLES_V_CAST               "Cast"  /* Gameplay > Powers / Echo Doubles */
 #define OLW_POWERS_ECHO_DOUBLES_VD_CAST              "Cast: they strike as you attack."  /* Gameplay > Powers / Echo Doubles / Cast */
 #define OLW_POWERS_ECHO_COUNT_L                      "Echo Count"  /* Gameplay > Powers / Echo Count */
@@ -824,7 +824,7 @@
 #define OLW_POWERS_ECHO_COUNT_V_3                    "3"  /* Gameplay > Powers / Echo Count */
 #define OLW_POWERS_ECHO_COUNT_VD_3                   "3: three shadow doubles."  /* Gameplay > Powers / Echo Count / 3 */
 #define OLW_POWERS_GHOST_TELEPORT_L                  "Ghost Teleport"  /* Gameplay > Powers / Ghost Teleport */
-#define OLW_POWERS_GHOST_TELEPORT_D                  "Run + Action warps you."  /* Gameplay > Powers / Ghost Teleport */
+#define OLW_POWERS_GHOST_TELEPORT_D                  "Run and Action together warp you."  /* Gameplay > Powers / Ghost Teleport */
 #define OLW_POWERS_GHOST_TELEPORT_V_OFF              "Off"  /* Gameplay > Powers / Ghost Teleport */
 #define OLW_POWERS_GHOST_TELEPORT_VD_OFF             "Off: no warp."  /* Gameplay > Powers / Ghost Teleport / Off */
 #define OLW_POWERS_GHOST_TELEPORT_V_ON               "On"  /* Gameplay > Powers / Ghost Teleport */
@@ -838,7 +838,7 @@
 #define OLW_RANDO_ITEMS_V_RANDOM                     "Random"  /* Gameplay > Randomizer / Items */
 #define OLW_RANDO_ITEMS_VD_RANDOM                    "Random: every spot draws an item."  /* Gameplay > Randomizer / Items / Random */
 #define OLW_RANDO_SPECIALS_L                         "Specials"  /* Gameplay > Randomizer / Specials */
-#define OLW_RANDO_SPECIALS_D                         "Candles, Medallions, Swords; key items never move."  /* Gameplay > Randomizer / Specials */
+#define OLW_RANDO_SPECIALS_D                         "Whether Candles, Medallions and Swords move."  /* Gameplay > Randomizer / Specials */
 #define OLW_RANDO_SPECIALS_V_OFF                     "Off"  /* Gameplay > Randomizer / Specials */
 #define OLW_RANDO_SPECIALS_VD_OFF                    "Off: they stay where the game puts them."  /* Gameplay > Randomizer / Specials / Off */
 #define OLW_RANDO_SPECIALS_V_ON                      "On"  /* Gameplay > Randomizer / Specials */
@@ -866,17 +866,17 @@
 #define OLW_RANDO_SPAWN_SITE_V_ON                    "On"  /* Gameplay > Randomizer / Spawn Site */
 #define OLW_RANDO_SPAWN_SITE_VD_ON                   "On: a random spot in their room."  /* Gameplay > Randomizer / Spawn Site / On */
 #define OLW_RANDO_EILEEN_OUTFIT_L                    "Eileen Outfit"  /* Gameplay > Randomizer / Eileen Outfit */
-#define OLW_RANDO_EILEEN_OUTFIT_D                    "Companion Eileen's outfit per room."  /* Gameplay > Randomizer / Eileen Outfit */
+#define OLW_RANDO_EILEEN_OUTFIT_D                    "Companion Eileen's outfit."  /* Gameplay > Randomizer / Eileen Outfit */
 #define OLW_RANDO_EILEEN_OUTFIT_V_OFF                "Off"  /* Gameplay > Randomizer / Eileen Outfit */
 #define OLW_RANDO_EILEEN_OUTFIT_VD_OFF               "Off: the outfit the game gives her."  /* Gameplay > Randomizer / Eileen Outfit / Off */
 #define OLW_RANDO_EILEEN_OUTFIT_V_RANDOM             "Random"  /* Gameplay > Randomizer / Eileen Outfit */
-#define OLW_RANDO_EILEEN_OUTFIT_VD_RANDOM            "Random: Dress or Nurse, new each room."  /* Gameplay > Randomizer / Eileen Outfit / Random */
-#define OLW_RANDO_REROLL_VISITS_L                    "Reroll Visits"  /* Gameplay > Randomizer / Reroll Visits */
-#define OLW_RANDO_REROLL_VISITS_D                    "When a new draw comes. Loads never draw."  /* Gameplay > Randomizer / Reroll Visits */
-#define OLW_RANDO_REROLL_VISITS_V_BY_ROOM            "By Room"  /* Gameplay > Randomizer / Reroll Visits */
-#define OLW_RANDO_REROLL_VISITS_VD_BY_ROOM           "By Room: a new draw each time you enter a room."  /* Gameplay > Randomizer / Reroll Visits / By Room */
-#define OLW_RANDO_REROLL_VISITS_V_BY_WORLD           "By World"  /* Gameplay > Randomizer / Reroll Visits */
-#define OLW_RANDO_REROLL_VISITS_VD_BY_WORLD          "By World: a new draw each time you enter a world."  /* Gameplay > Randomizer / Reroll Visits / By World */
+#define OLW_RANDO_EILEEN_OUTFIT_VD_RANDOM            "Random: Dress or Nurse, new with each draw."  /* Gameplay > Randomizer / Eileen Outfit / Random */
+#define OLW_RANDO_REROLL_L                           "Reroll"  /* Gameplay > Randomizer / Reroll */
+#define OLW_RANDO_REROLL_D                           "When to draw again. Loading a save never does."  /* Gameplay > Randomizer / Reroll */
+#define OLW_RANDO_REROLL_V_BY_ROOM                   "By Room"  /* Gameplay > Randomizer / Reroll */
+#define OLW_RANDO_REROLL_VD_BY_ROOM                  "By Room: a new draw each time you enter a room."  /* Gameplay > Randomizer / Reroll / By Room */
+#define OLW_RANDO_REROLL_V_BY_WORLD                  "By World"  /* Gameplay > Randomizer / Reroll */
+#define OLW_RANDO_REROLL_VD_BY_WORLD                 "By World: a new draw each time you enter a world."  /* Gameplay > Randomizer / Reroll / By World */
 #define OLW_T_DISPLAY                                "Display"  /* R1 */
 #define OLW_T_CONTROLS                               "Controls"  /* R1 */
 #define OLW_T_INTERFACE                              "Interface"  /* R1 */
@@ -909,41 +909,40 @@
 #define OLW_COMBO_SHADOWS                            "Real-time shadows on or off. Enter: edge, darkness."  /* R1 */
 #define OLW_SND_ENTER                                " Enter: the Sound page."  /* R1 */
 #define OLW_CAM_SETTINGS                             " Settings: pause > Extra Menu > Camera."  /* R1 */
-#define OLW_NA_GAME                                  "Not available in this game (see SH4Refined.log)."  /* R1 */
-#define OLW_NA_SESSION                               "Not available this session (see SH4Refined.log)."  /* R1 */
-#define OLW_OFF_SESSION                              "Off this session (see SH4Refined.log)."  /* R1 */
-#define OLW_SND_PAN_STOCK                            "The game's own steep pan (PanLaw=Stock)."  /* R1 */
-#define OLW_SND_PAN_NA                               "The game's own steep pan (see SH4Refined.log)."  /* R1 */
-#define OLW_SND_WIDTH_STOCK                          "PanLaw=Stock: the game's own pan; no width."  /* R1 */
-#define OLW_SND_REV_NOPROBE                          "DirectSound has no reverb here (see SH4Refined.log)."  /* R1 */
+#define OLW_NA_GAME                                  "Not available in this game. See SH4Refined.log."  /* R1 */
+#define OLW_NA_SESSION                               "Not available this session. See SH4Refined.log."  /* R1 */
+#define OLW_OFF_SESSION                              "Off this session. See SH4Refined.log."  /* R1 */
+#define OLW_SND_PAN_STOCK                            "The game's own steep pan."  /* R1 */
+#define OLW_SND_PAN_NA                               "The game's own steep pan. See SH4Refined.log."  /* R1 */
+#define OLW_SND_WIDTH_STOCK                          "No width with the game's own pan."  /* R1 */
+#define OLW_SND_REV_NOPROBE                          "No reverb on this sound device. See SH4Refined.log."  /* R1 */
 #define OLW_SND_DEVICE_NEW                           "New sound device: restart the game to use it."  /* R1 */
-#define OLW_FONT_MISSING                             "Font not loaded (see SH4Refined.log): stock shown."  /* R1 */
-#define OLW_FONT_FAILED                              "HD font failed (see SH4Refined.log): next start."  /* R1 */
+#define OLW_FONT_MISSING                             "Font not loaded: stock shown. See SH4Refined.log."  /* R1 */
+#define OLW_FONT_FAILED                              "HD font failed: next start. See SH4Refined.log."  /* R1 */
 #define OLW_REND_16BIT                               "16-bit Direct3D 11: more lag, AMD only. Next start."  /* R1 */
 #define OLW_REND_OTHER                               "An SH4 Graphics Plus renderer. Next start."  /* R1 */
-#define OLW_REND_TEST                                "A Graphics Plus test renderer. Pick one; next start."  /* R1 */
+#define OLW_REND_TEST                                "A Graphics Plus test renderer. Next start."  /* R1 */
 #define OLW_FPS_60_FM1                               "60: a smoother picture; the game stays at 30."  /* R1 */
 #define OLW_R302_FOLDER_PE                           "Playable Eileen sets these for now."  /* R1 */
-#define OLW_R302_NA                                  "Not available (see SH4Refined.log)."  /* R1 */
+#define OLW_R302_NA                                  "Not available. See SH4Refined.log."  /* R1 */
 #define OLW_CAM_PE                                   "Playable Eileen's camera menu has it."  /* R1 */
 #define OLW_CAM_V_PE                                 "Eileen"  /* R1 */
 #define OLW_CAM_V_NA                                 "Unavailable"  /* R1 */
-#define OLW_REGEN_PE_LEGACY                          "Playable Eileen's healing after %d s unhurt."  /* R1 */
-#define OLW_FADEIN_NA                                "Not available: see SH4Refined.log (fade in)."  /* R1 */
+#define OLW_REGEN_PE_LEGACY                          "Playable Eileen heals after %d seconds unhurt."  /* R1 */
+#define OLW_FADEIN_NA                                "Not available. See SH4Refined.log."  /* R1 */
 #define OLW_FADEIN_V_VORTEX                          "Portal: fade in; ghosts rise from a blood portal."  /* R1 */
-#define OLW_TELEPORT_ON_CD                           "On: behind the enemy you face; %g s apart."  /* R1 */
+#define OLW_TELEPORT_ON_CD                           "On: behind the enemy you face, %g seconds apart."  /* R1 */
 #define OLW_RANDO_CT                                 "Off: the cheat table's randomizer is on."  /* R1 */
 #define OLW_PP_NOT_FILTER                            "Not with this Filter."  /* R1 */
 #define OLW_PP_NOT_SPIRIT                            "Not with Spirit Vision."  /* R1 */
 #define OLW_PP_NORESET                               "Not available: the game's reset code is not stock."  /* R1 */
 #define OLW_SHD_EDGE_NOPREVIEW                       "The shadows' edge: Stock or Soft."  /* R1 */
-#define OLW_SHD_EDGE_FAILED                          "Off this session (see SH4Refined.log): Stock."  /* R1 */
+#define OLW_SHD_EDGE_FAILED                          "Off this session: Stock. See SH4Refined.log."  /* R1 */
 #define OLW_SHD_DARK_NOPREVIEW                       "How dark shadows are."  /* R1 */
-#define OLW_FILTER_F7                                " F%d in play: new preview."  /* R1 */
+#define OLW_FILTER_F7                                " Press F%d in play for a new preview."  /* R1 */
 #define OLW_OMNI_PE                                  "On: any angle (Eileen keeps her own speed)."  /* R1 */
 #define OLW_OMNI_BIND                                "Movement is not on a stick: no effect."  /* R1 */
 #define OLW_OMNI_NOSRC                               "The stick could not be read: no effect."  /* R1 */
-#define OLW_PLAYER_FOLDER_R1_D                       "Speed, healing, escapes, damage and ammo."  /* R1 */
 #define OLW_EXTRA_ENEMIES_R1_D                       "More of every monster and ghost. Next room."  /* R1 */
 #define OLW_RESERVED                                 ""  /* R1 */
 #define OLW_T_CAMERA                                 "Camera"  /* R4 */
@@ -1179,12 +1178,12 @@
     X('D', OLW_ROOM302_HEAD_BOB_VD_SLIGHT, "OLW_ROOM302_HEAD_BOB_VD_SLIGHT") \
     X('V', OLW_ROOM302_HEAD_BOB_V_FULL, "OLW_ROOM302_HEAD_BOB_V_FULL") \
     X('D', OLW_ROOM302_HEAD_BOB_VD_FULL, "OLW_ROOM302_HEAD_BOB_VD_FULL") \
-    X('L', OLW_ROOM302_LEFT_RIGHT_L, "OLW_ROOM302_LEFT_RIGHT_L") \
-    X('D', OLW_ROOM302_LEFT_RIGHT_D, "OLW_ROOM302_LEFT_RIGHT_D") \
-    X('V', OLW_ROOM302_LEFT_RIGHT_V_TURN, "OLW_ROOM302_LEFT_RIGHT_V_TURN") \
-    X('D', OLW_ROOM302_LEFT_RIGHT_VD_TURN, "OLW_ROOM302_LEFT_RIGHT_VD_TURN") \
-    X('V', OLW_ROOM302_LEFT_RIGHT_V_STRAFE, "OLW_ROOM302_LEFT_RIGHT_V_STRAFE") \
-    X('D', OLW_ROOM302_LEFT_RIGHT_VD_STRAFE, "OLW_ROOM302_LEFT_RIGHT_VD_STRAFE") \
+    X('L', OLW_ROOM302_TURN_OR_STRAFE_L, "OLW_ROOM302_TURN_OR_STRAFE_L") \
+    X('D', OLW_ROOM302_TURN_OR_STRAFE_D, "OLW_ROOM302_TURN_OR_STRAFE_D") \
+    X('V', OLW_ROOM302_TURN_OR_STRAFE_V_TURN, "OLW_ROOM302_TURN_OR_STRAFE_V_TURN") \
+    X('D', OLW_ROOM302_TURN_OR_STRAFE_VD_TURN, "OLW_ROOM302_TURN_OR_STRAFE_VD_TURN") \
+    X('V', OLW_ROOM302_TURN_OR_STRAFE_V_STRAFE, "OLW_ROOM302_TURN_OR_STRAFE_V_STRAFE") \
+    X('D', OLW_ROOM302_TURN_OR_STRAFE_VD_STRAFE, "OLW_ROOM302_TURN_OR_STRAFE_VD_STRAFE") \
     X('L', OLW_ROOM302_WALK_SPEED_L, "OLW_ROOM302_WALK_SPEED_L") \
     X('D', OLW_ROOM302_WALK_SPEED_D, "OLW_ROOM302_WALK_SPEED_D") \
     X('V', OLW_ROOM302_WALK_SPEED_V_0_5, "OLW_ROOM302_WALK_SPEED_V_0_5") \
@@ -1653,12 +1652,12 @@
     X('D', OLW_COMBAT_QUICK_CHARGE_D, "OLW_COMBAT_QUICK_CHARGE_D") \
     X('V', OLW_COMBAT_QUICK_CHARGE_V_OFF, "OLW_COMBAT_QUICK_CHARGE_V_OFF") \
     X('D', OLW_COMBAT_QUICK_CHARGE_VD_OFF, "OLW_COMBAT_QUICK_CHARGE_VD_OFF") \
-    X('V', OLW_COMBAT_QUICK_CHARGE_V_1_5X, "OLW_COMBAT_QUICK_CHARGE_V_1_5X") \
-    X('D', OLW_COMBAT_QUICK_CHARGE_VD_1_5X, "OLW_COMBAT_QUICK_CHARGE_VD_1_5X") \
-    X('V', OLW_COMBAT_QUICK_CHARGE_V_2X, "OLW_COMBAT_QUICK_CHARGE_V_2X") \
-    X('D', OLW_COMBAT_QUICK_CHARGE_VD_2X, "OLW_COMBAT_QUICK_CHARGE_VD_2X") \
-    X('V', OLW_COMBAT_QUICK_CHARGE_V_3X, "OLW_COMBAT_QUICK_CHARGE_V_3X") \
-    X('D', OLW_COMBAT_QUICK_CHARGE_VD_3X, "OLW_COMBAT_QUICK_CHARGE_VD_3X") \
+    X('V', OLW_COMBAT_QUICK_CHARGE_V_X1_5, "OLW_COMBAT_QUICK_CHARGE_V_X1_5") \
+    X('D', OLW_COMBAT_QUICK_CHARGE_VD_X1_5, "OLW_COMBAT_QUICK_CHARGE_VD_X1_5") \
+    X('V', OLW_COMBAT_QUICK_CHARGE_V_X2, "OLW_COMBAT_QUICK_CHARGE_V_X2") \
+    X('D', OLW_COMBAT_QUICK_CHARGE_VD_X2, "OLW_COMBAT_QUICK_CHARGE_VD_X2") \
+    X('V', OLW_COMBAT_QUICK_CHARGE_V_X3, "OLW_COMBAT_QUICK_CHARGE_V_X3") \
+    X('D', OLW_COMBAT_QUICK_CHARGE_VD_X3, "OLW_COMBAT_QUICK_CHARGE_VD_X3") \
     X('L', OLW_COMBAT_LIFE_STEAL_L, "OLW_COMBAT_LIFE_STEAL_L") \
     X('D', OLW_COMBAT_LIFE_STEAL_D, "OLW_COMBAT_LIFE_STEAL_D") \
     X('V', OLW_COMBAT_LIFE_STEAL_V_OFF, "OLW_COMBAT_LIFE_STEAL_V_OFF") \
@@ -1829,12 +1828,12 @@
     X('D', OLW_RANDO_EILEEN_OUTFIT_VD_OFF, "OLW_RANDO_EILEEN_OUTFIT_VD_OFF") \
     X('V', OLW_RANDO_EILEEN_OUTFIT_V_RANDOM, "OLW_RANDO_EILEEN_OUTFIT_V_RANDOM") \
     X('D', OLW_RANDO_EILEEN_OUTFIT_VD_RANDOM, "OLW_RANDO_EILEEN_OUTFIT_VD_RANDOM") \
-    X('L', OLW_RANDO_REROLL_VISITS_L, "OLW_RANDO_REROLL_VISITS_L") \
-    X('D', OLW_RANDO_REROLL_VISITS_D, "OLW_RANDO_REROLL_VISITS_D") \
-    X('V', OLW_RANDO_REROLL_VISITS_V_BY_ROOM, "OLW_RANDO_REROLL_VISITS_V_BY_ROOM") \
-    X('D', OLW_RANDO_REROLL_VISITS_VD_BY_ROOM, "OLW_RANDO_REROLL_VISITS_VD_BY_ROOM") \
-    X('V', OLW_RANDO_REROLL_VISITS_V_BY_WORLD, "OLW_RANDO_REROLL_VISITS_V_BY_WORLD") \
-    X('D', OLW_RANDO_REROLL_VISITS_VD_BY_WORLD, "OLW_RANDO_REROLL_VISITS_VD_BY_WORLD") \
+    X('L', OLW_RANDO_REROLL_L, "OLW_RANDO_REROLL_L") \
+    X('D', OLW_RANDO_REROLL_D, "OLW_RANDO_REROLL_D") \
+    X('V', OLW_RANDO_REROLL_V_BY_ROOM, "OLW_RANDO_REROLL_V_BY_ROOM") \
+    X('D', OLW_RANDO_REROLL_VD_BY_ROOM, "OLW_RANDO_REROLL_VD_BY_ROOM") \
+    X('V', OLW_RANDO_REROLL_V_BY_WORLD, "OLW_RANDO_REROLL_V_BY_WORLD") \
+    X('D', OLW_RANDO_REROLL_VD_BY_WORLD, "OLW_RANDO_REROLL_VD_BY_WORLD") \
     X('T', OLW_T_DISPLAY, "OLW_T_DISPLAY") \
     X('T', OLW_T_CONTROLS, "OLW_T_CONTROLS") \
     X('T', OLW_T_INTERFACE, "OLW_T_INTERFACE") \
@@ -1901,7 +1900,6 @@
     X('D', OLW_OMNI_PE, "OLW_OMNI_PE") \
     X('D', OLW_OMNI_BIND, "OLW_OMNI_BIND") \
     X('D', OLW_OMNI_NOSRC, "OLW_OMNI_NOSRC") \
-    X('D', OLW_PLAYER_FOLDER_R1_D, "OLW_PLAYER_FOLDER_R1_D") \
     X('D', OLW_EXTRA_ENEMIES_R1_D, "OLW_EXTRA_ENEMIES_R1_D") \
     X('V', OLW_RESERVED, "OLW_RESERVED") \
     X('T', OLW_T_CAMERA, "OLW_T_CAMERA") \
@@ -1925,7 +1923,7 @@ enum {
     OLM_CAMERA_CAMERA,  /* Controls > Camera > Camera: [Camera] Enable */
     OLM_ROOM302_INVERT_LOOK,  /* Controls > Room 302 > Invert Look: cfg+0x16 */
     OLM_ROOM302_HEAD_BOB,  /* Controls > Room 302 > Head Bob: cfg+0x08 */
-    OLM_ROOM302_LEFT_RIGHT,  /* Controls > Room 302 > Left / Right: cfg+0x17 */
+    OLM_ROOM302_TURN_OR_STRAFE,  /* Controls > Room 302 > Turn or Strafe: cfg+0x17 */
     OLM_INTERFACE_HEALTH_GAUGE,  /* Interface > Health Gauge: cfg+0x09 */
     OLM_INTERFACE_ITEM_ICONS,  /* Interface > Item Icons: cfg+0x0A */
     OLM_INTERFACE_ENEMY_HEALTH,  /* Interface > Enemy Health: [Gameplay] EnemyHealthBars */
@@ -1941,6 +1939,7 @@ enum {
     OLM_EFFECTS_FILTER,  /* Effects > Filter: [ScreenEffects] Filter */
     OLM_GRAIN_FILM_GRAIN,  /* Effects > Film Grain > Film Grain: cfg+0x14 */
     OLM_SHADOWS_SHADOWS,  /* Effects > Shadows > Shadows: cfg+0x19 */
+    OLM_COMBAT_QUICK_CHARGE,  /* Gameplay > Combat > Quick Charge: [Gameplay] QuickCharge */
     OLM_COMBAT_LIFE_STEAL,  /* Gameplay > Combat > Life Steal: [Gameplay] LifeSteal */
     OLM_ITEMS_TOOLBELT,  /* Gameplay > Items > Toolbelt: [Gameplay] ExtendedToolbelt */
     OLM_ENEMIES_DOOR_CHASE,  /* Gameplay > Enemies > Door Chase: [Gameplay] EnemyFollow */
@@ -2015,7 +2014,7 @@ typedef struct { int map; const char *ini, *show; } OlMapEntry;
     X("room302", "Look Smoothing", 'v', "") \
     X("room302", "Invert Look", 'v', "") \
     X("room302", "Head Bob", 'v', "") \
-    X("room302", "Left / Right", 'v', "") \
+    X("room302", "Turn or Strafe", 'v', "") \
     X("room302", "Walk Speed", 'v', "") \
     X("interface", "Language", 'v', "") \
     X("interface", "Subtitles", 'f', "subtitles") \
@@ -2100,7 +2099,7 @@ typedef struct { int map; const char *ini, *show; } OlMapEntry;
     X("rando", "Enemies", 'v', "") \
     X("rando", "Spawn Site", 'v', "") \
     X("rando", "Eileen Outfit", 'v', "") \
-    X("rando", "Reroll Visits", 'v', "") \
+    X("rando", "Reroll", 'v', "") \
 
 // v3.56 MN356: the value lines by row (page id, row name, the row's line, the value's screen word, the value's line), for
 // src\vlines.inc (a value whose row code still answers the row's line gets its own) and test\vlines_test.c
@@ -2154,8 +2153,8 @@ typedef struct { int map; const char *ini, *show; } OlMapEntry;
     X("room302", "Head Bob", OLW_ROOM302_HEAD_BOB_D, OLW_ROOM302_HEAD_BOB_V_OFF, OLW_ROOM302_HEAD_BOB_VD_OFF) \
     X("room302", "Head Bob", OLW_ROOM302_HEAD_BOB_D, OLW_ROOM302_HEAD_BOB_V_SLIGHT, OLW_ROOM302_HEAD_BOB_VD_SLIGHT) \
     X("room302", "Head Bob", OLW_ROOM302_HEAD_BOB_D, OLW_ROOM302_HEAD_BOB_V_FULL, OLW_ROOM302_HEAD_BOB_VD_FULL) \
-    X("room302", "Left / Right", OLW_ROOM302_LEFT_RIGHT_D, OLW_ROOM302_LEFT_RIGHT_V_TURN, OLW_ROOM302_LEFT_RIGHT_VD_TURN) \
-    X("room302", "Left / Right", OLW_ROOM302_LEFT_RIGHT_D, OLW_ROOM302_LEFT_RIGHT_V_STRAFE, OLW_ROOM302_LEFT_RIGHT_VD_STRAFE) \
+    X("room302", "Turn or Strafe", OLW_ROOM302_TURN_OR_STRAFE_D, OLW_ROOM302_TURN_OR_STRAFE_V_TURN, OLW_ROOM302_TURN_OR_STRAFE_VD_TURN) \
+    X("room302", "Turn or Strafe", OLW_ROOM302_TURN_OR_STRAFE_D, OLW_ROOM302_TURN_OR_STRAFE_V_STRAFE, OLW_ROOM302_TURN_OR_STRAFE_VD_STRAFE) \
     X("room302", "Walk Speed", OLW_ROOM302_WALK_SPEED_D, OLW_ROOM302_WALK_SPEED_V_GAME, OLW_ROOM302_WALK_SPEED_VD_GAME) \
     X("interface", "Health Gauge", OLW_INTERFACE_HEALTH_GAUGE_D, OLW_INTERFACE_HEALTH_GAUGE_V_ALWAYS, OLW_INTERFACE_HEALTH_GAUGE_VD_ALWAYS) \
     X("interface", "Health Gauge", OLW_INTERFACE_HEALTH_GAUGE_D, OLW_INTERFACE_HEALTH_GAUGE_V_AUTO_HIDE, OLW_INTERFACE_HEALTH_GAUGE_VD_AUTO_HIDE) \
@@ -2322,9 +2321,9 @@ typedef struct { int map; const char *ini, *show; } OlMapEntry;
     X("combat", "Dark Pact", OLW_COMBAT_DARK_PACT_D, OLW_COMBAT_DARK_PACT_V_PACT, OLW_COMBAT_DARK_PACT_VD_PACT) \
     X("combat", "Dark Pact", OLW_COMBAT_DARK_PACT_D, OLW_COMBAT_DARK_PACT_V_BLOOD, OLW_COMBAT_DARK_PACT_VD_BLOOD) \
     X("combat", "Quick Charge", OLW_COMBAT_QUICK_CHARGE_D, OLW_COMBAT_QUICK_CHARGE_V_OFF, OLW_COMBAT_QUICK_CHARGE_VD_OFF) \
-    X("combat", "Quick Charge", OLW_COMBAT_QUICK_CHARGE_D, OLW_COMBAT_QUICK_CHARGE_V_1_5X, OLW_COMBAT_QUICK_CHARGE_VD_1_5X) \
-    X("combat", "Quick Charge", OLW_COMBAT_QUICK_CHARGE_D, OLW_COMBAT_QUICK_CHARGE_V_2X, OLW_COMBAT_QUICK_CHARGE_VD_2X) \
-    X("combat", "Quick Charge", OLW_COMBAT_QUICK_CHARGE_D, OLW_COMBAT_QUICK_CHARGE_V_3X, OLW_COMBAT_QUICK_CHARGE_VD_3X) \
+    X("combat", "Quick Charge", OLW_COMBAT_QUICK_CHARGE_D, OLW_COMBAT_QUICK_CHARGE_V_X1_5, OLW_COMBAT_QUICK_CHARGE_VD_X1_5) \
+    X("combat", "Quick Charge", OLW_COMBAT_QUICK_CHARGE_D, OLW_COMBAT_QUICK_CHARGE_V_X2, OLW_COMBAT_QUICK_CHARGE_VD_X2) \
+    X("combat", "Quick Charge", OLW_COMBAT_QUICK_CHARGE_D, OLW_COMBAT_QUICK_CHARGE_V_X3, OLW_COMBAT_QUICK_CHARGE_VD_X3) \
     X("combat", "Life Steal", OLW_COMBAT_LIFE_STEAL_D, OLW_COMBAT_LIFE_STEAL_V_OFF, OLW_COMBAT_LIFE_STEAL_VD_OFF) \
     X("combat", "Life Steal", OLW_COMBAT_LIFE_STEAL_D, OLW_COMBAT_LIFE_STEAL_V_5, OLW_COMBAT_LIFE_STEAL_VD_5) \
     X("combat", "Life Steal", OLW_COMBAT_LIFE_STEAL_D, OLW_COMBAT_LIFE_STEAL_V_10, OLW_COMBAT_LIFE_STEAL_VD_10) \
@@ -2388,8 +2387,8 @@ typedef struct { int map; const char *ini, *show; } OlMapEntry;
     X("rando", "Spawn Site", OLW_RANDO_SPAWN_SITE_D, OLW_RANDO_SPAWN_SITE_V_ON, OLW_RANDO_SPAWN_SITE_VD_ON) \
     X("rando", "Eileen Outfit", OLW_RANDO_EILEEN_OUTFIT_D, OLW_RANDO_EILEEN_OUTFIT_V_OFF, OLW_RANDO_EILEEN_OUTFIT_VD_OFF) \
     X("rando", "Eileen Outfit", OLW_RANDO_EILEEN_OUTFIT_D, OLW_RANDO_EILEEN_OUTFIT_V_RANDOM, OLW_RANDO_EILEEN_OUTFIT_VD_RANDOM) \
-    X("rando", "Reroll Visits", OLW_RANDO_REROLL_VISITS_D, OLW_RANDO_REROLL_VISITS_V_BY_ROOM, OLW_RANDO_REROLL_VISITS_VD_BY_ROOM) \
-    X("rando", "Reroll Visits", OLW_RANDO_REROLL_VISITS_D, OLW_RANDO_REROLL_VISITS_V_BY_WORLD, OLW_RANDO_REROLL_VISITS_VD_BY_WORLD) \
+    X("rando", "Reroll", OLW_RANDO_REROLL_D, OLW_RANDO_REROLL_V_BY_ROOM, OLW_RANDO_REROLL_VD_BY_ROOM) \
+    X("rando", "Reroll", OLW_RANDO_REROLL_D, OLW_RANDO_REROLL_V_BY_WORLD, OLW_RANDO_REROLL_VD_BY_WORLD) \
 
 static const OlMapEntry kOlMap[] = {
     { OLM_CONTROLS_DEFAULT_SPEED, "0", "Walk" },
@@ -2399,8 +2398,8 @@ static const OlMapEntry kOlMap[] = {
     { OLM_ROOM302_INVERT_LOOK, "Normal", "Off" },
     { OLM_ROOM302_INVERT_LOOK, "Reverse", "On" },
     { OLM_ROOM302_HEAD_BOB, "On", "Full" },
-    { OLM_ROOM302_LEFT_RIGHT, "Rotate", "Turn" },
-    { OLM_ROOM302_LEFT_RIGHT, "Sideways", "Strafe" },
+    { OLM_ROOM302_TURN_OR_STRAFE, "Rotate", "Turn" },
+    { OLM_ROOM302_TURN_OR_STRAFE, "Sideways", "Strafe" },
     { OLM_INTERFACE_HEALTH_GAUGE, "Off", "Always" },
     { OLM_INTERFACE_HEALTH_GAUGE, "On", "Auto Hide" },
     { OLM_INTERFACE_ITEM_ICONS, "Off", "Always" },
@@ -2428,6 +2427,9 @@ static const OlMapEntry kOlMap[] = {
     { OLM_GRAIN_FILM_GRAIN, "1", "On" },
     { OLM_SHADOWS_SHADOWS, "0", "Off" },
     { OLM_SHADOWS_SHADOWS, "1", "On" },
+    { OLM_COMBAT_QUICK_CHARGE, "1.5x", "x1.5" },
+    { OLM_COMBAT_QUICK_CHARGE, "2x", "x2" },
+    { OLM_COMBAT_QUICK_CHARGE, "3x", "x3" },
     { OLM_COMBAT_LIFE_STEAL, "5", "5 %" },
     { OLM_COMBAT_LIFE_STEAL, "10", "10 %" },
     { OLM_ITEMS_TOOLBELT, "Off", "10 Items" },

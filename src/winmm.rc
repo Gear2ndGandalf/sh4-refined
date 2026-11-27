@@ -1,12 +1,12 @@
 // Version information for SH4 Refined (winmm.dll, formerly SH4 Window Mod). Keep FILEVERSION / "FileVersion" in step with SH4WM_VERSION
 // in sh4windowmod.c.
 #include <winver.h>
-// v3.56 MERGE: 3.56.0
+// v3.57 OLP1: 3.57.0  // v3.56 MERGE: 3.56.0
 // v3.55 OL56: 3.55.0 (no merge this round)
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 3,56,0,0
- PRODUCTVERSION 3,56,0,0
+ FILEVERSION 3,57,0,0
+ PRODUCTVERSION 3,57,0,0
  FILEFLAGSMASK VS_FFI_FILEFLAGSMASK
  FILEFLAGS 0x0L
  FILEOS VOS_NT_WINDOWS32
@@ -19,12 +19,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "SH4 Refined"
             VALUE "FileDescription", "SH4 Refined - display, frame rate and window fixes for Silent Hill 4 (Windows Multimedia proxy)"
-            VALUE "FileVersion", "3.56.0"
+            VALUE "FileVersion", "3.57.0"
             VALUE "InternalName", "SH4Refined"
             VALUE "LegalCopyright", "Fan-made game modification. Not affiliated with Konami."
             VALUE "OriginalFilename", "winmm.dll"
             VALUE "ProductName", "SH4 Refined for Silent Hill 4: The Room (GOG)"
-            VALUE "ProductVersion", "3.56.0"
+            VALUE "ProductVersion", "3.57.0"
             VALUE "Comments", "Loads with SILENT HILL 4.exe: windowed mode, resizing, no freeze on Alt+Tab, mouse capture. Forwards every Windows Multimedia call to the system winmm.dll."
         END
     END

@@ -58,41 +58,42 @@ EXTRA = [
     ('OLW_SND_ENTER', 'S', ' Enter: the Sound page.'),
     ('OLW_CAM_SETTINGS', 'S', ' Settings: pause > Extra Menu > Camera.'),
     # state lines (one line each)
-    ('OLW_NA_GAME', 'D', 'Not available in this game (see SH4Refined.log).'),
-    ('OLW_NA_SESSION', 'D', 'Not available this session (see SH4Refined.log).'),
-    ('OLW_OFF_SESSION', 'D', 'Off this session (see SH4Refined.log).'),
-    ('OLW_SND_PAN_STOCK', 'D', "The game's own steep pan (PanLaw=Stock)."),
-    ('OLW_SND_PAN_NA', 'D', "The game's own steep pan (see SH4Refined.log)."),
-    ('OLW_SND_WIDTH_STOCK', 'D', "PanLaw=Stock: the game's own pan; no width."),
-    ('OLW_SND_REV_NOPROBE', 'D', 'DirectSound has no reverb here (see SH4Refined.log).'),
+    ('OLW_NA_GAME', 'D', 'Not available in this game. See SH4Refined.log.'),  # v3.57 OLP1
+    ('OLW_NA_SESSION', 'D', 'Not available this session. See SH4Refined.log.'),  # v3.57 OLP1
+    ('OLW_OFF_SESSION', 'D', 'Off this session. See SH4Refined.log.'),  # v3.57 OLP1
+    ('OLW_SND_PAN_STOCK', 'D', "The game's own steep pan."),  # v3.57 OLP1
+    ('OLW_SND_PAN_NA', 'D', "The game's own steep pan. See SH4Refined.log."),  # v3.57 OLP1
+    ('OLW_SND_WIDTH_STOCK', 'D', "No width with the game's own pan."),  # v3.57 OLP1
+    ('OLW_SND_REV_NOPROBE', 'D', 'No reverb on this sound device. See SH4Refined.log.'),  # v3.57 OLP1
     ('OLW_SND_DEVICE_NEW', 'D', 'New sound device: restart the game to use it.'),  # v3.56 SD356 (Sound Mode's line)
-    ('OLW_FONT_MISSING', 'D', 'Font not loaded (see SH4Refined.log): stock shown.'),
-    ('OLW_FONT_FAILED', 'D', 'HD font failed (see SH4Refined.log): next start.'),
+    ('OLW_FONT_MISSING', 'D', 'Font not loaded: stock shown. See SH4Refined.log.'),  # v3.57 OLP1
+    ('OLW_FONT_FAILED', 'D', 'HD font failed: next start. See SH4Refined.log.'),  # v3.57 OLP1
     ('OLW_REND_16BIT', 'D', '16-bit Direct3D 11: more lag, AMD only. Next start.'),
     ('OLW_REND_OTHER', 'D', 'An SH4 Graphics Plus renderer. Next start.'),
-    ('OLW_REND_TEST', 'D', 'A Graphics Plus test renderer. Pick one; next start.'),
+    ('OLW_REND_TEST', 'D', 'A Graphics Plus test renderer. Next start.'),  # v3.57 OLP1
     ('OLW_FPS_60_FM1', 'D', '60: a smoother picture; the game stays at 30.'),
     ('OLW_R302_FOLDER_PE', 'D', 'Playable Eileen sets these for now.'),
-    ('OLW_R302_NA', 'D', 'Not available (see SH4Refined.log).'),
+    ('OLW_R302_NA', 'D', 'Not available. See SH4Refined.log.'),  # v3.57 OLP1
     ('OLW_CAM_PE', 'D', "Playable Eileen's camera menu has it."),
     ('OLW_CAM_V_PE', 'V', 'Eileen'), ('OLW_CAM_V_NA', 'V', 'Unavailable'),
-    ('OLW_REGEN_PE_LEGACY', 'D', "Playable Eileen's healing after %d s unhurt."),
-    ('OLW_FADEIN_NA', 'D', 'Not available: see SH4Refined.log (fade in).'),
+    ('OLW_REGEN_PE_LEGACY', 'D', 'Playable Eileen heals after %d seconds unhurt.'),  # v3.57 OLP1 (gameplay.inc GpSnapshot uses it now)
+    ('OLW_FADEIN_NA', 'D', 'Not available. See SH4Refined.log.'),  # v3.57 OLP1
     ('OLW_FADEIN_V_VORTEX', 'D', 'Portal: fade in; ghosts rise from a blood portal.'),
-    ('OLW_TELEPORT_ON_CD', 'D', 'On: behind the enemy you face; %g s apart.'),
+    ('OLW_TELEPORT_ON_CD', 'D', 'On: behind the enemy you face, %g seconds apart.'),  # v3.57 OLP1
     ('OLW_RANDO_CT', 'D', "Off: the cheat table's randomizer is on."),
     ('OLW_PP_NOT_FILTER', 'D', 'Not with this Filter.'),
     ('OLW_PP_NOT_SPIRIT', 'D', 'Not with Spirit Vision.'),
     ('OLW_PP_NORESET', 'D', "Not available: the game's reset code is not stock."),
     ('OLW_SHD_EDGE_NOPREVIEW', 'D', "The shadows' edge: Stock or Soft."),
-    ('OLW_SHD_EDGE_FAILED', 'D', 'Off this session (see SH4Refined.log): Stock.'),
+    ('OLW_SHD_EDGE_FAILED', 'D', 'Off this session: Stock. See SH4Refined.log.'),  # v3.57 OLP1
     ('OLW_SHD_DARK_NOPREVIEW', 'D', 'How dark shadows are.'),
-    ('OLW_FILTER_F7', 'S', ' F%d in play: new preview.'),
+    ('OLW_FILTER_F7', 'S', ' Press F%d in play for a new preview.'),  # v3.57 OLP1 (was ' F%d in play: new preview.'): the Filter
+    # lines + it are two lines now (descfit wraps; the longest, Old Film's, 79 characters with F12); g_txtFxD 64 -> 80
     ('OLW_OMNI_PE', 'D', 'On: any angle (Eileen keeps her own speed).'),
     ('OLW_OMNI_BIND', 'D', 'Movement is not on a stick: no effect.'),
     ('OLW_OMNI_NOSRC', 'D', 'The stick could not be read: no effect.'),
-    # today's Player folder holds the plan's Player and Combat rows; Extra Enemies gets its "Next room." tag (its note)
-    ('OLW_PLAYER_FOLDER_R1_D', 'D', 'Speed, healing, escapes, damage and ammo.'),
+    # Extra Enemies gets its "Next room." tag (its note)  # v3.57 OLP1: OLW_PLAYER_FOLDER_R1_D retired (the Player folder
+    # line is OLW_GAMEPLAY_PLAYER_D now: Codex OLP1-002)
     ('OLW_EXTRA_ENEMIES_R1_D', 'D', 'More of every monster and ghost. Next room.'),
     ('OLW_RESERVED', 'V', ''),
 ]

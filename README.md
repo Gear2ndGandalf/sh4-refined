@@ -1,6 +1,6 @@
 # SH4 Refined
 
-**Current version: v3.56.0 (new, not yet tested in game; v3.55.0 was play-tested 2026-11-26 and passed; see Versions below)**
+**Current version: v3.57.0 (new, not yet tested in game; v3.55.0 was play-tested 2026-11-26 and passed; see Versions below)**
 
 SH4 Refined is a fan-made enhancement mod for the PC version of **Silent Hill 4: The Room** sold by GOG. It is a
 single `winmm.dll` that the game loads from its own folder: no loader, no installer and no changes to the game's exe
@@ -126,7 +126,9 @@ Python tools need Python 3 (some previews use NumPy, Pillow and SciPy). Build no
 ## Versions
 
 The current version is named at the top of this page. Every release, newest changes included, is described in the
-history of [docs/FULL_README.md](docs/FULL_README.md#history). v3.56.0 answers the v3.55 play test: folder rows open
+history of [docs/FULL_README.md](docs/FULL_README.md#history). v3.57.0 rewords the Options menu after a review of
+every row (clearer descriptions; Turn or Strafe, Reroll, Quick Charge x1.5 / x2 / x3; no setting changes); not yet
+play-tested. v3.56.0 answers the v3.55 play test: folder rows open
 with one click, every value has its own description, the Effects preview shows Thermal and Spirit Vision (and draws its
 own scene from the title menu), the final boss room's device turns at the right speed at every frame rate, a guard
 steps the frame rate down when the PC cannot hold it, Enemies Return By Room / By World, the randomizer's Specials,

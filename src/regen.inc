@@ -102,15 +102,16 @@ static int RgStealViaGameNow(void)  // playercheats.inc PcHeal: 1 = Life Steal t
 // ---------------------------------------------------------------- the texts, the ini
 static void RgTexts(void)
 {
-    // v3.53 OL1: the plan's lines (written for RegenDelay 30: another delay replaces "30 s")
+    // v3.53 OL1: the plan's lines (written for RegenDelay 30: another delay replaces "30 s")  // v3.57 OLP1: "30 seconds" (x1's
+    // line only: x1.25 and x2 say "faster than x1")
     static const char *const kLine[RG_LEVELS] = { OLW_PLAYER_REGENERATION_VD_OFF, OLW_PLAYER_REGENERATION_VD_X1,
                                                   OLW_PLAYER_REGENERATION_VD_X1_25, OLW_PLAYER_REGENERATION_VD_X2 };
     char d[64];
     const int delay = (int)g_rgDelay;
     int v;
     for (v = 0; v < RG_LEVELS; ++v) {
-        const char *const at = strstr(kLine[v], "after 30 s");
-        if (at && delay != 30) sprintf_s(d, sizeof d, "%.*safter %d s%s", (int)(at - kLine[v]), kLine[v], delay, at + 10);
+        const char *const at = strstr(kLine[v], "after 30 seconds");  // v3.57 OLP1 (was "after 30 s")
+        if (at && delay != 30) sprintf_s(d, sizeof d, "%.*safter %d seconds%s", (int)(at - kLine[v]), kLine[v], delay, at + 16);
         else strcpy_s(d, sizeof d, kLine[v]);
         Encode(g_txtRg[RGT_D0 + v], sizeof g_txtRg[0], d);
     }
