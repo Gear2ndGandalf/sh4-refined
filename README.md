@@ -1,6 +1,6 @@
 # SH4 Refined
 
-**Current version: v3.55.0 (new, not yet tested in game; v3.52.0 was play-tested 2026-11-26 and passed; see Versions below)**
+**Current version: v3.55.0 (play-tested 2026-11-26: everything passed; see Versions below)**
 
 SH4 Refined is a fan-made enhancement mod for the PC version of **Silent Hill 4: The Room** sold by GOG. It is a
 single `winmm.dll` that the game loads from its own folder: no loader, no installer and no changes to the game's exe
@@ -126,8 +126,7 @@ The current version is named at the top of this page. Every release, newest chan
 history of [docs/FULL_README.md](docs/FULL_README.md#history). v3.55.0 (with v3.53.0 and v3.54.0, which were not
 released on their own) reorganises the whole Options menu into six themed pages, the game's own rows included, with
 shorter names and descriptions, folders, greyed rows and a clickable page strip; no setting or save changes. It has
-passed its tests and code review but not yet a play test. To stay on the tested v3.52.0, take the repository as of
-the commit "SH4 Refined v3.52.0 (not yet tested in game)" (tested since). v3.52.0 adds the sound options, Bloom levels, Depth of
+passed its play test (2026-11-26). v3.52.0 adds the sound options, Bloom levels, Depth of
 Field with a close camera, a stronger Otherworld Lens, health bars only for enemies really in the room, Ghost Teleport
 landings that never end inside a wall, Quick Load from the pause and ghosts that really give up on Forgetful; its play
 test passed (2026-11-26). v3.51.0 makes Enemy Pursuit work inside a room
