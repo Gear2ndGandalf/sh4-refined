@@ -342,7 +342,7 @@ static const Interim54 kV354[] = {
     { LP_SHADOWS, { "shadows/Edge", "shadows/Darkness", "+" } },
     { LP_GAMEPLAY, { "gameplay/Player", "gameplay/Combat", "gameplay/Items", "gameplay/Enemies", "gameplay/Powers", "gameplay/Randomizer", "+" } },
     { LP_PLAYER, { "player/Move Speed", "player/Regeneration", "player/Medallion", "player/Grab Escape", "player/No Clip", "+" } },
-    { LP_COMBAT, { "combat/One-Hit Kill", "combat/Dark Pact", "combat/Quick Charge", "combat/Life Steal", "combat/Ammo Saver", "+" } },
+    { LP_COMBAT, { "combat/One-Hit Kill", "combat/Dark Pact", "combat/Quick Charge", "combat/Life Steal", "combat/Ammo Saver", "combat/Lock-On Walk", "+" } },  // v3.59 CT359: + Lock-On Walk
     { LP_ITEMS, { "items/Item Shine", "items/Toolbelt", "items/Item Stacks", "items/Supply Drops", "+" } },
     { LP_ENEMIES, { "enemies/Extra Enemies", "enemies/Door Chase", "enemies/Pursuit", "enemies/Enemies Return", "enemies/Reveal Method", "+" } },  // v3.58 MN358: Reveal Method (was Fade In)
     { LP_POWERS, { "powers/Death Presence", "powers/After Shock", "powers/Echo Doubles", "powers/Echo Count", "powers/Ghost Teleport", "+" } },
@@ -395,8 +395,8 @@ int main(void)
         // v3.56 RI356: the Randomizer (page 19) 10 -> 8 rows (no Seed / New Seed rows) in both layouts; v3.56 SD356: Sound 7 -> 8 / 4 -> 5
         // v3.58 PV358: Effects 10 -> 11 (+ Filter Strength, Preview; Depth of Field > holds Depth of Field / Strength), page 14
         // Depth of Field 3; StockMoves=0: Effects stays 11 (Renderer to Sound: 5 -> 6)
-        static const int kPlanN[LP_MAX] = { 9, 7, 10, 8, 11, 8, 8, 8, 5, 4, 6, 9, 9, 6, 3, 6, 5, 0, 6, 8, 0, 7 };
-        static const int kV354N[LP_MAX] = { 11, 10, 11, 6, 11, 7, 7, 10, 4, 3, 6, 9, 6, 6, 3, 6, 5, 0, 6, 8, 0, 7 };
+        static const int kPlanN[LP_MAX] = { 9, 7, 10, 8, 11, 8, 8, 8, 5, 4, 6, 9, 9, 7, 3, 6, 5, 0, 6, 8, 0, 7 };  // v3.59 CT359: Combat (13) 6 -> 7 (+ Lock-On Walk)
+        static const int kV354N[LP_MAX] = { 11, 10, 11, 6, 11, 7, 7, 10, 4, 3, 6, 9, 6, 7, 3, 6, 5, 0, 6, 8, 0, 7 };  // v3.59 CT359: Combat 6 -> 7
         for (lp = 0; lp < LP_MAX; ++lp) {
             CHECK(OlRowCount(kOlPage[lp].rows, 1) == kPlanN[lp], "StockMoves=1: page %d has %d rows (PLAN section 5: %d)", lp,
                   OlRowCount(kOlPage[lp].rows, 1), kPlanN[lp]);

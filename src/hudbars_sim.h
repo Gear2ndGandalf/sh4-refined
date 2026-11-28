@@ -892,4 +892,91 @@ static int HbWalterState(int kind, int cls, int ai, int step, float hp, float ti
     if (cls == 8) return HB_GS_RISING;
     return HB_GS_STAND;
 }
+
+// ---------------------------------------------------------------- v3.59 EN359: the bar above the head, per enemy type
+// The user's v3.58 QA: "Some taller enemies show the health bar across their face. Ex. The Twins." The anchor was the
+// highest bone of this frame's skeleton - 40 units. The models' bind poses (tools_EN359/model_heights.py over the game's
+// data\enemy_*.bin, the files of EnemyGetModelHandle 0x466C60 by type and variant) show how far the mesh rises above that
+// bone: the Twin Victim v0 64 units (its heads: the bar sat 24 units inside them), Cynthia's ghost v1 50, Andrew 54, the
+// Patient 46, Richard 43, Jasper / the old man 41, the Toadstool 42, Walter 36 / 39, the victims 27 - 35, the dogs 26. The
+// anchor is now the top bone minus max(40, crown + HB_CROWN_MARGIN): no bar is lower than in v3.58, the tall heads lift
+// it. Where the mesh's top is not a head (the Wall Man: the wall slab; the Wheelchair: its frame on the root) the v3.58 40
+// stays. HbFallbackHeight (bones not this frame's): the mesh top above the model's origin + the margin (v3.58: 340 for
+// most, 380 the Twins / Walter, 150 the dog, 200 the Hummer), measured where the model stands on its origin.
+#define HB_CROWN_MIN    40.0f  // v3.58's offset: the least lift above the top bone
+#define HB_CROWN_MARGIN 6.0f   // world units above the head's mesh (the screen margin, 1.2 % of the height, comes on top)
+static float HbCrown(int type, int variant)  // the mesh's rise above the highest bone (bind pose, rounded up)
+{
+    switch (type) {
+    case 0x02: return 42.0f;                                               // Whitestool 33 / Toadstool 42
+    case 0x03: return 15.0f;                                               // Hummer 13 / 15
+    case 0x07: return variant == 1 ? 26.0f : 39.0f;                        // Gum Head
+    case 0x08: return variant == 1 ? 37.0f : 64.0f;                        // Twin Victim
+    case 0x09: return 17.0f;                                               // Tremer
+    case 0x0A: return 26.0f;                                               // Sniffer Dog
+    case 0x0B: return variant == 1 ? 35.0f : variant == 2 ? 27.0f : variant == 3 ? 30.0f : 31.0f;  // victims
+    case 0x0C: return variant == 1 ? 50.0f : variant == 2 ? 23.0f : 33.0f; // Cynthia's ghost / the baby
+    case 0x0D: return 41.0f;                                               // Jasper (v0 not read: as v1) / the old man
+    case 0x0E: return 54.0f;                                               // Andrew
+    case 0x0F: return 43.0f;                                               // Richard
+    case 0x10: return 40.0f;                                               // Walter 36, the final form 39
+    case 0x11: return 46.0f;                                               // the Patient
+    default: return 0.0f;                                                  // 05 Wall Man, 06 Wheelchair (not a head): 40
+    }
+}
+static float HbAnchorLift(int type, int variant)  // units above the top bone where the bar's foot goes
+{
+    const float c = HbCrown(type, variant) + HB_CROWN_MARGIN;
+    return c > HB_CROWN_MIN ? c : HB_CROWN_MIN;
+}
+static float HbFallbackHeight(int type, int variant)  // above the work position, when the bones are not this frame's
+{
+    switch (type) {
+    case 0x02: return 233.0f;
+    case 0x03: return 200.0f;                       // (flies; its position is its body: v3.58's)
+    case 0x06: return 191.0f;
+    case 0x07: return variant == 1 ? 390.0f : 403.0f;
+    case 0x08: return variant == 1 ? 380.0f : 398.0f;
+    case 0x09: return 23.0f;
+    case 0x0A: return 179.0f;
+    case 0x0B: case 0x0D: case 0x0F: case 0x11: return 373.0f;
+    case 0x0C: return variant == 1 ? 368.0f : 351.0f;
+    case 0x0E: return 377.0f;                       // (its bind pose stands 218 below its origin: the whole height)
+    case 0x10: return 380.0f;
+    default: return 340.0f;                         // 05 Wall Man (v3.58's)
+    }
+}
+
+// ---------------------------------------------------------------- v3.59 EN359: Walter down for a long time
+// The user's v3.58 QA: "when he is down for a long time his health/revival bar disappears still." The stalker's down
+// (0x4A4930, AI 0x0E): a hit while he lies at HP 0 (EnemyWalterHitReceiverDown 0x4A2040: any hit, the Sword's full damage
+// too) plays the fall 0x1B and sets step 4; at its end class 0x0B (step 5) where func_004A1CD0 heals him by the stat row's
+// gauge regen a second (0x468EE0(0x10, 0): 3 / 4 / 5 / 6 / 7 by difficulty, max HP 300 .. 1000: 100 - 143 s) until HP
+// 100 %, then class 0x0A and the stir (step 6), then he rises (step 3, class 8). The user's log (22:38:49): step 1 with
+// 6.1 s left, 4.6 s later "gone (class A, AI E step 4, hp 0 / 750)". v3.58 called step 4 and class 0x0B gone. Now the
+// stalker is DOWN for the whole lie (steps 1, 2, 4, 5, 6): the revive bar is the game's timer in step 1, the heal to full
+// in steps 4 / 5 ((max - hp) / regen seconds; regen unknown = 5 a second, the Normal row), empty (rises any moment) in
+// steps 2 / 6. Only his death (class 0x10+, scripts) or the final Walter's end takes the bars. timerOk = the 0x4A4930 bytes
+// were checked, longOk = the heal's code (0x4A1CD0) and 0x468EE0 too (else v3.58's rule: class 0x0B gone).
+enum { HB_WD_NONE, HB_WD_TIMER, HB_WD_HEAL, HB_WD_WAIT };  // what the revive bar shows (the log line says it)
+static int HbWalterState2(int kind, int cls, int ai, int step, float hp, float hpMax, float regen, float timer, int timerOk,
+                          int longOk, float *countdown, int *what)
+{
+    *what = HB_WD_NONE;
+    if (kind == HB_WK_STALKER && timerOk && longOk && ai == 0x0E && cls >= 0 && cls < 0x10 && (step == 2 || step == 4 || step == 5 || step == 6)) {
+        *countdown = 0.0f;
+        if (step == 4 || step == 5) {
+            if (!(regen > 0.0f) || regen > 1000.0f) regen = 5.0f;
+            if (hpMax > 0.0f && hp == hp && hp < hpMax) *countdown = (hpMax - (hp > 0.0f ? hp : 0.0f)) / regen;
+        }
+        *what = *countdown > 0.0f ? HB_WD_HEAL : HB_WD_WAIT;
+        if (*countdown <= 0.0f) *countdown = 0.0f;
+        return HB_GS_DOWN;
+    }
+    {
+        const int gs = HbWalterState(kind, cls, ai, step, hp, timer, timerOk, countdown);
+        if (gs == HB_GS_DOWN) *what = HB_WD_TIMER;
+        return gs;
+    }
+}
 #endif

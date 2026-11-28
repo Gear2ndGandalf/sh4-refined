@@ -65,6 +65,22 @@
 // it (60 / 35 %) and the two outer blot sets. One verbose line when a portal closes (its pieces, size against the body,
 // the strands' time). Monsters keep the fade only: the game has no portal of its own for them (WallGhostCreate is the
 // ghosts'). FadeInStrandSeconds 0 + FadeInPortalPieces 0 = v3.57's size and timeline (the strands keep the new look).
+//
+// v3.59 FI359 (USER_FEEDBACK_v358 QA 9: "the portal clips to the floor in the subway restrooms while the victim fly's out
+// of it to a new spot with its legs floating above it folded in"; Issues: "Spirit Vision still uses the old portal
+// effect"; staging/v359_feedback/w6_portal/PLAN.md). The floor: the game's floor ray 0x459490 under the arrival spot (and
+// the collision segment 0x561CD0 for a ceiling over it) keeps the whole portal, its blots and its drips above the floor (it
+// is moved up its plane; a low ceiling makes it as tall as the room allows, the first portal smaller, never squashed). The
+// victim (type 0B): one still coming out of a wall by itself (its AI state 9, steps 3 .. 5: its appearance, held at its
+// wall point's height, legs folded, then rising) with no wall portal of the game's near it is kept unseen until it is out
+// (at most 3 s; it posts no grab before that), then its portal opens where it is; at its hold's start (still unseen) a
+// victim lower than its own height (size x 180 above the floor) is lifted to it (0x45CF20; its height spring reset). One
+// verbose "arrives" line a portal. Spirit Vision: Refined's portals (pieces, blots, drips, its sticky strands) and the
+// game's own wall portals (v3.17's crimson vortex before) are drawn as spirit-blue tar in its pass, after the edge world
+// (the scene's tar draw is skipped there: the edge world replaced it). Thermal: a ghost hidden by Thermal is noted at its
+// first sight too (its portal opens as a cold, dark void; v3.58 gave every ghost of the room a portal when Thermal was
+// switched off). Night Vision / Night Mono: the tar is drawn before the filter, which amplifies it as it does Item Shine.
+// Hidden [Gameplay] FadeInSpiritLook=0: v3.58's Spirit Vision (the vortex).
 #include "fadein_sim.h"
 
 enum { FIM_L, FIM_V0, FIM_D0 = FIM_V0 + FI_MODE_N, FIM_NA = FIM_D0 + FI_MODE_N, FIM_N };
@@ -130,6 +146,13 @@ typedef struct {
     float sat[FI_STRANDS_MAX], len0[FI_STRANDS_MAX], sdrop[FI_STRANDS_MAX][3];  // snap moment, first length, where it snapped
     int sdropSet[FI_STRANDS_MAX], nLoose;
     int gridsMax, setsMax;          // the most pieces / blot sets drawn in one frame (the close line)
+    // v3.59 FI359: the floor under it, a ceiling over it, the fit, the arriving victim (the arrive line)
+    int floorOk, ceilOk;            // the floor (0x459490) under the arrival spot / a ceiling (0x561CD0) over it
+    float floorY, ceilY;            // their world y (y down)
+    float raised, fitK;             // the portal moved up its plane (u); the first portal's scale under a low ceiling
+    float lift, waited;             // the victim lifted to its own height (u); kept unseen before (s)
+    float above0, rest0;            // when first seen: its centre above the floor, its own height (a victim; else 0)
+    int ai0, step0, anim0, said59;  // its AI state, step and animation when first seen; the arrive line said
 } FiPortal;
 static FiPortal g_fiPortal[FI_PORTAL_MAX];
 static int g_fiTdm = FI_TDM_AUTO;              // v3.51 PT351: [Gameplay] FadeInPortalDraw (hidden)
@@ -155,6 +178,14 @@ static volatile LONG g_fiQuotaClose;           // v3.58 FI358: the close lines
 static float g_fiDtLast, g_fiFrameEma = 1000.0f / 60.0f;  // v3.58 FI358: the last drawn frame's step (s); frames (ms, smoothed)
 static float g_fiMsEma, g_fiSelfK = 1.0f;      // v3.58 FI358: the portals' draw (ms a frame, smoothed); their own share
 static volatile LONG g_fiQuotaSelf;
+static int g_fiFloorFnOk;                      // v3.59 FI359: 0x459490 (the enemies' floor ray) is stock: the portal on the floor
+static int g_fiSvLook = 1;                     // v3.59 FI359: [Gameplay] FadeInSpiritLook (hidden): Spirit Vision's spirit tar
+static const FiPal *g_fiPal = &kFiPalTar;      // v3.59 FI359: the colours Refined's own tar draw uses now
+static volatile LONG g_fiQuotaArrive, g_fiQuotaWait;  // v3.59 FI359: the arrive lines, the wall-exit waits
+static float g_fiWaitedNow;                    // v3.59 FI359: FiSee -> FiPortalStart: how long the one seen now was kept unseen
+typedef struct { const BYTE *task; unsigned id; double t0; } FiWait;  // v3.59 FI359: victims kept unseen until they are out
+static FiWait g_fiWait[FI_WAIT_N];
+static int g_fiSvSaid;                         // v3.59 FI359: Spirit Vision's look said once
 #define FI_SEE_THROUGH(m, t) ((void(__cdecl *)(void *, float))0x45C880)((m), (t))  // the game's see-through enemy draw
 
 static const BYTE *FiText(int id) { return id >= MSG_FI0 && id < MSG_FI0 + FIM_N ? g_txtFi[id - MSG_FI0] : g_txtFi[0]; }
@@ -213,6 +244,7 @@ static void FiFrameTick(void)  // the model hooks and the scene pass: the clock,
     memset(&g_fiSt, 0, sizeof g_fiSt);
     memset(g_fiPortal, 0, sizeof g_fiPortal);
     g_fiPortalN = 0;
+    memset(g_fiWait, 0, sizeof g_fiWait);  // v3.59 FI359
     FiNoteKeepRoom(&g_fiNotes, stage, room);
 }
 // enemies.inc EnmReviveRoom / EnmReviveAwake (game thread, the room load): an id that stands again in this room
@@ -285,6 +317,54 @@ static int FiTarKind(void)
 // the tar portal's plane: the nearest collision wall behind the ghost as the camera sees it (straight back, 40 degrees
 // either way, FI_TAR_WALL_R at mid-body; Spirit Vision's caster SvvCastT = the game's 0x561CD0), else the air
 // FI_TAR_AIR_BACK behind it, facing the camera
+// v3.59 FI359: the floor under (x, z) at or below y0 (the game's floor ray 0x459490, as Spawn Site and Copies use it);
+// 1 = *fy holds it (within FI_FLOOR_REACH below y0)
+static int FiFloorUnder(float x, float y0, float z, float *fy)
+{
+    __declspec(align(16)) float q[4];
+    __declspec(align(16)) EnmFloorHit hit;
+    if (!g_fiFloorFnOk || !_finite(x + y0 + z)) return 0;
+    memset(&hit, 0, sizeof hit);
+    q[0] = x, q[1] = y0, q[2] = z, q[3] = 1.0f;
+    if (((int(__cdecl *)(EnmFloorHit *, float *))0x459490)(&hit, q) != 1 || !_finite(hit.pos[1])) return 0;
+    if (!(hit.pos[1] >= y0 - 1.0f && hit.pos[1] <= y0 + FI_FLOOR_REACH)) return 0;
+    *fy = hit.pos[1];
+    return 1;
+}
+// v3.59 FI359: a ceiling straight above c (the collision segment 0x561CD0, Spirit Vision's SvvCastT): a level surface
+static int FiCeilOver(const float c[3], float *cy)
+{
+    const float top[3] = { c[0], c[1] - FI_CEIL_REACH, c[2] };
+    float hit[3], nrm[3];
+    if (!SvvCastT(c, top, hit, nrm, 0.0f) || !(fabsf(nrm[1]) > 0.7f)) return 0;
+    *cy = hit[1];
+    return 1;
+}
+// v3.59 FI359: v (down the plane, from its point) of a world height y; 0 = the plane is not upright enough to say
+static int FiPlaneV(const FiPortal *p, float y, float *v)
+{
+    if (!(p->ay[1] > 0.3f)) return 0;
+    *v = (y - p->c[1]) / p->ay[1];
+    return 1;
+}
+static void FiPlaneMove(FiPortal *p, float dv)  // v3.59 FI359: the plane's point moved dv down its plane (- = up)
+{
+    int j;
+    for (j = 0; j < 3; ++j) p->c[j] += p->ay[j] * dv;
+}
+// v3.59 FI359: the first portal (before the body is measured) above the floor under the arrival spot
+static void FiFirstOnFloor(FiPortal *p, const float *w)
+{
+    float vF, vc, ty, k;
+    p->fitK = 1.0f;
+    if (!FiFloorUnder(w[0], w[1] - FI_FLOOR_FROM, w[2], &p->floorY)) return;
+    p->floorOk = 1;
+    if (!FiPlaneV(p, p->floorY - FI_FLOOR_GAP, &vF)) return;
+    if (FiFloorFit(vF, -1e30f, 0.0f, p->sy, p->sy, &vc, &ty, &k) & FI_FIT_RAISED) {
+        FiPlaneMove(p, vc);
+        p->raised += -vc;
+    }
+}
 static int FiTarPlane(FiPortal *p, const float *w)
 {
     static const float kA[3] = { 0.0f, 0.7f, -0.7f };
@@ -372,6 +452,17 @@ static int FiPortalStart(const BYTE *task, const BYTE *w, unsigned id, int type,
     FiBigMake(&p->big, p->L.seed, p->sx, p->sy, p->sx, p->sy, 0.0f, 0.0f, 0);
     FiTarLayoutMake(&p->L2[0], FiHash(p->L.seed ^ 0xA11Cu));
     FiTarLayoutMake(&p->L2[1], FiHash(p->L.seed ^ 0xB22Du));
+    // v3.59 FI359: the first portal above the floor; the arrival as it was seen (the arrive line)
+    p->fitK = 1.0f;
+    p->waited = g_fiWaitedNow;
+    p->ai0 = ENM_AISTATE(task), p->step0 = *(const WORD *)(task + 0x412), p->anim0 = *(const int *)(w + 0x48);
+    if (kind != FI_TD_VORTEX) {
+        FiFirstOnFloor(p, pw);
+        if (p->floorOk) {
+            p->above0 = p->floorY - pw[1];
+            if (type == FI_VICTIM_TYPE) p->rest0 = p->floorY - FiRestY(p->floorY, *(const float *)(w + 0x60));
+        }
+    }
     ++g_fiSt.byDraw[kind];
     return k + 1;
 }
@@ -444,6 +535,48 @@ static FiEnt *FiFirst(const BYTE *task, const BYTE *w, unsigned id, int type, in
     }
     return e;
 }
+// v3.59 FI359: a victim seen for the first time while it still comes out of a wall by itself (its appearance at its wall
+// point's height, legs folded, before it rises: AI state 9 steps 3 .. 5) with no wall portal of the game's near it is kept
+// unseen (Reveal Method Portal, a ghost's arrival, not the room load) until it is out or FI_WAIT_MAX_S passed; then its
+// first sight is now (g_fiWaitedNow: how long it waited). It posts no grab before (0x4B28C0: state 9 below step 6).
+static FiEnt g_fiWaitEnt;  // (FiSee's answer for such a one: drawn by nobody)
+static int FiWaitNow(const BYTE *task, const BYTE *w, unsigned id, int type)
+{
+    const int stage = ENM_STAGE;
+    int i, k = -1, freeK = -1, want;
+    if (g_fiMode != FI_MODE_PORTAL || type != FI_VICTIM_TYPE || *(const DWORD *)(task + 0x404) == 0x486030) return 0;
+    if (!(stage >= 2 && stage <= 8) || *(volatile int *)0xFD5C20 != 0 || g_fiClock - g_fiRoomT0 < FI_GRACE_S) return 0;
+    want = FiWallOutWait(type, ENM_AISTATE(task), *(const WORD *)(task + 0x412), 0);
+    if (want && FiGhostPortal(w, 0)) want = 0;  // the game's own wall portal: it does it (FiFirst: "own portal")
+    for (i = 0; i < FI_WAIT_N; ++i) {
+        if (g_fiWait[i].task == task && g_fiWait[i].id == id) k = i;
+        else if (!g_fiWait[i].task && freeK < 0) freeK = i;
+    }
+    if (k >= 0) {
+        const float age = (float)(g_fiClock - g_fiWait[k].t0);
+        if (want && age < FI_WAIT_MAX_S) return 1;
+        g_fiWaitedNow = age > 0.0f ? age : 0.0f;
+        memset(&g_fiWait[k], 0, sizeof g_fiWait[k]);
+        if (want && LogQuota(&g_fiQuotaWait, 100))
+            LogV("fade in: %08X (type %02X) still comes out of a wall by itself after %.1f s: it fades in where it is", id, type,
+                 g_fiWaitedNow);
+        return 0;
+    }
+    if (!want) return 0;
+    if (freeK < 0) {  // (the oldest waits no more: it fades in at its next draw)
+        for (i = 0, freeK = 0; i < FI_WAIT_N; ++i)
+            if (g_fiWait[i].t0 < g_fiWait[freeK].t0) freeK = i;
+    }
+    g_fiWait[freeK].task = task, g_fiWait[freeK].id = id, g_fiWait[freeK].t0 = g_fiClock;
+    return 1;
+}
+static int FiWaiting(const BYTE *task, unsigned id)  // v3.59 FI359: kept unseen now (FiBodyShown: no bar for it)
+{
+    int i;
+    for (i = 0; i < FI_WAIT_N; ++i)
+        if (g_fiWait[i].task == task && g_fiWait[i].id == id) return 1;
+    return 0;
+}
 // the entry of an enemy actor drawn now (NULL: not an enemy actor); *pd / *own: its pre-draw kind and own see-through
 static FiEnt *FiSee(const BYTE *task, int *pd, float *own)
 {
@@ -487,6 +620,8 @@ static FiEnt *FiSee(const BYTE *task, int *pd, float *own)
         }
     }
     FiDropTask(&g_fiTab, task);  // the slot held another enemy before
+    g_fiWaitedNow = 0.0f;
+    if (FiWaitNow(task, w, id, type)) return &g_fiWaitEnt;  // v3.59 FI359: still coming out of a wall by itself: unseen
     return FiFirst(task, w, id, type, *pd, *own, fn);
 }
 static void FiVpCapture(void)
@@ -505,7 +640,9 @@ static int FiDrawC(const BYTE *task, BYTE *model)
     if (!g_fiReady || g_fiFail || !task || !model) return 0;
     __try {
         FiEnt *e = FiSee(task, &pd, &own);
-        if (e && e->state == FI_E_FADE) {
+        if (e == &g_fiWaitEnt) {
+            done = 1;  // v3.59 FI359: kept unseen (the stock draw skipped) until it is out of its wall
+        } else if (e && e->state == FI_E_FADE) {
             const float frac = FiFrac((float)(g_fiClock - e->t0), g_fiSec);
             if (g_fiMode == FI_MODE_OFF || frac >= 1.0f || *(volatile int *)0xFD5C20 == 1 || pd == FI_PD_FOREIGN) {
                 e->state = FI_E_DONE;  // in, switched off, a cut-scene began, or a draw state of its own now: the game's draw
@@ -530,12 +667,28 @@ static int FiShadowC(const BYTE *task)
     if (!g_fiReady || g_fiFail || g_fiMode == FI_MODE_OFF || !task) return 1;
     __try {
         const FiEnt *e = FiSee(task, &pd, &own);
-        if (e && e->state == FI_E_FADE) ok = FiShadowShown(FiFrac((float)(g_fiClock - e->t0), g_fiSec));
+        if (e == &g_fiWaitEnt) ok = 0;  // v3.59 FI359: unseen, no shadow
+        else if (e && e->state == FI_E_FADE) ok = FiShadowShown(FiFrac((float)(g_fiClock - e->t0), g_fiSec));
     } __except (FiFaultNote(GetExceptionInformation())) {
         FiFailNow("the shadow draw");
         ok = 1;
     }
     return ok;
+}
+
+// v3.59 FI359: ThermDrawFi (0x52AEB5) when Thermal hides a ghost (not drawn): its first sight is noted all the same (its
+// fade's clock runs, its portal opens as a cold, dark void, its hold starts), so switching Thermal off later does not make
+// every ghost of the room arrive again with a portal (v3.58). Draws nothing.
+static void FiSeenOnly(const BYTE *task)
+{
+    int pd;
+    float own;
+    if (!g_fiReady || g_fiFail || g_fiMode == FI_MODE_OFF || !task) return;
+    __try {
+        FiSee(task, &pd, &own);
+    } __except (FiFaultNote(GetExceptionInformation())) {
+        FiFailNow("the hidden ghost's first sight");
+    }
 }
 
 // ---------------------------------------------------------------- the vortex (scene pass, items.inc SparkleFrame)
@@ -823,6 +976,34 @@ static int FiGameTook(const FiPortal *p)
     g = *(const BYTE *const *)(p->work + 0x28);
     return (ULONG_PTR)g >= 0x10000 && *(const signed char *)(g + 0x7D) != 0;
 }
+// v3.59 FI359: at the hold's first tick (the body is still unseen: its fade has just begun), a victim lower than its own
+// height over the floor under it (size x 180: where its idle float and its state 2 put it) by more than FI_LIFT_MIN is put
+// there at once by the game's place setter 0x45CF20, its height spring (GhostWork +0x70 height, +0x74 speed: ghost.h)
+// starting from there; its portal's point goes up with it. So it comes out where it floats, not rising out of the floor.
+static void FiLiftNow(FiPortal *p)
+{
+    const BYTE *w = p->work, *g;
+    float fy, ry, d;
+    if (p->type != FI_VICTIM_TYPE || p->placeholder || !g_fiHoldFnOk || p->kind == FI_TD_VORTEX) return;
+    g = *(const BYTE *const *)(w + 0x28);
+    if ((ULONG_PTR)g < 0x10000) return;
+    if (!FiFloorUnder(((const float *)w)[0], ((const float *)w)[1] - FI_FLOOR_FROM, ((const float *)w)[2], &fy)) return;
+    ry = FiRestY(fy, *(const float *)(w + 0x60));
+    d = FiLiftBy(((const float *)w)[1], ry);
+    if (!(d > 0.0f)) return;
+    {
+        static __declspec(align(16)) float s_v[4];
+        float vd;
+        s_v[0] = ((const float *)w)[0], s_v[1] = ry, s_v[2] = ((const float *)w)[2], s_v[3] = ((const float *)w)[3];
+        ((void(__cdecl *)(const BYTE *, float *))0x45CF20)(p->task, s_v);
+        *(volatile float *)(g + 0x70) = ry;    // GhostWork.height (its update takes the work position's y anyway)
+        *(volatile float *)(g + 0x74) = 0.0f;  // GhostWork.height_speed: no swing on from the rise it was in
+        p->havePrev = 0;
+        p->lift = d;
+        if (FiPlaneV(p, p->c[1] - d, &vd)) FiPlaneMove(p, vd);  // its portal's point up with it (along its plane)
+        p->floorY = fy, p->floorOk = 1;
+    }
+}
 static void FiHoldTick(FiPortal *p)
 {
     const float age = (float)(g_fiClock - p->tr);
@@ -847,6 +1028,7 @@ static void FiHoldTick(FiPortal *p)
     if (!p->held) {
         p->held = 1;
         ++g_fiSt.held;
+        FiLiftNow(p);  // v3.59 FI359: a victim below its own height comes out at it (still unseen: its fade's first frame)
         FiStrandsStart(p);
     }
     if (p->strands == FI_TS_GAME) FiStrandsSnap(p, age);
@@ -995,7 +1177,8 @@ static int FiGameSet(const FiPortal *p, int set, float age, float amt, float w) 
         const FiSplat *s = &L->s[i];
         const float u = cu + s->u * hx * grow, v = cv + s->v * hy * grow;
         float *pt = (float *)(B + 0x10 + 16 * i);                           // the 25 points (w = the turn)
-        const int in = !set || FiBigCovers(&p->big, u, v, p->sx, p->sy);
+        const float yb = p->c[1] + p->ax[1] * u + p->ay[1] * v;  // v3.59 FI359: its world height
+        const int in = (!set || FiBigCovers(&p->big, u, v, p->sx, p->sy)) && FiBlotClear(yb, s->sc * k, p->floorY, p->floorOk);
         for (j = 0; j < 3; ++j) pt[j] = p->c[j] + p->ax[j] * u + p->ay[j] * v;
         pt[3] = s->ang;
         FI_WF(B, 0x230 + 4 * i) = s->sc * k;                                // size (each blot keeps it: never stretched)
@@ -1005,7 +1188,8 @@ static int FiGameSet(const FiPortal *p, int set, float age, float amt, float w) 
             const FiDrip *d = &L->d[(int)s->drip];
             *(signed char *)(B + 0x3CC + i) = s->drip;                       // its drip slot
             *(int *)(B + 0x314 + 4 * s->drip) = d->kind;                     // piece 2 / 3
-            FI_WF(B, 0x294 + 4 * s->drip) = FiDripLen(ag - FiTarAppear(i), d->len * k);  // length run down
+            FI_WF(B, 0x294 + 4 * s->drip) = FiDripToFloor(FiDripLen(ag - FiTarAppear(i), d->len * k), yb, p->floorY,
+                                                          p->floorOk);  // length run down (v3.59 FI359: never into the floor)
             FI_WS(B, 0x386 + 2 * s->drip) = FiTarLifeShort(FiLifeAtWeight(FiTarLife(age, p->rel, d->off * offK), w));
         }
     }
@@ -1119,11 +1303,13 @@ static void FiRibbon(void *dev, const Viewport8 *vp, const float (*P)[3], const 
 // the blot (a ragged near-black disc, a deep red core) and its drips (black, running down, a bead at the tip). v3.58
 // FI358: one disc a piece (the first at v3.57's size, the ones around it smaller, each with its own ragged edge), the drips
 // of every blot set (set 0 around the first, sets 1 / 2 over the whole portal, only where a piece is)
-static void FiOwnDisc(void *dev, const Viewport8 *vp, const float o[3], const FiPortal *p, float hx, float hy, float amt,
-                      unsigned seed)
+// (v3.59 FI359: the plane's axes ax / ay instead of the portal: the game's own wall portals use it under Spirit Vision; the
+// colours are g_fiPal's)
+static void FiOwnDisc(void *dev, const Viewport8 *vp, const float o[3], const float ax[3], const float ay[3], float hx, float hy,
+                      float amt, unsigned seed)
 {
     enum { NR = 7, NS = 24 };
-    static const float kCore[3] = { 0.60f, 0.97f, 0.96f }, kEdge[3] = { 0.93f, 0.95f, 0.95f };
+    const float *kCore = g_fiPal->core, *kEdge = g_fiPal->edge;
     const float now = (float)g_fiClock;
     GvHv g[2][NS + 1];
     float edge[NS + 1];
@@ -1139,7 +1325,7 @@ static void FiOwnDisc(void *dev, const Viewport8 *vp, const float o[3], const Fi
         for (s = 0; s <= NS; ++s) {
             const float th = 6.2831853f * (float)s / NS, e = rn * edge[s];
             float q[3];
-            for (j = 0; j < 3; ++j) q[j] = o[j] + p->ax[j] * cosf(th) * e * hx + p->ay[j] * sinf(th) * e * hy;
+            for (j = 0; j < 3; ++j) q[j] = o[j] + ax[j] * cosf(th) * e * hx + ay[j] * sinf(th) * e * hy;
             SvPoint(&g[cur][s], q, kk, rgb);
         }
         if (r)
@@ -1152,7 +1338,7 @@ static void FiOwnDisc(void *dev, const Viewport8 *vp, const float o[3], const Fi
 }
 static void FiOwnDrips(void *dev, const Viewport8 *vp, const FiPortal *p, int set, float age, float grow, float w)
 {
-    static const float kDrip[3] = { 0.90f, 0.96f, 0.96f };
+    const float *kDrip = g_fiPal->drip;  // v3.59 FI359
     const FiTarLayout *L = set ? &p->L2[set - 1] : &p->L;
     const float k = p->wall ? 1.0f : 0.6f, ag = age - 0.15f * (float)set, offK = set ? 0.5f : 1.0f;
     const float hx = (set ? p->big.tx : p->sx) * grow * 0.85f, hy = (set ? p->big.ty : p->sy) * grow * 0.85f;
@@ -1167,6 +1353,7 @@ static void FiOwnDrips(void *dev, const Viewport8 *vp, const FiPortal *p, int se
         if (set && !FiBigCovers(&p->big, u, v, p->sx, p->sy)) continue;
         d = &L->d[(int)sp->drip];
         len = FiDripLen(ag - FiTarAppear(i), d->len * k * 0.8f);
+        len = FiDripToFloor(len, p->c[1] + p->ax[1] * u + p->ay[1] * v, p->floorY, p->floorOk);  // v3.59 FI359
         a = FiTarLifeAlpha(FiTarLife(age, p->rel, d->off * offK)) * FiTarOpenAt(ag) * w;
         if (len < 2.0f || a < 0.01f) continue;
         for (j = 0; j < 3; ++j) top[j] = p->c[j] + p->n[j] * 4.0f + p->ax[j] * u + p->ay[j] * v;
@@ -1196,11 +1383,12 @@ static int FiOwnBlot(void *dev, const Viewport8 *vp, FiPortal *p)
         if (!(a > 0.002f)) continue;
         gr = 0.35f + 0.65f * FiTarOpenAt(age - pc->open);
         for (j = 0; j < 3; ++j) o[j] = p->c[j] + p->n[j] * 2.0f + p->ax[j] * pc->u + p->ay[j] * pc->v;
-        FiOwnDisc(dev, vp, o, p, p->sx * pc->s * gr, p->sy * pc->s * gr, a, FiHash(p->L.seed + 31u * (unsigned)g));
+        FiOwnDisc(dev, vp, o, p->ax, p->ay, p->sx * pc->s * gr, p->sy * pc->s * gr, a * g_fiPal->kAround,
+                  FiHash(p->L.seed + 31u * (unsigned)g));  // v3.59 FI359: axes, the palette's strength
         ++grids;
     }
     for (j = 0; j < 3; ++j) o[j] = p->c[j] + p->n[j] * 3.0f + p->ax[j] * p->big.g[0].u + p->ay[j] * p->big.g[0].v;
-    FiOwnDisc(dev, vp, o, p, p->sx * grow, p->sy * grow, amt, p->L.seed);  // a little off the wall
+    FiOwnDisc(dev, vp, o, p->ax, p->ay, p->sx * grow, p->sy * grow, amt * g_fiPal->kFirst, p->L.seed);  // a little off the wall
     ++grids;
     for (j = 0; j < p->big.sets && j < FI_SETS_MAX; ++j) {
         const float w = FiSetWeight(spark, deep, j);
@@ -1216,7 +1404,7 @@ static int FiOwnBlot(void *dev, const Viewport8 *vp, FiPortal *p)
 static void FiOwnCore(void *dev, const Viewport8 *vp, const FiPortal *p)  // its faint deep red core (additive)
 {
     enum { NR = 3, NS = 16 };
-    static const float kRed[3] = { 0.34f, 0.015f, 0.02f };
+    const float *kRed = g_fiPal->glow;  // v3.59 FI359
     const float age = (float)(g_fiClock - p->t0), amt = FiTarAmount(age, p->rel), grow = 0.35f + 0.65f * FiTarOpenAt(age);
     const float pulse = 0.85f + 0.15f * sinf(2.1f * (float)g_fiClock);
     GvHv g[2][NS + 1];
@@ -1251,13 +1439,33 @@ static int FiBoneCount(const BYTE *work)
     if ((ULONG_PTR)skel >= 0x10000) nb = *(const int *)(skel + 0x14);
     return nb < 0 ? 0 : nb > 32 ? 32 : nb;
 }
+// v3.59 FI359: one verbose line a portal, once it is laid out: its foot over the floor, how the victim came out
+static void FiArriveSay(FiPortal *p)
+{
+    FiArrive a;
+    char b[400];
+    if (p->said59 || !p->held || p->placeholder) return;
+    p->said59 = 1;
+    if (!LogQuota(&g_fiQuotaArrive, 400)) return;
+    memset(&a, 0, sizeof a);
+    a.id = p->id, a.type = p->type;
+    a.floorOk = p->floorOk, a.ceilOk = p->ceilOk;
+    a.foot = p->floorOk ? p->floorY - (p->c[1] + p->ay[1] * p->big.ty) : 0.0f;
+    a.raised = p->raised > 0.0f ? p->raised : 0.0f;
+    a.k = p->fitK > 0.0f ? p->fitK : 1.0f;
+    a.above = p->above0, a.rest = p->rest0, a.lift = p->lift, a.waited = p->waited;
+    a.ai = p->ai0, a.step = p->step0, a.anim = p->anim0;
+    FiArriveText(&a, b, sizeof b);
+    LogV("fade in: %s", b);
+}
 static void FiMeasure(FiPortal *p)
 {
     const float age = (float)(g_fiClock - p->t0);
     const int alive = FiAlive(p);
-    float pts[32][3], w0[3], d[3], tx, ty;
+    float pts[32][3], w0[3], d[3], tx, ty, du, dv;
     int b, n = 0, nb, j, k, on;
     if (p->measured) return;
+    if (!p->held && age < FI_MEASURE_WAIT_S) return;  // v3.59 FI359: after the hold's first tick (a victim may be lifted there)
     for (j = 0; j < 3; ++j) w0[j] = p->c[j] + p->n[j] * p->back;  // (the body's centre the plane was found from)
     if (alive) {
         nb = FiBoneCount(p->work);
@@ -1271,8 +1479,29 @@ static void FiMeasure(FiPortal *p)
     }
     FiBigTarget(&p->body, p->sx, p->sy, &tx, &ty);
     for (j = 0; j < 3; ++j) d[j] = p->body.c[j] - p->c[j];
-    FiBigMake(&p->big, p->L.seed, p->sx, p->sy, tx, ty, d[0] * p->ax[0] + d[1] * p->ax[1] + d[2] * p->ax[2],
-              d[0] * p->ay[0] + d[1] * p->ay[1] + d[2] * p->ay[2], g_fiPieces);
+    du = d[0] * p->ax[0] + d[1] * p->ax[1] + d[2] * p->ax[2];
+    dv = d[0] * p->ay[0] + d[1] * p->ay[1] + d[2] * p->ay[2];
+    {   // v3.59 FI359: the whole portal between the floor under the body and a ceiling over it (moved up its plane; a low
+        // ceiling: as tall as the room allows, the first portal smaller, never squashed); then centred on it (dv 0)
+        float fy, cy, vF = 1e30f, vC = -1e30f, vc, ty2, fk;
+        if (FiFloorUnder(p->body.c[0], p->body.top - 10.0f, p->body.c[2], &fy)) p->floorY = fy, p->floorOk = 1;
+        if (p->floorOk && !FiPlaneV(p, p->floorY - FI_FLOOR_GAP, &vF)) vF = 1e30f;
+        if (FiCeilOver(p->body.c, &cy) && cy < p->body.c[1]) {
+            p->ceilOk = 1, p->ceilY = cy;
+            if (!FiPlaneV(p, cy + FI_CEIL_GAP, &vC)) vC = -1e30f;
+        }
+        if (p->floorOk || p->ceilOk) {
+            FiFloorFit(vF, vC, dv, ty, p->sy, &vc, &ty2, &fk);
+            FiPlaneMove(p, vc);
+            p->raised = dv - vc;
+            dv = 0.0f, ty = ty2;
+            if (fk < 1.0f) {
+                p->sx *= fk, p->sy *= fk, p->fitK = fk;
+                if (tx > FI_COVER_MAXK * p->sx) tx = FI_COVER_MAXK * p->sx;
+            }
+        }
+    }
+    FiBigMake(&p->big, p->L.seed, p->sx, p->sy, tx, ty, du, dv, g_fiPieces);
     if (p->wall)
         for (k = 1; k < p->big.n; ++k) {  // each piece around the first on the wall too (a door, a corner: left out)
             FiPiece *g = &p->big.g[k];
@@ -1290,6 +1519,7 @@ static void FiMeasure(FiPortal *p)
     p->big.nOn = 1 + on;
     p->big.sets = on ? (on >= 5 ? 3 : 2) : 1;
     p->measured = 1;
+    FiArriveSay(p);  // v3.59 FI359
 }
 // Refined's sticky strands: up to ownWant of the body's bones in front of the plane (else points of its box), each tied
 // to a point of the portal behind it; each snaps at its own moment in the last 1.3 s of the strands' time (FiStickWindow)
@@ -1395,7 +1625,7 @@ static void FiBlob(void *dev, const Viewport8 *vp, const float c[3], float r, fl
 // (v3.58 FI358; v3.57's 12 thin strands that snapped between 1.5 and 2.5 s: FadeInStrandSeconds 0)
 static int FiOwnStrands(void *dev, const Viewport8 *vp, FiPortal *p)
 {
-    static const float kStr[3] = { 0.90f, 0.96f, 0.96f }, kBlob[3] = { 0.84f, 0.97f, 0.97f };
+    const float *kStr = g_fiPal->str, *kBlob = g_fiPal->blob, ks = g_fiPal->kStr;  // v3.59 FI359
     const float ageR = p->tr >= 0.0 ? (float)(g_fiClock - p->tr) : -1.0f;
     const int alive = FiAlive(p);
     int i, j, m, drawn = 0;
@@ -1434,11 +1664,11 @@ static int FiOwnStrands(void *dev, const Viewport8 *vp, FiPortal *p)
                 P[m][1] += sag * 4.0f * t * (1.0f - t);
                 hw[m] = (2.2f - 1.0f * t + 0.6f * sinf(9.0f * t + (float)i)) * wk * k;  // (beaded: tar, not thread)
             }
-            FiRibbon(dev, vp, (const float(*)[3])P, hw, 9, 0.92f, kStr);
+            FiRibbon(dev, vp, (const float(*)[3])P, hw, 9, 0.92f * ks, kStr);
             for (j = 0; j < 3; ++j) e[j] = g_svEye[j] - b[j];  // the tar on the body: a little toward the camera
             el = sqrtf(e[0] * e[0] + e[1] * e[1] + e[2] * e[2]);
             for (j = 0; j < 3; ++j) bl[j] = b[j] + (el > 1.0f ? e[j] / el * 6.0f : 0.0f);
-            FiBlob(dev, vp, bl, (4.5f + 3.0f * FiRnd01(hh)) * (0.5f + 0.5f * wk) * k, 0.9f, kBlob);
+            FiBlob(dev, vp, bl, (4.5f + 3.0f * FiRnd01(hh)) * (0.5f + 0.5f * wk) * k, 0.9f * ks, kBlob);
             {   // ... running down from it
                 const float run = (8.0f + 14.0f * FiRnd01(hh ^ 2u)) * (ageR < 1.5f ? ageR / 1.5f : 1.0f);
                 if (run > 1.5f) {
@@ -1448,7 +1678,7 @@ static int FiOwnStrands(void *dev, const Viewport8 *vp, FiPortal *p)
                         P[m][1] += run * t;
                         hw[m] = (1.6f - 0.9f * t + 0.8f * expf(-(1.0f - t) * (1.0f - t) / 0.02f)) * (0.5f + 0.5f * wk);
                     }
-                    FiRibbon(dev, vp, (const float(*)[3])P, hw, 5, 0.85f * k, kStr);
+                    FiRibbon(dev, vp, (const float(*)[3])P, hw, 5, 0.85f * k * ks, kStr);
                 }
             }
         } else if (ph == 2) {  // snapped: the wall end whips back toward the portal, thinning out
@@ -1460,7 +1690,7 @@ static int FiOwnStrands(void *dev, const Viewport8 *vp, FiPortal *p)
                 for (j = 0; j < 3; ++j) P[m][j] = p->sa[i][j] + (mid[j] - p->sa[i][j]) * t;
                 hw[m] = (1.6f - 0.8f * (float)m / 4.0f) * (1.0f - k) * wk;
             }
-            if (1.0f - k > 0.02f) FiRibbon(dev, vp, (const float(*)[3])P, hw, 5, 0.92f * (1.0f - k), kStr);
+            if (1.0f - k > 0.02f) FiRibbon(dev, vp, (const float(*)[3])P, hw, 5, 0.92f * (1.0f - k) * ks, kStr);
         }
         if (p->sdropSet[i]) {  // its body end drops off: a falling run of tar, fading
             const float td = ageR - p->sat[i], left = FiDropLeft(td), fall = FiDropFall(td);
@@ -1471,7 +1701,7 @@ static int FiOwnStrands(void *dev, const Viewport8 *vp, FiPortal *p)
                     P[m][1] += fall - (8.0f + 0.12f * fall) * (1.0f - t);
                     hw[m] = (0.8f + 1.4f * t) * left;
                 }
-                FiRibbon(dev, vp, (const float(*)[3])P, hw, 5, 0.9f * left, kStr);
+                FiRibbon(dev, vp, (const float(*)[3])P, hw, 5, 0.9f * left * ks, kStr);
             } else if (ph == 3) {
                 continue;  // (all gone)
             }
@@ -1521,18 +1751,86 @@ static int FiOwnDraw(void *dev, Viewport8 *vpOut)  // Refined's blots, drips and
     }
     return drawn;
 }
+// ================================================================ v3.59 FI359: Spirit Vision's spirit tar
+// Spirit Vision (screenfx.inc) draws a black world of edge lines over the scene, so the tar portal drawn after pass 2 was
+// gone there and its S5 pass drew v3.17's crimson vortex for each of the game's wall-portal tasks. Now, in its pass (both
+// depth passes: what lies behind geometry dim, the rest full; its states, its depth, its eye), Refined's portals are drawn
+// with Refined's own tar shapes (the pieces, the first portal, the blot sets' drips, the core, its sticky strands and the
+// tar on the body) in kFiPalSpirit (additive spirit blue: a dark-blue fill, a glowing ragged rim, pale-blue strands), and
+// the game's own wall portals as one such piece. [Gameplay] FadeInSpiritLook=0: v3.58 (the vortex; nothing for Refined's).
+static int FiSpiritNow(void) { return g_fiSvLook && GvLive(); }
+static void FiSpiritSay(int n, int wall)
+{
+    if (g_fiSvSaid || !n) return;
+    g_fiSvSaid = 1;
+    Log("fade in: Spirit Vision: %s drawn as spirit-blue tar in its pass (FadeInSpiritLook 1)", wall ? "the game's own wall portal"
+        : "Reveal Method's tar portal (its pieces, drips and strands)");
+}
+// screenfx.inc's Spirit Vision pass (SvUntextured's additive states and SvZ(pass) are set; g_svEye / g_gvM are this frame's):
+// Refined's portals. Returns those drawn.
+static int __cdecl FiSpiritDraw(void *dev, const Viewport8 *vp)
+{
+    int i, n = 0;
+    if (!g_fiReady || g_fiFail || !g_fiSvLook || !g_fiPortalN || g_fiMode != FI_MODE_PORTAL) return 0;
+    __try {
+        g_fiPal = &kFiPalSpirit;
+        for (i = 0; i < FI_PORTAL_MAX; ++i) {
+            FiPortal *p = &g_fiPortal[i];
+            int d = 0;
+            if (!p->on || p->kind == FI_TD_VORTEX) continue;
+            d += FiOwnBlot(dev, vp, p);  // (the game's grid has no Spirit Vision form: Refined's discs for both kinds)
+            FiOwnCore(dev, vp, p);
+            if (p->nOwn > 0) d += FiOwnStrands(dev, vp, p) > 0;
+            n += d > 0;
+        }
+    } __except (FiFaultNote(GetExceptionInformation())) {
+        g_fiPal = &kFiPalTar;
+        FiFailNow("the Spirit Vision portal draw");
+        return n;
+    }
+    g_fiPal = &kFiPalTar;
+    FiSpiritSay(n, 0);
+    return n;
+}
+// screenfx.inc SvPortals: one of the game's own wall portals (its centre c, a little off the wall; its normal; its full
+// width / height; how far it is open): 1 = drawn as spirit tar (the vortex is not drawn), 0 = draw the vortex
+static int __cdecl FiSpiritWall(void *dev, const Viewport8 *vp, const float c[3], const float nn[3], float a, float b,
+                                float open, unsigned seed)
+{
+    float ax[3], ay[3], o[3];
+    int j, ok = 0;
+    if (!g_fiReady || g_fiFail || !g_fiSvLook || !FiPlaneAxes(nn, ax, ay)) return 0;
+    __try {
+        const float gr = 0.35f + 0.65f * open;
+        g_fiPal = &kFiPalSpirit;
+        for (j = 0; j < 3; ++j) o[j] = c[j];
+        FiOwnDisc(dev, vp, o, ax, ay, 0.5f * a * gr, 0.5f * b * gr, open * kFiPalSpirit.kFirst, FiHash(seed ^ 0x5B1Du));
+        FiOwnDisc(dev, vp, o, ax, ay, 0.2f * a * gr, 0.2f * b * gr, 0.6f * open, FiHash(seed ^ 0xC0DEu));  // its core
+        ok = 1;
+    } __except (FiFaultNote(GetExceptionInformation())) {
+        ok = 0;
+        g_fiSvLook = 0;  // (v3.58's vortex from now on)
+        Log("fade in: a fault in the Spirit Vision wall portal draw (code %08lX at %p): v3.58's look for this session",
+            g_fiFaultCode, g_fiFaultAt);
+    }
+    g_fiPal = &kFiPalTar;
+    if (ok) FiSpiritSay(1, 1);
+    return ok;
+}
+
 static void FiPass2Draw(void)  // FiPhaseDraw: right after the game's pass 2 (where its own wall portals draw), game thread
 {
     LARGE_INTEGER a, b, f;
     Viewport8 vp;
     void *dev;
-    int i, game = 0, own = 0, need = 0;
+    int i, game = 0, own = 0, need = 0, sv;
     if (!g_fiReady || g_fiFail || !g_fiPortalN || g_fiMode != FI_MODE_PORTAL) return;
     if (*(volatile int *)0xFD5C20 != 0 || !FxGameplay() || !(dev = DEV)) return;
     QueryPerformanceCounter(&a);
     memset(&vp, 0, sizeof vp);
     __try {
         FiFrameTick();
+        sv = FiSpiritNow();  // v3.59 FI359: Spirit Vision's edge world replaces the scene: the portals are drawn in its pass
         if (FiPortalsExpire()) {
             for (i = 0; i < FI_PORTAL_MAX; ++i) {
                 FiPortal *p = &g_fiPortal[i];
@@ -1540,6 +1838,7 @@ static void FiPass2Draw(void)  // FiPhaseDraw: right after the game's pass 2 (wh
                 if (!p->on || p->kind == FI_TD_VORTEX) continue;
                 FiMeasure(p);                                // v3.58 FI358: this frame's bones (the game's pass 2 is drawn)
                 if (p->held && !p->ownStarted) FiStickStart(p);
+                if (sv) continue;                            // v3.59 FI359 (FiSpiritDraw)
                 if (p->kind == FI_TD_GAME && FiGameDraw(dev, p)) p->drawnNow = 1, game = 1;
                 if (p->kind == FI_TD_OWN || p->nOwn > 0) need = 1;
             }
@@ -1691,6 +1990,7 @@ static void FiInit(void)  // gameplay.inc GameplayInstall (Init, before the Opti
                               FI_PIECES_DEFAULT, FI_PIECES_MAX);
     g_fiStrN = FiCountClamp(GetPrivateProfileIntA("Gameplay", "FadeInStrands", FI_STRANDS_DEFAULT, g_iniPath),
                             FI_STRANDS_DEFAULT, FI_STRANDS_MAX);
+    g_fiSvLook = FiSpiritLookParse(GetPrivateProfileIntA("Gameplay", "FadeInSpiritLook", 1, g_iniPath));  // v3.59 FI359 (hidden)
     Encode(g_txtFi[FIM_L], 56, OLW_ENEMIES_REVEAL_METHOD_L);  // v3.58 MN358: Reveal Method (was "Fade In")
     for (v = 0; v < FI_MODE_N; ++v) {
         Encode(g_txtFi[FIM_V0 + v], 56, OlShow(OLM_ENEMIES_REVEAL_METHOD, kFiModeName[v]));  // v3.53 OL1: Fade + Portal shows Portal  // v3.58 MN358: Fade shows Fade In
@@ -1720,7 +2020,7 @@ static void FadeInInstall(void)
         // byte-checked, put back on a failed write; not listed in SH4WM_Patches: like EntityGate's entries 7 / 14, data)
         const char *why = NULL;
         char tar[400];
-        int i, ok[3] = { 1, 1, 1 };
+        int i, ok[4] = { 1, 1, 1, 1 };  // v3.59 FI359: + group 3, the floor ray
         __try {
             for (i = 0; i < FI_TAR_NFN; ++i)
                 if (memcmp((const void *)(ULONG_PTR)kFiTarFns[i].va, kFiTarFns[i].b, sizeof kFiTarFns[i].b)) {
@@ -1730,9 +2030,10 @@ static void FadeInInstall(void)
                         kFiTarFns[i].name);
                 }
         } __except (EXCEPTION_EXECUTE_HANDLER) {
-            ok[0] = ok[1] = ok[2] = 0;
+            ok[0] = ok[1] = ok[2] = ok[3] = 0;
         }
         g_fiGameOk = ok[0], g_fiStrandOk = ok[1], g_fiHoldFnOk = ok[2];
+        g_fiFloorFnOk = ok[3];  // v3.59 FI359
         if (g_fiTdm == FI_TDM_VORTEX) {
             why = "FadeInPortalDraw=Vortex";
         } else if (*(const DWORD *)FI_PHASE_VA != FI_PHASE_FN) {
@@ -1768,9 +2069,13 @@ static void FadeInInstall(void)
             "FadeInHold %d, FadeInStrandSeconds %.1f, FadeInPortalPieces %d, FadeInStrands %d; never bosses, Wall Men, Walter, "
             "event or cut-scene figures; a fading enemy acts as usual; a held ghost cannot grab; v3.58: the tar portal 1.24 x "
             "the arriving body's height (the first portal and up to %d more of the same around it, thinned by the effect "
-            "budget), its strands on the body %.1f s after it is in, the portal open as long", g_fiPortalOk ?
+            "budget), its strands on the body %.1f s after it is in, the portal open as long; v3.59: %s; a victim coming out "
+            "of a wall by itself unseen until it is out (at most %.1f s), lifted to its own height; FadeInSpiritLook %d (Spirit "
+            "Vision: %s)", g_fiPortalOk ?
             "from the scene pass 004EFBFD" : "NOT available (no scene pass)", tar, kFiModeName[g_fiMode], g_fiSec,
-            kFiTdmName[g_fiTdm], g_fiHoldOn, g_fiStick, g_fiPieces, g_fiStrN, g_fiPieces, g_fiStick);  // v3.58 FI358
+            kFiTdmName[g_fiTdm], g_fiHoldOn, g_fiStick, g_fiPieces, g_fiStrN, g_fiPieces, g_fiStick,  // v3.58 FI358
+            g_fiFloorFnOk ? "on the floor (the floor ray 00459490, a ceiling by 00561CD0)" : "NOT on the floor (00459490 is "
+            "not stock: laid out as v3.58)", FI_WAIT_MAX_S, g_fiSvLook, g_fiSvLook ? "spirit-blue tar" : "v3.58's vortex");  // v3.59 FI359
     }
 }
 
@@ -1781,6 +2086,7 @@ static float FiBodyShown(const BYTE *task, const BYTE *work, unsigned id)
 {
     int k;
     if (!g_fiReady || g_fiFail || g_fiMode == FI_MODE_OFF || !task) return 1.0f;
+    if (FiWaiting(task, id)) return 0.0f;  // v3.59 FI359: kept unseen until it is out of its wall
     k = FiFind(&g_fiTab, task, work, id);
     if (k < 0 || g_fiTab.e[k].state != FI_E_FADE) return 1.0f;
     return FiFrac((float)(g_fiClock - g_fiTab.e[k].t0), g_fiSec);

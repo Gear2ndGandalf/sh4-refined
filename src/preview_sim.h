@@ -21,6 +21,7 @@
 #include <float.h>         // _finite
 #include "post_sim.h"        // PS_* tokens, PsTok, PsLint (the key shader uses proven ps.1.1 forms only)
 #include "spiritfire_sim.h"  // the soul fire of the title scene's figure (the same fire as play's)
+#include "pvlayer_sim.h"     // v3.59 PV359: the F7 picture's layer files (encode / check / decode, the picture's stamp)
 
 typedef unsigned int PvU32;
 typedef struct { float x, y; PvU32 c; } PvV;            // a vertex on screen (pixels), ARGB
@@ -39,6 +40,8 @@ typedef struct {
     int heatLive;    // the live filter is Thermal: it collects its bodies itself (ThermHeatLive)
     int ghostLive;   // the live filter is Spirit Vision: it collects its ghosts and souls itself (GvLive)
     int fails;       // faults / failed copies this session (PV_FAILS_OFF: off)
+    int f7;          // v3.59 PV359: an F7 frame (the press armed it a frame ahead): a frame of play whose layers go beside
+                     // the F7 picture (phase 0 only; capture stays 0)
 } PvCapIn;
 // (v3.58 PV358: kept under every Preview value: a filter changed in Options during a pause lays them over the pause menu's
 // picture too, FxBackdropFrame; PreviewLayers=0 is still their off switch)
@@ -49,7 +52,8 @@ enum { PVL_HEAT = 1, PVL_SPIRIT = 2 };
 static int PvNeed(const PvCapIn *in)
 {
     int m = 0;
-    if (!in->on || !in->shOn || !in->hooks || !in->gameplay || in->capture != 1 || in->fails >= PV_FAILS_OFF) return 0;
+    if (!in->on || !in->shOn || !in->hooks || !in->gameplay || in->fails >= PV_FAILS_OFF) return 0;
+    if (in->f7 ? in->phase != 0 : in->capture != 1) return 0;  // v3.59 PV359: an F7 frame (play only) or the capture frame
     if (in->heatOk && (in->phase == 0 || in->phase == 1)) m |= PVL_HEAT;
     if (in->edgesOk && in->phase == 0) m |= PVL_SPIRIT;
     return m;
@@ -72,7 +76,7 @@ static int PvCaptureMask(const PvCapIn *in, int gpuPic, int haveHeat, int haveSp
 {
     int m;
     *why = !in->on ? PVW_OFF : !in->shOn ? PVW_NOTARGETS : !in->hooks ? PVW_NOHOOKS : in->fails >= PV_FAILS_OFF ? PVW_FAILED :
-           !in->gameplay || in->capture != 1 || in->phase > 1 ? PVW_NOTPLAY : PVW_OK;
+           !in->gameplay || (in->f7 ? in->phase != 0 : in->capture != 1 || in->phase > 1) ? PVW_NOTPLAY : PVW_OK;  // v3.59 PV359: + f7
     if (*why) return 0;
     m = PvNeed(in);
     if (!gpuPic) {
@@ -127,6 +131,38 @@ static int PvF7Shows(int mode, int back)
 {
     return mode == PVM_LIVE && (back == PVB_PICTURE || back == PVB_SCENE || back == PVB_STOCK);
 }
+// v3.59 PV359 (USER_FEEDBACK_v358 QA 3): F7 keeps the layers with its picture. A frame's bodies are collected while its
+// models draw (0x52AEB5), before the frame's scene slot (0x4EFBFD) reads the key, so a press arms the NEXT frame: its
+// bodies and souls are collected, and its picture and layers are taken there together. Only the frame right after the
+// press is taken that way (PVF7_LATE: the game left play in between; nothing is taken, the press is dropped).
+enum { PVF7_NONE, PVF7_NOW, PVF7_LATE };
+static int PvF7When(int armed, long armFrame, long frame)
+{
+    if (!armed) return PVF7_NONE;
+    return frame == armFrame ? PVF7_NOW : PVF7_LATE;
+}
+// can an F7 press draw layers at all (the capture rule's switches; 0: the picture is taken at once, alone, as v3.58)
+static int PvF7CanLayer(const PvCapIn *in, int *why)
+{
+    PvCapIn f = *in;
+    f.f7 = 1, f.capture = 0;
+    *why = !f.on ? PVW_OFF : !f.shOn ? PVW_NOTARGETS : !f.hooks ? PVW_NOHOOKS : f.fails >= PV_FAILS_OFF ? PVW_FAILED :
+           !f.gameplay || f.phase != 0 ? PVW_NOTPLAY : PVW_OK;
+    if (*why == PVW_OK && !PvNeed(&f)) *why = PVW_EMPTY;  // (no heat redraw and no Spirit Vision shaders)
+    return *why == PVW_OK;
+}
+// v3.59 PV359 (QA 11, the user's screenshot: the figure's split shadow drawn over the stock picture's Eileen; the session:
+// Live's title menu shows the stock picture too, so the same rule there): the Shadows page by Preview. Off: none (the
+// game's own background, v3.58). Whenever the backdrop is a still picture (Stock anywhere; Live at the title menu or in a
+// pause whose frame drew no shadow): that picture alone, as the Effects page picks it (PvBackPick: the stock picture,
+// PreviewImage, the pause picture, else SH4 Refined's scene): no split line, no drawn figure. The split demonstration only
+// over a live paused game's own shadow (Live, a pause with its copies: splitScene).
+enum { PVSH_NONE, PVSH_STILL, PVSH_SPLIT };
+static int PvShPage(int mode, int splitScene)
+{
+    if (mode == PVM_OFF) return PVSH_NONE;
+    return mode == PVM_LIVE && splitScene ? PVSH_SPLIT : PVSH_STILL;
+}
 // v3.58 PV358: two paths name the same file (case-blind, / or \): F7 / the auto-capture never write the stock picture
 static int PvSamePath(const char *a, const char *b)
 {
@@ -141,18 +177,29 @@ static int PvSamePath(const char *a, const char *b)
     }
     return *a == *b;
 }
-enum { PVP_NONE, PVP_PAUSE_HEAT, PVP_PAUSE_SPIRIT, PVP_SCENE_HEAT, PVP_SCENE_SPIRIT, PVP_N };
+// v3.59 PV359: + the picture's own layers (the F7 set: the stock picture's or PreviewImage's .heat / .spirit files)
+enum { PVP_NONE, PVP_PAUSE_HEAT, PVP_PAUSE_SPIRIT, PVP_SCENE_HEAT, PVP_SCENE_SPIRIT, PVP_PIC_HEAT, PVP_PIC_SPIRIT, PVP_N };
 static const char *const kPvPage[PVP_N] = { "no layer", "the pause's heat layer", "the pause's spirit layer",
-                                            "the scene's heat (figure, footprints)", "the scene's spirit (ghost glow, soul fire)" };
+                                            "the scene's heat (figure, footprints)", "the scene's spirit (ghost glow, soul fire)",
+                                            "the picture's heat layer", "the picture's spirit layer" };
 typedef struct {
     int thermal, spirit;   // the page's filter
     int back;              // PVB_* drawn this frame (the pause picture only when it is this pause's GPU copy)
     int layersSeq, picSeq; // the pause the layers belong to, the pause picture's
     int haveHeat, haveSpirit;
+    int picHeat, picSpirit;  // v3.59 PV359: the drawn picture's (stock / PreviewImage) layer file was loaded
 } PvPageIn;
+// v3.59 PV359: which layer file the page asks for (only for a picture backdrop under Thermal / Spirit Vision; 0 none)
+static int PvPicLayerWanted(int back, int thermal, int spirit)
+{
+    if (back != PVB_STOCKPIC && back != PVB_PICTURE) return 0;
+    return thermal ? PVLK_HEAT : spirit ? PVLK_SPIRIT : 0;
+}
 static int PvPageLayer(const PvPageIn *in)
 {
     if (in->back == PVB_SCENE) return in->thermal ? PVP_SCENE_HEAT : in->spirit ? PVP_SCENE_SPIRIT : PVP_NONE;
+    if (in->back == PVB_STOCKPIC || in->back == PVB_PICTURE)  // v3.59 PV359: the F7 set's layers (none: the filter's look only, as v3.58)
+        return in->thermal && in->picHeat ? PVP_PIC_HEAT : in->spirit && in->picSpirit ? PVP_PIC_SPIRIT : PVP_NONE;
     if (in->back != PVB_PAUSE || in->layersSeq < 0 || in->layersSeq != in->picSeq) return PVP_NONE;
     if (in->thermal && in->haveHeat) return PVP_PAUSE_HEAT;
     if (in->spirit && in->haveSpirit) return PVP_PAUSE_SPIRIT;

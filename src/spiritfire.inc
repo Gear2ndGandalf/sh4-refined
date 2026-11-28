@@ -90,6 +90,8 @@ static void SfReadHp(const SvSoul *s, SfFire *F, SfIn *in)
     F->gHp = frac, F->gDmg = dmg, F->gSer = ser, F->gHave = 1;
     if (src == 2 && hp <= 0.0f) in->deadNow = 1;  // the player at 0 HP: her fire goes out
 }
+#include "hbtheme_sim.h"  // v3.59 FT359: HbtSpiritTint (Ghost Teleport's spirit-blue fade)
+static int g_ftOn;  // v3.59 FT359: [ScreenEffects] FilterThemes (hidden, default 1; read by hudbars.inc HbThemeInit)
 // once a frame: the beings drawn this frame (g_svSoul), the fire states, the sprites on screen
 static void SfBuild(const Viewport8 *vp, float now)
 {
@@ -124,7 +126,10 @@ static void SfBuild(const Viewport8 *vp, float now)
         const float gk = GtSoulOp();
         if (gk < 1.0f)
             for (i = 0; i < g_sfSprN; ++i)
-                if (g_sfSpr[i].fire >= 0 && g_sfSpr[i].fire < SF_FIRES && g_sf.fire[g_sfSpr[i].fire].key == herKey) g_sfSpr[i].a *= gk;
+                if (g_sfSpr[i].fire >= 0 && g_sfSpr[i].fire < SF_FIRES && g_sf.fire[g_sfSpr[i].fire].key == herKey) {
+                    g_sfSpr[i].a *= gk;
+                    if (g_ftOn && g_sfSpr[i].add) HbtSpiritTint(g_sfSpr[i].rgb, gk);  // v3.59 FT359: a spectral warp: her fire (not its smoke) turns spirit blue as she fades
+                }
     }
     for (i = g_sfFires = 0; i < SF_FIRES; ++i) g_sfFires += g_sf.fire[i].live;
     if (!SvSprScale(vp)) {  // pixels per world unit (as the auras); no camera matrix: nothing this frame

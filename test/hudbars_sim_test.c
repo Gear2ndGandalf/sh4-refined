@@ -1329,8 +1329,84 @@ static void TestWalter358(void)
     }
 }
 
+// v3.59 EN359: the bar above the head (per type and variant), Walter down for a long time
+static void TestAnchor359(void)
+{
+    int t, v;
+    CHECK(HbAnchorLift(0x08, 0) == 70.0f && HbAnchorLift(0x08, 1) == 43.0f, "the Twins: v0 70 (heads 64 above the top bone), v1 43");
+    CHECK(HbAnchorLift(0x05, 0) == 40.0f && HbAnchorLift(0x06, 1) == 40.0f, "the Wall Man / Wheelchair: v3.58's 40 (no head on top)");
+    CHECK(HbAnchorLift(0x0A, 0) == 40.0f && HbAnchorLift(0x0B, 2) == 40.0f, "dogs, short-haired victims: 40 as v3.58");
+    CHECK(HbAnchorLift(0x0E, 0) == 60.0f && HbAnchorLift(0x0C, 1) == 56.0f && HbAnchorLift(0x11, 0) == 52.0f, "Andrew 60, the baby 56, the Patient 52");
+    for (t = 0; t < 0x13; ++t)
+        for (v = 0; v < 16; ++v) {
+            CHECK(HbAnchorLift(t, v) >= 40.0f && HbAnchorLift(t, v) <= 80.0f, "type %02X v%d: never lower than v3.58, at most 80", t, v);
+            CHECK(HbFallbackHeight(t, v) > 0.0f && HbFallbackHeight(t, v) <= 403.0f, "type %02X v%d: a fallback height", t, v);
+        }
+    CHECK(HbFallbackHeight(0x08, 0) == 398.0f && HbFallbackHeight(0x0A, 0) == 179.0f, "fallbacks: the Twins 398 (v3.58 380), the dog 179 (150)");
+    CHECK(HbFallbackHeight(0x08, 0) > 391.5f && HbFallbackHeight(0x07, 0) > 396.6f && HbFallbackHeight(0x0B, 1) > 366.1f,
+          "fallbacks above the measured mesh tops");
+}
+static void TestWalter359(void)
+{
+    float cd = -1.0f;
+    int what = -1;
+    // the stalker's long down: steps 2 / 4 / 5 / 6 are down (v3.58: step 4 and class 0x0B gone)
+    CHECK(HbWalterState2(HB_WK_STALKER, 0x0A, 0x0E, 4, 0.0f, 750.0f, 6.0f, 0.0f, 1, 1, &cd, &what) == HB_GS_DOWN && what == HB_WD_HEAL &&
+          fabsf(cd - 125.0f) < 0.01f, "the user's 22:38:54: step 4, hp 0 / 750: down, 125 s of heal (%.1f)", cd);
+    CHECK(HbWalterState2(HB_WK_STALKER, 0x0B, 0x0E, 5, 375.0f, 750.0f, 6.0f, 0.0f, 1, 1, &cd, &what) == HB_GS_DOWN && fabsf(cd - 62.5f) < 0.01f,
+          "class 0x0B healing: half left (%.1f)", cd);
+    CHECK(HbWalterState2(HB_WK_STALKER, 0x0B, 0x0E, 5, 300.0f, 750.0f, 0.0f, 0.0f, 1, 1, &cd, &what) == HB_GS_DOWN && fabsf(cd - 90.0f) < 0.01f,
+          "regen unknown: 5 a second (%.1f)", cd);
+    CHECK(HbWalterState2(HB_WK_STALKER, 0x0A, 0x0E, 6, 750.0f, 750.0f, 6.0f, 0.0f, 1, 1, &cd, &what) == HB_GS_DOWN && cd == 0.0f &&
+          what == HB_WD_WAIT, "step 6 (healed, the stir): down, empty");
+    CHECK(HbWalterState2(HB_WK_STALKER, 0x0A, 0x0E, 2, 10.0f, 750.0f, 6.0f, 2.0f, 1, 1, &cd, &what) == HB_GS_DOWN && what == HB_WD_WAIT,
+          "step 2 (lies while you keep at him): down, empty");
+    CHECK(HbWalterState2(HB_WK_STALKER, 0x0A, 0x0E, 1, 0.0f, 750.0f, 6.0f, 42.5f, 1, 1, &cd, &what) == HB_GS_DOWN && cd == 42.5f &&
+          what == HB_WD_TIMER, "step 1: the game's timer as v3.58");
+    CHECK(HbWalterState2(HB_WK_STALKER, 8, 0x0E, 3, 760.0f, 750.0f, 6.0f, 0.0f, 1, 1, &cd, &what) == HB_GS_RISING, "rising (step 3, class 8)");
+    CHECK(HbWalterState2(HB_WK_STALKER, 0x10, 0, 0, 750.0f, 750.0f, 6.0f, 0.0f, 1, 1, &cd, &what) == HB_GS_GONE, "scripted (0x10+): gone");
+    CHECK(HbWalterState2(HB_WK_STALKER, 0x0A, 0x0E, 4, 0.0f, 750.0f, 6.0f, 0.0f, 1, 0, &cd, &what) == HB_GS_GONE,
+          "the heal's code differs (longOk 0): v3.58's rule");
+    CHECK(HbWalterState2(HB_WK_STALKER, 0x0B, 0x0E, 5, 0.0f, 750.0f, 6.0f, 0.0f, 0, 1, &cd, &what) == HB_GS_GONE,
+          "the timer's bytes differ: v3.58's rule");
+    CHECK(HbWalterState2(HB_WK_FINAL, 9, 0x10, 1, 0.0f, 3000.0f, 6.0f, 0.0f, 1, 1, &cd, &what) == HB_GS_GONE &&
+          HbWalterState2(HB_WK_FINAL, 9, 7, 2, 1200.0f, 3000.0f, 6.0f, 3.5f, 1, 1, &cd, &what) == HB_GS_DOWN && cd == 3.5f,
+          "the final Walter: as v3.58");
+    CHECK(HbWalterState2(HB_WK_BODIES, 1, 0x0E, 4, 0.0f, 100.0f, 6.0f, 0.0f, 1, 1, &cd, &what) == HB_GS_GONE, "the Bodies: as v3.58");
+    {   // the whole lie at 30 / 60 / 120 / 180 fps: 10 s of timer, a hit at HP 0 (step 4: 1.5 s fall), the heal 750 / 6 =
+        // 125 s (class 0x0B), the stir 1 s, the rise: the bars are up the whole time, the revive bar drains, gone when risen
+        static const int kF[4] = { 30, 60, 120, 180 };
+        int i, f;
+        for (i = 0; i < 4; ++i) {
+            HbRevive r;
+            const float dt = 1.0f / (float)kF[i];
+            float t = 0.0f, hp = 0.0f, mid = -1.0f, minA = 2.0f;
+            int gs = HB_GS_STAND, step, cls, downAll = 1;
+            memset(&r, 0, sizeof r);
+            for (f = 0; f < kF[i] * 140; ++f, t += dt) {
+                if (t < 10.0f) step = 1, cls = 0x0A;
+                else if (t < 11.5f) step = 4, cls = 0x0A;
+                else if (hp < 750.0f) step = 5, cls = 0x0B, hp += 6.0f * dt;
+                else if (t < 138.5f) step = 6, cls = 0x0A;
+                else step = 3, cls = 8;
+                if (hp > 750.0f) hp = 750.0f;
+                gs = HbWalterState2(HB_WK_STALKER, cls, 0x0E, step, hp, 750.0f, 6.0f, 10.0f - t, 1, 1, &cd, &what);
+                HbReviveStep(&r, gs, cd, dt);
+                if (step != 3) downAll &= gs == HB_GS_DOWN;
+                if (t > 1.0f && step != 3 && r.alpha < minA) minA = r.alpha;
+                if (mid < 0.0f && t >= 11.5f + 62.5f) mid = r.frac;
+            }
+            CHECK(downAll && minA > 0.999f, "%d fps: down and the revive bar up the whole lie (least %.3f)", kF[i], minA);
+            CHECK(fabsf(mid - 0.5f) < 0.03f, "%d fps: half the heal left half way (%.3f)", kF[i], mid);
+            CHECK(gs == HB_GS_RISING && r.alpha == 0.0f, "%d fps: risen, the revive bar gone", kF[i]);
+        }
+    }
+}
+
 int main(void)
 {
+    TestAnchor359();  // v3.59 EN359
+    TestWalter359();  // v3.59 EN359
     TestUndrawn358();  // v3.58 EN358
     TestWalter358();  // v3.58 EN358
     TestRefuse352();  // v3.52 HB352

@@ -150,6 +150,12 @@ HB_WALTER_SITE = re.compile(r'^hud bars: Walter downed keeps his bar .*?: the st
                             r'final Walter\'s \(004A8760\) (read|differs.*)$')
 HB_BOSS = re.compile(r'^hud bars: boss (Walter|the Wall boss) ([0-9A-F]{8}) \(type ([0-9A-F]{2})\) in room (\d+:[0-9A-F]+): '
                      r'(?:its bar is up ([\d.]+) s after it became active|active 5 s and no bar yet: (.*?) \(state)')
+# v3.59 FT359: the enemy bars' looks under the special filters (hudbars.inc HbInit / HbThemeFrame / HbThemeHides)
+FT_SET = re.compile(r'^hud bars: filter themes (on|off) \(\[ScreenEffects\] FilterThemes=(-?\d+), hidden\)')
+FT_LOOK = re.compile(r'^hud bars: the enemy bars wear the (Thermal Vision|Spirit Vision|Night Vision|Night Mono|stock) look '
+                     r'\((?:Filter Strength (\w+)|Filter ([^;)]+))')
+FT_HID1 = re.compile(r'^hud bars: Thermal Vision: no bar for the victims .*?the first: type ([0-9A-F]{2}) in room (\d+:[0-9A-F]+)')
+FT_HIDR = re.compile(r'^hud bars: room (\d+:[0-9A-F]+): Thermal Vision drew no bar for (\d+) victim\(s\) .*?; (\d+) this session\)')
 HB_PE_RING = re.compile(r"^hud bars: (?:Playable Eileen draws the player's curse ring \(SH4PE_DrawsPlayerCurse\)|"
                         r"SH4PE_DrawsPlayerCurse (is not exported|\(\) returned -?\d+))")
 PERF_PLACE = re.compile(r'^perf: readout (at the top-left corner, clear of|under|right of|at the top-left corner, over) (.+?) \((\d+)x(\d+), S')
@@ -179,6 +185,17 @@ PV_KEPT = re.compile(r"^screen effects: the pause's look layers kept for the Eff
                      r"(\d+)x(\d+), (targets made|targets kept from an earlier pause) \(the preview's ([\d.]+) MB\), ([\d.]+) ms$")
 PV_NOT = re.compile(r"^screen effects: the pause's look layers not kept: (.+?) \(Thermal / Spirit Vision show ")
 PV_FAIL = re.compile(r"^screen effects: the pause's look layers (faulted|could not be copied)")
+# v3.59 TV359: Thermal Vision: walls hide heat (the light grid draws without a depth write while it is on), the room lines,
+# the first kept frame, the player's footprint shape (Henry's boots / Eileen's heels)
+TV_IN = re.compile(r'^screen effects: Thermal Vision: walls hide heat \(the light grid 004EFBDC ')
+TV_OFF = re.compile(r"^screen effects: Thermal Vision: (\[ScreenEffects\] ThermalTrueDepth=0|the light grid's call 004EFBDC is not "
+                    r"stock|004EFBDC could not be written)")
+TV_ROOM = re.compile(r'^screen effects: Thermal Vision: stage (\d+) room ([0-9A-F]+) left: (\d+) heat frame\(s\); the light grid '
+                     r'drew in (\d+), keeping the depth in (\d+) \((.+?)\); footprints depth-tested in (\d+)$')
+TV_FIRST = re.compile(r"^screen effects: Thermal Vision: first frame with the scene's depth kept under the light grid \(stage (\d+) "
+                      r"room ([0-9A-F]+)\)")
+TV_SHAPE = re.compile(r"^screen effects: Thermal Vision: the player's footprints are (Henry's boots|Eileen's heels|the old oval) "
+                      r"\((.+)\)$")
 PV_PAGE = re.compile(r"^screen effects: the Effects page's preview: (.+?) over (the paused scene \(the pause menu\)|the paused scene|"
                      r"SH4 Refined's preview scene|the preview picture \(PreviewImage\)|the stock hallway|"
                      r"the stock picture \(SH4Refined_preview_stock\.dds\))(?: with (.+?))?"  # v3.58 PV358: + the stock picture
@@ -192,6 +209,16 @@ PV_FSLEG = re.compile(r"^screen effects: \[ScreenEffects\] FilterStrength=(.*?) 
 PV_STOCKBAD = re.compile(r"^screen effects: the stock picture (.*?) is (missing|not usable)")
 PV_FSFAIL = re.compile(r"^screen effects: Filter Strength (\w+): the plain picture could not be copied")
 PV_LAID = re.compile(r"^screen effects: the preview scene laid out for (\d+)x(\d+): ")
+# v3.59 PV359: F7's look layers beside its picture, the picture layers the page loads, the Shadows page with Preview Stock
+PV_F7 = re.compile(r"^screen effects: F7's look layers for (.+?): heat (saved|none) (.*?); spirit (saved|none) (.*?)"
+                   r"(; the older layer file\(s\) of that name removed)?; ([\d.]+) ms$")
+PV_F7LATE = re.compile(r"^screen effects: F7: no picture taken: the game left play")
+PV_F7FAIL = re.compile(r"^screen effects: F7's look layers (faulted|could not be copied)")
+PV_LAY = re.compile(r"^screen effects: the picture's (heat|spirit) layer (.*?): (used|no file|not used: (.+?)) \((?:\d|Thermal|Spirit)")
+PV_SHSTOCK = re.compile(r"^screen effects: the Shadows page's preview: Preview (Stock|Live): the still picture alone: (.+?) "
+                        r"\(the split shadows only over a paused game")
+PV_STOCKLAY = re.compile(r": present \((with its heat and spirit layer files|with its heat layer file|with its spirit layer file|"
+                         r"no layer files)\);")
 MU_EVENTS = (('opened from the pause', 'from the pause'), ('opened from play', 'from play'),
              ('closed, back in the pause', 'back in the pause'), ('closed, back to play', 'back to play'),
              ('closed, a save loads', 'a save loads'))
@@ -256,6 +283,23 @@ SD_SITES = re.compile(r'^sound: background: the buffer sites (now (Play|Mute)|co
 SD_STALE = re.compile(r'^sound: background: (\d+) of the game\'s sounds carry the global focus')
 SD_EXIT = re.compile(r'^sound: background: the window closes behind other windows: the game\'s sound sessions unmuted first \((done|no answer)')
 SD_KEEP_HOLD = re.compile(r'^sound: keep-awake: (stopped while another window is in front|playing again)')
+# v3.59 SD359: the lost-device guard (sound.inc, snddummy_sim.h): its install line, the first frame's Play2D / Play3D decision,
+# the first stand-in buffer, the count, a second try that made it, the guard off
+SD_GUARD_IN = re.compile(r'^sound: lost-device guard: PlayMusic 0040A1DE (in|NOT IN), the streams 0040A797 (in|NOT IN); (.+?): a '
+                         r'CreateSoundBuffer that fails')
+SD_GUARD_FIRST = re.compile(r'^sound: lost-device guard: at the first frame: (.+)$')
+SD_GUARD_OFF = re.compile(r'^sound: lost-device guard: off \(\[Sound\] LostDeviceGuard=0\)')
+SD_GONE_FIRST = re.compile(r'^sound: the device is gone: CreateSoundBuffer (failed|faulted) in (.+?) \(hr ([0-9A-F]{8})')
+SD_GONE_N = re.compile(r'^sound: the device is gone: (\d+) sound\(s\) made silent \(2D (\d+), 3D (\d+), music (\d+), streams (\d+);')
+SD_RETRY = re.compile(r'^sound: CreateSoundBuffer failed in (.+?) \(hr ([0-9A-F]{8})\): the second try made it')
+# v3.59 SD359: the fault watch (loghealth.inc, faultwhere_sim.h): each fault's code, place and module; the Direct3D stop
+FW_LINE = re.compile(r'^fault watch: ([0-9A-F]{8}) (.+?)(?: \((?:read|write|execute|access) of [0-9A-F]{8}\))? at (\S+?)\+([0-9A-F]{8}) '
+                     r'\([0-9A-Fa-fx]+\), (the game thread|thread \d+), \d+ ms ago: (inside [^;]+?)(?:; Refined\'s (.+) guard caught it)?$')
+FW_CAP = re.compile(r'^fault watch: 24 faults logged this session')
+FW_IN = re.compile(r'^session: fault watch (in|NOT IN|off)')
+FW_END = re.compile(r'^session: faults seen (\d+) \(inside SH4 Refined (\d+), the game (\d+), Direct3D / the driver (\d+), other (\d+), '
+                    r'none (\d+); (\d+) not read\): (.*?); Refined\'s Direct3D work (stopped|kept)')
+FW_STOP = re.compile(r'^direct3d: two faults within a second .*?\(the last ([0-9A-F]{8} at \S+)\)')
 SD_SESS_LOST = re.compile(r'^sound: background: (no sound session of the game could be muted|\d+ sound session\(s\) of the game could not be '
                           r'(?:un)?muted)')  # ANOMALY bodies
 # v3.53 OL2: the Options look (look.inc): the install line, the glyph line of each page (level 2), its ANOMALY, a key on a
@@ -317,7 +361,12 @@ GT_FACED = 'the enemy she faces'  # in a GT_WARP line: behind the enemy she face
 GT_ROOM = re.compile(r'^ghost teleport: room (\d+):(\d+) left: (\d+) warp\(s\) \((\d+) through walls, (\d+) behind the enemy she '
                      r'faces, (\d+) ahead\), (\d+) refused(?: \((.*?)\))?; (\d+) Action / Check press\(es\) taken back in '
                      r'fade-outs(?:; (\d+) enemy\(ies\) in the cone skipped behind collision in (\d+) try\(ies\))?'
-                     r'(?:; (\d+) time\(s\) freed from a wall)?; floor map (.*)$')
+                     r'(?:; (\d+) time\(s\) freed from a wall)?(?:; (\d+) up a level, (\d+) down a level)?; floor map (.*)$')
+# v3.59 GT359: + the warps up / down a level in the room visit (optional: a v3.58 room line has none)
+# v3.59 GT359: a warp up / down a level (its heights, the candidates), a room where none was proven (the flat warp)
+GT_LEVEL = re.compile(r'^ghost teleport: (up|down) a level: height \(y\) from (-?\d+) to (-?\d+) \((\d+) u (?:up|down)\), '
+                      r'(\d+) u off her place; candidates: (\d+) floor cell\(s\)')
+GT_LV_FLAT = re.compile(r'^ghost teleport: room (\d+):(\d+): no landing on another level is proven here \((up|down) a level')
 # v3.51 TP351: + the enemies in the cone skipped behind collision (optional: a v3.50 room line has none)
 # v3.52 TP352: + the times she was freed from a wall in the room visit (optional: a v3.51 room line has none)
 # v3.52 TP352: freed from a wall (after a warp, or at a warp from inside one) / left inside collision (not moved)
@@ -367,6 +416,26 @@ OL_COUNT = re.compile(r'^omni: look: (Room 302|stage -?\d+), (\d+) s \((.+?)\): 
                       r'frame\(s\) \(x (\d+), y (\d+)\); a push the game.s 8-way look missed (\d+) frame\(s\); the right stick.s '
                       r'turn kept from a small sideways push (\d+) frame\(s\)')
 OM_AGAIN = re.compile(r'^omni: GetDeviceState reads the game.s pad again after (\d+) failed frame\(s\)( \(the game window was not in front\))?')
+# v3.59 CT359: the control-direction latch (omnilatch.inc L1) and Lock-On Walk (L2): install, episodes, room summaries
+LT_IN = re.compile(r'^omni: latch: (in|OFF) \(00502794: the control-direction latch 00502040\); \[Input\] OmniLatch ([01])')
+LT_EP = re.compile(r'^omni: latch: (.+?) held the control frame ([\d.]+) s \((the Shoulder camera.s view|the game.s camera), Omni '
+                   r'(On|Off)(, Follow on)?(, a warp of the player in the 2 s before)?, rule (Refined.s|the game.s)\): let go by (.+?); '
+                   r'the stick (\d+) deg / ([\d.]+) from the latch; the control frame up to (\d+) deg from the camera, (\d+) '
+                   r'frame\(s\) blended')
+LT_ROOM = re.compile(r'^omni: latch: stage (-?\d+) room (-?\d+): (\d+) episode\(s\) .*?; (\d+) rig look-rate trigger\(s\) ignored '
+                     r'under the Shoulder camera; (\d+) line\(s\) over the room.s quota')
+LT_REREAD = re.compile(r'^omni: \[Input\] OmniLatch read again: ([01])')
+LT_BAD = re.compile(r'^omni: \[Input\] OmniLatch=(.*?) is not 0 or 1')
+LT_FAULT = re.compile(r'^omni: (latch|lock-on walk): (?:its log )?faulted')
+LT_NOT = re.compile(r'^omni: (latch|lock-on walk): (\S+) \(call (\S+)\) is not the stock code')
+LW_IN = re.compile(r'^omni: lock-on walk: (in|OFF) \(00534C23: the ready-stance step 00534620\); \[Gameplay\] LockOnWalk (Off|On)')
+LW_FIRST = re.compile(r'^omni: lock-on walk: the first ready-stance step below a full push this session \(weapon 0x([0-9A-F]{2}), '
+                      r'(locked on|no target)')
+LW_ROOM = re.compile(r'^omni: lock-on walk: stage (-?\d+) room (-?\d+): (\d+) frame\(s\) stepped below a full push \((\d+) of them '
+                     r'locked on\), weapons (.+)$')
+LW_SET = re.compile(r'^omni: LockOnWalk (Off|On) \(was (Off|On); (.+?)\)')
+LW_REREAD = re.compile(r'^omni: \[Gameplay\] LockOnWalk read again: (Off|On)')
+LW_BAD = re.compile(r'^omni: \[Gameplay\] LockOnWalk=(.*?) is not Off or On')
 # v3.47 RG347: Refined's own Regeneration (regen.inc): the install line, Playable Eileen's exports, who heals, the value
 # changes, the healing runs (start / stop), Life Steal's heal route, the first start's seed from Playable Eileen's ini
 RG_IN = re.compile(r'^regeneration: (in|OFF) \(no exe patch; .*?\); \[Gameplay\] Regen (Off|x1|x1\.25|x2) \(([\d.]+) % of max '
@@ -412,6 +481,16 @@ FRG_VSYNC = re.compile(r'^rate guard: the V-Sync cap is now (\d+): the guard.s (
 T60F_IN = re.compile(r'^true 60: (\d+)/(\d+) final-room sites follow the rate')
 T60F_BAD = re.compile(r'^true 60: ([0-9A-F]{8}) (?:\(.*\) is not stock: none of the \d+ final-room sites is used|could not be written: the '
                       r'final-room sites are put back)')
+# v3.59 FR359: cut-scenes and Room 302's views at the gameplay rate (ratephase.inc)
+CR_IN = re.compile(r'^frame rate: cut-scenes (at the gameplay rate|at 30); Room 302.s window view (at the gameplay rate|at 30), its '
+                   r'peephole / door-scope / hole views (at the gameplay rate|at 30) \(hidden .*?; (\d+) window view sites and (\d+) caves\)')
+CR_OFF = re.compile(r'^frame rate: cut-scenes and Room 302.s views at 30 \(hidden \[Window\] CutsceneRate=0, ViewRate=0\)')
+CR_START = re.compile(r'^frame rate: (\d+) in a (cut-scene|Room 302 window view|Room 302 peephole / hole view) \(scene ([0-9A-F]+);')
+CR_END = re.compile(r'^frame rate: the (cut-scene|Room 302 window view|Room 302 peephole / hole view) at (\d+) ended after ([\d.]+) s: '
+                    r'(\d+) camera cut\(s\) and (\d+) actor jump\(s\) shown at their stock moment; the stream ([+-]?\d+) ms against real time')
+CR_CUT = re.compile(r'^frame rate: (cut-scene|Room 302 window view|Room 302 peephole / hole view) frame (-?\d+) -> (-?\d+): '
+                    r'(a camera cut|an actor put elsewhere)')
+CR_DRIFT_MS = 100  # a stretch whose stream ended further from real time than this is named in the summary
 RG_SEED = re.compile(r'^settings: \[Gameplay\] (Regen|RegenDelay) was missing, added as "([^"]*)" \((.*)\)$')
 # v3.48 RZ348: the Randomizer (randomizer.inc): the start, the seed, the plans per world visit, the room loads, the changes
 # v3.56 RI356: + the new keys and values (Specials, Room302 Off / Shuffle / Random, Reroll By Room / By World); the key names
@@ -622,6 +701,17 @@ EF_REST = re.compile(r'^enemies: follow restore: room \d+:\d+ after a load: (\d+
                      r'away\), (\d+) on their way here, (\d+) ghost\(s\) let in, (\d+) cop\(ies\) in the ledger; left out: (\d+) '
                      r'without their record \(the save filter, or gone\), (\d+) of a kind')
 EF_REST_NO = re.compile(r'^enemies: follow restore: (?:the load went on to room|Enemies Follow is off)')
+# v3.59 EN359: one line a load (followers restored N of M, the randomized followers' records put back from the side file),
+# the kept records at a save, a pinned ghost let in by the gate (00465123), Walter's long down, the bars' anchors
+EF_RESTORED = re.compile(r'^enemies: follow restore: followers restored (\d+) of (\d+)(?: \((\d+) of (\d+) record\(s\) of randomized '
+                         r'followers put back)?')
+EF_KEPTREC = re.compile(r'^enemies: follow save: (\d+) record\(s\) of followers the Randomizer made as another type kept')
+EN_PINGATE = re.compile(r'^enemies: ghost ([0-9A-F]{8}) \(type ([0-9A-F]{2}) v\d+\) lies pinned by its Sword in room (\d+:\d+): it is '
+                        r'made pinned there again')
+EN_PINGATE_IN = re.compile(r'^enemies: (?:pinned ghosts stay \(00465123\)|pinned ghosts: the gate site is off|0046511D differs)')
+HB_WLONG = re.compile(r'^hud bars: Walter\'s long down \(v3\.59\): .*?: (his bars stay|the heal\'s code differs)')
+HB_ANCHOR = re.compile(r'^hud bars: bar anchor for type ([0-9A-F]{2}) v(\d+): (its top bone|its bones are not this frame\'s)')
+HB_EDGE = re.compile(r'^hud bars: type ([0-9A-F]{2}) v(\d+): its head\'s top is above the 3D view')
 # v3.56 ER356: Enemies Return Off / By Room / By World (enemies.inc ErAtRoomLoad, ErWorldPass, EnmReviveRoom, the Tremer site
 # 0x48ACE5) and the world visit (worldvisit.inc: the world entries, the room loads after a save load); v3.30 - v3.55's On
 ER_VALUES = r'(Off|On|By Room|By World)'
@@ -661,10 +751,10 @@ EP_ROOM_CALM = re.compile(r"; ghosts' calm: (\d+) ghost dive\(s\) into a wall st
 FOL_FRESH = re.compile(r"^enemies: ghost copy [0-9A-F]{8} \(type [0-9A-F]{2} v\d+\) (?:came into|is back in) room \d+ as the "
                        r"game's own ghosts arrive")
 # v3.43 DF343: Depth of Field (dof.inc)
-DOF_IN = re.compile(r'^depth of field: hooks in place .*?; DepthOfField (Off|Cut-scenes|Always), Strength (Low|Medium|High);')  # v3.45 QS345: + Medium
+DOF_IN = re.compile(r'^depth of field: hooks in place .*?; DepthOfField (Off|Cut-scenes|Always), Strength (Low|Medium|High|Ultra);')  # v3.45 QS345: + Medium  # v3.59 DF359: + Ultra
 DOF_NOT = re.compile(r'^depth of field: (.*?) is not stock .*?: no depth of field|^depth of field: not available \((.*?)\)')
-DOF_SET = re.compile(r'^depth of field: DepthOfField (Off|Cut-scenes|Always) \(Strength (Low|Medium|High)\)')
-DOF_STR = re.compile(r'^depth of field: Strength (Low|Medium|High) \(DepthOfField (Off|Cut-scenes|Always)\)')
+DOF_SET = re.compile(r'^depth of field: DepthOfField (Off|Cut-scenes|Always) \(Strength (Low|Medium|High|Ultra)\)')  # v3.59 DF359: + Ultra
+DOF_STR = re.compile(r'^depth of field: Strength (Low|Medium|High|Ultra) \(DepthOfField (Off|Cut-scenes|Always)\)')  # v3.59 DF359: + Ultra
 # v3.45 QS345: the one-time migration of a v3.43 / v3.44 DofStrength (their Low = v3.45's Medium)
 DOF_MIG = re.compile(r'^depth of field: \[ScreenEffects\] DofStrength=(.*?) \(v3\.43 / v3\.44\) is v3\.45\'s (Low|Medium|High) .*?: (written|could not)')
 DOF_ROOM = re.compile(r'^depth of field: stage ([0-9A-F]+) room ([0-9A-F]+): drawn in (\d+) of (\d+) frames .*?; ours ([\d.]+) ms a frame '
@@ -682,8 +772,14 @@ DOF_KEPT = re.compile(r'^depth of field: the paused scene kept for the (?:Depth 
 # v3.44 DF344: the room line's reasons ("not drawn: <reason> <n>, ..."; "skipped by design: ...")
 DOF_WHY = re.compile(r'\(not drawn: (.*?); the cut-scene.s own focus \d+\); skipped by design: (.*?); focus ')
 # v3.47 DF347: the blur eases in (quarter-level ramps) or, without the blend shader, steps by whole levels
-DOF_RAMPS = re.compile(r'^depth of field: the blur eases in: Low (\d+) far \+ (\d+) near slices, Medium (\d+) \+ (\d+), High (\d+) \+ (\d+)')
-DOF_FIRST = re.compile(r'^depth of field: first frame drawn \((.*?), (Low|Medium|High)\): .*?; render targets [\d.]+ MB; (eased in|whole levels)')
+DOF_RAMPS = re.compile(r'^depth of field: the blur eases in: Low (\d+) far \+ (\d+) near slices, Medium (\d+) \+ (\d+), High (\d+) \+ (\d+)'
+                       r'(?:, Ultra (\d+) \+ (\d+))?')  # v3.59 DF359: + Ultra
+DOF_FIRST = re.compile(r'^depth of field: first frame drawn \((.*?), (Low|Medium|High|Ultra)\): .*?; render targets [\d.]+ MB; (eased in|whole levels)')
+# v3.59 DF359: a v3.45 .. v3.58 Medium / High kept (now a bit gentler) and noted once; Spirit Vision kept sharp (once a
+# session); the hidden DofSpirit=1 (v3.58's order)
+DOF_NOTE59 = re.compile(r"^depth of field: \[ScreenEffects\] DofStrength=(.*?): kept; v3\.59's (Medium|High) is a bit gentler")
+DOF_SPIRIT = re.compile(r'^depth of field: Spirit Vision draws: depth of field keeps out of it')
+DOF_SPIRITKEEP = re.compile(r'^depth of field: \[ScreenEffects\] DofSpirit=1: ')
 DOF_NOBLEND = re.compile(r'^depth of field: the blend shader \(bloom.s up-step\) could not be made')
 # v3.52 FX352: the player close to the camera (a focus, the far side only; v3.51 took it for a first-person view)
 DOF_CLOSE = re.compile(r'; focus [\d.]+ \.\. [\d.]+ \(the player close to the camera in (\d+) frame\(s\)\)')
@@ -859,6 +955,14 @@ FI_CLOSE = re.compile(r"^fade in: ([0-9A-F]{8}) \(type ([0-9A-F]{2})\): its tar 
                       r"after it was in \(to ([\d.]+) s; (\d+) snapped, (\d+) stretched loose\); portal draw ([\d.]+) ms a frame "
                       r"\(max ([\d.]+), (\d+) frames\)")
 FI_STICK_BAD = re.compile(r'^fade in: \[Gameplay\] FadeInStrandSeconds "([^"]*)" is not 0 \.\. 6')
+# v3.59 FI359: the arrive line (fadein_sim.h FiArriveText), the wall-exit wait cap, the Spirit Vision look, the start line's part
+FI_ARRIVE = re.compile(r'^fade in: ([0-9A-F]{8}) \(type ([0-9A-F]{2})\) arrives: (?:its tar portal on the floor \(foot (-?\d+) u above '
+                       r'it, raised (-?\d+) u, (full size|a low ceiling): (\d+) %\)|its tar portal: no floor found under it \(as laid '
+                       r'out\))(?:; it came out (-?\d+) u above the floor \(its own height (\d+) u\): (?:lifted (\d+) u|left as it was))?'
+                       r'; AI state ([0-9A-F]+) step (\d+), animation (-?\d+)(?:; unseen ([\d.]+) s before)?')
+FI_WAITCAP = re.compile(r'^fade in: ([0-9A-F]{8}) \(type ([0-9A-F]{2})\) still comes out of a wall by itself after ([\d.]+) s')
+FI_SPIRIT = re.compile(r"^fade in: Spirit Vision: (the game's own wall portal|Reveal Method's tar portal)")
+FI_IN359 = re.compile(r'; v3\.59: (on the floor|NOT on the floor)[^;]*; .*?FadeInSpiritLook (\d)')
 
 
 class Session:
@@ -957,6 +1061,9 @@ class Session:
         self.gt_free = Counter()  # v3.52 TP352: freed from a wall: 'after warp' / 'at the warp' (the lines)
         self.gt_free_no = 0       # v3.52 TP352: left inside collision (no proven floor cell, or not moved)
         self.gt_room_freed = 0    # v3.52 TP352: freed, from the room visits' lines
+        self.gt_lv = []           # v3.59 GT359: warps up / down a level: (dir, height gained, candidates)
+        self.gt_lv_flat = {}      # v3.59 GT359: 'stage:room' -> 'up' / 'down': no landing on another level proven there
+        self.gt_room_lv = [0, 0]  # v3.59 GT359: up / down a level, from the room visits' lines
         self.fi = None            # v3.50 FI350: Fade In: ('in', portal, mode, seconds) or ('OFF', why) from the install line
         self.fi_rooms = 0         # v3.50 FI350: room visits with a Fade In line
         self.fi_src = Counter()   # v3.50 FI350: fades by source
@@ -979,6 +1086,10 @@ class Session:
                                   #   stick s, to s, snapped, loose, avg ms, max ms)
         self.fi_big = None        # v3.58 FI358: (FadeInStrandSeconds, FadeInPortalPieces, FadeInStrands) of the start line
         self.fi_stick_bad = None  # v3.58 FI358: a FadeInStrandSeconds that is not a number of seconds
+        self.fi_arrive = []       # v3.59 FI359: (id, type, foot or None, raised, k %, above, rest, lift, ai, step, anim, unseen s)
+        self.fi_waitcap = 0       # v3.59 FI359: victims still coming out of their wall at the wait's cap
+        self.fi_spirit = set()    # v3.59 FI359: what Spirit Vision drew as spirit tar
+        self.fi59 = None          # v3.59 FI359: (floor, FadeInSpiritLook) of the start line
         self.fi_tar_starts = Counter()  # v3.51 PT351: verbose starts by (draw, wall / air)
         self.fi_gfault = None     # v3.51 PT351: (ts, code) a fault in the game's own portal draw
         self.fi_notstock = []     # v3.51 PT351: game code the tar portal found changed
@@ -1009,6 +1120,19 @@ class Session:
         # v3.49 LK349: summed counts: pushed, analog, own, not here, key, no read, check, bind, latch, latch x, latch y, band, turn kept
         self.ol_n = [0] * 13
         self.ol_room = [0, 0]     # v3.49 LK349: Room 302 count lines, their latch frames
+        self.lt = None            # v3.59 CT359: (in / OFF, OmniLatch) at the start
+        self.lt_not = []          # v3.59 CT359: the sites that were not the stock code (latch / lock-on walk)
+        self.lt_eps = []          # v3.59 CT359: (ts, trigger, seconds, ots, omni, follow, warp, rule, why, deg, dist, off, blend)
+        self.lt_rooms = 0         # v3.59 CT359: room summaries
+        self.lt_supp = 0          # v3.59 CT359: rig look-rate triggers ignored under the Shoulder camera (room summaries)
+        self.lt_over = 0          # v3.59 CT359: episode lines over a room's quota
+        self.lt_sets = []         # v3.59 CT359: (ts, OmniLatch) read again
+        self.lt_bad = []          # v3.59 CT359: unknown OmniLatch / LockOnWalk texts
+        self.lt_fault = []        # v3.59 CT359: the hooks that faulted
+        self.lw = None            # v3.59 CT359: (in / OFF, LockOnWalk) at the start
+        self.lw_first = None      # v3.59 CT359: (ts, weapon, locked on / no target)
+        self.lw_rooms = []        # v3.59 CT359: (frames, locked, weapons)
+        self.lw_sets = []         # v3.59 CT359: (ts, new, from)
         self.rz = None            # v3.48 RZ348: (Items, KeepSpecials, Room302, seed, found, scripts, stock, verdict) at the start
         self.rz_roll = None       # v3.48 RZ348: (was, seed, written?) the first start's roll
         self.rz_bad = []          # v3.48 RZ348: (key, text, default) unknown ini values
@@ -1090,6 +1214,10 @@ class Session:
         self.frg_worst = None     # v3.56 FR356: the worst missed window (ratio, rate, mean, target, ts)
         self.frg_resets = []      # v3.56 FR356: (ts, chosen, held at) / ('vsync', ts, cap, lifted)
         self.t60f = None          # v3.56 FR356: (sites in, of) or ('NOT', va)
+        self.cr = None            # v3.59 FR359: (scenes, window, peephole, sites, caves) from the start line, or 'off'
+        self.cr_starts = {}       # v3.59 FR359: kind -> phase-1 stretches started at the gameplay rate
+        self.cr_ends = []         # v3.59 FR359: (ts, kind, rate, seconds, camera cuts, actor jumps, drift ms)
+        self.cr_cuts = [0, 0]     # v3.59 FR359: the [v] cut lines: camera cuts, actors put elsewhere
         self.rg = None            # v3.47 RG347: (in / OFF, Regen, rate, delay, who) from the install line
         self.rg_not = []          # v3.47 RG347: why it is not installed
         self.rg_pe = None         # v3.47 RG347: 'with' / 'without' SH4PE_RegenActive
@@ -1141,10 +1269,19 @@ class Session:
         self.pv_page = Counter()  # v3.56 PV356: (filter, what) the page showed
         self.pv_anom = 0          # v3.56 PV356: its ANOMALY lines
         self.pv358 = None         # v3.58 PV358: (ts, Preview, the stock file present / missing, PreviewLayers, Filter Strength) from the install line
+        self.tv = None            # v3.59 TV359: ('in', '') / ('OFF', why) from the start's walls-hide-heat line
+        self.tv_rooms = []        # v3.59 TV359: (stage:room, heat frames, grid frames, kept, why, prints depth-tested)
+        self.tv_first = None      # v3.59 TV359: (ts, stage:room) of the first frame whose depth the grid kept
+        self.tv_shapes = []       # v3.59 TV359: (ts, shape, why) the player's footprint shape at each change
         self.pv_mig = []          # v3.58 PV358: the migrations: 'PreviewScene=X -> Preview=Y', 'FilterStrength=X (v3.15) -> High'
         self.pv_off = 0           # v3.58 PV358: page openings with Preview Off
         self.pv_stockbad = Counter()  # v3.58 PV358: the stock picture missing / not usable lines
         self.pv_fsfail = 0        # v3.58 PV358: plain copies that failed (Filter Strength Low / Medium)
+        self.pv_f7 = Counter()    # v3.59 PV359: F7 pictures: 'both' / 'heat' / 'spirit' / 'none' (layers saved), 'late', 'fail'
+        self.pv_f7why = Counter()  # v3.59 PV359: why a layer was not saved
+        self.pv_lay = Counter()   # v3.59 PV359: (kind, verdict) of the picture layers the page loaded
+        self.pv_shstock = Counter()  # v3.59 PV359: the Shadows page with Preview Stock: what it showed
+        self.pv_stocklay = None   # v3.59 PV359: the stock picture's layer files at the start
         self.snd_in = None        # v3.52 SND352: (pan, volume, reverb, mono streams, mono music) from the install line, or 'off'
         self.snd_start = None     # v3.52 SND352: the first frame's start line (ts, groups)
         self.snd_first = None     # v3.52 SND352: (ts, mode, the save's byte) of the first start's migration, or a bad Mode
@@ -1172,6 +1309,16 @@ class Session:
         self.sd_exit = None       # v3.58 SD358: (ts, 'done' / 'no answer') the window closed while muted
         self.sd_keep_hold = 0     # v3.58 SD358: the keep-awake tone stopped behind other windows
         self.sd_sess_lost = []    # v3.58 SD358: (ts, what) ANOMALY: sessions that could not be (un)muted, the session lost
+        self.sd_guard = None      # v3.59 SD359: (music, streams, Play2D / Play3D) from the install line, or 'off'
+        self.sd_guard_first = None  # v3.59 SD359: the first frame's Play2D / Play3D decision
+        self.sd_gone = None       # v3.59 SD359: (ts, 'failed' / 'faulted', where, hr) the first stand-in buffer
+        self.sd_gone_n = None     # v3.59 SD359: (ts, all, 2D, 3D, music, streams) the last count line
+        self.sd_retry = 0         # v3.59 SD359: a failed create that the second try made
+        self.fw_in = None         # v3.59 SD359: the fault watch: 'in' / 'NOT IN' / 'off'
+        self.fw = []              # v3.59 SD359: (ts, code, name, module, offset, thread, kind, guard)
+        self.fw_cap = False
+        self.fw_end = None        # v3.59 SD359: the session end's sums
+        self.fw_stop = None       # v3.59 SD359: (ts, the last fault, 'stopped' / 'logged only')
         self.ol_set = None        # v3.53 OL2: 'in' / 'off' from the Options look's install line
         self.ol_pages = OrderedDict()  # v3.53 OL2: page -> [name, the largest estimate, measured with it, ts, lines]
         self.ol_inert = Counter()  # v3.53 OL2: keys on a grey row, by row
@@ -1201,7 +1348,14 @@ class Session:
         #                         g_out, g_first, g_drawn, hb_undrawn, hb_dog, w_down, w_stumble, w_gone, w_other
         self.en358_near = None  # v3.58 EN358: the nearest a followed ghost came (units)
         self.en358_wsite = None
+        self.en359 = Counter()     # v3.59 EN359: loads, back, saved, kr_back, kr_all, kr_saves, kr_kept, pins, anchors, anchors_fb, edges, w_heal
+        self.en359_pin_last = None
+        self.en359_pinsite = None
+        self.en359_wlong = None
         self.hb_boss = []         # v3.52 HB352: (ts, name, room, seconds or None, why or None)
+        self.ft_set = None        # v3.59 FT359: (ts, 'on' / 'off') [ScreenEffects] FilterThemes
+        self.ft_look = Counter()  # v3.59 FT359: the looks the enemy bars wore (a line per change)
+        self.ft_hid = [0, 0, 0, None]  # v3.59 FT359: victims' bars hidden by room lines, room lines, the last session total, (ts, type, room) of the first
         self.perf_place = OrderedDict()  # v3.38 HB338: 'WxH' -> (where, of what, ts)
         self.fol = Counter()      # v3.38 EN338: doors, follow, most, wait, stopped, came, spotted, stops, story, wheelchairs
         self.fol_wait = Counter()  # v3.38 EN338: the space reasons of the waits
@@ -1254,6 +1408,9 @@ class Session:
         self.dof_noblend = 0      # v3.47 DF347: "the blend shader could not be made" lines (a device each)
         self.dof_close = 0        # v3.52 FX352: frames drawn with the player close to the camera (the room lines)
         self.dof_close_rooms = []  # v3.52 FX352: 'stage:room' of each room's first close shot
+        self.dof_note59 = None    # v3.59 DF359: (the ini's value, its strength) kept and noted as a bit gentler
+        self.dof_spirit = None    # v3.59 DF359: the time depth of field first kept out of Spirit Vision
+        self.dof_spirit_keep = False  # v3.59 DF359: [ScreenEffects] DofSpirit=1 (blurred under Spirit Vision, v3.58's order)
         self.fx_pic = [0, 0, 0.0, 0, 0.0]  # v3.41 SH341: pause pictures on the GPU (made, kept, most ms), read backs (n, worst ms)
         self.started = None       # v3.40 LG340: datetime of the "log: started" line
         self.d3d_head = None      # v3.40 LG340: 'dgvoodoo' / 'none' from the session header's d3d9.dll line
@@ -1323,6 +1480,24 @@ class Session:
                 self.fi_tar = (m.group(2), m.group(5) or '?', m.group(6) or '?')
             if m.group(7):  # v3.58 FI358
                 self.fi_big = (m.group(7), m.group(8), m.group(9))
+            m59 = FI_IN359.search(msg)  # v3.59 FI359
+            if m59:
+                self.fi59 = (m59.group(1), m59.group(2))
+            return True
+        m = FI_ARRIVE.match(msg)  # v3.59 FI359
+        if m:
+            g = m.groups()
+            self.fi_arrive.append((g[0], g[1], int(g[2]) if g[2] is not None else None, int(g[3] or 0), int(g[5] or 100),
+                                   int(g[6]) if g[6] is not None else None, int(g[7]) if g[7] is not None else None,
+                                   int(g[8] or 0), g[9], int(g[10]), int(g[11]), float(g[12] or 0)))
+            return True
+        m = FI_WAITCAP.match(msg)
+        if m:
+            self.fi_waitcap += 1
+            return True
+        m = FI_SPIRIT.match(msg)
+        if m:
+            self.fi_spirit.add('wall portal' if m.group(1).startswith('the game') else 'tar portal')
             return True
         m = FI_CLOSE.match(msg)  # v3.58 FI358
         if m:
@@ -1399,6 +1574,30 @@ class Session:
         if m:
             self.pv358 = (ts, m.group(1), m.group(3), m.group(5), m.group(6))
             self.pv_set = (ts, 'preview ' + m.group(1).lower(), m.group(5))
+            m2 = PV_STOCKLAY.search(msg)  # v3.59 PV359
+            self.pv_stocklay = m2.group(1).replace('with its ', '') if m2 else None
+            return True
+        m = PV_F7.match(msg)  # v3.59 PV359
+        if m:
+            heat, spirit = m.group(2) == 'saved', m.group(4) == 'saved'
+            self.pv_f7['both' if heat and spirit else 'heat' if heat else 'spirit' if spirit else 'none'] += 1
+            for ok, note in ((heat, m.group(3)), (spirit, m.group(5))):
+                if not ok:
+                    self.pv_f7why[note.strip('()')] += 1
+            return True
+        if PV_F7LATE.match(msg):
+            self.pv_f7['late'] += 1
+            return True
+        if PV_F7FAIL.match(msg):
+            self.pv_f7['fail'] += 1
+            return True
+        m = PV_LAY.match(msg)
+        if m:
+            self.pv_lay[(m.group(1), m.group(4) or m.group(3))] += 1
+            return True
+        m = PV_SHSTOCK.match(msg)
+        if m:
+            self.pv_shstock['%s: %s' % (m.group(1), m.group(2))] += 1
             return True
         m = PV_OFF.match(msg)
         if m:
@@ -1453,6 +1652,10 @@ class Session:
                 kind += " + its heat layer"
             elif what.startswith("the pause's spirit layer"):
                 kind += " + its spirit layer"
+            elif what.startswith("the picture's heat layer"):  # v3.59 PV359: the F7 set's files
+                kind += " + its heat file"
+            elif what.startswith("the picture's spirit layer"):
+                kind += " + its spirit file"
             elif what:
                 kind += ' + ' + what.split(' (')[0]
             if m.group(4):
@@ -1466,8 +1669,59 @@ class Session:
             return True
         return False
 
+    def parse_tv(self, ts, msg):  # v3.59 TV359: True = a Thermal Vision line read
+        if TV_IN.match(msg):
+            self.tv = ('in', '')
+            return True
+        m = TV_OFF.match(msg)
+        if m:
+            g = m.group(1)
+            self.tv = ('OFF', 'ThermalTrueDepth=0' if g.startswith('[') else '004EFBDC not stock' if 'not stock' in g else
+                       '004EFBDC not written')
+            return True
+        m = TV_ROOM.match(msg)
+        if m:
+            g = m.groups()
+            self.tv_rooms.append(('%s:%s' % (g[0], g[1]), int(g[2]), int(g[3]), int(g[4]), g[5], int(g[6])))
+            return True
+        m = TV_FIRST.match(msg)
+        if m:
+            self.tv_first = (ts, '%s:%s' % m.groups())
+            return True
+        m = TV_SHAPE.match(msg)
+        if m:
+            self.tv_shapes.append((ts, m.group(1), m.group(2)))
+            return True
+        return False
+
+    def tv_line(self):  # v3.59 TV359: None when the log has none of its lines
+        if not self.tv and not self.tv_rooms and not self.tv_shapes and not self.tv_first:
+            return None
+        line = 'Thermal Vision (v3.59): walls hide heat %s' % (
+            'in' if self.tv and self.tv[0] == 'in' else 'OFF (%s)' % self.tv[1] if self.tv else '(no start line)')
+        if self.tv_rooms:
+            fr = sum(r[1] for r in self.tv_rooms)
+            ran = sum(r[2] for r in self.tv_rooms)
+            kept = sum(r[3] for r in self.tv_rooms)
+            pz = sum(r[5] for r in self.tv_rooms)
+            seen = [r[0] for r in self.tv_rooms if r[4] == 'HEAT SEEN THROUGH WALLS']
+            some = [r[0] for r in self.tv_rooms if r[4] == 'walls hid the heat in some frames']
+            line += '; %d room visit(s), %d heat frame(s): the light grid drew in %d, the depth kept in %d; footprints ' \
+                    'depth-tested in %d' % (len(self.tv_rooms), fr, ran, kept, pz)
+            if seen:
+                line += '; HEAT SEEN THROUGH WALLS in %d room visit(s): %s' % (len(seen), ', '.join(seen[:6]))
+            if some:
+                line += '; kept in some frames only in %s' % ', '.join(some[:6])
+        if self.tv_first:
+            line += '; first kept frame %s in %s' % self.tv_first
+        if self.tv_shapes:
+            c = Counter(x[1] for x in self.tv_shapes)
+            line += "; the player's footprints: %s (last: %s, %s)" % (
+                ', '.join('%s x%d' % kv for kv in c.most_common()), self.tv_shapes[-1][1], self.tv_shapes[-1][2])
+        return line
+
     def pv_line(self):  # v3.56 PV356: None when the log has none of its lines
-        if not self.pv_set and not self.pv and not self.pv_page and not self.pv_anom:
+        if not self.pv_set and not self.pv and not self.pv_page and not self.pv_anom and not self.pv_f7 and not self.pv_shstock:  # v3.59 PV359
             return None
         if self.pv358:  # v3.58 PV358
             line = 'effects preview: Preview %s (the stock picture %s), Filter Strength %s; the pause layers %s at the start' % (
@@ -1478,6 +1732,8 @@ class Session:
                 line += '; the stock picture %s' % ', '.join('%s x%d' % kv for kv in self.pv_stockbad.most_common())
             if self.pv_fsfail:
                 line += '; %d plain cop(y/ies) failed' % self.pv_fsfail
+            if self.pv_stocklay:  # v3.59 PV359
+                line += ' (%s)' % self.pv_stocklay
         elif self.pv_set:
             line = 'effects preview: with no paused game %s; the pause layers %s at the start' % (
                 "SH4 Refined's scene" if self.pv_set[1] == 'scene' else 'PreviewImage first (Picture)',
@@ -1495,6 +1751,20 @@ class Session:
             line += '; the page showed: ' + ', '.join('%s over %s x%d' % (f, k, n) for (f, k), n in self.pv_page.most_common(8))
         if self.pv['fail']:
             line += '; %d failure(s)' % self.pv['fail']
+        if self.pv_f7:  # v3.59 PV359
+            saved = sum(self.pv_f7[k] for k in ('both', 'heat', 'spirit', 'none'))
+            line += '; F7: %d picture(s) (layers: both %d, heat only %d, spirit only %d, none %d)' % (
+                saved, self.pv_f7['both'], self.pv_f7['heat'], self.pv_f7['spirit'], self.pv_f7['none'])
+            if self.pv_f7why:
+                line += ' [not saved: %s]' % ', '.join('%s x%d' % kv for kv in self.pv_f7why.most_common(3))
+            if self.pv_f7['late']:
+                line += ', %d press(es) dropped (left play)' % self.pv_f7['late']
+            if self.pv_f7['fail']:
+                line += ', %d layer failure(s)' % self.pv_f7['fail']
+        if self.pv_lay:
+            line += '; picture layers: ' + ', '.join('%s %s x%d' % (k, v, n) for (k, v), n in self.pv_lay.most_common(4))
+        if self.pv_shstock:
+            line += '; Shadows page, a still picture alone: ' + ', '.join('%s x%d' % kv for kv in self.pv_shstock.most_common(4))
         if self.pv_anom:
             line += '; %d ANOMALY line(s)' % self.pv_anom
         return line
@@ -1518,6 +1788,42 @@ class Session:
             self.mu[(lst, 'loud')] += 1
         return True
 
+    def parse_ft(self, ts, msg):  # v3.59 FT359: True = a filter-theme line of the enemy bars read
+        m = FT_SET.match(msg)
+        if m:
+            self.ft_set = (ts, m.group(1))
+            return True
+        m = FT_LOOK.match(msg)
+        if m:
+            self.ft_look[m.group(1)] += 1
+            return True
+        m = FT_HID1.match(msg)
+        if m:
+            if self.ft_hid[3] is None:
+                self.ft_hid[3] = (ts, m.group(1), m.group(2))
+            return True
+        m = FT_HIDR.match(msg)
+        if m:
+            self.ft_hid[0] += int(m.group(2))
+            self.ft_hid[1] += 1
+            self.ft_hid[2] = max(self.ft_hid[2], int(m.group(3)))
+            return True
+        return False
+
+    def ft_line(self):  # v3.59 FT359: None when the log has none of its lines
+        if not self.ft_set and not self.ft_look and not self.ft_hid[1] and self.ft_hid[3] is None:
+            return None
+        line = 'enemy bars under the special filters: %s' % ('FilterThemes ' + self.ft_set[1] if self.ft_set else 'FilterThemes not in the log')
+        if self.ft_look:
+            order = ('Thermal Vision', 'Spirit Vision', 'Night Vision', 'Night Mono', 'stock')
+            line += '; looks worn: ' + ', '.join('%s %d' % (k, self.ft_look[k]) for k in order if self.ft_look[k])
+        if self.ft_hid[1] or self.ft_hid[3] is not None:
+            n = max(self.ft_hid[0], self.ft_hid[2])
+            line += '; Thermal Vision hid %d victim bar(s) (%d room line(s))%s' % (
+                n, self.ft_hid[1], '; first type %s in room %s [%s]' % (self.ft_hid[3][1], self.ft_hid[3][2], self.ft_hid[3][0])
+                if self.ft_hid[3] else '')
+        return line
+
     def hb_ref_line(self):  # v3.52 HB352: the enemy bars refused, the bosses' first bars
         hid = max(self.hb_ref['hidden'], self.hb_ref_tot[0], self.hb_ref_lines['hidden'])
         plc = max(self.hb_ref['place'], self.hb_ref_tot[1], self.hb_ref_lines['place'])
@@ -1533,6 +1839,11 @@ class Session:
             line += ('; Walter downed: %d down with the revive bar (at most %d s), %d down without a countdown, %d gone, %d '
                      'other%s' % (g['w_down'], g['w_most'], g['w_stumble'], g['w_gone'], g['w_other'],
                                   ' (timers: the stalker %s, the final %s)' % self.en358_wsite if self.en358_wsite else ''))
+        g9 = self.en359  # v3.59 EN359
+        if g9['anchors'] or g9['edges'] or self.en359_wlong:
+            line += ('; anchors over the heads: %d type(s) seen (%d by the fallback height), %d held at the view\'s top edge; '
+                     'Walter\'s long down %s (%d heal countdown(s))' % (g9['anchors'], g9['anchors_fb'], g9['edges'],
+                                                                     self.en359_wlong or 'not in the log', g9['w_heal']))
         if self.hb_boss:
             up = [b for b in self.hb_boss if b[3] is not None]
             late = [b for b in self.hb_boss if b[3] is None]
@@ -1779,7 +2090,73 @@ class Session:
             if m.group(1).startswith('stopped'):
                 self.sd_keep_hold += 1
             return True
+        return self.parse_sd359(ts, msg)
+
+    def parse_sd359(self, ts, msg):  # v3.59 SD359: True = a lost-device guard line read
+        m = SD_GUARD_IN.match(msg)
+        if m:
+            self.sd_guard = m.groups()
+            return True
+        m = SD_GUARD_FIRST.match(msg)
+        if m:
+            self.sd_guard_first = m.group(1)[:160]
+            return True
+        if SD_GUARD_OFF.match(msg):
+            self.sd_guard = 'off'
+            return True
+        m = SD_GONE_FIRST.match(msg)
+        if m:
+            self.sd_gone = (ts,) + m.groups()
+            return True
+        m = SD_GONE_N.match(msg)
+        if m:
+            self.sd_gone_n = (ts,) + tuple(int(x) for x in m.groups())
+            return True
+        if SD_RETRY.match(msg):
+            self.sd_retry += 1
+            return True
         return False
+
+    def parse_fw(self, ts, msg):  # v3.59 SD359: True = a fault watch line read
+        m = FW_IN.match(msg)
+        if m:
+            self.fw_in = m.group(1)
+            return True
+        m = FW_END.match(msg)
+        if m:
+            self.fw_end = tuple(int(x) for x in m.groups()[:7]) + (m.group(8), m.group(9))
+            return True
+        m = FW_LINE.match(msg)
+        if m:
+            self.fw.append((ts,) + m.groups())
+            return True
+        if FW_CAP.match(msg):
+            self.fw_cap = True
+            return True
+        m = FW_STOP.match(msg)
+        if m:
+            self.fw_stop = (ts, m.group(1), 'logged only' if 'D3DFaultStop=0' in msg else 'stopped')
+            return True
+        return False
+
+    def fw_line(self):  # v3.59 SD359: None when the log has no fault watch line
+        if not (self.fw_in or self.fw or self.fw_end or self.fw_stop):
+            return None
+        parts = ['fault watch %s' % (self.fw_in or '?')]
+        if self.fw:
+            kinds = Counter(k for t, c, n, mod, off, th, k, g in self.fw)
+            parts.append('%d fault(s) logged%s (%s)' % (len(self.fw), ', more counted' if self.fw_cap else '',
+                                                       ', '.join('%d %s' % (v, k) for k, v in kinds.most_common())))
+            parts.append('first: %s %s at %s+%s, %s%s [%s]' % (self.fw[0][1], self.fw[0][2], self.fw[0][3], self.fw[0][4], self.fw[0][5],
+                                                             ", Refined's %s guard" % self.fw[0][7] if self.fw[0][7] else '', self.fw[0][0]))
+        if self.fw_stop:
+            parts.append("Refined's Direct3D work %s after two faults in a second (the last %s) [%s]" % (
+                'STOPPED' if self.fw_stop[2] == 'stopped' else 'kept (D3DFaultStop=0)', self.fw_stop[1], self.fw_stop[0]))
+        if self.fw_end:
+            e = self.fw_end
+            parts.append('at the end %d seen (Refined %d, the game %d, Direct3D / driver %d, other %d, none %d; %d not read): %s' % (
+                e[0], e[1], e[2], e[3], e[4], e[5], e[6], e[7]))
+        return 'faults: ' + '; '.join(parts)
 
     def parse_snd(self, ts, msg):  # v3.52 SND352: True = a Sound line read
         if self.parse_sd(ts, msg):  # v3.56 SD356
@@ -2061,7 +2438,7 @@ class Session:
     def sd_line(self):  # v3.56 SD356: None when the log has no Background / keep-awake / focus / device line
         if not (self.sd_bg or self.sd_keep or self.sd_focus or self.sd_dev or self.sd_dev_ev or self.sd_dev_off or self.sd_cfg or
                 self.sd_keep_re or self.sd_sess or self.sd_mutes or self.sd_sites or self.sd_stale or self.sd_exit or self.sd_sess_lost or
-                self.sd_keep_hold):  # v3.58 SD358
+                self.sd_keep_hold or self.sd_guard or self.sd_gone or self.sd_gone_n or self.sd_retry):  # v3.58 SD358  # v3.59 SD359
             return None
         parts = []
         if self.sd_bg:
@@ -2095,7 +2472,26 @@ class Session:
         if self.sd_cfg:
             parts.append('ini read as the default: %s' % ', '.join(sorted(self.sd_cfg)))
         parts += self.sd358_parts()  # v3.58 SD358
+        parts += self.sd359_parts()  # v3.59 SD359
         return 'sound background: ' + '; '.join(parts)
+
+    def sd359_parts(self):  # v3.59 SD359: the lost-device guard (the sd_line's tail)
+        parts = []
+        if self.sd_guard == 'off':
+            parts.append('lost-device guard off (LostDeviceGuard=0)')
+        elif self.sd_guard:
+            parts.append('lost-device guard: music %s, streams %s, %s' % self.sd_guard)
+        if self.sd_guard_first:
+            parts.append('at the first frame: %s' % self.sd_guard_first)
+        if self.sd_gone:
+            parts.append('THE SOUND DEVICE WENT AWAY: the first stand-in buffer in %s (hr %s) [%s]' % (self.sd_gone[2], self.sd_gone[3],
+                                                                                                  self.sd_gone[0]))
+        if self.sd_gone_n:
+            g = self.sd_gone_n
+            parts.append('%d sound(s) made silent (2D %d, 3D %d, music %d, streams %d) [%s]' % (g[1], g[2], g[3], g[4], g[5], g[0]))
+        if self.sd_retry:
+            parts.append('%d failed create(s) made by the second try' % self.sd_retry)
+        return parts
 
     def sd358_parts(self):  # v3.58 SD358: Mute by the sound session (the sd_line's tail)
         parts = []
@@ -2139,7 +2535,7 @@ class Session:
 
     def fadein_line(self):  # v3.50 FI350: None when the log has no Fade In line
         if not (self.fi or self.fi_rooms or self.fi_sets or self.fi_bad or self.fi_fault or self.fi_starts or self.fi_letgo or
-                self.fi_close):
+                self.fi_close or self.fi_arrive):  # v3.59 FI359: + the arrive lines
             return None
         if self.fi is None:
             line = 'fade in: (no start line)'
@@ -2195,6 +2591,38 @@ class Session:
                 out += '; a portal SMALLER than its body'
         return out
 
+    def fadein_floor_part(self):  # v3.59 FI359: the portal on the floor, the arrivals, Spirit Vision ('' when none of it)
+        out = ''
+        if self.fi59:
+            out += '; v3.59: %s, Spirit Vision %s' % (self.fi59[0], 'spirit tar' if self.fi59[1] == '1' else "v3.58's vortex")
+        a = self.fi_arrive
+        if a:
+            fl = [x for x in a if x[2] is not None]
+            out += '; %d arrival(s): %d on the floor' % (len(a), len(fl))
+            if fl:
+                out += ' (foot %d .. %d u above it, raised up to %d u, %d under a low ceiling)' % (
+                    min(x[2] for x in fl), max(x[2] for x in fl), max(x[3] for x in fl), sum(1 for x in fl if x[4] < 100))
+            if len(fl) < len(a):
+                out += ', %d with no floor found' % (len(a) - len(fl))
+            vic = [x for x in a if x[6] is not None]
+            if vic:
+                out += '; victims came out %d .. %d u above the floor (own height %d .. %d u), %d lifted (up to %d u)' % (
+                    min(x[5] for x in vic), max(x[5] for x in vic), min(x[6] for x in vic), max(x[6] for x in vic),
+                    sum(1 for x in vic if x[7]), max(x[7] for x in vic))
+            st = Counter('AI %s step %d anim %d' % (x[8], x[9], x[10]) for x in a)
+            out += '; as seen: %s' % ', '.join('%s x%d' % (k, st[k]) for k in sorted(st))
+            w = [x for x in a if x[11] > 0]
+            if w:
+                out += '; %d kept unseen while out of a wall by itself (%.2f .. %.2f s)' % (
+                    len(w), min(x[11] for x in w), max(x[11] for x in w))
+            if fl and min(x[2] for x in fl) < 0:
+                out += '; a portal UNDER THE FLOOR'
+        if self.fi_waitcap:
+            out += '; %d at the wait\'s cap' % self.fi_waitcap
+        if self.fi_spirit:
+            out += '; Spirit Vision drew: %s' % ', '.join(sorted(self.fi_spirit))
+        return out
+
     def fadein_tar_part(self):  # v3.51 PT351: the tar portal and the hold ('' when the log has none of it)
         out = ''
         if self.fi_tar is not None:
@@ -2226,6 +2654,7 @@ class Session:
         if self.fi_tar_starts:
             out += '; tar starts: %s' % ', '.join('%s %d' % (k, self.fi_tar_starts[k]) for k in sorted(self.fi_tar_starts))
         out += self.fadein_big_part()  # v3.58 FI358
+        out += self.fadein_floor_part()  # v3.59 FI359
         if self.fi_real:
             out += '; %d placeholder(s) turned real' % self.fi_real
         if self.fi_never:
@@ -2269,6 +2698,15 @@ class Session:
                      e['r_kind']))
         if e['r_no']:
             line += '; %d found but not restored (another room, or Follow off)' % e['r_no']
+        g9 = self.en359  # v3.59 EN359
+        if g9['loads'] or g9['kr_saves']:
+            line += ('; followers restored %d of %d in %d load(s) (randomized followers\' records: %d kept at %d save(s), %d of %d put '
+                     'back)' % (g9['back'], g9['saved'], g9['loads'], g9['kr_kept'], g9['kr_saves'], g9['kr_back'], g9['kr_all']))
+        if g9['pins'] or self.en359_pinsite:
+            line += '; pinned ghosts stay %s: %d let in pinned by the gate%s' % (
+                self.en359_pinsite or 'not in the log', g9['pins'],
+                ' (last %s in room %s [%s])' % (self.en359_pin_last[1], self.en359_pin_last[2], self.en359_pin_last[0])
+                if self.en359_pin_last else '')
         p = self.ep  # v3.51 EP351
         if self.ep_site is not None or p:
             line += ('; inside rooms %s: %d gave up the chase in %d room(s) (%d monster(s), %d ghost(s); %d again, %d down when you '
@@ -2432,6 +2870,9 @@ class Session:
 
     def parse_omni(self, ts, msg):
         """v3.46 OM346: one Stick Movement line; True when it was one of ours. (v3.48 OM348: Omni-Directional Movement)"""
+        if msg.startswith(('omni: latch', 'omni: lock-on walk', 'omni: [Input] OmniLatch', 'omni: LockOnWalk',
+                           'omni: [Gameplay] LockOnWalk')):  # v3.59 CT359
+            return self.parse_latch(ts, msg)
         m = OM_IN.match(msg)
         if m:
             self.om = (m.group(1), m.group(2), float(m.group(3)))
@@ -2536,6 +2977,108 @@ class Session:
             k[1] += int(m.group(1))
             return True
         return False
+
+    def parse_latch(self, ts, msg):
+        """v3.59 CT359: one line of the latch (omnilatch.inc L1) or Lock-On Walk (L2); True when it was one of ours."""
+        m = LT_IN.match(msg)
+        if m:
+            self.lt = m.groups()
+            return True
+        m = LW_IN.match(msg)
+        if m:
+            self.lw = m.groups()
+            return True
+        m = LT_NOT.match(msg)
+        if m:
+            self.lt_not.append('%s (%s)' % (m.group(1), m.group(2)))
+            return False  # (the warnings group keeps it too)
+        m = LT_EP.match(msg)
+        if m:
+            g = m.groups()
+            self.lt_eps.append((ts, g[0], float(g[1]), g[2].startswith('the Shoulder'), g[3] == 'On', bool(g[4]), bool(g[5]),
+                                g[6].startswith('Refined'), g[7], int(g[8]), float(g[9]), int(g[10]), int(g[11])))
+            return True
+        m = LT_ROOM.match(msg)
+        if m:
+            self.lt_rooms += 1
+            self.lt_supp += int(m.group(4))
+            self.lt_over += int(m.group(5))
+            return True
+        m = LW_ROOM.match(msg)
+        if m:
+            self.lw_rooms.append((int(m.group(3)), int(m.group(4)), m.group(5)))
+            return True
+        m = LW_FIRST.match(msg)
+        if m:
+            self.lw_first = (ts, m.group(1), m.group(2))
+            return True
+        m = LT_REREAD.match(msg)
+        if m:
+            self.lt_sets.append((ts, m.group(1)))
+            return True
+        m = LW_SET.match(msg)
+        if m:
+            self.lw_sets.append((ts, m.group(1), m.group(3)))
+            return True
+        m = LW_REREAD.match(msg)
+        if m:
+            self.lw_sets.append((ts, m.group(1), '[Gameplay] read again'))
+            return True
+        m = LT_BAD.match(msg) or LW_BAD.match(msg)
+        if m:
+            self.lt_bad.append(m.group(1))
+            return True
+        m = LT_FAULT.match(msg)
+        if m:
+            self.lt_fault.append((ts, m.group(1)))
+            return False  # (a fault: the warnings group keeps it too)
+        return False
+
+    def latch_line(self):
+        """v3.59 CT359: the control-direction latch and Lock-On Walk summary line (None without any of their lines)."""
+        if not (self.lt or self.lw or self.lt_not or self.lt_eps or self.lt_rooms or self.lw_rooms or self.lw_sets or
+                self.lt_fault):
+            return None
+        line = '  latch / lock-on walk: '
+        line += ('latch %s (OmniLatch %s)' % self.lt) if self.lt else 'latch (no install line)'
+        if self.lt_sets:
+            line += ', OmniLatch read again %s [%s]' % (self.lt_sets[-1][1], self.lt_sets[-1][0])
+        if self.lt_eps:
+            e = self.lt_eps
+            trig = Counter(t.split(' (')[0] for _, t, *_ in e)
+            why = Counter(x[8].split(' (')[0] for x in e)
+            full = [x for x in e if x[8] == 'its time ran out']
+            sig = [x for x in full if x[4] and x[3]]  # the analog stick under the Shoulder view, held to the end
+            line += '; %d episode(s) (%s): let go by %s' % (len(e), ', '.join('%s %d' % kv for kv in sorted(trig.items())),
+                                                            ', '.join('%s %d' % kv for kv in sorted(why.items())))
+            line += '; longest %.2f s, the control frame up to %d deg from the camera, %d blended frame(s)' % (
+                max(x[2] for x in e), max(x[11] for x in e), sum(x[12] for x in e))
+            if full:
+                line += '; %d held to the end (%d with Omni On under the Shoulder view: the analog control loss\'s signature%s)' % (
+                    len(full), len(sig), ', the game\'s rule' if any(not x[7] for x in sig) else '')
+            if any(x[6] for x in e):
+                line += '; %d right after a warp of the player' % sum(1 for x in e if x[6])
+            if any(x[5] for x in e):
+                line += '; %d with the Shoulder camera\'s Follow on' % sum(1 for x in e if x[5])
+        if self.lt_rooms:
+            line += '; %d room summary line(s), %d rig look-rate trigger(s) ignored under the Shoulder camera%s' % (
+                self.lt_rooms, self.lt_supp, ', %d episode line(s) over the quota' % self.lt_over if self.lt_over else '')
+        line += ('; lock-on walk %s (LockOnWalk %s)' % self.lw) if self.lw else '; lock-on walk (no install line)'
+        if self.lw_sets:
+            line += ', %d change(s): %s' % (len(self.lw_sets), ', '.join('%s (%s) [%s]' % (v, frm, ts) for ts, v, frm in
+                                                                       self.lw_sets[-3:]))
+        if self.lw_first:
+            line += ', first step below a full push [%s] (weapon 0x%s, %s)' % self.lw_first
+        if self.lw_rooms:
+            line += ', %d frame(s) raised in %d room(s) (%d locked on)' % (sum(x[0] for x in self.lw_rooms), len(self.lw_rooms),
+                                                                         sum(x[1] for x in self.lw_rooms))
+        if self.lt_bad:
+            line += '; UNKNOWN value(s) %s' % ', '.join(self.lt_bad[-3:])
+        if self.lt_not:
+            line += '; NOT INSTALLED: %s' % ', '.join(self.lt_not)
+        if self.lt_fault:
+            line += '; FAULTED: %s' % ', '.join('%s [%s]' % (w, ts) for ts, w in self.lt_fault)
+        return line
 
     def omni_line(self):
         """v3.46 OM346: the Stick Movement summary line (None without any of its lines). v3.48 OM348: "omni-directional movement"."""
@@ -3384,6 +3927,57 @@ class Session:
             return False  # also a warning line (the "is not stock" group)
         return False
 
+    def parse_cr(self, ts, msg):
+        """v3.59 FR359: the cut-scene / Room 302 view rate lines. True = consumed."""
+        m = CR_IN.match(msg)
+        if m:
+            g = m.groups()
+            self.cr = tuple('fast' if x == 'at the gameplay rate' else '30' for x in g[:3]) + (int(g[3]), int(g[4]))
+            return True
+        if CR_OFF.match(msg):
+            self.cr = 'off'
+            return True
+        m = CR_START.match(msg)
+        if m:
+            self.cr_starts[m.group(2)] = self.cr_starts.get(m.group(2), 0) + 1
+            return True
+        m = CR_END.match(msg)
+        if m:
+            g = m.groups()
+            self.cr_ends.append((ts, g[0], int(g[1]), float(g[2]), int(g[3]), int(g[4]), int(g[5])))
+            return True
+        m = CR_CUT.match(msg)
+        if m:
+            self.cr_cuts[0 if m.group(4) == 'a camera cut' else 1] += 1
+            return True
+        return False
+
+    def cr_line(self):
+        """v3.59 FR359: the cut-scene / view rate summary (None without any of its lines)."""
+        if not (self.cr or self.cr_starts or self.cr_ends):
+            return None
+        line = '  cut-scene rate: '
+        if self.cr == 'off':
+            line += 'cut-scenes and views at 30 (CutsceneRate=0, ViewRate=0)'
+        elif self.cr:
+            line += 'cut-scenes %s, window view %s, peephole / hole views %s (window view sites %d, caves %d)' % self.cr
+        else:
+            line += '(no start line)'
+        if self.cr_starts:
+            line += '; at the gameplay rate: %s' % ', '.join('%s %d' % (k, v) for k, v in sorted(self.cr_starts.items()))
+        if self.cr_ends:
+            cam = sum(e[4] for e in self.cr_ends)
+            act = sum(e[5] for e in self.cr_ends)
+            worst = max(self.cr_ends, key=lambda e: abs(e[6]))
+            line += '; %d ended, %d camera cut(s) and %d actor jump(s) held, the stream at most %+d ms from real time (%s at %d, %.1f s) [%s]' % (
+                len(self.cr_ends), cam, act, worst[6], worst[1], worst[2], worst[3], worst[0])
+            far = [e for e in self.cr_ends if abs(e[6]) > CR_DRIFT_MS]
+            if far:
+                line += '; CHECK: %d stretch(es) over %d ms off real time (lip-sync)' % (len(far), CR_DRIFT_MS)
+        if any(self.cr_cuts):
+            line += '; [v] %d camera cut / %d actor line(s)' % tuple(self.cr_cuts)
+        return line
+
     def frg_line(self):
         """v3.56 FR356: the rate guard's summary line (None without any of its lines)."""
         if not (self.frg or self.frg_downs or self.frg_ups or self.frg_retry or any(self.frg_miss) or self.t60f):
@@ -3512,6 +4106,8 @@ class Session:
                 self.r3_anom += 1
             if body.startswith('regeneration: '):  # v3.47 RG347
                 self.rg_anom += 1
+            if body.startswith('direct3d: '):  # v3.59 SD359: the Direct3D stop
+                self.parse_fw(ts, body)
             if body.startswith('sound: '):  # v3.52 SND352
                 self.snd_anom += 1
                 if SD_KEEP_FAIL.match(body):  # v3.56 SD356
@@ -3528,7 +4124,8 @@ class Session:
             if body.startswith('extra menu: Quick Load: '):  # v3.52 QL352
                 self.ql_anom += 1
             if body.startswith(('screen effects: the clean pause picture', "screen effects: the preview", "screen effects: the Effects preview",
-                                "screen effects: releasing the preview", "screen effects: Filter Strength")):  # v3.56 PV356  # v3.58 PV358: + Filter Strength
+                                "screen effects: releasing the preview", "screen effects: Filter Strength",  # v3.56 PV356  # v3.58 PV358: + Filter Strength
+                                'screen effects: the clean frame', "screen effects: loading the picture's")):  # v3.59 PV359
                 self.pv_anom += 1
             if body.startswith('randomizer: spawn site'):  # v3.56 RE356
                 self.ss_anom += 1
@@ -3561,6 +4158,9 @@ class Session:
             self.d3d_head = 'dgvoodoo'
         elif msg.startswith('session: no d3d9.dll in the game folder'):
             self.d3d_head = 'none'
+        if msg.startswith(('session: fault watch', 'session: faults seen', 'fault watch: ', 'direct3d: ')):  # v3.59 SD359
+            if self.parse_fw(ts, msg):
+                return
         if msg.startswith('session: end'):
             self.end = msg[len('session: '):]
             return
@@ -3768,10 +4368,15 @@ class Session:
             if m:
                 self.rb_sw.append((ts, 'switch' if msg.startswith('read back: now') else 'lost', m.group(1)))
                 return
+        if msg.startswith('screen effects: Thermal Vision: '):  # v3.59 TV359
+            if self.parse_tv(ts, msg):
+                return
         if msg.startswith(("screen effects: the Effects page's preview", "screen effects: the pause's look layers",
                            'screen effects: the preview scene laid out',
                            'screen effects: [ScreenEffects] PreviewScene=', 'screen effects: [ScreenEffects] FilterStrength=',  # v3.58 PV358
-                           'screen effects: the stock picture ', 'screen effects: Filter Strength ')):  # v3.56 PV356  # v3.58 PV358
+                           'screen effects: the stock picture ', 'screen effects: Filter Strength ',  # v3.56 PV356  # v3.58 PV358
+                           "screen effects: F7", "screen effects: the picture's ",  # v3.59 PV359
+                           "screen effects: the Shadows page's preview: Preview ")):
             if self.parse_pv(ts, msg):
                 return
         if msg.startswith('screen effects: the pause picture kept on the GPU') or msg.startswith('screen effects: a frame read back'):
@@ -3912,7 +4517,20 @@ class Session:
                 return
             m = DOF_RAMPS.match(msg)  # v3.47 DF347
             if m:
-                self.dof_ramps = 'Low %s+%s, Medium %s+%s, High %s+%s' % m.groups()
+                self.dof_ramps = 'Low %s+%s, Medium %s+%s, High %s+%s' % m.groups()[:6]
+                if m.group(7):  # v3.59 DF359
+                    self.dof_ramps += ', Ultra %s+%s' % m.group(7, 8)
+                return
+            m = DOF_NOTE59.match(msg)  # v3.59 DF359
+            if m:
+                self.dof_note59 = m.group(1, 2)
+                return
+            if DOF_SPIRIT.match(msg):  # v3.59 DF359
+                if not self.dof_spirit:
+                    self.dof_spirit = ts
+                return
+            if DOF_SPIRITKEEP.match(msg):  # v3.59 DF359
+                self.dof_spirit_keep = True
                 return
             m = DOF_FIRST.match(msg)  # v3.47 DF347
             if m:
@@ -4116,6 +4734,9 @@ class Session:
             if m:
                 self.sh_vram = max(self.sh_vram, float(m.group(1)))
                 return
+        if msg.startswith(('hud bars: filter themes', 'hud bars: the enemy bars wear', 'hud bars: Thermal Vision: ',  # v3.59 FT359
+                           'hud bars: room ')) and self.parse_ft(ts, msg):
+            return
         if HB_CM42.match(msg):  # v3.42 SM342
             self.hb_cm42 = ts
             return
@@ -4156,6 +4777,21 @@ class Session:
             self.en358[k] += 1
             if k == 'w_down':
                 self.en358['w_most'] = max(self.en358['w_most'], int(float(m.group(5))))
+            if 'he heals to full' in msg:  # v3.59 EN359
+                self.en359['w_heal'] += 1
+            return
+        m = HB_WLONG.match(msg)  # v3.59 EN359
+        if m:
+            self.en359_wlong = 'in' if m.group(1).startswith('his') else 'NOT in'
+            return
+        m = HB_ANCHOR.match(msg)
+        if m:
+            self.en359['anchors'] += 1
+            self.en359['anchors_fb'] += not m.group(3).startswith('its top')
+            return
+        m = HB_EDGE.match(msg)
+        if m:
+            self.en359['edges'] += 1
             return
         m = HB_WALTER_SITE.match(msg)
         if m:
@@ -4247,9 +4883,32 @@ class Session:
             if EF_REST_NO.match(msg):
                 self.ef['r_no'] += 1
                 return
+            m = EF_RESTORED.match(msg)  # v3.59 EN359
+            if m:
+                e = self.en359
+                e['loads'] += 1
+                e['back'] += int(m.group(1)); e['saved'] += int(m.group(2))
+                if m.group(3) is not None:
+                    e['kr_back'] += int(m.group(3)); e['kr_all'] += int(m.group(4))
+                return
+            m = EF_KEPTREC.match(msg)
+            if m:
+                self.en359['kr_saves'] += 1
+                self.en359['kr_kept'] += int(m.group(1))
+                return
             m = EF_IN.match(msg)
             if m:
                 self.ef_site, self.ef_mode = m.group(1), m.group(2)
+                return
+        if msg.startswith('enemies: ') and (' lies pinned by its Sword' in msg or 'pinned ghosts' in msg or '0046511D' in msg):  # v3.59 EN359
+            m = EN_PINGATE.match(msg)
+            if m:
+                self.en359['pins'] += 1
+                self.en359_pin_last = (ts, m.group(1), m.group(3))
+                return
+            m = EN_PINGATE_IN.match(msg)
+            if m:
+                self.en359_pinsite = 'in' if msg.startswith('enemies: pinned ghosts stay') else 'off' if 'is off' in msg else 'NOT in'
                 return
         if msg.startswith('enemies: '):  # v3.51 EP351: Enemy Pursuit inside the room
             m = ENM_CPRECS.match(msg)  # v3.58 RZ358: copies not made for the enemy records
@@ -4366,6 +5025,8 @@ class Session:
         if msg.startswith(('room 302', 'settings: [Room302] ')):  # v3.50 R302
             if self.parse_r302(ts, msg):
                 return
+        if msg.startswith('frame rate: ') and self.parse_cr(ts, msg):  # v3.59 FR359
+            return
         if msg.startswith(('rate guard: ', 'true 60: ')):  # v3.56 FR356
             if self.parse_frg(ts, msg):
                 return
@@ -4406,7 +5067,19 @@ class Session:
             self.gt_skip += int(g[9] or 0)  # v3.51 TP351
             self.gt_skip_tries += int(g[10] or 0)
             self.gt_room_freed += int(g[11] or 0)  # v3.52 TP352
-            self.gt_map_open += 'not finished' in g[12] or 'OVERFLOW' in g[12]
+            self.gt_room_lv[0] += int(g[12] or 0)  # v3.59 GT359
+            self.gt_room_lv[1] += int(g[13] or 0)
+            self.gt_map_open += 'not finished' in g[14] or 'OVERFLOW' in g[14]
+            return
+        m = GT_LEVEL.match(msg)  # v3.59 GT359
+        if m:
+            g = m.groups()
+            self.gt_warps['%s a level' % g[0]] += 1
+            self.gt_lv.append((g[0], int(g[3]), int(g[5])))
+            return
+        m = GT_LV_FLAT.match(msg)
+        if m:
+            self.gt_lv_flat['%s:%s' % (m.group(1), m.group(2))] = m.group(3)
             return
         m = GT_FREE.match(msg)  # v3.52 TP352
         if m:
@@ -4779,8 +5452,12 @@ class Session:
             say('  curse meter Hide Gauge: %s%s; faded out %d time(s), shown again %d (%s)' % (
                 last[1] if last else '?', ' (since %s)' % last[0] if last else '', self.hb_ring['faded out'], shown,
                 ', '.join('%s %d' % kv for kv in sorted(whys.items())) or 'none'))
-        if self.hb_ref_lines or self.hb_ref['rooms'] or self.hb_boss:  # v3.52 HB352
+        if (self.hb_ref_lines or self.hb_ref['rooms'] or self.hb_boss or self.en359['anchors'] or self.en359['edges'] or
+                self.en359_wlong or self.en358_wsite):  # v3.52 HB352  # v3.59 EN359: + the anchors, Walter's sites
             say('  ' + self.hb_ref_line())
+        line = self.ft_line()  # v3.59 FT359: the enemy bars' looks under the special filters
+        if line:
+            say('  ' + line)
         if self.hb_cm42:  # v3.42 SM342: Curse Meter Off / On; Refined never draws the player's ring
             t, who, why = self.hb_pe_ring or ('', '', '')
             line = "  player curse ring: never drawn by Refined (v3.42 Curse Meter Off / On: companion Eileen's ring only); %s" % (
@@ -4808,10 +5485,16 @@ class Session:
         line = self.pv_line()  # v3.56 PV356: the Effects page's preview (the pause layers, the scene)
         if line:
             say('  ' + line)
+        line = self.tv_line()  # v3.59 TV359: Thermal Vision (walls hide heat, the footprints)
+        if line:
+            say('  ' + line)
         line = self.snd_line()  # v3.52 SND352: Sound (the mode, pan law, reverb, Night Mode)
         if line:
             say('  ' + line)
         line = self.sd_line()  # v3.56 SD356: Background, keep-awake, focus, the sound device
+        if line:
+            say('  ' + line)
+        line = self.fw_line()  # v3.59 SD359: the fault watch, the Direct3D stop
         if line:
             say('  ' + line)
         line = self.ly_line()  # v3.54 OL34: the Options layout (the pages, rows left out, each opening)
@@ -4839,7 +5522,8 @@ class Session:
             say(head)
         # v3.43 GT343: Ghost Teleport
         if (self.gt or self.gt_warps or self.gt_no or self.gt_cool or self.gt_chord or self.gt_fades[0] or self.gt_off or
-                self.gt_holds or self.gt_zones or self.gt_rooms or self.gt_maps or self.gt_free or self.gt_free_no):  # v3.50 TP350: + rooms, maps  # v3.52 TP352: + frees
+                self.gt_holds or self.gt_zones or self.gt_rooms or self.gt_maps or self.gt_free or self.gt_free_no or
+                self.gt_lv or self.gt_lv_flat):  # v3.59 GT359: + levels  # v3.50 TP350: + rooms, maps  # v3.52 TP352: + frees
             line = '  ghost teleport: '
             if self.gt:
                 line += '%s at the start (%s); ' % (self.gt[0], self.gt[1])
@@ -4893,6 +5577,15 @@ class Session:
                     line += '; %d enemy(ies) in the cone skipped behind collision (in %d try(ies))' % (self.gt_skip, self.gt_skip_tries)
                 if self.gt_room_freed:  # v3.52 TP352
                     line += '; %d time(s) freed from a wall' % self.gt_room_freed
+                if self.gt_room_lv[0] or self.gt_room_lv[1]:  # v3.59 GT359
+                    line += '; %d up a level, %d down a level (room lines)' % tuple(self.gt_room_lv)
+            if self.gt_lv or self.gt_lv_flat:  # v3.59 GT359: across heights
+                up = [h for d, h, _ in self.gt_lv if d == 'up']
+                dn = [h for d, h, _ in self.gt_lv if d == 'down']
+                line += '; across heights: %d up (%s), %d down (%s)%s' % (
+                    len(up), 'at most %d u' % max(up) if up else 'none', len(dn), 'at most %d u' % max(dn) if dn else 'none',
+                    '; no landing on another level proven in room(s) %s (the flat warp)' % ', '.join(
+                        '%s (%s)' % kv for kv in sorted(self.gt_lv_flat.items())) if self.gt_lv_flat else '')
             if self.gt_free or self.gt_free_no:  # v3.52 TP352: the lines themselves
                 line += '; freed from a wall: %d after a warp, %d at a warp from inside one%s' % (
                     self.gt_free['after warp'], self.gt_free['at the warp'],
@@ -4908,6 +5601,9 @@ class Session:
             say('  ' + line)
         # v3.46 OM346: Stick Movement (v3.48 OM348: Omni-Directional Movement)
         line = self.omni_line()
+        if line:
+            say(line)
+        line = self.latch_line()  # v3.59 CT359: the control-direction latch, Lock-On Walk
         if line:
             say(line)
         # v3.47 RG347: Regeneration
@@ -4934,6 +5630,9 @@ class Session:
         if line:
             say(line)
         line = self.frg_line()  # v3.56 FR356: the rate guard and the final room's sites
+        if line:
+            say(line)
+        line = self.cr_line()  # v3.59 FR359: cut-scenes and Room 302's views at the gameplay rate
         if line:
             say(line)
         # v3.38 EN338: Enemies Follow
@@ -5095,7 +5794,8 @@ class Session:
                 line += '; OFF from %s: %s (%s)' % self.sh_off
             say(line)
         # v3.43 DF343: Depth of Field
-        if self.dof_set or self.dof_not or self.dof['asked'] or self.dof_mig or self.dof_close_rooms:  # v3.45 QS345 / v3.52 FX352
+        if (self.dof_set or self.dof_not or self.dof['asked'] or self.dof_mig or self.dof_close_rooms or self.dof_note59 or
+                self.dof_spirit):  # v3.45 QS345 / v3.52 FX352 / v3.59 DF359
             d = self.dof
             line = '  depth of field: %s' % (('NOT installed (%s)' % self.dof_not) if self.dof_not else
                                               ', then '.join('%s [%s]' % (e, t) for t, e in self.dof_set[:6]))
@@ -5125,6 +5825,12 @@ class Session:
             if self.dof_mig:  # v3.45 QS345
                 line += ('; the ini\'s v3.44 DofStrength=%s read as %s (%s)'
                          % (self.dof_mig[0], self.dof_mig[1], 'rewritten' if self.dof_mig[2] else 'NOT rewritten'))
+            if self.dof_note59:  # v3.59 DF359
+                line += ('; the ini\'s DofStrength=%s kept (v3.59\'s %s is a bit gentler; Ultra = v3.58\'s High)' % self.dof_note59)
+            if self.dof_spirit:  # v3.59 DF359
+                line += '; kept out of Spirit Vision from %s (its world sharp)' % self.dof_spirit
+            if self.dof_spirit_keep:  # v3.59 DF359
+                line += '; DofSpirit=1: blurred under Spirit Vision too (v3.58\'s order)'
             say(line)
         # v3.43 PP343: Bloom, Colour Grading, Otherworld Lens
         if self.pp or self.pp_ini_off or self.pp_set or self.pp_mig or self.pp_lens_rooms:  # v3.52 FX352: + the migration, rooms

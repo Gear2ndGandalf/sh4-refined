@@ -35,6 +35,10 @@ static void PcReadIni(void);
 static void PcTexts(void);
 static void PcInstall(void);
 static DWORD __cdecl PcHitDamage(BYTE *task, const float *hp, DWORD dmgBits, const void *atk);
+// v3.59 CT359: Lock-On Walk (omni.inc's omnilatch.inc): its row on the Player origin page (layout.inc: Gameplay > Combat)
+static void LwFillRow(DWORD *r);
+static int LwChanged(void);
+static int LwRowChanged(void);
 // v3.32 NC332: No Clip (noclip.inc, included at the end of this file): its row on the Special page, its [Gameplay] key
 static void NcSnapshot(void);
 static int NcChanged(void);
@@ -704,7 +708,7 @@ static int GpChanged(void)
     for (k = 0; k < GP_N; ++k)
         if (g_gp[k] != g_snapGp[k]) return 1;
     return g_regenDiff || PcChanged() || HbChanged() || NcChanged() || InvChanged() || GtChanged() ||  // PLAYER PACK; HUD BARS  // v3.32 NC332  // v3.37 INV337  // v3.43 GT343  // v3.47 CT347: OmChanged moved to PadChanged (the row is on Option 2)
-           RgChanged() || RzChanged() || EfChanged() || FiChanged();  // v3.47 RG347  // v3.48 RZ348  // v3.50 EF350  // v3.50 FI350  // v3.50 MERGE: both
+           RgChanged() || RzChanged() || EfChanged() || FiChanged() || LwChanged();  // v3.59 CT359: + Lock-On Walk  // v3.47 RG347  // v3.48 RZ348  // v3.50 EF350  // v3.50 FI350  // v3.50 MERGE: both
 }
 static int GpRowChanged(int page, int row)  // -1 = not one of these pages
 {
@@ -722,6 +726,7 @@ static int GpRowChanged(int page, int row)  // -1 = not one of these pages
     if (page == OP_PLAYER) {
         if (row < 0 || row >= g_gpPlayerN) return 0;
         k = g_gpPlayerRow[row];
+        if (k == -2) return LwRowChanged();  // v3.59 CT359: Lock-On Walk
         if (k < 0) return 0;  // v3.46 OM346 (v3.47 CT347: no mark today; Stick Movement left this page)
         if (k >= GP_N) return PcRowChanged(k - GP_N);  // PLAYER PACK
     } else if (page == OP_ENEMY) {  // v3.37 MN337: by the table GpBuildPages recorded (was a fixed kRow[6] with One-Hit Kill at row 0)
@@ -976,6 +981,8 @@ static void GpBuildPlayer(void)
         g_gpPlayerRow[n] = GP_N + k;
         PcFillRow(t + 7 * n++, k);
     }
+    g_gpPlayerRow[n] = -2;  // v3.59 CT359: Lock-On Walk (GpRowChanged asks LwRowChanged); the page holds 11 of 11 now
+    LwFillRow(t + 7 * n++);
     // v3.37 MN337: (HUD BARS' Curse Meter is on Option 5's top level now)
     memcpy(t + 7 * n, g_gpExit, 7 * 4);
     t[7 * n + 0] = (DWORD)(ULONG_PTR)GpBackIn;
@@ -988,8 +995,8 @@ static void GpBuildPlayer(void)
     g_opTitle[OP_PLAYER] = MSG_GP0 + GPM_T_PLAYER;
 }
 // v3.37 MN337: the tables hold every row (Player with Regeneration: 10 of 11; Enemies 6 of 7; Special 5 of 6; Option 5: 9)
-typedef char GpPlayerFits[(1 + 3 + PC_COUNT + 1) * 7 + 1 <= sizeof g_rowsPlayer / sizeof g_rowsPlayer[0] ? 1 : -1];  // v3.47 CT347: 4 -> 3 again (Stick Movement left)
-typedef char GpPlayerRowsFit[1 + 3 + PC_COUNT <= GP_N + PC_COUNT ? 1 : -1];  // v3.46 OM346: g_gpPlayerRow holds every row (v3.47 CT347: 3)
+typedef char GpPlayerFits[(1 + 3 + PC_COUNT + 1 + 1) * 7 + 1 <= sizeof g_rowsPlayer / sizeof g_rowsPlayer[0] ? 1 : -1];  // v3.47 CT347: 4 -> 3 again (Stick Movement left)  // v3.59 CT359: + Lock-On Walk (11 of 11)
+typedef char GpPlayerRowsFit[1 + 3 + PC_COUNT + 1 <= GP_N + PC_COUNT ? 1 : -1];  // v3.59 CT359: + 1  // v3.46 OM346: g_gpPlayerRow holds every row (v3.47 CT347: 3)
 typedef char GpEnemyFits[8 * 7 + 1 <= sizeof g_rowsEnemy / sizeof g_rowsEnemy[0] ? 1 : -1];  // v3.50 EF350: 6 -> 7 (+ Enemy Pursuit)  // v3.50 MERGE: 7 -> 8 (+ FI350 Fade In: Copies, Follow, Pursuit, Health Bars, Drops, Revive, Fade In, Back)
 typedef char GpSpecialFits[6 * 7 + 1 <= sizeof g_rowsSpecial / sizeof g_rowsSpecial[0] ? 1 : -1];  // v3.43 GT343: 5 -> 6 (+ Ghost Teleport)
 typedef char GpPlayFits[GPT_N * 7 + 1 <= sizeof g_rowsPlay / sizeof g_rowsPlay[0] ? 1 : -1];  // v3.48 RZ348: 10 rows

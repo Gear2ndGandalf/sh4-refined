@@ -39,6 +39,21 @@
 //    stay full. v3.15's unread FilterStrength value (no marker FilterStrengthV) reads as High once.
 // 3. The heat layer's bodies write their depth again (v3.56 drew them with no depth write: a body the close-camera fade
 //    left without depth of its own showed its inside faces; the live Thermal has written it since v3.24).
+//
+// v3.59 PV359 (staging/v359_feedback/w1_preview/PLAN.md; USER_FEEDBACK_v358 QA 3 and QA 11):
+// 1. F7 keeps the look layers with its picture. A press arms the next frame (its bodies and souls are collected at
+//    0x52AEB5 / 0x4EE376 as in a pause's capture frame); there, at 0x4EFBFD, the clean picture is saved as before, then the
+//    capture frame's own draws (PvLayersRun: each layer over black, copied, the clean frame drawn back from a GPU copy) make
+//    the heat and spirit layers, which are read back, shrunk as the picture and written beside it: <picture>.heat /
+//    <picture>.spirit (pvlayer_sim.h: runs of black + literal pixels, CRC, the picture's stamp from its DDS header). A
+//    picture with no hot body / no soul leaves that layer out (an older file of that name is removed).
+// 2. The Effects page lays the picture's own layer over a picture backdrop (the stock picture: Stock, and the title menu
+//    under Live; PreviewImage) under Thermal / Spirit Vision, as it lays a pause's: loaded when asked (one layer, the
+//    filter's: at most 1920 x 1080 x 4 bytes, MANAGED), released when the page closes; a file that does not fit the
+//    picture (size, stamp, CRC, runs) is not used (one line). The user's stock picture of 2026-11-26 has no stamp: no layer.
+// 3. The Shadows page shows a still picture alone whenever its backdrop is one (PvShStillBack: Stock anywhere; Live at the
+//    title menu or in a pause whose frame drew no shadow; as the Effects page picks it): the user's screenshot showed the
+//    figure's split shadow drawn over the stock picture's Eileen. The split only over a live paused game's own shadow (Live).
 #include "preview_sim.h"
 
 static int g_pvOn = 1;              // [ScreenEffects] PreviewLayers
@@ -91,6 +106,18 @@ static PvTV g_pvFireV[PV_FIRE_MAX];
 static SpVtx g_pvVb[PV_ROOM_MAX > PV_FIRE_MAX ? PV_ROOM_MAX : PV_FIRE_MAX];
 static LONG g_pvFireFrame = -10;
 #define PV_WARM_STEPS 20            // Spirit Vision's auras stepped 2 s (0.1 s steps) at a capture when it is not live
+// v3.59 PV359: F7's layers and the picture layers
+static volatile LONG g_pvF7Frame = -10;  // the frame an F7 press armed (its bodies are collected in it); -10 none
+static int g_pvF7Armed, g_pvF7Why = PVW_OK;  // a press is waiting for that frame; why the last press could not arm (PVW_*)
+static DWORD g_pvStamp;             // the stamp of the picture FxPrevWrite wrote last (its layers carry it)
+static ShRt g_pvF7Clean;            // F7's clean frame on the GPU (drawn back after the layers; released at once)
+static volatile LONG g_pvQF7, g_pvQLay, g_pvQSh;
+typedef struct { void *tex, *dev; int pic, kind, tried; UINT w, h; } PvLayTex;  // pic 0 the stock picture, 1 PreviewImage
+static PvLayTex g_pvLay;            // the one picture layer loaded (the page's filter's), released when the page closes
+static int g_pvLayLast[2][3];       // the last result logged (PVLR_* + 1) per picture and kind
+static int g_pvLayOff;              // a picture layer's draw faulted: off for the session
+static LONG g_pvShDrew = -1, g_pvShSeen = -10;  // the Shadows page: the frame it drew the still picture alone; its last frame
+static int g_pvShWhat = -1;
 
 // ---------------------------------------------------------------- settings (ScreenFxInstall)
 // v3.58 PV358: a key as it is in the file (1 = there; "" and 0 when missing or the ini cannot be written: g_iniFallback)
@@ -171,6 +198,15 @@ static void PvInstallModes(void)
                 "(%s)", v, kPvFsName[fs], wm ? "written with the marker FilterStrengthV=" PV_FS_MARK : "NOT written: read as High again at the next start");
     }
 }
+// v3.59 PV359: which layer files lie beside a picture (the start line; the files are checked when the page asks for them)
+static const char *PvLayFiles(const char *pic)
+{
+    char p[MAX_PATH];
+    const int h = PvlPath(pic, PVLK_HEAT, p, sizeof p) && GetFileAttributesA(p) != INVALID_FILE_ATTRIBUTES;
+    const int s = PvlPath(pic, PVLK_SPIRIT, p, sizeof p) && GetFileAttributesA(p) != INVALID_FILE_ATTRIBUTES;
+    return h && s ? " (with its heat and spirit layer files)" : h ? " (with its heat layer file)" : s ? " (with its spirit layer file)" :
+           " (no layer files)";
+}
 static void PvInstall(void)
 {
     char d[MAX_PATH];
@@ -179,11 +215,12 @@ static void PvInstall(void)
     strcpy_s(g_pvStockPath, sizeof g_pvStockPath, d);  // v3.58 PV358
     PvInstallModes();  // v3.58 PV358
     PvStockCheck();
-    Log("screen effects: the Effects page's preview: Preview=%s (%s); the stock picture %s: %s; a pause keeps Thermal's heat and "
+    Log("screen effects: the Effects page's preview: Preview=%s (%s); the stock picture %s: %s%s; a pause keeps Thermal's heat and "
         "Spirit Vision's ghosts and soul fires for it: %s; Filter Strength %s", kPvModeName[g_pvMode],
         g_pvMode == PVM_OFF ? "no backdrop: the game's own menu background" : g_pvMode == PVM_STOCK ?
         "the stock picture on the title menu and in a pause" : "the title menu: the stock picture, else PreviewImage; a pause: its scene",
         g_pvStockPath[0] ? g_pvStockPath : "(path too long)", g_pvStockHave ? "present" : "missing",
+        g_pvStockHave ? PvLayFiles(g_pvStockPath) : "",  // v3.59 PV359
         g_pvOn ? "on (PreviewLayers=1)" : "off (PreviewLayers=0)", kPvFsName[(unsigned)g_pvFs < PVS_N ? (int)g_pvFs : PVS_DEFAULT]);
 }
 // the Filter row's PreviewKey sentence: the F7 picture is not shown on the Effects page while the scene is
@@ -230,10 +267,11 @@ static int PvRtMake(void *dev, ShRt *r, int w, int h, DWORD fmt, const char *wha
 static void PvFreeAll(const char *why)
 {
     const unsigned had = g_pvVram;
-    const int n = (g_pvHeat.tex != NULL) + (g_pvSpirit.tex != NULL) + (g_pvFsRt.tex != NULL);  // v3.58 PV358: + the plain copy
+    const int n = (g_pvHeat.tex != NULL) + (g_pvSpirit.tex != NULL) + (g_pvFsRt.tex != NULL) + (g_pvF7Clean.tex != NULL);  // v3.58 PV358: + the plain copy  // v3.59 PV359: + F7's clean copy
     PvRtFree(&g_pvHeat);
     PvRtFree(&g_pvSpirit);
     PvRtFree(&g_pvFsRt);  // v3.58 PV358
+    PvRtFree(&g_pvF7Clean);  // v3.59 PV359
     g_pvFsArmed = -1;
     g_pvSeq = -1, g_pvHave = 0, g_pvKeptLogged = 0;
     if (n) LogV("screen effects: the preview's layers released (%s): %d target(s), %.1f MB", why, n, ShMb(had));
@@ -248,6 +286,7 @@ static void PvBeforeReset(void)
         if (!s_logged++) LogAnomaly("screen effects", "releasing the preview's layers before a device reset faulted: forgotten (logged once)");
         memset(&g_pvHeat, 0, sizeof g_pvHeat), memset(&g_pvSpirit, 0, sizeof g_pvSpirit), g_pvVram = 0, g_pvSeq = -1, g_pvHave = 0;
         memset(&g_pvFsRt, 0, sizeof g_pvFsRt), g_pvFsArmed = -1;  // v3.58 PV358
+        memset(&g_pvF7Clean, 0, sizeof g_pvF7Clean);  // v3.59 PV359
     }
 }
 static void PvDevCheck(void *dev)
@@ -257,6 +296,7 @@ static void PvDevCheck(void *dev)
     g_pvDev = dev;
     memset(&g_pvHeat, 0, sizeof g_pvHeat), memset(&g_pvSpirit, 0, sizeof g_pvSpirit), g_pvVram = 0;
     memset(&g_pvFsRt, 0, sizeof g_pvFsRt), g_pvFsArmed = -1;  // v3.58 PV358
+    memset(&g_pvF7Clean, 0, sizeof g_pvF7Clean);  // v3.59 PV359
     g_pvPsKey = 0, g_pvPsKeyFailed = 0;
 }
 static int PvKeyShader(void *dev)
@@ -296,6 +336,7 @@ static void PvInNow(PvCapIn *in)
     in->heatLive = ThermHeatLive();
     in->ghostLive = GvLive();
     in->fails = g_pvFails;
+    in->f7 = g_pvF7Frame == g_fxFrame;  // v3.59 PV359: the frame an F7 press armed
 }
 // ThermDrawC's body rule without its hiding, its fallback look and its footprints (they belong to the live Thermal)
 static void PvHeatAdd(const BYTE *task, BYTE *model)
@@ -316,11 +357,11 @@ static void PvCollect(const BYTE *task, BYTE *model)
 {
     PvCapIn in;
     int m;
-    if (!g_pvOn || !model || *(volatile int *)0x12E3E2C != 1) return;  // every other frame: this one read
+    if (!g_pvOn || !model || (*(volatile int *)0x12E3E2C != 1 && g_pvF7Frame != g_fxFrame)) return;  // every other frame: this one read  // v3.59 PV359: + an F7 frame
     PvInNow(&in);
     m = PvCollectMask(&in);
     // a ghost the live Thermal hides (ThermDrawC skips its draw) is not posed / drawn in this frame: no glow redraw of it
-    if ((m & PVL_SPIRIT) && !(ThermalLive() && ThermClassify(task, 0, NULL, NULL) == 2)) {
+    if ((m & PVL_SPIRIT) && !ThermHidesBody(task)) {  // v3.59 MERGE: screenfx.inc's one Thermal Vision hide rule
         g_pvColl = 1;
         GvCollect(task, model);
         g_pvColl = 0;
@@ -332,7 +373,7 @@ static void PvCyn(BYTE *model)
 {
     PvCapIn in;
     int m;
-    if (!g_pvOn || !model || *(volatile int *)0x12E3E2C != 1) return;
+    if (!g_pvOn || !model || (*(volatile int *)0x12E3E2C != 1 && g_pvF7Frame != g_fxFrame)) return;  // v3.59 PV359: + an F7 frame
     PvInNow(&in);
     m = PvCollectMask(&in);
     if (m & PVL_SPIRIT) {
@@ -455,17 +496,119 @@ static void PvWhyNote(int why)
     LogV("screen effects: the pause's look layers not kept: %s (Thermal / Spirit Vision show their palette / edges on the "
          "Effects page from this pause)", kPvWhy[why]);
 }
+// 0x4EFBFD, the capture frame / an F7 frame (v3.59 PV359): the back buffer is still the clean frame. The layers of want are
+// drawn over black, each copied into its target, then the clean picture is drawn back (pic, the back buffer's size). f7: pic
+// is made here (a GPU copy of the back buffer into g_pvF7Clean; a pause has its own, ShPauseTex). Returns the PVL_* kept.
+// v3.59 PV359: PvCapture's draw part, shared with F7 (the same draws, the same fault rules and counters)
+typedef struct { int made, fault, saved, restored, copyBad; float w, h; } PvRun;
+static int PvLayersRun(void *dev, void *pic, UINT pw, UINT ph, int want, int f7, PvRun *o)
+{
+    void *rt = NULL;
+    FxSurfDesc8 d;
+    FxSaved sv;
+    int have = 0;
+    const char *const who = f7 ? "F7's" : "the pause's";
+    memset(o, 0, sizeof *o);
+    __try {
+        PvDevCheck(dev);
+        if (!FxOnBackBuffer(dev) || FAILED(((GetSurf_t)VT(dev, VT_GETRT))(dev, &rt)) || !rt) rt = NULL;
+        if (rt && (FAILED(((FxGetDesc_t)VT(rt, 8))(rt, &d)) || (d.fmt != 21 && d.fmt != 22) || d.w < 64 || d.h < 64 ||
+                   (!f7 && (d.w != pw || d.h != ph)))) {
+            if (!f7) PvWhyNote(PVW_NOPIC);  // (the target is not the picture's size / format: nothing to restore from 1:1)
+            ((Release_t)VT(rt, VT_RELEASE))(rt);
+            rt = NULL;
+        }
+        if (rt && f7) {  // v3.59 PV359: the clean frame kept on the GPU, to be drawn back after the layers
+            pic = NULL;
+            if (PvRtMake(dev, &g_pvF7Clean, (int)d.w, (int)d.h, d.fmt, "F7's clean copy", &o->made) &&
+                SUCCEEDED(((FxCopyRects_t)VT(dev, SHV_COPYRECTS))(dev, rt, NULL, 0, g_pvF7Clean.surf, NULL)))
+                pic = g_pvF7Clean.tex;
+            if (!pic) {
+                ((Release_t)VT(rt, VT_RELEASE))(rt);
+                rt = NULL;
+            }
+        }
+        if (rt) {
+            o->w = (float)d.w, o->h = (float)d.h;
+            if ((want & PVL_HEAT) && !PvRtMake(dev, &g_pvHeat, (int)d.w, (int)d.h, d.fmt, "pause's heat layer", &o->made)) want &= ~PVL_HEAT;
+            if ((want & PVL_SPIRIT) && !PvRtMake(dev, &g_pvSpirit, (int)d.w, (int)d.h, d.fmt, "pause's spirit layer", &o->made)) want &= ~PVL_SPIRIT;
+            o->saved = want && FxSave(dev, &sv, FX_NPSC);
+        }
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        o->fault = 1;
+    }
+    if (!o->saved) {
+        if (rt) ((Release_t)VT(rt, VT_RELEASE))(rt);
+        if (o->fault && ++g_pvFails && LogQuota(&g_pvQFail, 5))
+            Log("screen effects: %s look layers faulted before drawing (%d of %d before they are off)", who, g_pvFails, PV_FAILS_OFF);
+        return 0;
+    }
+    InterlockedIncrement(&g_pvCapDraws);  // v3.56 MERGE: this frame's interval is not a play sample (budget, rate guard)
+    __try {
+        sv.vpSet = 1;
+        if (want & PVL_HEAT) {
+            PvFullVp(dev, &sv, o->w, o->h);
+            PvBlack(dev, o->w, o->h);
+            g_pvPrints = PvPrintsDraw(dev, &sv);
+            FxBase(dev);
+            // v3.58 PV358 (USER_FEEDBACK_v357: "only displaying the inside faces of her model"): the living bodies write their
+            // depth here as in the live heat pass (v3.24 user item 1), so the near faces win where the close-camera fade left no
+            // depth of the player's own (KB 128); v3.56 drew them without (g_pvNoZw) and showed her far, inner faces. The
+            // depth written is the body's own (0.03 % nearer: the heat bias), only in this capture frame
+            ThRedraw(dev, &sv, &g_pvBodies);
+            if (g_pvBodies + g_pvPrints > 0) {
+                if (SUCCEEDED(((FxCopyRects_t)VT(dev, SHV_COPYRECTS))(dev, rt, NULL, 0, g_pvHeat.surf, NULL))) have |= PVL_HEAT;
+                else o->copyBad = 1;
+            }
+        }
+        if (want & PVL_SPIRIT) {
+            PvFullVp(dev, &sv, o->w, o->h);
+            PvBlack(dev, o->w, o->h);
+            PvSpiritDraw(dev, &sv);
+            if (g_pvGhosts + g_pvFires + g_pvAuras > 0) {
+                if (SUCCEEDED(((FxCopyRects_t)VT(dev, SHV_COPYRECTS))(dev, rt, NULL, 0, g_pvSpirit.surf, NULL))) have |= PVL_SPIRIT;
+                else o->copyBad = 1;
+            }
+        }
+    } __except (GvFaultNote(GetExceptionInformation()), EXCEPTION_EXECUTE_HANDLER) {
+        o->fault = 1;
+        InterlockedExchange(&g_thMode, 0);
+        InterlockedExchange(&g_gvGlow, 0);
+    }
+    __try {  // always: the clean frame back (the pause copy at the frame's end and every pass after this one see it)
+        PvFullVp(dev, &sv, o->w, o->h);
+        o->restored = PvRestore(dev, pic, o->w, o->h);
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        o->restored = 0;
+    }
+    __try {
+        FxRestore(dev, &sv);
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+    }
+    ((Release_t)VT(rt, VT_RELEASE))(rt);
+    if (!o->restored) {  // the frame may now hold a layer instead of the scene: never again this session
+        g_pvFails = PV_FAILS_OFF;
+        have = 0;
+        LogAnomaly("screen effects", "the clean %s could not be drawn back after the look layers: this %s may show them; the layers "
+                   "are off for this session", f7 ? "frame" : "pause picture", f7 ? "frame" : "pause's picture");
+    } else if (o->fault || o->copyBad) {
+        ++g_pvFails;
+        if (LogQuota(&g_pvQFail, 5))
+            Log("screen effects: %s look layers %s (%s%08lX at %p; %d of %d before they are off); the clean picture was drawn back", who,
+                o->fault ? "faulted" : "could not be copied", o->fault ? "code " : "", o->fault ? g_gvFaultCode : 0UL, o->fault ? g_gvFaultAt : NULL,
+                g_pvFails, PV_FAILS_OFF);
+    }
+    return have;
+}
 // 0x4EFBFD, the capture frame, right after FxCaptureClean (FxSceneFrame): the back buffer is still the clean frame
 static void PvCapture(void)
 {
-    void *dev = DEV, *rt = NULL, *pic = NULL;
+    void *dev = DEV, *pic = NULL;
     PvCapIn in;
-    FxSurfDesc8 d;
-    FxSaved sv;
+    PvRun o;
     UINT pw = 0, ph = 0;
     LARGE_INTEGER t0, t1, qf;
-    int want, why, made = 0, fault = 0, restored = 0, saved = 0, have = 0, copyBad = 0;
-    float w = 0.0f, h = 0.0f;
+    int want, why, have;
     if (!g_pvOn) return;
     PvInNow(&in);
     g_pvSeq = -1, g_pvHave = 0;  // older layers never stand for this pause
@@ -478,85 +621,9 @@ static void PvCapture(void)
     }
     QueryPerformanceFrequency(&qf);
     QueryPerformanceCounter(&t0);
-    __try {
-        PvDevCheck(dev);
-        if (!FxOnBackBuffer(dev) || FAILED(((GetSurf_t)VT(dev, VT_GETRT))(dev, &rt)) || !rt) rt = NULL;
-        if (rt && (FAILED(((FxGetDesc_t)VT(rt, 8))(rt, &d)) || (d.fmt != 21 && d.fmt != 22) || d.w != pw || d.h != ph)) {
-            PvWhyNote(PVW_NOPIC);  // (the target is not the picture's size / format: nothing to restore from 1:1)
-            ((Release_t)VT(rt, VT_RELEASE))(rt);
-            rt = NULL;
-        }
-        if (rt) {
-            w = (float)d.w, h = (float)d.h;
-            if ((want & PVL_HEAT) && !PvRtMake(dev, &g_pvHeat, (int)d.w, (int)d.h, d.fmt, "pause's heat layer", &made)) want &= ~PVL_HEAT;
-            if ((want & PVL_SPIRIT) && !PvRtMake(dev, &g_pvSpirit, (int)d.w, (int)d.h, d.fmt, "pause's spirit layer", &made)) want &= ~PVL_SPIRIT;
-            saved = want && FxSave(dev, &sv, FX_NPSC);
-        }
-    } __except (EXCEPTION_EXECUTE_HANDLER) {
-        fault = 1;
-    }
-    if (!saved) {
-        if (rt) ((Release_t)VT(rt, VT_RELEASE))(rt);
-        if (fault && ++g_pvFails && LogQuota(&g_pvQFail, 5))
-            Log("screen effects: the pause's look layers faulted before drawing (%d of %d before they are off)", g_pvFails, PV_FAILS_OFF);
-        return;
-    }
-    InterlockedIncrement(&g_pvCapDraws);  // v3.56 MERGE: this frame's interval is not a play sample (budget, rate guard)
-    __try {
-        sv.vpSet = 1;
-        if (want & PVL_HEAT) {
-            PvFullVp(dev, &sv, w, h);
-            PvBlack(dev, w, h);
-            g_pvPrints = PvPrintsDraw(dev, &sv);
-            FxBase(dev);
-            // v3.58 PV358 (USER_FEEDBACK_v357: "only displaying the inside faces of her model"): the living bodies write their
-            // depth here as in the live heat pass (v3.24 user item 1), so the near faces win where the close-camera fade left no
-            // depth of the player's own (KB 128); v3.56 drew them without (g_pvNoZw) and showed her far, inner faces. The
-            // depth written is the body's own (0.03 % nearer: the heat bias), only in this capture frame
-            ThRedraw(dev, &sv, &g_pvBodies);
-            if (g_pvBodies + g_pvPrints > 0) {
-                if (SUCCEEDED(((FxCopyRects_t)VT(dev, SHV_COPYRECTS))(dev, rt, NULL, 0, g_pvHeat.surf, NULL))) have |= PVL_HEAT;
-                else copyBad = 1;
-            }
-        }
-        if (want & PVL_SPIRIT) {
-            PvFullVp(dev, &sv, w, h);
-            PvBlack(dev, w, h);
-            PvSpiritDraw(dev, &sv);
-            if (g_pvGhosts + g_pvFires + g_pvAuras > 0) {
-                if (SUCCEEDED(((FxCopyRects_t)VT(dev, SHV_COPYRECTS))(dev, rt, NULL, 0, g_pvSpirit.surf, NULL))) have |= PVL_SPIRIT;
-                else copyBad = 1;
-            }
-        }
-    } __except (GvFaultNote(GetExceptionInformation()), EXCEPTION_EXECUTE_HANDLER) {
-        fault = 1;
-        InterlockedExchange(&g_thMode, 0);
-        InterlockedExchange(&g_gvGlow, 0);
-    }
-    __try {  // always: the clean frame back (the pause copy at the frame's end and every pass after this one see it)
-        PvFullVp(dev, &sv, w, h);
-        restored = PvRestore(dev, pic, w, h);
-    } __except (EXCEPTION_EXECUTE_HANDLER) {
-        restored = 0;
-    }
-    __try {
-        FxRestore(dev, &sv);
-    } __except (EXCEPTION_EXECUTE_HANDLER) {
-    }
-    ((Release_t)VT(rt, VT_RELEASE))(rt);
+    have = PvLayersRun(dev, pic, pw, ph, want, 0, &o);  // v3.59 PV359: the draw part (shared with F7)
+    if (!o.saved) return;
     QueryPerformanceCounter(&t1);
-    if (!restored) {  // the frame may now hold a layer instead of the scene: never again this session
-        g_pvFails = PV_FAILS_OFF;
-        have = 0;
-        LogAnomaly("screen effects", "the clean pause picture could not be drawn back after the look layers: this pause's picture may "
-                   "show them; the layers are off for this session");
-    } else if (fault || copyBad) {
-        ++g_pvFails;
-        if (LogQuota(&g_pvQFail, 5))
-            Log("screen effects: the pause's look layers %s (%s%08lX at %p; %d of %d before they are off); the clean picture was drawn back",
-                fault ? "faulted" : "could not be copied", fault ? "code " : "", fault ? g_gvFaultCode : 0UL, fault ? g_gvFaultAt : NULL,
-                g_pvFails, PV_FAILS_OFF);
-    }
     g_pvHave = have;
     g_pvSeq = have ? g_fxPausePicSeq : -1;
     g_pvWhyLast = -1;
@@ -564,9 +631,193 @@ static void PvCapture(void)
         const double ms = qf.QuadPart ? (double)(t1.QuadPart - t0.QuadPart) * 1000.0 / (double)qf.QuadPart : 0.0;
         LogV("screen effects: the pause's look layers kept for the Effects page: heat %s (%d bod%s, %d footprint(s)), spirit %s (%d ghost(s), "
              "%d soul fire(s), %d aura sprite(s)); %dx%d, %s (the preview's %.1f MB), %.2f ms", have & PVL_HEAT ? "on" : "off", g_pvBodies,
-             g_pvBodies == 1 ? "y" : "ies", g_pvPrints, have & PVL_SPIRIT ? "on" : "off", g_pvGhosts, g_pvFires, g_pvAuras, (int)w, (int)h,
-             made ? "targets made" : "targets kept from an earlier pause", ShMb(g_pvVram), ms);
+             g_pvBodies == 1 ? "y" : "ies", g_pvPrints, have & PVL_SPIRIT ? "on" : "off", g_pvGhosts, g_pvFires, g_pvAuras, (int)o.w, (int)o.h,
+             o.made ? "targets made" : "targets kept from an earlier pause", ShMb(g_pvVram), ms);
     }
+}
+
+// ---------------------------------------------------------------- v3.59 PV359: F7 keeps the layers with its picture
+// FxPrevWrite (every picture written: F7, the first-pause capture): a fresh stamp for its DDS header; its layers carry it
+static DWORD PvPicStampNext(void)
+{
+    LARGE_INTEGER q;
+    DWORD s;
+    QueryPerformanceCounter(&q);
+    s = (GetTickCount() * 2654435761u) ^ q.LowPart ^ ((DWORD)GetCurrentProcessId() << 16) ^ (DWORD)q.HighPart;
+    if (!s) s = 0x5EED;
+    if (s == g_pvStamp) s ^= 0x00010001u;
+    g_pvStamp = s;
+    return s;
+}
+// FxPreviewKeyFrame (0x4EFBFD, a frame of play, the key just pressed): 1 = armed (the next frame collects its bodies and
+// takes the picture with its layers); 0 = take the picture now, alone (no layers can be drawn: g_pvF7Why says why)
+static int PvF7Arm(void)
+{
+    PvCapIn in;
+    int why;
+    PvInNow(&in);
+    if (!PvF7CanLayer(&in, &why)) {
+        g_pvF7Why = why;
+        return 0;
+    }
+    g_pvF7Why = PVW_OK;
+    InterlockedExchange(&g_pvF7Frame, g_fxFrame + 1);
+    g_pvF7Armed = 1;
+    return 1;
+}
+// FxPreviewKeyFrame, every frame of play: 1 = an armed press is due now (its bodies were collected in this frame)
+static int PvF7Due(void)
+{
+    const int when = PvF7When(g_pvF7Armed, (long)g_pvF7Frame, (long)g_fxFrame);
+    if (when == PVF7_NONE) return 0;
+    g_pvF7Armed = 0;
+    if (when == PVF7_NOW) return 1;
+    InterlockedExchange(&g_pvF7Frame, -10);
+    if (LogQuota(&g_pvQF7, 40))
+        Log("screen effects: F7: no picture taken: the game left play before the frame after the press (press F7 again)");
+    return 0;
+}
+// a render target of ours read back (as FxGrabClean: route 1 a system-memory copy; route 2, only after 1 failed, a
+// lockable render target) and box-shrunk as the picture (FxPrevShrink). NULL: not available
+static DWORD *PvReadBack(void *dev, const ShRt *r, UINT *pow, UINT *poh)
+{
+    void *volatile mem = NULL;
+    FxLockRect8 lr;
+    DWORD *volatile out = NULL;
+    volatile int route = 0, locked = 0, owned = 0;
+    if (!dev || !r->surf || r->w < 64 || r->h < 64) return NULL;
+    __try {
+        Interp_OwnBegin();  // (a read back, not a frame's draw: not recorded for the interpolated frames)
+        owned = 1;
+        if (SUCCEEDED(((FxImgSurf_t)VT(dev, 27))(dev, (UINT)r->w, (UINT)r->h, r->fmt, (void **)&mem)) && mem) {
+            if (SUCCEEDED(((FxCopyRects_t)VT(dev, 28))(dev, r->surf, NULL, 0, mem, NULL))) route = 1;
+            else ((Release_t)VT(mem, VT_RELEASE))(mem), mem = NULL;
+        }
+        if (!route && SUCCEEDED(((FxRtSurf_t)VT(dev, 25))(dev, (UINT)r->w, (UINT)r->h, r->fmt, 0, TRUE, (void **)&mem)) && mem) {
+            if (SUCCEEDED(((FxCopyRects_t)VT(dev, 28))(dev, r->surf, NULL, 0, mem, NULL))) route = 2;
+            else ((Release_t)VT(mem, VT_RELEASE))(mem), mem = NULL;
+        }
+        if (route && SUCCEEDED(((FxSurfLock_t)VT(mem, 9))(mem, &lr, NULL, 0x10 /*READONLY*/)) && lr.bits) locked = 1;
+        Interp_OwnEnd();
+        owned = 0;
+        if (locked) {
+            out = FxPrevShrink(lr.bits, lr.pitch, (UINT)r->w, (UINT)r->h, pow, poh);
+            ((FxSurfUnlock_t)VT(mem, 10))(mem);
+            locked = 0;
+        }
+        if (mem) ((Release_t)VT(mem, VT_RELEASE))(mem), mem = NULL;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        if (owned) Interp_OwnEnd();
+        __try {
+            if (locked && mem) ((FxSurfUnlock_t)VT(mem, 10))(mem);
+            if (mem) ((Release_t)VT(mem, VT_RELEASE))(mem);
+        } __except (EXCEPTION_EXECUTE_HANDLER) {
+        }
+        if (out) free(out);
+        out = NULL;
+    }
+    return out;
+}
+static const char *PvBaseName(const char *p)
+{
+    const char *b = p;
+    for (; *p; ++p)
+        if (*p == '\\' || *p == '/') b = p + 1;
+    return b;
+}
+// one layer file (temp, then renamed over the old one); 1 = written. *kb its size, *pct the share of lit pixels
+static int PvLayWrite(const char *path, const DWORD *px, UINT w, UINT h, int kind, DWORD stamp, unsigned *kb, float *pct)
+{
+    const size_t cap = PvlMaxBytes(w, h);
+    unsigned char *buf = (unsigned char *)malloc(cap);
+    char tmp[MAX_PATH];
+    PvlU32 lit = 0;
+    size_t n;
+    HANDLE fh;
+    DWORD done = 0;
+    int ok;
+    *kb = 0, *pct = 0.0f;
+    if (!buf) return 0;
+    n = PvlEncode((const PvlU32 *)px, w, h, (PvlU32)kind, stamp, buf, cap, &lit);
+    ok = n > 0 && sprintf_s(tmp, sizeof tmp, "%s.tmp", path) > 0;
+    if (ok) {
+        fh = CreateFileA(tmp, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, 0, NULL);
+        ok = fh != INVALID_HANDLE_VALUE;
+        if (ok) {
+            ok = WriteFile(fh, buf, (DWORD)n, &done, NULL) && done == (DWORD)n;
+            CloseHandle(fh);
+            ok = ok && MoveFileExA(tmp, path, MOVEFILE_REPLACE_EXISTING);
+            if (!ok) DeleteFileA(tmp);
+        }
+    }
+    free(buf);
+    if (ok) *kb = (unsigned)((n + 1023) / 1024), *pct = 100.0f * (float)lit / (float)(w * h);
+    return ok;
+}
+// FxPreviewKeyFrame, after FxPrevWrite saved F7's picture (ow x oh, its stamp g_pvStamp): its layers beside it. due 0: the
+// press could not arm (or the picture was not F7's frame): no layers, an older file of the names removed
+static void PvF7Layers(int due, UINT ow, UINT oh)
+{
+    void *dev = DEV;
+    char path[2][MAX_PATH], note[2][176];
+    PvCapIn in;
+    PvRun o;
+    LARGE_INTEGER t0, t1, qf;
+    int k, why = g_pvF7Why, want = 0, have = 0, removed = 0, margin = 0;
+    const DWORD stamp = g_pvStamp;
+    memset(&o, 0, sizeof o);
+    InterlockedExchange(&g_pvF7Frame, -10);  // (this frame's collection is used now)
+    if (!PvlPath(g_fxPrevPath, PVLK_HEAT, path[0], MAX_PATH) || !PvlPath(g_fxPrevPath, PVLK_SPIRIT, path[1], MAX_PATH)) return;
+    QueryPerformanceFrequency(&qf);
+    QueryPerformanceCounter(&t0);
+    g_pvBodies = g_pvPrints = g_pvGhosts = g_pvFires = g_pvAuras = 0;
+    if (due && dev) {
+        PvInNow(&in);
+        in.f7 = 1;
+        want = PvCaptureMask(&in, 1, g_thStamp == g_fxFrame && g_thN > 0, g_gvStamp == g_fxFrame && (g_gvN > 0 || g_svSoulN > 0), &why);
+        margin = ShVaMarginMb();
+        if (want && !ShKeepTargets(margin)) want = 0, why = -1;  // (the address space is low: no targets made for it)
+        if (want) have = PvLayersRun(dev, NULL, 0, 0, want, 1, &o);
+        if (want) g_pvSeq = -1, g_pvHave = 0;  // (the targets hold F7's layers now, not a pause's)
+    }
+    for (k = 0; k < 2; ++k) {
+        const int bit = k ? PVL_SPIRIT : PVL_HEAT, kind = k ? PVLK_SPIRIT : PVLK_HEAT;
+        int ok = 0;
+        note[k][0] = 0;
+        if (have & bit) {
+            UINT lw = 0, lh = 0;
+            unsigned kb = 0;
+            float pct = 0.0f;
+            DWORD *px = PvReadBack(dev, k ? &g_pvSpirit : &g_pvHeat, &lw, &lh);
+            if (!px) sprintf_s(note[k], sizeof note[k], "none (it could not be read back)");
+            else if (lw != ow || lh != oh) sprintf_s(note[k], sizeof note[k], "none (%ux%u, not the picture's %ux%u)", lw, lh, ow, oh);
+            else if (!(ok = PvLayWrite(path[k], px, lw, lh, kind, stamp, &kb, &pct)))
+                sprintf_s(note[k], sizeof note[k], "none (%s could not be written, error %lu)", PvBaseName(path[k]), GetLastError());
+            else if (k)
+                sprintf_s(note[k], sizeof note[k], "saved %s (%d ghost(s), %d soul fire(s), %d aura sprite(s); %.1f %% of the picture, %u KB)",
+                          PvBaseName(path[k]), g_pvGhosts, g_pvFires, g_pvAuras, pct, kb);
+            else
+                sprintf_s(note[k], sizeof note[k], "saved %s (%d bod%s, %d footprint(s); %.1f %% of the picture, %u KB)", PvBaseName(path[k]),
+                          g_pvBodies, g_pvBodies == 1 ? "y" : "ies", g_pvPrints, pct, kb);
+            if (px) free(px);
+        } else {
+            sprintf_s(note[k], sizeof note[k], "none (%s)", why == -1 ? "the address space is low" : !due ? (why > 0 && why < PVW_N ?
+                      kPvWhy[why] : "not armed") : want & bit ? "nothing drawn into it" : why > 0 && why < PVW_N ? kPvWhy[why] :
+                      k ? "no ghost or soul in that frame" : "nothing hot in that frame");
+        }
+        if (!ok && DeleteFileA(path[k])) removed |= bit;  // (an older picture's layer: not this picture's any more)
+    }
+    __try {
+        PvRtFree(&g_pvF7Clean);
+        if (have && !ShKeepTargets(ShVaMarginMb())) PvFreeAll("F7: the address space is low");
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        memset(&g_pvF7Clean, 0, sizeof g_pvF7Clean);
+    }
+    QueryPerformanceCounter(&t1);
+    if (LogQuota(&g_pvQF7, 40))
+        Log("screen effects: F7's look layers for %s: heat %s; spirit %s%s; %.1f ms", PvBaseName(g_fxPrevPath), note[0], note[1],
+            removed ? "; the older layer file(s) of that name removed" : "",
+            qf.QuadPart ? (double)(t1.QuadPart - t0.QuadPart) * 1000.0 / (double)qf.QuadPart : 0.0);
 }
 
 // ---------------------------------------------------------------- 2. the title scene
@@ -706,6 +957,96 @@ static void *PvStockLoad(void *dev)
     g_pvStockTex = tex, g_pvStockW = w, g_pvStockH = h, g_pvStockFailed = 0, g_pvStockHave = 1, g_pvStockLogged = 0;
     return tex;
 }
+// v3.59 PV359: the picture's layer files (F7's set; the stock picture is an F7 picture promoted by the installer)
+static void PvLayFree(void)  // the page closed / another layer asked for: the texture released (an older device's: forgotten)
+{
+    if (g_pvLay.tex && g_pvLay.dev == DEV) {
+        __try {
+            ((Release_t)VT(g_pvLay.tex, VT_RELEASE))(g_pvLay.tex);
+        } __except (EXCEPTION_EXECUTE_HANDLER) {
+        }
+    }
+    memset(&g_pvLay, 0, sizeof g_pvLay);
+}
+// the file at path for the picture at picPath (pw x ph as loaded): checked (pvlayer_sim.h PvlCheck: header, kind, size, the
+// picture's stamp, CRC, runs) and decoded into a MANAGED X8R8G8B8 texture. PVLR_*
+static int PvLayLoad(void *dev, const char *picPath, const char *path, int kind, UINT pw, UINT ph, void **tex, unsigned *kb)
+{
+    unsigned char hdr[128], *buf;
+    HANDLE f;
+    DWORD sz, got = 0;
+    PvlU32 stamp = 0, sw = 0, sh = 0;
+    int r;
+    struct { int pitch; BYTE *bits; } lr;
+    *tex = NULL, *kb = 0;
+    f = CreateFileA(path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+    if (f == INVALID_HANDLE_VALUE) return PVLR_MISSING;
+    sz = GetFileSize(f, NULL);
+    if (sz == INVALID_FILE_SIZE || sz < PVL_HDR || (size_t)sz > PvlMaxBytes(PVL_MAX_PIX, 1) || (buf = (unsigned char *)malloc(sz)) == NULL) {
+        CloseHandle(f);
+        return PVLR_HEADER;  // (no layer of ours is that size)
+    }
+    if (!ReadFile(f, buf, sz, &got, NULL) || got != sz) got = 0;
+    CloseHandle(f);
+    *kb = (unsigned)((sz + 1023) / 1024);
+    if (!got) {
+        free(buf);
+        return PVLR_READ;
+    }
+    f = CreateFileA(picPath, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);  // the picture's stamp (its header)
+    if (f != INVALID_HANDLE_VALUE) {
+        DWORD g = 0;
+        if (ReadFile(f, hdr, sizeof hdr, &g, NULL)) stamp = PvlPicStamp(hdr, g, &sw, &sh);
+        CloseHandle(f);
+    }
+    r = PvlCheck(buf, sz, (PvlU32)kind, pw, ph, stamp);
+    if (r == PVLR_OK && (sw != pw || sh != ph)) r = PVLR_SIZE;  // (the file changed since its texture was made)
+    if (r == PVLR_OK) {
+        void *t = NULL;
+        r = PVLR_TEX;
+        if (SUCCEEDED(((SpCreateTex_t)VT(dev, SPV_CREATETEX))(dev, pw, ph, 1, 0, 22 /*X8R8G8B8*/, 1 /*MANAGED*/, &t)) && t) {
+            if (SUCCEEDED(((SpLock_t)VT(t, 16))(t, 0, &lr, NULL, 0))) {
+                r = PvlDecode(buf, sz, lr.bits, lr.pitch) ? PVLR_OK : PVLR_DATA;
+                ((SpUnlock_t)VT(t, 17))(t, 0);
+            }
+            if (r == PVLR_OK) *tex = t;
+            else ((Release_t)VT(t, VT_RELEASE))(t);
+        }
+    }
+    free(buf);
+    return r;
+}
+// the page (PvPageDraw): the drawn picture's layer of this kind (pic 0 the stock picture, 1 PreviewImage), loaded once an
+// opening (a failure is not tried again until the page opens again); NULL: none (the filter's look over the picture only)
+static void *PvLayGet(void *dev, int pic, int kind)
+{
+    const char *const picPath = pic ? g_fxPrevPath : g_pvStockPath;
+    const UINT pw = pic ? g_fxPrevW : g_pvStockW, ph = pic ? g_fxPrevH : g_pvStockH;
+    char path[MAX_PATH];
+    void *tex = NULL;
+    unsigned kb = 0;
+    int r;
+    if (g_pvLayOff || (kind != PVLK_HEAT && kind != PVLK_SPIRIT)) return NULL;
+    if (g_pvLay.dev == dev && g_pvLay.pic == pic && g_pvLay.kind == kind && (g_pvLay.tex || g_pvLay.tried)) return g_pvLay.tex;
+    if (g_pvLay.dev != dev) memset(&g_pvLay, 0, sizeof g_pvLay);  // (an older device's texture went with it)
+    else PvLayFree();  // (one layer at a time: the filter's)
+    g_pvLay.dev = dev, g_pvLay.pic = pic, g_pvLay.kind = kind, g_pvLay.tried = 1;
+    if (!picPath[0] || !pw || !ph || !PvlPath(picPath, kind, path, sizeof path)) return NULL;
+    r = PvLayLoad(dev, picPath, path, kind, pw, ph, &tex, &kb);
+    if (r == PVLR_OK) g_pvLay.tex = tex, g_pvLay.w = pw, g_pvLay.h = ph;
+    if (g_pvLayLast[pic][kind] != r + 1 && LogQuota(&g_pvQLay, 40)) {  // (once a state: each opening reads the file again)
+        g_pvLayLast[pic][kind] = r + 1;
+        if (r == PVLR_MISSING)
+            LogV("screen effects: the picture's %s layer %s: no file (%s shows its look over the picture only)", kPvlKind[kind], path,
+                 kind == PVLK_HEAT ? "Thermal" : "Spirit Vision");
+        else if (r == PVLR_OK)
+            Log("screen effects: the picture's %s layer %s: used (%ux%u, %u KB)", kPvlKind[kind], path, pw, ph, kb);
+        else
+            Log("screen effects: the picture's %s layer %s: not used: %s (%s shows its look over the picture only)", kPvlKind[kind], path,
+                kPvlWhy[r], kind == PVLK_HEAT ? "Thermal" : "Spirit Vision");
+    }
+    return g_pvLay.tex;
+}
 // FxBackdropC: what the page shows (PVB_*) and its picture (the pause's, the stock one or PreviewImage); each file is
 // loaded only when it decides (preview_sim.h PvBackNeeds*). v3.58 PV358: by Preview (v3.56: PreviewScene, no pause)
 static int PvBackPick(void *dev, void **tex, UINT *pw, UINT *ph, int *pause)
@@ -733,6 +1074,35 @@ static void PvOffNote(int lp)
     if (lp == g_pvOffNoted || !LogQuota(&s_q, 40)) return;
     g_pvOffNoted = lp;
     Log("screen effects: the Effects page's preview: off (Preview Off) over the game's own menu background (page %d)", lp);
+}
+// v3.59 PV359 (QA 11; the session: Live's title menu shows the stock picture too): the Shadows page (shadows.inc ShBackdrop /
+// ShMode / ShPreviewDraw / ShDarkDesc). The split demonstration only over a live paused game's own shadow (Live); any
+// other backdrop is a still picture, shown alone as the Effects page picks it (PvBackPick: Stock the stock picture; Live
+// the pause picture, the stock picture, PreviewImage; else SH4 Refined's scene): no split line, no drawn figure.
+static int PvShLive(void) { return PvShPage(g_pvMode, 1) == PVSH_SPLIT; }  // the split may show (Live; ShMode's previewOn)
+static int PvShStillDrew(void) { return g_pvShDrew == g_fxFrame; }  // this frame's backdrop is the still picture alone: the text panels only
+// ShBackdrop (0x526A53, the Shadows page, no paused scene's shadow to split): the still picture alone; 1 = drawn (the
+// hallway is skipped)
+static int PvShStillBack(void *dev)
+{
+    void *tex = NULL;
+    UINT pw = 0, ph = 0;
+    int pause = 0, back = PVB_STOCK, drawn = 0;
+    __try {
+        back = PvBackPick(dev, &tex, &pw, &ph, &pause);
+        if (back == PVB_SCENE) drawn = PvSceneDraw(dev);
+        else if (back != PVB_OFF && back != PVB_STOCK && tex && pw && ph) FxDrawPic(dev, tex, pw, ph), drawn = 1;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        drawn = 0;
+    }
+    if (!drawn) back = PVB_STOCK;
+    if ((g_fxFrame - g_pvShSeen > 2 || g_fxFrame < g_pvShSeen || back != g_pvShWhat) && LogQuota(&g_pvQSh, 40))  // (once an opening)
+        Log("screen effects: the Shadows page's preview: Preview %s: the still picture alone: %s (the split shadows only over a paused "
+            "game, Live)", kPvModeName[(unsigned)g_pvMode < PVM_N ? g_pvMode : PVM_DEFAULT],
+            back >= 0 && back < PVB_N ? kPvBack[back] : "?");
+    g_pvShWhat = back, g_pvShSeen = g_fxFrame;
+    g_pvShDrew = drawn ? g_fxFrame : -1;
+    return drawn;
 }
 static void PvBackNote(int back)
 {
@@ -801,7 +1171,11 @@ static void PvPageNote(int lay, int f, int how)
         sprintf_s(what, sizeof what, " with the pause's spirit layer (%d ghost(s), %d soul fire(s), %d aura sprite(s))", g_pvGhosts, g_pvFires, g_pvAuras);
     else if (lay == PVP_SCENE_HEAT || lay == PVP_SCENE_SPIRIT)
         sprintf_s(what, sizeof what, " with %s", kPvPage[lay]);
-    else
+    else if (lay == PVP_PIC_HEAT || lay == PVP_PIC_SPIRIT) {  // v3.59 PV359: the F7 set's layer file
+        char p[MAX_PATH];
+        if (!PvlPath(g_pvLay.pic ? g_fxPrevPath : g_pvStockPath, lay == PVP_PIC_HEAT ? PVLK_HEAT : PVLK_SPIRIT, p, sizeof p)) p[0] = 0;
+        sprintf_s(what, sizeof what, " with %s (%s)", kPvPage[lay], PvBaseName(p));
+    } else
         what[0] = 0;
     Log("screen effects: the Effects page's preview: %s over %s%s%s%s", kFxName[FX_FILTER][f >= 0 && f < FX_FILTERS ? f : 0],
         g_pvBackFrame == g_fxFrame && g_pvBack >= 0 && g_pvBack < PVB_N ? kPvBack[g_pvBack] : "the paused scene (the pause menu)", what,
@@ -818,6 +1192,7 @@ static void PvPageDraw(int where)
     PvPageIn in;
     UINT pw = 0, ph = 0;
     int lay, how = 1;
+    void *lt = NULL;  // v3.59 PV359: the picture's layer
     if (!dev) return;
     memset(&in, 0, sizeof in);
     in.thermal = f == FXF_THERMAL, in.spirit = f == FXF_GHOST;
@@ -825,14 +1200,29 @@ static void PvPageDraw(int where)
     in.haveHeat = (g_pvHave & PVL_HEAT) != 0, in.haveSpirit = (g_pvHave & PVL_SPIRIT) != 0;
     if (where) in.back = ShPauseTex(dev, g_fxPausePicSeq, &pw, &ph) ? PVB_PAUSE : PVB_STOCK;
     else in.back = g_pvBackFrame == g_fxFrame ? g_pvBack : PVB_STOCK;
+    if (!where) {  // v3.59 PV359 (QA 3): the stock picture's / PreviewImage's own layer (F7's set), for Thermal / Spirit Vision
+        const int k = PvPicLayerWanted(in.back, in.thermal, in.spirit);
+        if (k) {
+            __try {
+                lt = PvLayGet(dev, in.back == PVB_PICTURE, k);
+            } __except (EXCEPTION_EXECUTE_HANDLER) {
+                lt = NULL, g_pvLayOff = 1;
+                memset(&g_pvLay, 0, sizeof g_pvLay);
+                LogAnomaly("screen effects", "loading the picture's %s layer faulted: the picture layers are off for this session", kPvlKind[k]);
+            }
+            in.picHeat = lt && k == PVLK_HEAT, in.picSpirit = lt && k == PVLK_SPIRIT;
+        }
+    }
     lay = PvPageLayer(&in);
     __try {
         if (lay == PVP_PAUSE_HEAT) how = PvLayerDraw(dev, g_pvHeat.tex, (UINT)g_pvHeat.w, (UINT)g_pvHeat.h, 1);
         else if (lay == PVP_PAUSE_SPIRIT) how = PvLayerDraw(dev, g_pvSpirit.tex, (UINT)g_pvSpirit.w, (UINT)g_pvSpirit.h, 0);
         else if (lay == PVP_SCENE_HEAT || lay == PVP_SCENE_SPIRIT) how = PvSceneLayer(dev, lay == PVP_SCENE_HEAT);
+        else if (lay == PVP_PIC_HEAT || lay == PVP_PIC_SPIRIT) how = PvLayerDraw(dev, lt, g_pvLay.w, g_pvLay.h, lay == PVP_PIC_HEAT);  // v3.59 PV359
     } __except (EXCEPTION_EXECUTE_HANDLER) {
         how = 0;
         if (lay == PVP_SCENE_HEAT || lay == PVP_SCENE_SPIRIT) g_pvSceneFails = 1;
+        else if (lay == PVP_PIC_HEAT || lay == PVP_PIC_SPIRIT) g_pvLayOff = 1, PvLayFree();  // v3.59 PV359
         else g_pvFails = PV_FAILS_OFF, g_pvSeq = -1, g_pvHave = 0;
         LogAnomaly("screen effects", "the Effects preview's %s faulted: off for this session", kPvPage[lay]);
     }
@@ -846,6 +1236,7 @@ static void PvFrameEnd(void)
     if (shown != g_pvPageWas) {
         g_pvPageWas = shown;
         if (!shown) g_pvNoteKey = -1, g_pvFireFrame = -10;  // the next opening logs its preview again, a fresh fire
+        if (!shown) PvLayFree();  // v3.59 PV359: the picture's layer goes with the page (read again at the next opening)
         if (shown && !g_pvStockTex && g_pvStockHave <= 0) {  // v3.58 PV358: a file placed since: tried again (an unreadable one is not)
             g_pvStockFailed = 0;
             PvStockCheck();
@@ -1077,7 +1468,7 @@ static int PvFilterDesc(int f)
     static const char *const kLine[OL_FILTERS] = {  // (sh4windowmod.c's kFilterLine: the plan's value lines)
         OLW_EFFECTS_FILTER_VD_NONE, OLW_EFFECTS_FILTER_VD_CRT, OLW_EFFECTS_FILTER_VD_VIVID, OLW_EFFECTS_FILTER_VD_SEPIA,
         OLW_EFFECTS_FILTER_VD_OLD_FILM, OLW_EFFECTS_FILTER_VD_NIGHT_VISION, OLW_EFFECTS_FILTER_VD_NIGHT_MONO,
-        OLW_EFFECTS_FILTER_VD_THERMAL, OLW_EFFECTS_FILTER_VD_SPIRIT_VISION, OLW_EFFECTS_FILTER_VD_VIGNETTE };
+        OLW_EFFECTS_FILTER_VD_THERMAL_VISION, OLW_EFFECTS_FILTER_VD_SPIRIT_VISION, OLW_EFFECTS_FILTER_VD_VIGNETTE };  // v3.59 TV359: Thermal Vision
     const int back = g_fxFrame - g_pvBackFrame <= 2 && g_fxFrame >= g_pvBackFrame ? g_pvBack : -1;
     char s[128], k[48];
     if ((unsigned)f >= OL_FILTERS || g_fxKeyVk < VK_F1 || g_fxKeyVk > VK_F12 || !PvF7Shows(g_pvMode, back)) return 0;

@@ -828,8 +828,28 @@ static void RmDescFix(int room, int n, BYTE *desc)
 // randomized nothing this session (Monsters Off from the start) the copy is the game's, byte for byte. v3.50 RM350: an
 // adopted record (the game's own stock one) is Refined's after its room's plan (RmProvAfterBuild): kept stock it stays in
 // saves (it is the stock monster); rolled another type it was deleted, and the new type's record is left out as above.
+// v3.59 EN359: the records this save leaves out, with what Refined made them as (enmfollow.inc EfOnSnapshot keeps the
+// followers' among them in the side file, right after the stock EnemyManagerSave returns); g_rmStashDst = the copy they
+// were taken from (the save's enemy block), NULL = none this save
+typedef struct { unsigned char rec[RM_REC_SIZE]; unsigned char type, variant, stockType, stockVariant; } RmStashE;
+static RmStashE g_rmStash[RM_REC_N];
+static int g_rmStashN;
+static const void *g_rmStashDst;
+static void RmStashTake(const BYTE *recs)
+{
+    int i;
+    for (i = 0; i < RM_REC_N; ++i, recs += RM_REC_SIZE) {
+        const RmProvE *e;
+        if (!RmProvRetyped(&g_rmProv, recs) || (e = RmProvFind(&g_rmProv, RmRecId(recs))) == NULL || g_rmStashN >= RM_REC_N) continue;
+        memcpy(g_rmStash[g_rmStashN].rec, recs, RM_REC_SIZE);
+        g_rmStash[g_rmStashN].type = e->type, g_rmStash[g_rmStashN].variant = e->variant;
+        g_rmStash[g_rmStashN].stockType = e->stockType, g_rmStash[g_rmStashN].stockVariant = e->stockVariant;
+        ++g_rmStashN;
+    }
+}
 static void __cdecl RmSaveCopy(void *dst, const void *src, unsigned size)
 {
+    g_rmStashN = 0, g_rmStashDst = NULL;  // v3.59 EN359
     ((void(__cdecl *)(void *, const void *, unsigned))0x42BBB0)(dst, src, size);
     __try {
         BYTE *r = (BYTE *)dst + RM_SAVE_RECS;
@@ -849,6 +869,7 @@ static void __cdecl RmSaveCopy(void *dst, const void *src, unsigned size)
                     "are left out: after a load they stay dead whatever they are made as; Enemies Return brings them back)%s", dead,
                     lost ? ", SOME without a kill index come back after a load" : "");
         }
+        RmStashTake((const BYTE *)dst + RM_SAVE_RECS), g_rmStashDst = dst;  // v3.59 EN359: before they are cleared
         n = RmSaveClean((BYTE *)dst + RM_SAVE_RECS, &g_rmProv);
         g_rmSaveCleaned += n;
         if (n) Log("randomizer: monsters: a save: %d record(s) of monsters made as another type are left out of it (they come back "
@@ -858,6 +879,37 @@ static void __cdecl RmSaveCopy(void *dst, const void *src, unsigned size)
             LogAnomaly("randomizer", "monsters: faulted cleaning a save's records (code %08lX): that save is as the game made it",
                        GetExceptionCode());
     }
+}
+
+// v3.59 EN359 (enmfollow.inc EfOnSnapshot): the record of id this save (its enemy block dst) left out, NULL = none
+static int RmStashGet(const void *dst, unsigned id, EfKrS *out)
+{
+    int i;
+    if (!dst || dst != g_rmStashDst) return 0;
+    for (i = 0; i < g_rmStashN; ++i)
+        if (RmRecId(g_rmStash[i].rec) == id) {
+            memcpy(out->rec, g_rmStash[i].rec, EF_REC);
+            out->type = g_rmStash[i].type, out->variant = g_rmStash[i].variant;
+            out->stockType = g_rmStash[i].stockType, out->stockVariant = g_rmStash[i].stockVariant;
+            return 1;
+        }
+    return 0;
+}
+// v3.59 EN359 (enmfollow.inc EfOnApply): a follower's record the save left out goes back into a free slot of the game's
+// table with its provenance (the Randomizer then rebuilds it as the type it was made as). 1 = back; 0 = not (*why)
+static int RmKeptBack(const unsigned char *rec, int type, int variant, int stockType, int stockVariant, const char **why)
+{
+    int slot;
+    *why = "";
+    if (g_rmFail || RmCtOn()) return *why = "the Randomizer is off for this session or the cheat table's is on", 0;
+    if (RmRecType(rec) != type || RmRecVariant(rec) != variant || type <= 0 || type >= RM_TYPE_MAX)
+        return *why = "its record is not of the type it was made as", 0;
+    if ((slot = EfKrSlot(ENM_RECORDS, RM_REC_N, rec)) == -1) return *why = "the save holds its record", 0;
+    if (slot < 0) return *why = "no free record slot", 0;
+    RmProvPut(&g_rmProv, RmRecId(rec), type, variant, stockType, stockVariant);
+    if (!RmProvOurs(&g_rmProv, rec)) return *why = "the provenance table is full", 0;  // (never left without it)
+    memcpy(ENM_RECORDS + RM_REC_SIZE * slot, rec, RM_REC_SIZE);
+    return 1;
 }
 
 // ---------------------------------------------------------------- start and end

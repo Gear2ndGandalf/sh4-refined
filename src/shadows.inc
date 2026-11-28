@@ -54,7 +54,16 @@
 // for stage 4 room 0x1F): an empty mask, no shadow on screen, nothing to soften. Every composite now carries a reason
 // (shadows_sim.h SHN_*): the room line ends with the hard count and its reasons and the count with no darkness, the
 // first composite of each reason in a room is logged once (bounded), and the Stock / off path is counted too.
+// v3.59 PV359 (USER_FEEDBACK_v358 QA 11, the user's screenshot: the figure's split shadow drawn over the stock picture's
+// Eileen, a seam down the middle): whenever the page's backdrop is a still picture (Stock anywhere; Live at the title menu
+// or in a pause whose frame drew no shadow) the page shows that picture alone, as the Effects page picks it (preview.inc
+// PvShStillBack; no split, no figure, no "Left of the line"); the split only over a live paused game's own shadow (Live);
+// Off none, as v3.58.
 #include "shadows_sim.h"
+static int PvShLive(void);              // v3.59 PV359: preview.inc: the split may show (Preview Live)
+static int PvShStillBack(void *dev);    // v3.59 PV359: ... else the still picture alone as the backdrop (1 = drawn)
+static int PvShStillDrew(void);         // v3.59 PV359: ... drawn this frame (ShPreviewDraw: the text panels only)
+static int ShMode(int *why);            // v3.59 PV359: ShDarkDesc asks it
 
 typedef HRESULT(STDMETHODCALLTYPE *ShDP_t)(void *, DWORD, UINT, UINT);
 typedef HRESULT(STDMETHODCALLTYPE *ShSetRT_t)(void *, void *, void *);
@@ -164,7 +173,11 @@ static int __cdecl ShDarkIn(BYTE *cfg, int count)
     if (v >= 0 && v < SH_DARK_N) ShDarkSet(kShDarkPct[v], 1);
     return 0;
 }
-static int __cdecl ShDarkDesc(void) { return MSG_SHD0 + (g_shPrevOn && g_fxPrevHook && !PvPreviewOff() ? SHM_DARK_D : SHM_DARK_DP); }  // v3.58 PV358: no "line" without the preview
+static int __cdecl ShDarkDesc(void)  // v3.58 PV358: no "line" without the preview  // v3.59 PV359: only while the split shows (a live paused game)
+{
+    int why;
+    return MSG_SHD0 + (g_shPrevOn && g_fxPrevHook && !PvPreviewOff() && ShMode(&why) == SHP_SCENE && g_shClean.tex ? SHM_DARK_D : SHM_DARK_DP);
+}
 static void ShSet(int v, int save)
 {
     if (v < 0 || v >= SH_EDGE_N) return;
@@ -665,6 +678,8 @@ static HRESULT ShCopyQuad(void *dev, void *tex, float w, float h)
 }
 
 // ---------------------------------------------------------------- the composite hook (0x55FE43)
+static int LhFaultSeen(EXCEPTION_POINTERS *e, const char *guard);  // v3.59 SD359: loghealth.inc (the fault watch)
+static const char *LhFaultText(void);                             // v3.59 SD359: "C0000005 at d3d9.dll+0007843A"
 static void ShFail(int kind, HRESULT hr, const char *where)
 {
     if (g_shFailed) return;
@@ -1081,7 +1096,7 @@ static HRESULT __stdcall ShDrawHook(void *dev, DWORD type, UINT start, UINT coun
     BgPush(BGC_SHADOW);
     __try {
         drawn = ShDrawBody(dev, type, start, count, edge, cap, &why, &tf);  // v3.52 SH352: + why, tf
-    } __except (EXCEPTION_EXECUTE_HANDLER) {
+    } __except (LhFaultSeen(GetExceptionInformation(), "shadows composite")) {  // v3.59 SD359: the code, address and module noted
         __try {  // put the game's target and states back before its own draw
             if (g_shCtx.saved) {
                 if (g_shCtx.rt) ((ShSetRT_t)VT(dev, SHV_SETRT))(dev, g_shCtx.rt, g_shCtx.ds);
@@ -1092,7 +1107,11 @@ static HRESULT __stdcall ShDrawHook(void *dev, DWORD type, UINT start, UINT coun
         } __except (EXCEPTION_EXECUTE_HANDLER) {
         }
         g_shCtx.saved = 0;
-        ShFail(SHF_FAULT, E_FAIL, "inside the composite hook");
+        {  // v3.59 SD359: the fault's code and place in the line (LhFaultText)
+            char w[128];
+            sprintf_s(w, sizeof w, "inside the composite hook: %s", LhFaultText());
+            ShFail(SHF_FAULT, E_FAIL, w);
+        }
         drawn = 0;
         why = SHN_FAIL;  // v3.52 SH352
     }
@@ -1214,7 +1233,7 @@ static void ShRibbonInstall(void)
 static int ShMode(int *why)
 {
     ShPrevIn in;
-    in.previewOn = g_shPrevOn && !PvPreviewOff();  // v3.58 PV358: Effects > Preview Off: no split preview either (the game's background)
+    in.previewOn = g_shPrevOn && !PvPreviewOff() && PvShLive();  // v3.58 PV358: Effects > Preview Off: no split preview either (the game's background)  // v3.59 PV359: Live only (Stock: the picture alone)
     in.backdropHook = g_fxPrevHook;
     in.failed = g_shFailed;
     in.pausedGame = FxGameplay() && *(volatile int *)0xFD5C20 == 2;
@@ -1233,17 +1252,15 @@ static int ShBackdrop(void *dev)
     mode = ShMode(&why);
     if (mode != g_shModeWas || why != g_shWhyWas) {
         LogV("shadows: the Shadows page's preview: %s (%s)", mode == SHP_SCENE ? "the paused scene, split Stock | the chosen edge" :
-             mode == SHP_CARD ? "a figure's shadow, split Stock | the chosen edge" : "none", kShWhy[why]);
+             mode == SHP_CARD ? "the still picture alone (v3.59: no figure's shadow)" : "none", kShWhy[why]);  // v3.59 PV359
         g_shModeWas = mode, g_shWhyWas = why;
     }
     if (mode == SHP_SCENE && g_shClean.tex) {
         FxDrawPic(dev, g_shClean.tex, (UINT)g_shClean.w, (UINT)g_shClean.h);
         return 1;
     }
-    if (mode == SHP_CARD && (tex = FxPrevLoad(dev)) != NULL) {
-        FxDrawPic(dev, tex, g_fxPrevW, g_fxPrevH);
-        return 1;
-    }
+    (void)tex;  // v3.59 PV359: (v3.40 - v3.58 drew PreviewImage here for the figure's split shadow)
+    if (g_shPrevOn && g_fxPrevHook && !PvPreviewOff()) return PvShStillBack(dev);  // v3.59 PV359 (QA 11): a still picture alone
     return 0;  // the stock hallway
 }
 // the figure's mask (the card) into g_shMaskRt: cleared, then the hard-edged triangles in TEXTUREFACTOR's colour
@@ -1297,6 +1314,20 @@ static void ShSplitLine(void *dev, float x, float h)
     FxRect(dev, 0x80000000u, x - 2.0f, 0.0f, x + 2.0f, h, 0, 0, 0, 0);
     FxRect(dev, 0xC0E0E0E0u, x - 0.5f, 0.0f, x + 0.5f, h, 0, 0, 0, 0);
 }
+// the text panels (as Screen Effects; the middle of the screen stays clear for the preview). v3.59 PV359: a function of its
+// own (ShPreviewDraw's end; also over the stock picture alone)
+static void ShPanels(void *dev)
+{
+    FxSaved sv;
+    if (FxSave(dev, &sv, 0)) {
+        float x1 = 472.0f, y0 = 352.0f, y1 = 392.0f;
+        FxBase(dev);
+        FxTextPanels(dev, DescRowsBottom() + 2.0f);  // v3.44 DF344: light, behind the title / labels / values only (was FxPanel 28, 40, 484, 200)
+        DescPanelBox(LP_SHADOWS, &x1, &y0, &y1);  // v3.54 OL34
+        FxPanel(dev, 40.0f, y0, x1, y1);
+        FxRestore(dev, &sv);
+    }
+}
 // 0x526A53, after the backdrop (screenfx.inc FxBackdropFilter on this page): the split shadows, the line, the panels
 static void ShPreviewDraw(void)
 {
@@ -1305,7 +1336,15 @@ static void ShPreviewDraw(void)
     DWORD tf;
     if (!dev || !FxOnBackBuffer(dev)) return;
     mode = ShMode(&why);
-    if (mode == SHP_NONE) return;
+    if (mode != SHP_SCENE || PvShStillDrew()) {  // v3.59 PV359: the split only over a live paused game (was: also the figure's card)
+        if (PvShStillDrew()) {  // v3.59 PV359: a still picture alone, with the text panels
+            __try {
+                ShPanels(dev);
+            } __except (EXCEPTION_EXECUTE_HANDLER) {
+            }
+        }
+        return;
+    }
     BgPush(BGC_SHADOW);
     __try {
         void *rt = NULL, *ds = NULL, *mask;
@@ -1357,14 +1396,7 @@ static void ShPreviewDraw(void)
             static volatile LONG s_q;
             if (LogQuota(&s_q, 3)) Log("shadows: the Shadows page's preview could not draw the chosen edge (the page keeps working)");
         }
-        if (FxSave(dev, &sv, 0)) {  // the text panels (as Screen Effects; the middle of the screen stays clear for the preview)
-            float x1 = 472.0f, y0 = 352.0f, y1 = 392.0f;
-            FxBase(dev);
-            FxTextPanels(dev, DescRowsBottom() + 2.0f);  // v3.44 DF344: light, behind the title / labels / values only (was FxPanel 28, 40, 484, 200)
-            DescPanelBox(LP_SHADOWS, &x1, &y0, &y1);  // v3.54 OL34
-            FxPanel(dev, 40.0f, y0, x1, y1);
-            FxRestore(dev, &sv);
-        }
+        ShPanels(dev);  // the text panels (v3.59 PV359: ShPanels, the same draws)
     } __except (EXCEPTION_EXECUTE_HANDLER) {
         static int s_logged;
         if (!s_logged++) LogAnomaly("shadows", "the Shadows page's preview faulted (logged once)");

@@ -387,6 +387,21 @@ V347DN = V333_END + """10:00:00.100 depth of field: hooks in place (the render f
 10:00:05.001 depth of field: first frame drawn (Always, High): focus 627 (the player), 20 slice(s), 5 blurred band(s), 0.30 ms; render targets 33.6 MB; whole levels (no blend shader: not eased in)
 """
 
+# v3.59 DF359: Ultra, the gentler Medium / High (a stored High kept and noted once), Spirit Vision kept sharp, the hidden DofSpirit
+V359D = V333_END + """10:00:00.090 depth of field: [ScreenEffects] DofStrength=High: kept; v3.59's High is a bit gentler than before (Ultra is v3.58's High)
+10:00:00.091 depth of field: the marker DofStrengthV=345 -> 359 written (not noted again)
+10:00:00.100 depth of field: hooks in place (the render frame before the light grid 004EFBCA; the device reset 00402E0D chained to 10012340); DepthOfField Always, Strength High; probe on (once per room); preview on (the Screen Effects page, 0x526A53)
+10:00:00.101 [v] depth of field: the blur eases in: Low 4 far + 4 near slices, Medium 6 + 4, High 11 + 7, Ultra 12 + 8 (a quarter level each; Low and Ultra centred on v3.46's steps, Medium and High a bit gentler)
+10:00:05.000 depth of field: first frame drawn (Always, High): focus 627 (the player), 18 slice(s), 18 blurred band(s), 0.41 ms; render targets 33.6 MB; eased in (a quarter level a step)
+10:00:20.000 depth of field: Spirit Vision draws: depth of field keeps out of it (its edge world, ghosts, auras and soul fires stay sharp; the room line counts these frames as "Spirit Vision (its world stays sharp)"; [ScreenEffects] DofSpirit=1 blurs first, as v3.58)
+10:00:20.001 [v] depth of field: stage 2 room 4: skipped: Spirit Vision (its world stays sharp) (DepthOfField Always)
+10:00:30.000 [v] depth of field: Strength Ultra (DepthOfField Always)
+10:01:00.000 [v] depth of field: stage 2 room 4: drawn in 3000 of 3010 frames it was asked for (not drawn: the room's depth probe is pending 10; the cut-scene's own focus 0); skipped by design: Spirit Vision (its world stays sharp) 1200; focus 600 .. 700; ours 0.120 ms a frame on average, 0.300 at most; Always Ultra; probe: the scene's depth: on; render targets 33.6 MB
+"""
+V359DK = V333_END + """10:00:00.100 depth of field: hooks in place (the render frame before the light grid 004EFBCA; the device reset 00402E0D chained to 10012340); DepthOfField Cut-scenes, Strength Ultra; probe on (once per room); preview on (the Screen Effects page, 0x526A53)
+10:00:00.102 depth of field: [ScreenEffects] DofSpirit=1: the blur is drawn under Spirit Vision too (v3.58's order: its edge world is built from the blurred frame)
+"""
+
 
 # v3.46 OM346: Stick Movement's lines (omni.inc), in the formats the dll writes
 OM_INSTALL = ("omni: %s (005543C0 after 00553D20: the stick floats; raw axes from GetDeviceState on the game's pad or the call "
@@ -1095,6 +1110,28 @@ V358SD1 = V333_END + "10:00:00.010 " + SND_IN_OK + """
 10:05:00.001 sound: background: SH4Refined.muted could not be written (the replace failed, error 5): the old one is kept; a sound session it would newly name is not muted (Background Mute by DirectSound's own focus rule for it)
 10:05:00.002 sound: background: SH4Refined.muted named 2 sound session(s) of the game as pending (a mute not confirmed when the game ended): left as they are, 1 of them muted now (if the game stays silent, unmute it in the Windows Volume Mixer); the entries dropped
 """
+# v3.59 SD359: the lost-device guard (the install line with Playable Eileen loaded, the first frame's decision, the headset
+# switched off: the device watch's line, the first stand-in, a second try that made it, the count lines) and the fault watch
+# (its start, a fault inside dgVoodoo's d3d9.dll caught by the warm-up's guard, one inside Refined, the Direct3D stop, the end)
+V359SD = V333_END + "10:00:00.010 " + SND_IN_OK + """
+10:00:00.011 sound: lost-device guard: PlayMusic 0040A1DE in, the streams 0040A797 in; Play2D 00409691 / Play3D 00409BC5 at the first frame (Playable Eileen is loaded: its own guard may take it): a CreateSoundBuffer that fails (the sound device gone, a headset switched off) gives the game a silent stand-in buffer instead of the stock crash
+10:00:01.000 sound: lost-device guard: at the first frame: Play2D 00409691 / Play3D 00409BC5 Playable Eileen's own guard (it skips the sound)
+10:00:01.100 sound: device: the game plays on "Headphones (S6520)" (Windows' default when its sound started); a change of Windows' default device is logged (DirectSound stays on the device it started with: restart the game to use another one)
+10:05:00.000 sound: device: the game's sound device "Headphones (S6520)" is unplugged: no game sound until it is back (restart the game to use another device); the lost-device guard keeps the game running: its new sounds are silent until a restart
+10:05:02.000 sound: CreateSoundBuffer failed in the streams' CreateBuffer 0x40A6D0 (hr 88780096): the second try made it
+10:05:07.000 sound: the device is gone: CreateSoundBuffer failed in PlayMusic 0x40A080 (hr 88780096 DSERR_BUFFERLOST, again 88780096; flags 000080C0, 524288 bytes, 2 ch 11025 Hz 16-bit): a silent stand-in buffer instead of the stock crash; the game plays on without sound (restart the game to hear it again)
+10:06:00.000 sound: the device is gone: 3 sound(s) made silent (2D 0, 3D 0, music 3, streams 0; 3 stand-in(s) held now, 0 shared; the minute)
+10:07:30.000 sound: the device is gone: 41 sound(s) made silent (2D 0, 3D 0, music 3, streams 38; 4 stand-in(s) held now, 0 shared; the window closes)
+"""
+V359FW = V333_END + """10:00:01.000 session: fault watch in: each fault's code, address and module (3 Direct3D / driver image(s) known); two Direct3D faults within a second stop Refined's own Direct3D work for the session
+10:00:05.000 fault watch: C0000005 access violation (read of 00000000) at d3d9.dll+0002F0A1 (1012F0A1), the game thread, 3 ms ago: inside Direct3D or the graphics driver; Refined's warm-up guard caught it
+10:00:05.000 warm-up: faulted (code C0000005, C0000005 at d3d9.dll+0002F0A1)
+10:00:05.020 fault watch: C0000005 access violation (write of 0000000C) at winmm.dll+0001A2B4 (6E01A2B4), the game thread, 2 ms ago: inside SH4 Refined; Refined's shadows composite guard caught it
+10:00:05.020 shadows: off for this session: a fault (hr 80004005, inside the composite hook: C0000005 at winmm.dll+0001A2B4): the game's own shadow edge from now on
+10:00:05.021 ANOMALY: direct3d: two faults within a second inside Direct3D / the graphics driver or Refined's Direct3D work (the last C0000005 at winmm.dll+0001A2B4): Refined's own Direct3D work is off for this session (the warm-up, Shadow Edge, Depth of Field, the post effects, Echo Doubles, After Shock, Death Presence, Fade In, the model glow); the game draws on
+10:00:06.000 fault watch: C0000005 access violation (read of 0000000C) at d3d9.dll+0007843A (1007843A), thread 4410, 12 ms ago: inside Direct3D or the graphics driver
+10:10:00.000 session: faults seen 3 (inside SH4 Refined 1, the game 0, Direct3D / the driver 2, other 0, none 0; 0 not read): d3d9.dll 2, winmm.dll 1; Refined's Direct3D work stopped
+"""
 # v3.53 OL2: the Options look: the install line, the glyph lines (a page logged twice, the larger kept), a key on a grey
 # v3.54 OL34: the Options layout's lines (install, a row left out, two openings)
 V354LY = ("10:00:00.030 options layout: R3 + R4 (OL34): the cycle Display, Controls, Interface, Sound, Effects, Gameplay; 19 "
@@ -1223,6 +1260,21 @@ V358FI = V333_END + """10:00:00.290 fade in: [Gameplay] FadeInStrandSeconds "lon
 10:00:30.000 fade in: room 5:4: 2 fade(s) (room load 0, follower 1, wanderer 0, copy 0, revive 0, ghost 1, monster 0), 2 portal(s) (the game's own draw 2, Refined's 0, vortex 0; 2 held; portal draw 0.316 ms a frame, max 0.452); 0 not faded (stage 0, cut-scene 0, type 0, boss 0, event 0, dead 0, own draw 0, own portal 0, own fade 0)
 """
 
+# v3.59 FI359: the start line's v3.59 part, three arrive lines (the Subway restroom victim lifted after its wall exit, a
+# story ghost on the floor under a low ceiling, one with no floor), a wait at its cap, Spirit Vision's two looks
+FI_INSTALL359 = FI_INSTALL358 + ("; v3.59: on the floor (the floor ray 00459490, a ceiling by 00561CD0); a victim coming out of a "
+                                 "wall by itself unseen until it is out (at most 3.0 s), lifted to its own height; "
+                                 "FadeInSpiritLook 1 (Spirit Vision: spirit-blue tar)")
+V359FI = V333_END + """10:00:00.300 """ + FI_INSTALL359 % FI_TAR_OK + """
+10:00:09.000 [v] fade in: follower 02020003 (type 0B) fades in over 0.80 s from a tar portal (the game's own draw, in the air 70 u behind; held 2.50 s, 40 % for 1.50 s) at -142 -119 -472 (room 2:3, 2.7 s into the visit)
+10:00:09.020 [v] fade in: 02020003 (type 0B) arrives: its tar portal on the floor (foot 6 u above it, raised 47 u, full size: 100 %); it came out 119 u above the floor (its own height 180 u): lifted 61 u; AI state 2 step 1, animation 3; unseen 1.25 s before (it came out of a wall by itself)
+10:00:10.000 [v] fade in: FFFF0002 (type 0C) arrives: its tar portal on the floor (foot 12 u above it, raised 0 u, a low ceiling: 60 %); AI state 1 step 2, animation 3
+10:00:11.000 [v] fade in: FFFF0009 (type 0D) arrives: its tar portal: no floor found under it (as laid out); AI state 1 step 0, animation 3
+10:00:12.000 [v] fade in: 02050002 (type 0B) still comes out of a wall by itself after 3.0 s: it fades in where it is
+10:00:13.000 fade in: Spirit Vision: Reveal Method's tar portal (its pieces, drips and strands) drawn as spirit-blue tar in its pass (FadeInSpiritLook 1)
+10:00:13.100 fade in: Spirit Vision: the game's own wall portal drawn as spirit-blue tar in its pass (FadeInSpiritLook 1)
+"""
+
 
 # v3.56 MN356: the value lines, the folder click and the Extra Menu's text
 V356MN = ("10:00:00.020 extra menu: text drawn once, with its glyphs' own shadow (no second dark copy under bright parts of the "
@@ -1264,6 +1316,17 @@ V358MN = ("10:00:00.040 options: value box on: each page's values centred in one
           "left alone (by design: this stage loads no pickup models)\n")
 V358MN_OFF = "10:00:00.040 options: value box off ([Options] ValueBox=0): v3.57's arrows (each row's own place, long values move the column)\n"
 V358MN_NOT = "10:00:00.040 options: value box NOT on: 00525802 not stock (another mod?): v3.57's arrows\n"
+# v3.59 TV359: Thermal Vision (screenfx.inc ThGridInstall / ThRoomNote / TpPlayerShape): the start, three room visits (kept,
+# no grid, overwritten), the first kept frame, the player's shape at the start and after Playable Eileen's switch
+V359TV = """10:00:00.040 screen effects: Thermal Vision: walls hide heat (the light grid 004EFBDC draws with the game's no-depth-write byte 0137F978 while Thermal Vision is on; hidden [ScreenEffects] ThermalTrueDepth=0 turns it off)
+10:00:05.000 screen effects: Thermal Vision: first frame with the scene's depth kept under the light grid (stage 2 room 4): walls, doors and furniture hide the heat bodies and the footprints
+10:00:06.000 screen effects: Thermal Vision: the player's footprints are Eileen's heels (her / his hip bones 24.1 u apart; model 0A1B2C3D)
+10:01:00.000 screen effects: Thermal Vision: stage 2 room 4 left: 3600 heat frame(s); the light grid drew in 3600, keeping the depth in 3600 (walls hid the heat); footprints depth-tested in 3600
+10:02:00.000 screen effects: Thermal Vision: stage 5 room 4 left: 1200 heat frame(s); the light grid drew in 0, keeping the depth in 0 (no light grid: the scene's own depth); footprints depth-tested in 1190
+10:02:30.000 screen effects: Thermal Vision: the player's footprints are Henry's boots (her / his hip bones 36.0 u apart; model 0A1B9999)
+10:03:00.000 screen effects: Thermal Vision: stage 3 room 1 left: 900 heat frame(s); the light grid drew in 900, keeping the depth in 0 (HEAT SEEN THROUGH WALLS); footprints depth-tested in 0
+"""
+V359TV_OFF = "10:00:00.040 screen effects: Thermal Vision: the light grid's call 004EFBDC is not stock (another mod?): heat may show through walls in rooms with lights\n"
 
 
 def sess(t0, ver, rend, chain, rooms, end=True, started=None, anomalies=0, perf=None, title=None):
@@ -1480,6 +1543,21 @@ V356FR = V333_END + """10:00:00.040 rate guard: on (hidden [Window] RateGuard=0 
 10:11:12.001 rate guard: 180 -> 120: the play frames took 7.30 ms on average against 5.56 (1.31 x) in 2 windows of 3 s in a row (stage 2 room 5; effect budget level 8); stepped down from it twice: not tried again this run; [Window] FrameRate stays 180
 10:20:00.000 rate guard: the Frame Rate row chose 120: the guard starts again (it held the game at 120)
 """
+# v3.59 FR359: cut-scenes and Room 302's views at the gameplay rate: the start line, a story scene with two held cuts, a
+# window view, a scene that ended far off real time, and the off line
+V359FR = V333_END + """10:00:01.000 frame rate: cut-scenes at the gameplay rate; Room 302's window view at the gameplay rate, its peephole / door-scope / hole views at the gameplay rate (hidden [Window] CutsceneRate / ViewRate; v3.59: the stream frame follows real time, camera cuts are shown at their stock moment; 48 window view sites and 6 caves)
+10:01:00.000 frame rate: 180 in a cut-scene (scene 2A; v3.59 [Window] CutsceneRate=1)
+10:01:03.000 [v] frame rate: cut-scene frame 90 -> 91: a camera cut (the camera moved 812 u, turned 64.0 deg, its view angle 0 %; an actor moved 0 u): no in-between pictures across it
+10:01:05.000 [v] frame rate: cut-scene frame 150 -> 151: an actor put elsewhere (the camera moved 2 u, turned 0.1 deg, its view angle 0 %; an actor moved 640 u): no in-between pictures across it
+10:01:40.000 frame rate: the cut-scene at 180 ended after 40.0 s: 1 camera cut(s) and 1 actor jump(s) shown at their stock moment; the stream +3 ms against real time
+10:02:00.000 frame rate: 180 in a Room 302 window view (scene 0; v3.59 [Window] ViewRate=1)
+10:02:20.000 frame rate: the Room 302 window view at 180 ended after 20.0 s: 0 camera cut(s) and 0 actor jump(s) shown at their stock moment; the stream +0 ms against real time
+10:03:00.000 frame rate: 120 in a cut-scene (scene 32; v3.59 [Window] CutsceneRate=1)
+10:03:50.000 frame rate: the cut-scene at 120 ended after 50.0 s: 4 camera cut(s) and 0 actor jump(s) shown at their stock moment; the stream -240 ms against real time
+"""
+V359FR_OFF = V333_END + """10:00:01.000 frame rate: cut-scenes and Room 302's views at 30 (hidden [Window] CutsceneRate=0, ViewRate=0)
+10:00:02.000 frame rate: 005609FB is not stock: cut-scenes stay at 30 (their camera cuts would be blended)
+"""
 V356FR_OFF = V333_END + """10:00:00.040 rate guard: off (hidden [Window] RateGuard=0): a rate this PC cannot hold runs the game in slow motion
 10:00:01.000 true 60: 004E4CCE (the final room's contraption: its parts' swing step a tick (0.0785)) is not stock: none of the 3 final-room sites is used
 """
@@ -1502,6 +1580,21 @@ V358GX = V333_END + """10:00:00.040 rate guard: on (hidden [Window] RateGuard=0 
 10:03:00.000 [v] shadows: room 4:05: 900 composites over 900 frames (at most 1 in a frame), 900 soft; ours 0.050 ms a composite on average, 0.100 at most; edge Soft; render targets 4.8 MB; darkness 100 %; 600 with Shadows Off (the game keeps this room's)
 10:04:00.000 shadows: Shadows On (the game's Realtime Shadow, cfg+0x19): real-time shadows wherever the game draws them
 """
+
+# v3.59 GT359: across heights: a warp up a level, one down, a room where none was proven (the flat warp), the room line's
+# up / down counts, the map's levels
+V359GT = V333_END + """10:00:00.200 ghost teleport: in (no exe patch but the clean fade's call 004EF905; 35 game functions checked), [Gameplay] GhostTeleport On; Run + Action together (within 80 ms): behind the standing enemy she faces (+-35 degrees) within 5000 u in the open (none past collision), else up to 800 u ahead the way she faces, through walls on (onto floor a route of the room reaches), facing up / down the stairs: up / down a level within 1700 u (onto floor walkable from where she stands), cooldown 0.0 s; every landing proven (her body free, on the room's floor map); inside a wall after a warp: moved to the nearest proven floor; held: the next warp once she has faded in; never across or into a walk-in event zone; Richard's transition: his warp sound 0xEC86 on, his see-through fade (0.5 s out, 0.5 s in) on her model in
+10:01:00.000 [v] ghost teleport: room 11:1: the floor map begins (a grid of 222 x 221 cells of 60 u on the room's box; 2 of 2 door(s) seeded, 0 without a floor there, 0 inside collision)
+10:01:00.040 [v] ghost teleport: room 11:1: the floor map is finished: 9120 cell(s) a route of the room reaches, from 3 seed(s) (0 without a floor); 38.2 ms over 4 run(s); 0 seed(s) inside collision refused; levels: 6210 cell(s) over another floor's, 1 part(s) walkable apart of 3 seed(s)
+10:01:00.004 [v] ghost teleport: Run + Action (Action last: its own use taken back; a later call-off keeps it): Richard's fade out (0.5 s), then up a level: 1680 u up, 520 u off her place
+10:01:00.500 [v] ghost teleport: up a level: height (y) from 5120 to 3440 (1680 u up), 520 u off her place; candidates: 212 floor cell(s) 150 .. 1700 u above hers within 800 u, 1 tested (0 refused first); the floor the way she faces rises 160 u in 400 u; proven: her body free, on the room's floor map, walkable from where she stood: from (-1100, 300) to (-900, 780) (the fade began at (-1100, 300)); cooldown 0.0 s (warp 1; same room: 2 door line(s), box in)
+10:01:03.500 [v] ghost teleport: down a level: height (y) from 3440 to 4720 (1280 u down), 40 u off her place; candidates: 98 floor cell(s) 150 .. 1700 u below hers within 800 u, 3 tested (2 refused first); the floor the way she faces falls 120 u in 400 u; proven: her body free, on the room's floor map, walkable from where she stood: from (-900, 780) to (-920, 760) (the fade began at (-900, 780)); cooldown 0.0 s (warp 2; same room: 2 door line(s), box in)
+10:01:05.000 [v] ghost teleport: room 11:1 left: 0 warp(s) (0 through walls, 0 behind the enemy she faces, 0 ahead), 0 refused; 2 Action / Check press(es) taken back in fade-outs; 0 enemy(ies) in the cone skipped behind collision in 0 try(ies); 0 time(s) freed from a wall; 1 up a level, 1 down a level; floor map 9120 cell(s), finished, 38.2 ms over 4 run(s)
+10:01:06.000 [v] ghost teleport: room 5:3: no landing on another level is proven here (up a level (the floor the way she faces rises 120 u in 400 u): 40 floor cell(s) 150 .. 1700 u above hers within 800 u on the room's floor map (310 level cell(s) in it), tested no route of the room reaches it 24): the flat warp
+10:01:06.500 [v] ghost teleport: ahead 700 u the way she faces (no standing enemy she faces within 5000 u; try 2 of 7, floor +0 u of hers, proven: her body free, on the room's floor map): from (0, 0) to (0, 700) (the fade began at (0, 0)); cooldown 0.0 s (warp 3; same room: 5 door line(s), box in)
+10:01:08.000 [v] ghost teleport: room 5:3 left: 1 warp(s) (0 through walls, 0 behind the enemy she faces, 1 ahead), 0 refused; 1 Action / Check press(es) taken back in fade-outs; 0 enemy(ies) in the cone skipped behind collision in 0 try(ies); 0 time(s) freed from a wall; 0 up a level, 0 down a level; floor map 1400 cell(s), finished, 2.0 ms over 1 run(s)
+"""
+
 
 def run(text, name='SH4Refined.log'):
     d = tempfile.mkdtemp(prefix='logcheck_')
@@ -1572,6 +1665,133 @@ V358EN = V333_END + """10:00:01.000 enemies: through door 27 from room 4 to 11: 
 10:03:11.000 [v] hud bars: the stalker Walter 850B0010 down (class A, AI E step 1, hp 0 / 1200, down timer 47.3 s): his bar and the revive bar stay up
 10:04:00.000 [v] hud bars: the stalker Walter 850B0010 gone (class B, AI E step 4, hp 0 / 1200, down timer 0.0 s): his bar fades out
 """
+
+
+# v3.59 CT359: the control-direction latch (omnilatch.inc L1) and Lock-On Walk (L2), in the formats the dll writes
+LT_INSTALL = ("omni: latch: %s (00502794: the control-direction latch 00502040); [Input] OmniLatch %s (with Omni-Directional "
+              "Movement On or the Shoulder camera's view: let go at 15 degrees of the stick, the rig's look rate ignored under the "
+              "Shoulder camera)")
+LW_INSTALL = ("omni: lock-on walk: %s (00534C23: the ready-stance step 00534620); [Gameplay] LockOnWalk %s (gates another's "
+              "(Playable Eileen's rate gate), step operand another's)")
+LT_EPISODE = ("[v] omni: latch: %s held the control frame %s s (%s, Omni %s%s%s, rule %s): let go by %s; the stick %d deg / %s from "
+              "the latch; the control frame up to %d deg from the camera, %d frame(s) blended")
+LT_ROOMSUM = ("[v] omni: latch: stage %d room %d: %d episode(s) (%d room starts / cuts, %d camera jumps, %d rig look rates, 0 found "
+              "running); let go by the stick's angle %d, a push 0, the stick let go 0, the game's 0.7 0, its time %d, a new cut 0; %d "
+              "rig look-rate trigger(s) ignored under the Shoulder camera; %d line(s) over the room's quota; OmniLatch 1")
+V359CT = V333_END + "10:00:00.100 " + OM_INSTALL % ('in', 'On', '0.30') + """
+10:00:00.102 """ + LT_INSTALL % ('in', '1') + """
+10:00:00.103 """ + LW_INSTALL % ('in', 'On') + """
+10:00:10.000 """ + LT_EPISODE % ('a room start or camera cut', '0.40', "the Shoulder camera's view", 'On', '', '', "Refined's",
+                                 "the stick's angle (15 degrees)", 22, '0.31', 35, 0) + """
+10:00:20.000 """ + LT_EPISODE % ("the stock rig's look rate (240 deg/s)", '1.80', "the game's camera", 'On', '', '', "the game's",
+                                 'its time ran out', 9, '0.13', 52, 60) + """
+10:00:30.000 """ + LT_EPISODE % ('a drawn-camera jump (80 deg in a frame)', '1.80', "the Shoulder camera's view", 'On', ', Follow on',
+                                 ', a warp of the player in the 2 s before', "the game's", 'its time ran out', 4, '0.05', 80, 60) + """
+10:00:31.000 omni: lock-on walk: the first ready-stance step below a full push this session (weapon 0x81, locked on, move amount 0.30 raised to 0.50 at 60 Hz, Playable Eileen's gates, step x1.00)
+10:00:40.000 """ + LT_ROOMSUM % (2, 4, 3, 1, 1, 1, 1, 2, 5, 0) + """
+10:00:40.001 [v] omni: lock-on walk: stage 2 room 4: 120 frame(s) stepped below a full push (100 of them locked on), weapons 0x81, 0x10
+10:01:00.000 omni: LockOnWalk Off (was On; Options)
+10:01:10.000 omni: [Input] OmniLatch read again: 0 (was 1)
+10:01:20.000 omni: [Gameplay] LockOnWalk read again: On (was Off)
+10:01:30.000 omni: [Input] OmniLatch=maybe is not 0 or 1: 1 (Refined's latch rule)
+"""
+V359CTN = V333_END + "10:00:00.100 " + OM_INSTALL % ('in', 'Off', '0.30') + """
+10:00:00.101 omni: latch: 00502794 (call 00502040) is not the stock code (another mod?): the game's control-direction latch
+10:00:00.102 """ + LT_INSTALL % ('OFF', '1') + """
+10:00:00.103 """ + LW_INSTALL % ('in', 'On') + """
+10:00:05.000 omni: lock-on walk: faulted (code C0000005): the game's ready-stance steps for this session
+"""
+
+
+def test_ct359():  # v3.59 CT359
+    s, r = run(V359CT)
+    print(r)
+    check(s.lt == ('in', '1') and s.lw == ('in', 'On'), 'v3.59 CT359: the install lines (%r %r)' % (s.lt, s.lw))
+    check(len(s.lt_eps) == 3 and s.lt_eps[1][1] == "the stock rig's look rate (240 deg/s)" and s.lt_eps[2][3] and s.lt_eps[2][5]
+          and s.lt_eps[2][6] and s.lt_eps[0][7] and not s.lt_eps[1][7], 'v3.59 CT359: the episodes (%r)' % s.lt_eps)
+    check(s.lt_rooms == 1 and s.lt_supp == 5 and s.lw_rooms == [(120, 100, '0x81, 0x10')], 'v3.59 CT359: the room summaries')
+    check('  latch / lock-on walk: latch in (OmniLatch 1), OmniLatch read again 0 [10:01:10]; 3 episode(s) (a drawn-camera '
+          "jump 1, a room start or camera cut 1, the stock rig's look rate 1): let go by its time ran out 2, the stick's angle 1; "
+          'longest 1.80 s, the control frame up to 80 deg from the camera, 120 blended frame(s); 2 held to the end (1 with Omni On '
+          "under the Shoulder view: the analog control loss's signature, the game's rule); 1 right after a warp of the player; 1 with "
+          "the Shoulder camera's Follow on; 1 room summary line(s), 5 rig look-rate trigger(s) ignored under the Shoulder camera; "
+          'lock-on walk in (LockOnWalk On), 2 change(s): Off (Options) [10:01:00], On ([Gameplay] read again) [10:01:20], '
+          'first step below a full push [10:00:31] (weapon 0x81, locked on), 120 frame(s) raised in 1 room(s) (100 locked on); '
+          'UNKNOWN value(s) maybe' in r, 'v3.59 CT359: the summary line')
+    s, r = run(V359CTN)
+    check(s.lt == ('OFF', '1') and s.lt_not == ['latch (00502794)'] and s.lt_fault == [('10:00:05', 'lock-on walk')],
+          'v3.59 CT359: not installed / faulted (%r %r %r)' % (s.lt, s.lt_not, s.lt_fault))
+    check('; NOT INSTALLED: latch (00502794); FAULTED: lock-on walk [10:00:05]' in r, 'v3.59 CT359: the failures in the summary')
+    s, r = run(V349L)
+    check(not s.lt_eps and 'latch / lock-on walk' not in r, 'v3.59 CT359: a v3.49 log reads as before')
+
+
+V359EN = V333_END + """10:00:00.500 enemies: pinned ghosts stay (00465123): a ghost pinned by the Sword in a room the game's ghost rule refuses is made pinned there again at the room load ([Gameplay] PinnedGhostsStay=1)
+10:00:00.600 hud bars: Walter downed keeps his bar (boss rules) with a revive bar from the game's own down timer: the stalker's (004A4A12) read, the final Walter's (004A8760) read
+10:00:00.601 hud bars: Walter's long down (v3.59): a hit at HP 0 lays him down until he heals to full (class 0B): his bars stay, the revive bar counts the heal (004A1CD0 / 00468EE0 read)
+10:00:01.000 [v] hud bars: bar anchor for type 08 v0: its top bone (#10 of 37) + 70 units (the model's head rises 64 above it, + 6; v3.58: + 40), 397 above its feet
+10:00:01.100 [v] hud bars: bar anchor for type 0A v1: its bones are not this frame's: 179 above its position (the model's height + 6)
+10:00:01.200 [v] hud bars: type 08 v0: its head's top is above the 3D view: its bar is held at the view's top edge
+10:00:02.000 [v] hud bars: the stalker Walter 841F0001 down (class A, AI E step 4, hp 0 / 750, down timer 125.0 s): his bar and the revive bar stay up (he heals to full, then rises: v3.59)
+10:00:10.000 enemies: ghost 02050003 (type 0B v2) lies pinned by its Sword in room 2:5: it is made pinned there again (the game's ghost rule says no to its record in this room: a victim the Randomizer drew or one that followed you here)
+10:00:20.000 enemies: follow save: kept for this save (stage 2 room 1, game time 47661, key 691E03EF): 5 pursuer(s) (5 here, 0 away), 0 on their way here, 1 ghost(s) let into this room, 0 cop(ies) that followed you; side file 4 entr(ies); the records of randomized followers the save leaves out are kept with them
+10:00:20.001 [v] enemies: follow save: 5 record(s) of followers the Randomizer made as another type kept in the side file (the save holds none of them)
+10:00:21.000 enemies: follow load: this save's followers are kept (stage 2 room 1, key 691E03EF): 5 pursuer(s), 0 on their way, 1 ghost(s) let in, 0 cop(ies): they come back at its room load
+10:00:22.000 enemies: follow restore: room 2:1 after a load: 5 pursuer(s) back (5 here with you, 0 away), 0 on their way here, 1 ghost(s) let in, 0 cop(ies) in the ledger; left out: 0 without their record (the save filter, or gone), 0 of a kind Enemies Follow Monsters + Victims takes no longer
+10:00:22.001 enemies: follow restore: followers restored 5 of 5 (5 of 5 record(s) of randomized followers put back from the side file)
+"""
+
+
+def test_en359():  # v3.59 EN359
+    s, r = run(V359EN)
+    print(r)
+    g = s.en359
+    check(g['loads'] == 1 and g['back'] == 5 and g['saved'] == 5 and g['kr_back'] == 5 and g['kr_all'] == 5 and g['kr_saves'] == 1
+          and g['kr_kept'] == 5, 'v3.59 EN359: followers restored (%r)' % dict(g))
+    check(g['pins'] == 1 and s.en359_pinsite == 'in' and s.en359_pin_last == ('10:00:10', '02050003', '2:5'),
+          'v3.59 EN359: the pinned ghost (%r %r %r)' % (dict(g), s.en359_pinsite, s.en359_pin_last))
+    check(g['anchors'] == 2 and g['anchors_fb'] == 1 and g['edges'] == 1 and g['w_heal'] == 1 and s.en359_wlong == 'in',
+          'v3.59 EN359: the anchors and Walter (%r %r)' % (dict(g), s.en359_wlong))
+    check(s.en358['w_down'] == 1, 'v3.59 EN359: the v3.58 Walter line with its new tail still reads (%r)' % dict(s.en358))
+    check('; followers restored 5 of 5 in 1 load(s) (randomized followers\' records: 5 kept at 1 save(s), 5 of 5 put back)' in r
+          and '; pinned ghosts stay in: 1 let in pinned by the gate (last 02050003 in room 2:5 [10:00:10])' in r,
+          'v3.59 EN359: the follow summary')
+    check('; anchors over the heads: 2 type(s) seen (1 by the fallback height), 1 held at the view\'s top edge; Walter\'s long down '
+          'in (1 heal countdown(s))' in r, 'v3.59 EN359: the health bars summary')
+    check(not [v for v in s.warnings.values() if 'pinned' in v[3] or 'restored' in v[3] or 'anchor' in v[3]],
+          'v3.59 EN359: no line lands in the warnings')
+    s, r = run(V358EN)
+    check(not s.en359 and 'followers restored' not in r and 'anchors over the heads' not in r, 'v3.59 EN359: a v3.58 log reads as before')
+
+
+# v3.59 FT359: the enemy bars' looks under the special filters, the victims' bars Thermal Vision hides
+V359FT = V333_END + """10:00:00.300 hud bars: filter themes on ([ScreenEffects] FilterThemes=1, hidden): the enemy bars take the looks of Thermal Vision (heat scale; no bar for the victims), Spirit Vision (pale flame), Night Vision and Night Mono (phosphor, scan lines, grain), by Filter Strength; Ghost Teleport's soul fire turns spirit blue in its fade
+10:01:00.000 hud bars: the enemy bars wear the Thermal Vision look (Filter Strength High: colours 100 %, overlays 100 %; no bar for the victims)
+10:01:02.000 hud bars: Thermal Vision: no bar for the victims (their ghosts give no heat); the first: type 0B in room 2:3
+10:02:00.000 [v] hud bars: room 2:3: Thermal Vision drew no bar for 2 victim(s) (ghosts give no heat; 2 this session)
+10:02:10.000 hud bars: the enemy bars wear the Night Vision look (Filter Strength Ultra: colours 100 %, overlays 135 %)
+10:03:00.000 hud bars: the enemy bars wear the stock look (Filter CRT)
+10:03:30.000 hud bars: the enemy bars wear the Thermal Vision look (Filter Strength Low: colours 35 %, overlays 35 %; no bar for the victims)
+10:04:00.000 [v] hud bars: room 2:4: Thermal Vision drew no bar for 1 victim(s) (ghosts give no heat; 3 this session)
+10:04:10.000 [v] hud bars: room 2:5: no bar for 1 enemy(ies) not in the room yet (hidden, arriving or a placeholder), 0 not at a place in the room; this session 1 / 0
+"""
+
+
+def test_ft359():  # v3.59 FT359
+    s, r = run(V359FT)
+    print(r)
+    check(s.ft_set == ('10:00:00', 'on'), 'v3.59 FT359: the FilterThemes line (%r)' % (s.ft_set,))
+    check(s.ft_look['Thermal Vision'] == 2 and s.ft_look['Night Vision'] == 1 and s.ft_look['stock'] == 1, 'v3.59 FT359: the looks (%r)'
+          % dict(s.ft_look))
+    check(s.ft_hid[:3] == [3, 2, 3] and s.ft_hid[3] == ('10:01:02', '0B', '2:3'), 'v3.59 FT359: the hidden victims (%r)' % (s.ft_hid,))
+    check(s.hb_ref['rooms'] == 1 and s.hb_ref['hidden'] == 1, 'v3.59 FT359: the refusal room line still reads (%r)' % dict(s.hb_ref))
+    check('enemy bars under the special filters: FilterThemes on; looks worn: Thermal Vision 2, Night Vision 1, stock 1; Thermal Vision '
+          'hid 3 victim bar(s) (2 room line(s)); first type 0B in room 2:3 [10:01:02]' in r, 'v3.59 FT359: the summary line')
+    s, r = run(V333_END)
+    check(s.ft_set is None and not s.ft_look and 'special filters' not in r, 'v3.59 FT359: a log without its lines reads as before')
+    s, r = run(V333_END + "10:00:00.300 hud bars: filter themes off ([ScreenEffects] FilterThemes=0, hidden): v3.58's looks: the stock "
+               "bars under every filter, the victims' bars under Thermal Vision" + chr(10))
+    check(s.ft_set == ('10:00:00', 'off') and 'FilterThemes off' in r, 'v3.59 FT359: FilterThemes=0 is reported')
 
 
 def test_en358():  # v3.58 EN358
@@ -1670,8 +1890,26 @@ V358PV = """10:00:00.040 screen effects: [ScreenEffects] PreviewScene=Scene (v3.
 """
 
 
+V359PV = """10:00:00.050 screen effects: the Effects page's preview: Preview=Live (the title menu: the stock picture, else PreviewImage; a pause: its scene); the stock picture C:\\Program Files (x86)\\GOG Galaxy\\Games\\Silent Hill 4\\SH4Refined_preview_stock.dds: present (with its heat and spirit layer files); a pause keeps Thermal's heat and Spirit Vision's ghosts and soul fires for it: on (PreviewLayers=1); Filter Strength High
+10:00:05.000 screen effects: the picture's heat layer C:\\Program Files (x86)\\GOG Galaxy\\Games\\Silent Hill 4\\SH4Refined_preview_stock.heat: used (1280x720, 160 KB)
+10:00:05.001 screen effects: the Effects page's preview: Thermal over the stock picture (SH4Refined_preview_stock.dds) with the picture's heat layer (SH4Refined_preview_stock.heat)
+10:00:06.000 screen effects: the picture's spirit layer C:\\Program Files (x86)\\GOG Galaxy\\Games\\Silent Hill 4\\SH4Refined_preview_stock.spirit: not used: not this picture's (another F7 shot) (Spirit Vision shows its look over the picture only)
+10:00:06.001 screen effects: the Effects page's preview: Spirit Vision over the stock picture (SH4Refined_preview_stock.dds)
+10:00:07.000 screen effects: the Shadows page's preview: Preview Stock: the still picture alone: the stock picture (SH4Refined_preview_stock.dds) (the split shadows only over a paused game, Live)
+10:00:08.000 screen effects: the Shadows page's preview: Preview Live: the still picture alone: the stock picture (SH4Refined_preview_stock.dds) (the split shadows only over a paused game, Live)
+10:01:00.000 screen effects: F7's look layers for preview.dds: heat saved preview.heat (2 bodies, 0 footprint(s); 4.3 % of the picture, 160 KB); spirit saved preview.spirit (0 ghost(s), 2 soul fire(s), 17 aura sprite(s); 9.8 % of the picture, 360 KB); 61.2 ms
+10:01:10.000 screen effects: F7's look layers for preview.dds: heat saved preview.heat (1 body, 3 footprint(s); 2.0 % of the picture, 80 KB); spirit none (not a frame of play); 40.0 ms
+10:01:20.000 screen effects: F7's look layers for preview.dds: heat none ([ScreenEffects] PreviewLayers=0); spirit none ([ScreenEffects] PreviewLayers=0); the older layer file(s) of that name removed; 0.4 ms
+10:01:30.000 screen effects: F7: no picture taken: the game left play before the frame after the press (press F7 again)
+10:01:40.000 ANOMALY: screen effects: loading the picture's heat layer faulted: the picture layers are off for this session
+"""
+
+
 def main():
+    test_ct359()  # v3.59 CT359
+    test_ft359()  # v3.59 FT359
     test_en358()  # v3.58 EN358
+    test_en359()  # v3.59 EN359
     test_er356()  # v3.56 ER356
     s, r = run(V333)
     print(r)
@@ -1953,6 +2191,25 @@ def main():
     check(len(line) == 1 and 'NOT eased in (no blend shader 1 time(s): whole levels)' in line[0],
           'v3.47 DF347: the fallback without the blend shader is named: %r' % line)
     check(s.dof_first == 'whole levels' and s.dof_noblend == 1, 'v3.47 DF347: the fallback lines parse (%r %r)' % (s.dof_first, s.dof_noblend))
+    s, r = run(V359D)  # v3.59 DF359
+    line = [x for x in r.splitlines() if x.startswith('  depth of field: ')]
+    check(len(line) == 1 and 'Always High [10:00:00], then Always Ultra [10:00:30]' in line[0] and
+          'eased in (Low 4+4, Medium 6+4, High 11+7, Ultra 12+8 slices)' in line[0],
+          'v3.59 DF359: Ultra and the four ramps read: %r' % line)
+    check(line and "the ini's DofStrength=High kept (v3.59's High is a bit gentler; Ultra = v3.58's High)" in line[0] and
+          s.dof_note59 == ('High', 'High'), 'v3.59 DF359: the stored High noted once: %r' % line)
+    check(line and 'kept out of Spirit Vision from 10:00:20 (its world sharp)' in line[0] and
+          'skipped by design: Spirit Vision (its world stays sharp) 1200' in line[0] and
+          s.dof_design['Spirit Vision (its world stays sharp)'] == 1200 and not s.dof_spirit_keep,
+          'v3.59 DF359: Spirit Vision kept sharp, counted by design: %r' % line)
+    check(s.dof_first == 'eased in', 'v3.59 DF359: the first frame at High reads (%r)' % s.dof_first)
+    s, r = run(V359DK)
+    line = [x for x in r.splitlines() if x.startswith('  depth of field: ')]
+    check(len(line) == 1 and 'Cut-scenes Ultra [10:00:00]' in line[0] and "DofSpirit=1: blurred under Spirit Vision too (v3.58's order)" in line[0]
+          and s.dof_spirit is None, 'v3.59 DF359: the hidden DofSpirit=1 named: %r' % line)
+    s, r = run(V347D)
+    check(s.dof_note59 is None and s.dof_spirit is None and 'Spirit Vision' not in [x for x in r.splitlines() if x.startswith('  depth of field: ')][0],
+          'v3.59 DF359: a v3.47 log: no note, no Spirit Vision words')
     s, r = run(V344D)  # v3.45 QS345: no migration line, none in the summary
     check('DofStrength=' not in r, 'v3.45 QS345: no migration note without the line')
     s, r = run(V345R)  # v3.45 RB345
@@ -2743,6 +3000,39 @@ def main():
     s, r = run(V356SD)
     check(s.sd_zero is None and s.sd_sess is None and not s.sd_mutes and 'volume 0' not in r and 'Mute by' not in r,
           'v3.58: a v3.56 log has no SD358 part')
+    check(s.sd_guard is None and s.sd_gone is None and 'lost-device guard' not in r and s.fw_line() is None and '  faults: fault watch' not in r,
+          'v3.59: a v3.56 log has no SD359 part')
+    s, r = run(V359SD)  # v3.59 SD359: the lost-device guard
+    print(r)
+    check(s.sd_guard == ('in', 'in', 'Play2D 00409691 / Play3D 00409BC5 at the first frame (Playable Eileen is loaded: its own guard may take it)') and
+          s.sd_guard_first.startswith("Play2D 00409691 / Play3D 00409BC5 Playable Eileen's own guard") and
+          s.sd_gone == ('10:05:07', 'failed', 'PlayMusic 0x40A080', '88780096') and s.sd_gone_n == ('10:07:30', 41, 0, 0, 3, 38) and
+          s.sd_retry == 1 and [x[1] for x in s.sd_dev_ev] == ['unplugged'] and not s.snd_anom,
+          'v3.59: the SD359 lines read (%r %r %r %r)' % (s.sd_guard, s.sd_guard_first, s.sd_gone, s.sd_gone_n))
+    check('lost-device guard: music in, streams in, Play2D 00409691 / Play3D 00409BC5 at the first frame' in r and
+          "at the first frame: Play2D 00409691 / Play3D 00409BC5 Playable Eileen's own guard (it skips the sound)" in r and
+          'THE SOUND DEVICE WENT AWAY: the first stand-in buffer in PlayMusic 0x40A080 (hr 88780096) [10:05:07]; 41 sound(s) made '
+          'silent (2D 0, 3D 0, music 3, streams 38) [10:07:30]; 1 failed create(s) made by the second try' in r,
+          'v3.59: the SD359 summary')
+    check(not [v for v in s.warnings.values() if v[3].startswith('sound: ')] and
+          not [v for v in s.faults.values() if v[3].startswith('sound: ')], 'v3.59: no SD359 line lands in the warnings or faults')
+    s, r = run(V333_END + "10:00:00.011 sound: lost-device guard: off ([Sound] LostDeviceGuard=0): a sound device that goes away "
+               "crashes the game, as the stock game does\n")
+    check(s.sd_guard == 'off' and 'lost-device guard off (LostDeviceGuard=0)' in r, 'v3.59: the guard off')
+    s, r = run(V359FW)  # v3.59 SD359: the fault watch
+    print(r)
+    check(s.fw_in == 'in' and len(s.fw) == 3 and s.fw[0][1:] == ('C0000005', 'access violation', 'd3d9.dll', '0002F0A1', 'the game thread',
+                                                              'inside Direct3D or the graphics driver', 'warm-up') and
+          s.fw[1][3] == 'winmm.dll' and s.fw[1][6] == 'inside SH4 Refined' and s.fw[1][7] == 'shadows composite' and
+          s.fw[2][5] == 'thread 4410' and s.fw[2][7] is None and s.fw_stop == ('10:00:05', 'C0000005 at winmm.dll+0001A2B4', 'stopped') and
+          s.fw_end == (3, 1, 0, 2, 0, 0, 0, 'd3d9.dll 2, winmm.dll 1', 'stopped'),
+          'v3.59: the fault watch lines read (%r %r %r)' % (s.fw, s.fw_stop, s.fw_end))
+    check("faults: fault watch in; 3 fault(s) logged (2 inside Direct3D or the graphics driver, 1 inside SH4 Refined); first: C0000005 "
+          "access violation at d3d9.dll+0002F0A1, the game thread, Refined's warm-up guard [10:00:05]; Refined's Direct3D work STOPPED "
+          "after two faults in a second (the last C0000005 at winmm.dll+0001A2B4) [10:00:05]; at the end 3 seen (Refined 1, the game 0, "
+          "Direct3D / driver 2, other 0, none 0; 0 not read): d3d9.dll 2, winmm.dll 1" in r, 'v3.59: the fault watch summary')
+    check(not [v for v in s.warnings.values() if v[3].startswith(('fault watch', 'session: fault'))] and
+          not [h for h in s.header if h.startswith(('fault watch', 'faults seen'))], 'v3.59: the fault watch lines are not warnings or header')
     s, r = run(V352SND)
     check(s.sd_line() is None and 'sound background:' not in r, 'v3.56: a v3.52 log has no SD356 line')
     s, r = run(V333_END + '10:00:00.010 sound: [Sound] Enabled=0: the game\'s own sound and Sound row (no Refined sound site)\n')
@@ -2789,6 +3079,20 @@ def main():
           "worst 0.410)" in r and 'SMALLER than its body' not in r, 'v3.58: the portal summary')
     s, r = run(V351PT)
     check(s.fi_big is None and not s.fi_close and 'v3.58 portal' not in r and ' closed (grids' not in r, 'v3.58: a v3.57 log reads as before')
+    check(s.fi59 is None and not s.fi_arrive and 'v3.59' not in r and 'arrival(s)' not in r, 'v3.59: a v3.57 log reads as before')
+    s, r = run(V358FI)
+    check(s.fi59 is None and not s.fi_arrive and s.fi_big == ('3.0', '9', '16'), 'v3.59: a v3.58 log reads as before')
+    s, r = run(V359FI)  # v3.59 FI359: the portal on the floor, the arrivals, Spirit Vision
+    print(r)
+    check(s.fi59 == ('on the floor', '1') and s.fi_big == ('3.0', '9', '16') and len(s.fi_arrive) == 3 and
+          s.fi_arrive[0] == ('02020003', '0B', 6, 47, 100, 119, 180, 61, '2', 1, 3, 1.25) and
+          s.fi_arrive[1][2:7] == (12, 0, 60, None, None) and s.fi_arrive[2][2] is None and s.fi_waitcap == 1 and
+          s.fi_spirit == {'wall portal', 'tar portal'}, 'v3.59: the arrive lines read (%r %r)' % (s.fi59, s.fi_arrive))
+    check("; v3.59: on the floor, Spirit Vision spirit tar; 3 arrival(s): 2 on the floor (foot 6 .. 12 u above it, raised up to 47 u, "
+          "1 under a low ceiling), 1 with no floor found; victims came out 119 .. 119 u above the floor (own height 180 .. 180 u), 1 "
+          "lifted (up to 61 u); as seen: AI 1 step 0 anim 3 x1, AI 1 step 2 anim 3 x1, AI 2 step 1 anim 3 x1; 1 kept unseen while out "
+          "of a wall by itself (1.25 .. 1.25 s); 1 at the wait's cap; Spirit Vision drew: tar portal, wall portal" in r and
+          'UNDER THE FLOOR' not in r, 'v3.59: the floor summary')
     s, r = run(V352FX)  # v3.52 FX352
     print(r)
     dof = [x for x in r.splitlines() if x.startswith('  depth of field: ')]
@@ -2883,6 +3187,23 @@ def main():
     check(s.frg[0] == 'off' and s.t60f == ('NOT', '004E4CCE') and len(fr) == 1 and 'off at the start' in fr[0] and 'no step down' in fr[0] and
           'final-room sites NOT in (004E4CCE)' in fr[0], 'v3.56 FR356: guard off, a site not stock (%r)' % fr)
     check([v for v in s.warnings.values() if 'final-room sites is used' in v[3]], 'v3.56 FR356: the site not stock is also a warning')
+    # v3.59 FR359: cut-scenes and Room 302's views at the gameplay rate
+    s, r = run(V359FR)
+    cr = [x for x in r.splitlines() if x.startswith('  cut-scene rate: ')]
+    check(s.cr == ('fast', 'fast', 'fast', 48, 6) and s.cr_starts == {'cut-scene': 2, 'Room 302 window view': 1} and len(s.cr_ends) == 3 and
+          s.cr_ends[2][1:] == ('cut-scene', 120, 50.0, 4, 0, -240) and s.cr_cuts == [1, 1],
+          'v3.59 FR359: the lines read (%r %r %r %r)' % (s.cr, s.cr_starts, s.cr_ends, s.cr_cuts))
+    check(len(cr) == 1 and 'cut-scenes fast, window view fast, peephole / hole views fast (window view sites 48, caves 6)' in cr[0] and
+          'Room 302 window view 1, cut-scene 2' in cr[0] and '3 ended, 5 camera cut(s) and 1 actor jump(s) held' in cr[0] and
+          'at most -240 ms from real time (cut-scene at 120, 50.0 s)' in cr[0] and 'CHECK: 1 stretch(es) over 100 ms' in cr[0] and
+          '[v] 1 camera cut / 1 actor line(s)' in cr[0], 'v3.59 FR359: the summary line (%r)' % cr)
+    check(not [v for v in s.warnings.values() if 'frame rate' in v[3]], 'v3.59 FR359: none of them a warning')
+    s, r = run(V359FR_OFF)
+    cr = [x for x in r.splitlines() if x.startswith('  cut-scene rate: ')]
+    check(s.cr == 'off' and len(cr) == 1 and 'at 30 (CutsceneRate=0, ViewRate=0)' in cr[0], 'v3.59 FR359: off (%r)' % cr)
+    check([v for v in s.warnings.values() if '005609FB is not stock' in v[3]], 'v3.59 FR359: a site not stock is a warning')
+    s, r = run(V333_END)
+    check(s.cr is None and 'cut-scene rate:' not in r, 'v3.59 FR359: no lines, no summary line')
     s, r = run(V356FR_FM1)
     check(s.frg[0] == 'not used' and 'rate guard: not used at the start' in r, 'v3.56 FR356: FrameMode 1')
     # v3.58 GX358: the quick rules, the quick window, Shadows On / Off
@@ -2938,6 +3259,25 @@ def main():
     check(not [v for v in s.warnings.values() if v[3].startswith(('screen effects: the Effects page', 'screen effects: [ScreenEffects] Preview',
                                                                    'screen effects: Filter Strength'))],
           'v3.58 PV358: no preview line lands in the warnings')
+    s, r = run(V333_END + V359PV)  # v3.59 PV359
+    pv = [x for x in r.splitlines() if x.startswith('  effects preview: ')]
+    check(s.pv_stocklay == 'heat and spirit layer files' and s.pv_f7['both'] == 1 and s.pv_f7['heat'] == 1 and s.pv_f7['none'] == 1 and
+          s.pv_f7['late'] == 1 and s.pv_f7why['[ScreenEffects] PreviewLayers=0'] == 2 and s.pv_f7why['not a frame of play'] == 1,
+          'v3.59 PV359: the start line\'s layer files and the F7 lines read (%r %r %r)' % (s.pv_stocklay, s.pv_f7, s.pv_f7why))
+    check(s.pv_lay[('heat', 'used')] == 1 and s.pv_lay[('spirit', "not this picture's (another F7 shot)")] == 1 and
+          s.pv_shstock['Stock: the stock picture (SH4Refined_preview_stock.dds)'] == 1 and
+          s.pv_shstock['Live: the stock picture (SH4Refined_preview_stock.dds)'] == 1 and s.pv_page[('Thermal', 'the stock picture + its heat file')] == 1 and
+          s.pv_page[('Spirit Vision', 'the stock picture')] == 1 and s.pv_anom == 1,
+          'v3.59 PV359: the picture layers, the page lines, the Shadows page still picture, the anomaly (%r %r %r %r)' % (
+              s.pv_lay, s.pv_shstock, s.pv_page, s.pv_anom))
+    check(len(pv) == 1 and '(heat and spirit layer files)' in pv[0] and
+          'F7: 3 picture(s) (layers: both 1, heat only 1, spirit only 0, none 1) [not saved: [ScreenEffects] PreviewLayers=0 x2, '
+          'not a frame of play x1], 1 press(es) dropped (left play)' in pv[0] and 'picture layers: ' in pv[0] and
+          "spirit not this picture's (another F7 shot) x1" in pv[0] and 'Shadows page, a still picture alone: Stock: the stock picture (SH4Refined_preview_stock.dds) x1, Live: ' in pv[0] and
+          'Thermal over the stock picture + its heat file x1' in pv[0], 'v3.59 PV359: the summary line (%r)' % pv)
+    check(not [v for v in s.warnings.values() if v[3].startswith(('screen effects: F7', "screen effects: the picture's",
+                                                                   "screen effects: the Shadows page"))],
+          'v3.59 PV359: no preview line lands in the warnings')
     # v3.56 MN356: the value lines, the folder click and the Extra Menu's text
     s, r = run(V333_END + V356MN)
     mn = [x for x in r.splitlines() if x.startswith('  options menu (v3.56): ')]
@@ -2978,6 +3318,19 @@ def main():
           'v3.58 GT358: one pass, Clean not in (%r %r)' % (s.gt_fnotin, gt))
     s, r = run(V352G)
     check(s.gt_fdraw is None and not s.gt_fpath and "the fade's draw" not in r, 'v3.58 GT358: a v3.52 log reads as before (no draw part)')
+    # v3.59 GT359: across heights
+    check(s.gt_lv == [] and s.gt_room_lv == [0, 0] and not s.gt_lv_flat and 'across heights' not in r,
+          'v3.59 GT359: a v3.52 log reads as before (no level part)')
+    s, r = run(V359GT)
+    gt = [x for x in r.splitlines() if x.startswith('  ghost teleport: ')]
+    check(s.gt == ('in', 'On') and s.gt_warps['up a level'] == 1 and s.gt_warps['down a level'] == 1 and s.gt_warps['ahead'] == 1 and
+          s.gt_lv == [('up', 1680, 212), ('down', 1280, 98)] and s.gt_lv_flat == {'5:3': 'up'} and s.gt_room_lv == [1, 1] and
+          s.gt_rooms == [('11:1', 0, 0, 0, 0, 0, 2), ('5:3', 1, 0, 0, 1, 0, 1)] and s.gt_maps[0][:2] == ('11:1', 9120) and
+          s.gt_map_open == 0, 'v3.59 GT359: the level lines read (%r %r %r %r)' % (s.gt_lv, s.gt_lv_flat, s.gt_room_lv, s.gt_rooms))
+    check(len(gt) == 1 and '; across heights: 1 up (at most 1680 u), 1 down (at most 1280 u); no landing on another level proven in '
+          'room(s) 5:3 (up) (the flat warp)' in gt[0] and '; 1 up a level, 1 down a level (room lines)' in gt[0] and
+          'down a level x1' in gt[0] and 'up a level x1' in gt[0], 'v3.59 GT359: the summary part (%r)' % gt)
+    check(not [v for v in s.warnings.values() if 'ghost teleport' in v[3]], 'v3.59 GT359: no level line lands in the warnings')
     # v3.58 MN358: the value box and the by-design randomizer stage line
     s0, r0 = run(V333_END)
     s, r = run(V333_END + V358MN)
@@ -3005,6 +3358,24 @@ def main():
     check(s.vbx == ('off', 'NOT on (00525802 not stock)') and len(vb) == 1 and 'NOT on (00525802 not stock)' in vb[0],
           'v3.58 MN358: not on (%r)' % vb)
     check(s0.vbx is None and not s0.rz_nomodels and 'options value box' not in r0, 'v3.58 MN358: none of its lines, no line')
+    # v3.59 TV359: Thermal Vision's lines
+    s0, r0 = run(V333_END)
+    s, r = run(V333_END + V359TV)
+    tv = [x for x in r.splitlines() if x.startswith('  Thermal Vision (v3.59): ')]
+    check(s.tv == ('in', '') and len(s.tv_rooms) == 3 and s.tv_rooms[1] == ('5:4', 1200, 0, 0, "no light grid: the scene's own depth", 1190)
+          and s.tv_first == ('10:00:05', '2:4') and [x[1] for x in s.tv_shapes] == ["Eileen's heels", "Henry's boots"],
+          'v3.59 TV359: the Thermal Vision lines read (%r %r %r %r)' % (s.tv, s.tv_rooms, s.tv_first, s.tv_shapes))
+    check(len(tv) == 1 and tv[0].startswith('  Thermal Vision (v3.59): walls hide heat in; 3 room visit(s), 5700 heat frame(s): the '
+          'light grid drew in 4500, the depth kept in 3600; footprints depth-tested in 4790') and
+          'HEAT SEEN THROUGH WALLS in 1 room visit(s): 3:1' in tv[0] and 'first kept frame 10:00:05 in 2:4' in tv[0] and
+          "the player's footprints: Eileen's heels x1, Henry's boots x1 (last: Henry's boots, her / his hip bones 36.0 u apart" in tv[0],
+          'v3.59 TV359: the Thermal Vision summary line (%r)' % tv)
+    check(not [v for v in s.warnings.values() if 'Thermal Vision' in v[3]], 'v3.59 TV359: no Thermal Vision line of a working start is a warning')
+    s, r = run(V333_END + V359TV_OFF)
+    tv = [x for x in r.splitlines() if x.startswith('  Thermal Vision (v3.59): ')]
+    check(s.tv == ('OFF', '004EFBDC not stock') and tv == ['  Thermal Vision (v3.59): walls hide heat OFF (004EFBDC not stock)'] and
+          [v for v in s.warnings.values() if '004EFBDC is not stock' in v[3]], 'v3.59 TV359: the site not stock: OFF, and a warning (%r)' % tv)
+    check(s0.tv is None and not s0.tv_rooms and 'Thermal Vision (v3.59)' not in r0, 'v3.59 TV359: none of its lines, no line')
     test_compare()  # v3.40 LG340
     print('%d failure(s)' % len(FAILS))
     return 1 if FAILS else 0

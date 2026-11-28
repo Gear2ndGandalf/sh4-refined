@@ -346,7 +346,8 @@ static const char *const kFiTsName[FI_TS_N] = { "none", "the ghost's own", "Refi
 #define FI_SNAP_RECOIL_S 0.35f // ... and its two ends whip back over this
 
 // the game code the tar portal calls (never patches), each checked by its first 16 bytes (fadein.inc at the install; the
-// native test against SH4Decomp orig\sh4.exe); group: 0 the draw (all three needed), 1 the strands (both), 2 the hold
+// native test against SH4Decomp orig\sh4.exe); group: 0 the draw (all three needed), 1 the strands (both), 2 the hold,
+// 3 the floor under the portal (v3.59 FI359)
 #define FI_PHASE_VA 0x62BC98u  // phase 0's step list 0x62BC78, entry 8: 0x4EF900 (ActorDrawPass01, ActorDrawModels, ActorDrawPass2)
 #define FI_PHASE_FN 0x4EF900u
 typedef struct { unsigned va; unsigned char b[16]; int group; const char *name; } FiTarFn;
@@ -363,6 +364,8 @@ static const FiTarFn kFiTarFns[] = {
       "the bone trail's release" },                                                         // func_00482CF0 (matched)
     { 0x45CF20u, { 0x55, 0x8B, 0xEC, 0x83, 0xE4, 0xF0, 0x83, 0xEC, 0x18, 0x56, 0x8B, 0x75, 0x0C, 0x8B, 0x0E, 0x57 }, 2,
       "the enemy's place setter" },                                                         // func_0045CF20 (matched)
+    { 0x459490u, { 0x55, 0x8B, 0xEC, 0x83, 0xE4, 0xF0, 0x83, 0xEC, 0x34, 0x8B, 0x0D, 0x40, 0xEE, 0xFC, 0x00, 0x53 }, 3,
+      "the enemies' floor ray" },                                                           // v3.59 FI359: EnemyFloorRayCheck (the portal on the floor)
 };
 #define FI_TAR_NFN ((int)(sizeof kFiTarFns / sizeof kFiTarFns[0]))
 // the textures of the game's wall portal and strands: entries 1 and 0 of the resident file F000F020 (enemy effect slots 1
@@ -922,6 +925,155 @@ static int FiCloseText(const FiClose *c, char *out, size_t n)
                     c->bones > 0 ? "its bones" : c->bones == 0 ? "its type's box" : "not seen", c->strGame, c->strOwn,
                     c->ownBox ? "its box" : "its bones", c->stick, c->stickTo, c->snapped, c->loose,
                     c->frames ? c->ms / c->frames : 0.0, c->msMax, c->frames);
+    if (w < 0) {
+        out[n - 1] = 0;
+        return (int)n - 1;
+    }
+    return w;
+}
+
+// ================================================================ v3.59 FI359: the portal on the floor, the victim at its own
+// height, the special filters' looks
+// USER_FEEDBACK_v358 QA 9 ("the portal clips to the floor in the subway restrooms while the victim fly's out of it to a new
+// spot with its legs floating above it folded in") and Issues ("Spirit Vision still uses the old portal effect"). Plan:
+// staging/v359_feedback/w6_portal/PLAN.md. In the user's log the Subway restrooms' (room 2:3) arrivals were first seen with
+// their centre 119 .. 155 u above the floor (a victim floats size x 180 above it): the game's own wall exit (the mover
+// 0x485F90) brings a victim out at its wall point's height, between where it travelled and the player's floor, holds no
+// height while its appearance plays (height mode 0) and only then rises; v3.58 laid the portal out on that body (1.24 x its
+// height, centred on it), so its lower part was under the floor.
+#define FI_FLOOR_GAP    6.0f    // the portal's foot (and its drips, its blots) stay this far above the floor under it
+#define FI_CEIL_GAP     12.0f   // its top this far under a ceiling above it
+#define FI_FIT_MINK     0.45f   // a low ceiling shrinks the first portal (both ways: never squashed) to no less than this
+#define FI_FLOOR_FROM   150.0f  // the floor ray starts this far above the work position (a ghost may arrive in the floor)
+#define FI_FLOOR_REACH  900.0f  // a floor further below the ray's start is not the arrival spot's
+#define FI_CEIL_REACH   900.0f  // a ceiling is looked for this far above the body's centre
+#define FI_BLOT_R       40.0f   // a blot's reach (u at size 1) kept off the floor
+#define FI_VICTIM_TYPE  0x0B    // the victims (EnemyVictimGhostTask 0x4B2C30) ...
+#define FI_VICTIM_REST  180.0f  // ... float size x 180 above their floor (GhostHeightReset(size x -180): 0x4AD9C0, states 1 / 2)
+#define FI_LIFT_MIN     25.0f   // a victim this much lower than that at its hold's start is lifted to it, unseen ...
+#define FI_LIFT_MAX     420.0f  // ... up to this much (more: it is over another floor, left alone)
+#define FI_AI_WALLOUT   9       // the victim's AI state that comes out of a wall by itself (0x4ADD20: the mover 0x485F90)
+#define FI_WALLOUT_S0   3       // its steps 3 .. 5: it is out and seen, its appearance (animation 35) plays, not rising yet
+#define FI_WALLOUT_S1   5
+#define FI_WAIT_MAX_S   3.0f    // such a victim is kept unseen at most this long (then it fades in where it is)
+#define FI_WAIT_N       8
+
+static int FiSpiritLookParse(int v) { return v != 0; }  // [Gameplay] FadeInSpiritLook (hidden): 1 default, 0 = v3.58
+// a victim seen while it still comes out of a wall by itself (no wall portal of the game's near it): kept unseen until it
+// is out (Reveal Method Portal only; never at the room load; its grab is not posted before step 6: 0x4B28C0 state 9)
+static int FiWallOutWait(int type, int aiState, int aiStep, int ownPortal)
+{
+    return type == FI_VICTIM_TYPE && aiState == FI_AI_WALLOUT && aiStep >= FI_WALLOUT_S0 && aiStep <= FI_WALLOUT_S1 &&
+           !ownPortal;
+}
+// where a victim floats over the floor fy (y down): its size x FI_VICTIM_REST above it (size = EnemyWork +0x60, 0x45B970)
+static float FiRestY(float fy, float size)
+{
+    if (!(size >= 0.3f && size <= 3.0f)) size = 1.0f;
+    return fy - FI_VICTIM_REST * size;
+}
+// how far to lift a victim at y up to its rest height ry (y down): 0 = leave it (high enough, or too far below: another floor)
+static float FiLiftBy(float y, float ry)
+{
+    const float d = y - ry;
+    if (!(d > FI_LIFT_MIN) || !(d < FI_LIFT_MAX)) return 0.0f;
+    return d;
+}
+// fit the whole portal between the floor and a ceiling along the plane's down axis v (0 = the plane's point, + down).
+// vFloor: the floor's v less the gap (>= 1e29: none); vCeil: the ceiling's v plus the gap (<= -1e29: none). In: the whole's
+// centre dv (the body's) and half height ty, the first portal's half height sy. Out: the whole's centre *vc, half height
+// *ty2, the first portal's scale *k (1, or less under a low ceiling). Returns FI_FIT_* bits (0 = as it was).
+enum { FI_FIT_RAISED = 1, FI_FIT_SHRUNK = 2, FI_FIT_LOWERED = 4 };
+static int FiFloorFit(float vFloor, float vCeil, float dv, float ty, float sy, float *vc, float *ty2, float *k)
+{
+    float c = dv, t = ty, kk = 1.0f, span;
+    int r = 0;
+    if (!(vFloor == vFloor) || vFloor > 1e29f) vFloor = 1e30f;
+    if (!(vCeil == vCeil) || vCeil < -1e29f) vCeil = -1e30f;
+    if (!(t > 0.0f)) t = sy;
+    if (!(sy > 0.0f)) sy = 1.0f;
+    if (vFloor < 1e29f && vCeil > -1e29f) {
+        span = vFloor - vCeil;
+        if (span < 2.0f * t) {  // a low ceiling: the whole as tall as the room allows, the first smaller if it must be
+            t = 0.5f * span;
+            r |= FI_FIT_SHRUNK;
+            if (t < sy) {
+                kk = t / sy;
+                if (kk < FI_FIT_MINK) kk = FI_FIT_MINK;
+                t = kk * sy;  // (the floor wins over the ceiling below)
+            }
+        }
+    }
+    if (c + t > vFloor) {
+        c = vFloor - t;
+        r |= FI_FIT_RAISED;
+    } else if (c - t < vCeil) {
+        c = vCeil + t;
+        if (c + t > vFloor) c = vFloor - t;
+        r |= FI_FIT_LOWERED;
+    }
+    *vc = c, *ty2 = t, *k = kk;
+    return r;
+}
+// a drip run down from a point at world y (y down): at most to the floor's gap (fy: the floor; ok = a floor is known)
+static float FiDripToFloor(float len, float y, float fy, int ok)
+{
+    float m;
+    if (!ok || !(len > 0.0f)) return len > 0.0f ? len : 0.0f;
+    m = fy - FI_FLOOR_GAP - y;
+    if (!(m > 0.0f)) return 0.0f;
+    return len < m ? len : m;
+}
+// 1 = a blot of size sc centred at world y is clear of the floor fy
+static int FiBlotClear(float y, float sc, float fy, int ok) { return !ok || y + FI_BLOT_R * sc <= fy - FI_FLOOR_GAP; }
+
+// the colours of Refined's own tar draw (FiOwnDisc / FiOwnDrips / FiOwnStrands / FiBlob / FiOwnCore): the tar (the darkening
+// blend: 1 - the colour is what is left of the frame) and Spirit Vision's spirit tar (additive over its black edge world)
+typedef struct {
+    float core[3], edge[3], drip[3], str[3], blob[3], glow[3];  // disc centre / rim, drips, strands, the tar on the body, the core
+    float kFirst, kAround, kStr;                                // strength of the first piece, of the pieces around, of the strands
+} FiPal;
+static const FiPal kFiPalTar = { { 0.60f, 0.97f, 0.96f }, { 0.93f, 0.95f, 0.95f }, { 0.90f, 0.96f, 0.96f },
+                                 { 0.90f, 0.96f, 0.96f }, { 0.84f, 0.97f, 0.97f }, { 0.34f, 0.015f, 0.02f }, 1.0f, 1.0f, 1.0f };
+static const FiPal kFiPalSpirit = { { 0.02f, 0.05f, 0.16f }, { 0.20f, 0.46f, 1.00f }, { 0.10f, 0.28f, 0.80f },
+                                    { 0.30f, 0.58f, 1.00f }, { 0.50f, 0.74f, 1.00f }, { 0.22f, 0.42f, 0.95f }, 0.80f, 0.45f, 0.85f };
+
+// ---------------------------------------------------------------- the arrive line (tools\logcheck.py reads it)
+typedef struct {
+    unsigned id;
+    int type;
+    int floorOk, ceilOk;        // a floor under it / a ceiling over it was found
+    float foot, raised, k;      // the portal's foot above the floor (u), moved up (u), the first's scale (1 = full size)
+    float above, rest;          // its centre above the floor when it was first seen, its own height (victims; 0 = not a victim)
+    float lift, waited;         // lifted (u), kept unseen before (s, coming out of a wall by itself)
+    int ai, step, anim;         // its AI state, step and animation when it was first seen
+} FiArrive;
+// "%08X (type %02X) arrives: its tar portal on the floor (foot F u above it, raised R u, full size / a low ceiling: K %); it
+// came out A u above the floor (its own height H u): lifted L u / left as it was; AI state S step T, animation N; unseen W s
+// before (it came out of a wall by itself)"   (no floor: "its tar portal: no floor found under it (as laid out)")
+static int FiArriveText(const FiArrive *a, char *out, size_t n)
+{
+    char fl[96], tail[96], lf[32];
+    int w;
+    if (!out || n < 2) return 0;
+    if (a->lift > 0.0f) _snprintf_s(lf, sizeof lf, _TRUNCATE, "lifted %.0f u", a->lift);
+    else _snprintf_s(lf, sizeof lf, _TRUNCATE, "left as it was");
+    if (a->floorOk)
+        _snprintf_s(fl, sizeof fl, _TRUNCATE, "its tar portal on the floor (foot %.0f u above it, raised %.0f u, %s%.0f %%)",
+                    a->foot, a->raised, a->k < 0.999f ? "a low ceiling: " : "full size: ", 100.0f * a->k);
+    else
+        _snprintf_s(fl, sizeof fl, _TRUNCATE, "its tar portal: no floor found under it (as laid out)");
+    if (a->waited > 0.0f)
+        _snprintf_s(tail, sizeof tail, _TRUNCATE, "; unseen %.2f s before (it came out of a wall by itself)", a->waited);
+    else
+        tail[0] = 0;
+    if (a->rest > 0.0f && a->floorOk)
+        w = _snprintf_s(out, n, _TRUNCATE, "%08X (type %02X) arrives: %s; it came out %.0f u above the floor (its own height %.0f u): "
+                        "%s; AI state %X step %d, animation %d%s", a->id, a->type & 0xFF, fl, a->above, a->rest, lf,
+                        a->ai & 0xFFFF, a->step, a->anim, tail);
+    else
+        w = _snprintf_s(out, n, _TRUNCATE, "%08X (type %02X) arrives: %s; AI state %X step %d, animation %d%s", a->id, a->type & 0xFF,
+                        fl, a->ai & 0xFFFF, a->step, a->anim, tail);
     if (w < 0) {
         out[n - 1] = 0;
         return (int)n - 1;

@@ -6,6 +6,9 @@
 // clear column between the title and the description, the ghost's lower half behind the cabinet, the figure hot in
 // Thermal, the ghost's glow additive and brighter than its own look), the soul fire (sprites at the chest, both batches).
 // Usage: build_pv_test.cmd [--dump DIR] (writes pv_scene.txt for tools\pv_mockup.py)
+// v3.59 PV359: F7 frames (the capture rule with f7), the picture's layers on the page, the Shadows page by Preview, the layer
+// files (pvlayer_sim.h: lossless, the bound, every refusal, the stamp, the paths); writes out\pv359_sample.* for
+// tools\pvlayer_check.py.
 #define _CRT_SECURE_NO_WARNINGS
 #include <stdio.h>
 #include <stdlib.h>
@@ -383,12 +386,14 @@ static void TestStrength358(void)
 static void TestStockFile(void)
 {
     static const char *const kAt[] = { "../../../preview_user_F7_2026-11-26_2338.dds", "../../../../preview_user_F7_2026-11-26_2338.dds",
-                                         "../../preview_user_F7_2026-11-26_2338.dds" };  // v3.58 merge: + merge358/test
+                                         "../../preview_user_F7_2026-11-26_2338.dds",  // v3.58 merge: + merge358/test
+                                         "../../../../v358_feedback/preview_user_F7_2026-11-26_2338.dds",  // v3.59 PV359: a v3.59 sandbox
+                                         "../staging/v358_feedback/preview_user_F7_2026-11-26_2338.dds" };  // v3.59 PV359: the real tree
     FILE *f = NULL;
     unsigned char *buf;
     long n;
     int i;
-    for (i = 0; i < 3 && !f; ++i) f = fopen(kAt[i], "rb");  // v3.58 merge: 3 places
+    for (i = 0; i < (int)(sizeof kAt / sizeof kAt[0]) && !f; ++i) f = fopen(kAt[i], "rb");  // v3.58 merge: 3 places  // v3.59 PV359: 5
     if (!f) {
         printf("(the user's F7 picture is not beside this sandbox: its parse is not checked)\n");
         return;
@@ -404,7 +409,202 @@ static void TestStockFile(void)
         const char *why = TpDdsParse(buf, (size_t)n, &d);
         CHECK(!why && d.w == 1280 && d.h == 720 && d.fmt == TP_FMT_X8R8G8B8 && d.levels == 1 && n == 128 + 1280 * 720 * 4,
               "the user's F7 picture is a 1280 x 720 X8R8G8B8 DDS as F7 writes (%s; %ux%u, %ld bytes)", why ? why : "ok", d.w, d.h, n);
+        CHECK(PvlPicStamp(buf, (size_t)n, NULL, NULL) == 0, "v3.59 PV359: the user's stock picture (v3.58's F7) has no stamp: its layers come with a new F7 shot");
         free(buf);
+    }
+}
+// ---------------------------------------------------------------- v3.59 PV359: F7's layers, the picture layers, the Shadows page
+static void TestF7Capture359(void)
+{
+    PvCapIn in = Cap();
+    int why;
+    in.capture = 0, in.f7 = 1;  // an F7 frame: play, not the capture frame
+    CHECK(PvNeed(&in) == (PVL_HEAT | PVL_SPIRIT) && PvCollectMask(&in) == (PVL_HEAT | PVL_SPIRIT),
+          "v3.59: an F7 frame in play needs and collects both layers (as a capture frame)");
+    CHECK(PvCaptureMask(&in, 1, 1, 1, &why) == (PVL_HEAT | PVL_SPIRIT) && why == PVW_OK, "v3.59: F7's mask: both");
+    in.heatLive = 1;
+    CHECK(PvCollectMask(&in) == PVL_SPIRIT, "v3.59: F7 under a live Thermal: the live pass collects the bodies (never twice)");
+    in.heatLive = 0, in.phase = 1;
+    CHECK(PvNeed(&in) == 0 && !PvCaptureMask(&in, 1, 1, 1, &why) && why == PVW_NOTPLAY, "v3.59: F7 is play only (phase 0): a cut-scene frame takes none");
+    in.phase = 2;
+    CHECK(PvNeed(&in) == 0, "v3.59: F7 in a pause: none");
+    in = Cap(), in.capture = 0, in.f7 = 0;
+    CHECK(PvNeed(&in) == 0 && PvCollectMask(&in) == 0, "v3.59: an ordinary frame (no F7, no capture): nothing collected");
+    in = Cap(), in.f7 = 1, in.capture = 0, in.on = 0;
+    CHECK(!PvF7CanLayer(&in, &why) && why == PVW_OFF, "v3.59: PreviewLayers=0: F7 takes the picture at once, alone");
+    in.on = 1, in.shOn = 0;
+    CHECK(!PvF7CanLayer(&in, &why) && why == PVW_NOTARGETS, "v3.59: no device-reset hook: F7's picture alone");
+    in.shOn = 1, in.fails = PV_FAILS_OFF;
+    CHECK(!PvF7CanLayer(&in, &why) && why == PVW_FAILED, "v3.59: the layers off after failures: F7's picture alone");
+    in.fails = 0, in.heatOk = in.edgesOk = 0;
+    CHECK(!PvF7CanLayer(&in, &why) && why == PVW_EMPTY, "v3.59: no heat redraw and no Spirit Vision shaders: F7's picture alone");
+    in.heatOk = 1, in.f7 = 0, in.capture = 1;
+    CHECK(PvF7CanLayer(&in, &why) && why == PVW_OK, "v3.59: F7 can arm in play (the press frame's own capture flag does not matter)");
+    CHECK(PvF7When(0, 5, 5) == PVF7_NONE && PvF7When(1, 5, 5) == PVF7_NOW && PvF7When(1, 5, 6) == PVF7_LATE &&
+          PvF7When(1, 5, 9) == PVF7_LATE && PvF7When(1, 5, 4) == PVF7_LATE, "v3.59: an armed press is taken in its frame only");
+}
+static void TestPage359(void)
+{
+    PvPageIn p;
+    memset(&p, 0, sizeof p);
+    p.back = PVB_STOCKPIC, p.thermal = 1, p.picHeat = 1;
+    CHECK(PvPageLayer(&p) == PVP_PIC_HEAT, "v3.59: the stock picture under Thermal with its heat file: the picture's heat layer");
+    p.thermal = 0, p.spirit = 1;
+    CHECK(PvPageLayer(&p) == PVP_NONE, "v3.59: Spirit Vision with only a heat file loaded: none");
+    p.picSpirit = 1;
+    CHECK(PvPageLayer(&p) == PVP_PIC_SPIRIT, "v3.59: Spirit Vision with its spirit file: the picture's spirit layer");
+    p.back = PVB_PICTURE;
+    CHECK(PvPageLayer(&p) == PVP_PIC_SPIRIT, "v3.59: PreviewImage (F7's picture) has its own layers too");
+    p.spirit = 0;
+    CHECK(PvPageLayer(&p) == PVP_NONE, "v3.59: CRT, Night Vision, Night Mono ...: no layer over the picture (no per-body parts)");
+    p.back = PVB_PAUSE, p.thermal = 1, p.layersSeq = p.picSeq = 4;
+    CHECK(PvPageLayer(&p) == PVP_NONE, "v3.59: a pause never uses the picture's files (its own layers only)");
+    p.back = PVB_OFF;
+    CHECK(PvPageLayer(&p) == PVP_NONE, "v3.59: Preview Off: none");
+    CHECK(PvPicLayerWanted(PVB_STOCKPIC, 1, 0) == PVLK_HEAT && PvPicLayerWanted(PVB_PICTURE, 0, 1) == PVLK_SPIRIT &&
+          !PvPicLayerWanted(PVB_STOCKPIC, 0, 0) && !PvPicLayerWanted(PVB_PAUSE, 1, 0) && !PvPicLayerWanted(PVB_SCENE, 0, 1) &&
+          !PvPicLayerWanted(PVB_OFF, 1, 0) && !PvPicLayerWanted(PVB_STOCK, 1, 0), "v3.59: a file is asked only for a picture under Thermal / Spirit Vision");
+    CHECK(kPvPage[PVP_PIC_HEAT] && kPvPage[PVP_PIC_SPIRIT] && kPvPage[PVP_N - 1][0], "v3.59: the layer names");
+    // QA 11: the Shadows page by Preview
+    CHECK(PvShPage(PVM_OFF, 0) == PVSH_NONE && PvShPage(PVM_OFF, 1) == PVSH_NONE, "v3.59: the Shadows page: Off none");
+    CHECK(PvShPage(PVM_STOCK, 0) == PVSH_STILL && PvShPage(PVM_STOCK, 1) == PVSH_STILL,
+          "v3.59: Stock: the still picture alone, also over a paused game with its shadow");
+    CHECK(PvShPage(PVM_LIVE, 0) == PVSH_STILL, "v3.59 (the session): Live at the title menu / a pause without its shadow: the still picture alone");
+    CHECK(PvShPage(PVM_LIVE, 1) == PVSH_SPLIT, "v3.59: the split demonstration only over a live paused game's own shadow (Live)");
+}
+// a test picture of layer pixels: black with bodies (rects) and a soft edge, a lone black pixel inside, a last lit pixel
+static void LayerPix(PvlU32 *px, PvlU32 w, PvlU32 h, unsigned seed)
+{
+    PvlU32 x, y;
+    for (y = 0; y < h; ++y)
+        for (x = 0; x < w; ++x) {
+            PvlU32 v = 0xFF000000u;
+            if (x > w / 3 && x < w / 3 + w / 10 && y > h / 4 && y < h - h / 6) v = 0xFF000000u | (((x * 7 + y * 3 + seed) & 0xFF) << 16) | 0x2000u | (y & 0xFF);
+            if (x == w / 3 + 3 && y == h / 2) v = 0xFF000000u;  // a lone black pixel inside a body
+            if (x > 2 * w / 3 && x < 2 * w / 3 + 4 && (y & 7) == 1) v = 0x00010101u;  // dim and with alpha 0: stored as lit
+            px[y * w + x] = v;
+        }
+    px[w * h - 1] = 0xFF00FF00u;
+}
+static int LayerSame(const PvlU32 *a, const unsigned char *out, PvlU32 w, PvlU32 h, int pitch)
+{
+    PvlU32 x, y, v;
+    for (y = 0; y < h; ++y)
+        for (x = 0; x < w; ++x) {
+            memcpy(&v, out + (size_t)y * pitch + x * 4, 4);
+            if (v != (a[y * w + x] | 0xFF000000u)) return 0;
+        }
+    return 1;
+}
+static void TestLayerFile359(void)
+{
+    const PvlU32 w = 1280, h = 720, stamp = 0x1234ABCDu;
+    PvlU32 *px = (PvlU32 *)malloc((size_t)w * h * 4), lit = 0, x;
+    const size_t cap = PvlMaxBytes(w, h);
+    unsigned char *f = (unsigned char *)malloc(cap), *out = (unsigned char *)malloc((size_t)(w + 8) * h * 4), hdr[128];
+    size_t n, n2;
+    char p[260];
+    if (!px || !f || !out) {
+        CHECK(0, "memory");
+        return;
+    }
+    CHECK(PvlCrc32((const unsigned char *)"123456789", 9) == 0xCBF43926u, "v3.59: CRC-32 as zlib's (check value)");
+    LayerPix(px, w, h, 1);
+    n = PvlEncode(px, w, h, PVLK_HEAT, stamp, f, cap, &lit);
+    CHECK(n > PVL_HDR && n < (size_t)w * h * 4 / 4, "v3.59: a sparse heat layer is small (%u bytes of %u raw)", (unsigned)n, w * h * 4);
+    CHECK(lit > 0 && lit < w * h / 5, "v3.59: the lit pixels counted (%u)", lit);
+    CHECK(PvlCheck(f, n, PVLK_HEAT, w, h, stamp) == PVLR_OK, "v3.59: the file checks");
+    CHECK(PvlDecode(f, n, out, (int)(w + 8) * 4) && LayerSame(px, out, w, h, (int)(w + 8) * 4), "v3.59: lossless (decoded with a wider pitch)");
+    CHECK(PvlCheck(f, n, PVLK_SPIRIT, w, h, stamp) == PVLR_KIND, "v3.59: the other layer's file: refused");
+    CHECK(PvlCheck(f, n, PVLK_HEAT, 1280, 704, stamp) == PVLR_SIZE, "v3.59: not the picture's size: refused");
+    CHECK(PvlCheck(f, n, PVLK_HEAT, w, h, 0) == PVLR_NOSTAMP, "v3.59: a picture without a stamp (before v3.59): refused");
+    CHECK(PvlCheck(f, n, PVLK_HEAT, w, h, stamp + 1) == PVLR_STAMP, "v3.59: another F7 shot's layer: refused");
+    CHECK(PvlCheck(f, n - 4, PVLK_HEAT, w, h, stamp) == PVLR_DATA, "v3.59: truncated: refused");
+    CHECK(PvlCheck(f, 20, PVLK_HEAT, w, h, stamp) == PVLR_HEADER && PvlCheck(NULL, 0, PVLK_HEAT, w, h, stamp) == PVLR_HEADER,
+          "v3.59: shorter than the header: refused");
+    f[PVL_HDR + 9] ^= 0x40;
+    CHECK(PvlCheck(f, n, PVLK_HEAT, w, h, stamp) == PVLR_CRC, "v3.59: a changed byte: the CRC refuses it");
+    f[PVL_HDR + 9] ^= 0x40;
+    f[0] = 'X';
+    CHECK(PvlCheck(f, n, PVLK_HEAT, w, h, stamp) == PVLR_HEADER, "v3.59: not our magic: refused");
+    f[0] = 'P';
+    {   // runs past the end, with a matching CRC: the walk refuses them (the decoder is never run on them)
+        unsigned char *g = (unsigned char *)malloc(n);
+        if (g) {
+            memcpy(g, f, n);
+            PvlWr32(g + PVL_HDR, w * h);  // the first run alone covers the picture, then more pairs follow
+            PvlWr32(g + 28, PvlCrc32(g + PVL_HDR, (size_t)(n - PVL_HDR)));
+            CHECK(PvlCheck(g, n, PVLK_HEAT, w, h, stamp) == PVLR_DATA, "v3.59: runs past the picture: refused");
+            PvlWr32(g + PVL_HDR, 0), PvlWr32(g + PVL_HDR + 4, 0);  // an empty pair
+            PvlWr32(g + 28, PvlCrc32(g + PVL_HDR, (size_t)(n - PVL_HDR)));
+            CHECK(PvlCheck(g, n, PVLK_HEAT, w, h, stamp) == PVLR_DATA, "v3.59: an empty pair: refused (no endless walk)");
+            PvlWr32(g + 12, 4000), PvlWr32(g + 16, 4000);
+            CHECK(PvlCheck(g, n, PVLK_HEAT, 4000, 4000, stamp) == PVLR_HEADER, "v3.59: over %u pixels: refused", PVL_MAX_PIX);
+            free(g);
+        }
+    }
+    for (x = 0; x < w * h; ++x) px[x] = 0xFF000000u;  // all black: one pair
+    n2 = PvlEncode(px, w, h, PVLK_SPIRIT, stamp, f, cap, &lit);
+    CHECK(n2 == PVL_HDR + 8 && lit == 0 && PvlCheck(f, n2, PVLK_SPIRIT, w, h, stamp) == PVLR_OK && PvlDecode(f, n2, out, (int)w * 4) &&
+          LayerSame(px, out, w, h, (int)w * 4), "v3.59: an all-black layer: one run, 40 bytes");
+    for (x = 0; x < w * h; ++x) px[x] = (x & 1) ? 0xFF000000u : 0xFF102030u;  // the worst case: lone blacks between lit pixels
+    n2 = PvlEncode(px, w, h, PVLK_SPIRIT, stamp, f, cap, &lit);
+    CHECK(n2 > 0 && n2 <= cap && n2 <= PVL_HDR + (size_t)w * h * 4 + 16 && PvlCheck(f, n2, PVLK_SPIRIT, w, h, stamp) == PVLR_OK &&
+          PvlDecode(f, n2, out, (int)w * 4) && LayerSame(px, out, w, h, (int)w * 4), "v3.59: alternating pixels fit the raw size + 16 (%u)", (unsigned)n2);
+    for (x = 0; x < w * h; ++x) px[x] = (x % 3) ? 0xFF000000u : 0xFF405060u;  // pairs of blacks: many short pairs
+    n2 = PvlEncode(px, w, h, PVLK_HEAT, stamp, f, cap, &lit);
+    CHECK(n2 > 0 && n2 <= PVL_HDR + (size_t)w * h * 4 + 16 && PvlCheck(f, n2, PVLK_HEAT, w, h, stamp) == PVLR_OK &&
+          PvlDecode(f, n2, out, (int)w * 4) && LayerSame(px, out, w, h, (int)w * 4), "v3.59: one lit, two black: within the bound (%u)", (unsigned)n2);
+    px[w * h - 1] = 0xFF000000u, px[w * h - 2] = 0xFF777777u;  // a lone black last pixel
+    n2 = PvlEncode(px, w, h, PVLK_HEAT, stamp, f, cap, &lit);
+    CHECK(n2 > 0 && PvlCheck(f, n2, PVLK_HEAT, w, h, stamp) == PVLR_OK && PvlDecode(f, n2, out, (int)w * 4) && LayerSame(px, out, w, h, (int)w * 4),
+          "v3.59: a lone black last pixel");
+    CHECK(!PvlEncode(px, w, h, PVLK_HEAT, stamp, f, cap - 1, &lit), "v3.59: a buffer under PvlMaxBytes is refused, never overrun");
+    CHECK(!PvlEncode(px, 8, 8, PVLK_HEAT, stamp, f, cap, &lit) && !PvlEncode(px, w, h, 3, stamp, f, cap, &lit), "v3.59: too small / a bad kind: refused");
+    // the picture's stamp in its DDS header (FxPrevWrite) and the paths
+    memset(hdr, 0, sizeof hdr);
+    memcpy(hdr, "DDS ", 4), PvlWr32(hdr + 4, 124), PvlWr32(hdr + 12, h), PvlWr32(hdr + 16, w);
+    {
+        PvlU32 sw = 0, sh = 0;
+        CHECK(PvlPicStamp(hdr, 128, &sw, &sh) == 0 && sw == w && sh == h, "v3.59: a picture before v3.59: no stamp");
+        PvlPicTag(hdr, stamp);
+        CHECK(PvlPicStamp(hdr, 128, &sw, &sh) == stamp && PvlRd32(hdr + 32) == PVL_PIC_TAG, "v3.59: F7's picture carries its stamp");
+        CHECK(PvlPicStamp(hdr, 100, &sw, &sh) == 0 && PvlPicStamp(NULL, 128, &sw, &sh) == 0, "v3.59: a short header: no stamp");
+    }
+    CHECK(PvlPath("G:\\Games\\SH4\\SH4Refined_preview_stock.dds", PVLK_HEAT, p, sizeof p) && !strcmp(p, "G:\\Games\\SH4\\SH4Refined_preview_stock.heat"),
+          "v3.59: the stock picture's heat file (%s)", p);
+    CHECK(PvlPath("G:\\Games\\SH4\\preview.DDS", PVLK_SPIRIT, p, sizeof p) && !strcmp(p, "G:\\Games\\SH4\\preview.spirit"), "v3.59: .DDS any case (%s)", p);
+    CHECK(PvlPath("C:\\a.b\\pic", PVLK_HEAT, p, sizeof p) && !strcmp(p, "C:\\a.b\\pic.heat"), "v3.59: no extension: appended (%s)", p);
+    CHECK(PvlPath("C:\\x\\pic.png", PVLK_HEAT, p, sizeof p) && !strcmp(p, "C:\\x\\pic.png.heat"), "v3.59: another extension kept (%s)", p);
+    CHECK(!PvlPath("C:\\x\\pic.dds", PVLK_HEAT, p, 12) && !PvlPath("", PVLK_HEAT, p, sizeof p) && !PvlPath("a.dds", 0, p, sizeof p),
+          "v3.59: too long / empty / no kind: refused");
+    free(px), free(f), free(out);
+}
+// v3.59 PV359: a sample F7 set (picture + both layers) for tools\pvlayer_check.py (build_pv_test.cmd runs it)
+static void WriteSample359(const char *dir)
+{
+    const PvlU32 w = 320, h = 180, stamp = 0x0BADF00Du;
+    static PvlU32 px[320 * 180], dds[32];
+    static unsigned char f[32 + 320 * 180 * 4 + 16];
+    char p[300];
+    FILE *o;
+    size_t n;
+    int k;
+    memset(dds, 0, sizeof dds);
+    dds[0] = 0x20534444u, dds[1] = 124, dds[2] = 0x100F, dds[3] = h, dds[4] = w, dds[5] = w * 4, dds[19] = 32, dds[20] = 0x40, dds[22] = 32;
+    dds[23] = 0x00FF0000u, dds[24] = 0x0000FF00u, dds[25] = 0x000000FFu, dds[27] = 0x1000;
+    PvlPicTag((unsigned char *)dds, stamp);
+    sprintf(p, "%s/pv359_sample.dds", dir);
+    if ((o = fopen(p, "wb")) != NULL) {
+        for (k = 0; k < (int)(w * h); ++k) px[k] = 0xFF404040u;
+        fwrite(dds, 4, 32, o), fwrite(px, 4, w * h, o), fclose(o);
+    }
+    for (k = 1; k <= 2; ++k) {
+        LayerPix(px, w, h, (unsigned)k);
+        n = PvlEncode(px, w, h, (PvlU32)k, stamp, f, sizeof f, NULL);
+        sprintf(p, "%s/pv359_sample.%s", dir, kPvlKind[k]);
+        if (n && (o = fopen(p, "wb")) != NULL) fwrite(f, 1, n, o), fclose(o);
+        CHECK(n > 0, "v3.59: the sample %s layer written", kPvlKind[k]);
     }
 }
 int main(int argc, char **argv)
@@ -418,6 +618,10 @@ int main(int argc, char **argv)
     TestIni358();  // v3.58 PV358
     TestStrength358();
     TestStockFile();
+    TestF7Capture359();  // v3.59 PV359
+    TestPage359();
+    TestLayerFile359();
+    WriteSample359("out");  // (tools\pvlayer_check.py reads it: build_pv_test.cmd)
     if (argc > 2 && !strcmp(argv[1], "--dump")) Dump(argv[2]);
     printf("preview_sim_test: %d checks, %d failed\n", g_n, g_fail);
     return g_fail ? 1 : 0;

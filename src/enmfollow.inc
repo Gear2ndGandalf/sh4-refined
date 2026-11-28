@@ -28,6 +28,14 @@
 //         = v3.49: nothing restored.
 // [Gameplay] FollowSaveFile=0 (ini only) leaves both sites stock.
 
+// v3.59 EN359 (the user's v3.58 QA 7: "persistent enemies who follow me to another room disappear when I use quick save
+// then quick load"): a follower the Randomizer made as another type has no record in the save (its save filter, RZ349);
+// the snapshot keeps that record and its provenance in the side file (pursuit_sim.h EfKrS, an "EFS2" blob) and the load
+// puts them back (rzmon.inc RmKeptBack) before the room load, so the restore below finds the follower as on the Load Game
+// list path. One line a load: "followers restored N of M".
+static int RmStashGet(const void *dst, unsigned id, EfKrS *out);  // rzmon.inc (included after enemies.inc)
+static int RmKeptBack(const unsigned char *rec, int type, int variant, int stockType, int stockVariant, const char **why);
+static int g_efKrBack, g_efKrAll, g_efKrSaid;  // v3.59 EN359: this load's kept records put back / kept; said at the restore
 #define MSG_EF0 (MSG_V50 + 16)  // v3.50 EF350: this worker's ids (BRIEF_COMMON: V50 + 16 .. 31)
 enum { EFM_L, EFM_V0, EFM_D0 = EFM_V0 + EF_PURSUIT_N, EFM_NA = EFM_D0 + EF_PURSUIT_N, EFM_N };
 typedef char EfTextsFit[EFM_N <= 16 ? 1 : -1];
@@ -301,6 +309,16 @@ static void EfOnSnapshot(const BYTE *blk)
     int n, here = 0, i, wrote;
     EfCapture(&g_efCap);
     if (EfStateEmpty(&g_efCap)) return;  // (nobody pursues you: a load of this save is v3.49's, and nothing is lost)
+    {   // v3.59 EN359: the followers' records the save filter left out (taken from the save's own copy, before it cleared them)
+        int j;
+        for (j = 0; j < g_efCap.nPur + g_efCap.nQ && g_efCap.nKr < EF_KR_N; ++j) {
+            const unsigned id = j < g_efCap.nPur ? g_efCap.pur[j].id : g_efCap.q[j - g_efCap.nPur].id;
+            EfKrS *o = &g_efCap.kr[g_efCap.nKr];
+            int d, dup = 0;
+            for (d = 0; d < g_efCap.nKr; ++d) dup |= *(const unsigned *)(g_efCap.kr[d].rec + 0x20) == id;
+            if (!dup && RmStashGet(blk, id, o) && EfKrWanted(&g_efCap, id, *(const short *)(o->rec + 0x26))) ++g_efCap.nKr;
+        }
+    }
     EfKeyOf(&k, blk);
     g_efCap.key = k;
     EfStoreLoad();
@@ -311,9 +329,13 @@ static void EfOnSnapshot(const BYTE *blk)
     for (i = 0; i < g_efCap.nPur; ++i) here += (g_efCap.pur[i].flags & EFP_HERE) != 0;
     if (LogQuota(&g_efQuotaSave, 300))
         Log("enemies: follow save: kept for this save (stage %d room %d, game time %u, key %08X): %d pursuer(s) (%d here, %d "
-            "away), %d on their way here, %d ghost(s) let into this room, %d cop(ies) that followed you; side file %d entr(ies)%s",
+            "away), %d on their way here, %d ghost(s) let into this room, %d cop(ies) that followed you; side file %d entr(ies)%s%s",
             k.stage, k.room, k.time, k.crc, g_efCap.nPur, here, g_efCap.nPur - here, g_efCap.nQ, g_efCap.nTag, g_efCap.nCw,
-            EfStoreCount(), wrote ? "" : " (not written: kept for this session)");
+            EfStoreCount(), wrote ? "" : " (not written: kept for this session)",
+            g_efCap.nKr ? "; the records of randomized followers the save leaves out are kept with them" : "");  // v3.59 EN359
+        if (g_efCap.nKr && LogQuota(&g_efQuotaSave, 300))
+            LogV("enemies: follow save: %d record(s) of followers the Randomizer made as another type kept in the side file (the "
+                 "save holds none of them)", g_efCap.nKr);
 }
 static const DWORD g_efSaveFn = 0x465410, g_efLoadFn = 0x464740;  // EnemyManagerSave / EnemyManagerLoad (stock, checked)
 static void __cdecl EfMgrSave(void *dst)
@@ -350,6 +372,24 @@ static void EfOnApply(const EfKey *k)
         return;
     }
     e->stamp = ++g_efStamp;  // (the newest again: not evicted soon; the file keeps its stamp until the next write)
+    g_efKrBack = 0, g_efKrAll = g_efPend.nKr, g_efKrSaid = 0;  // v3.59 EN359: the kept records go back before any room load
+    {
+        const int monsters = EnmFollowTakesMonsters(g_enmFollow), victims = EnmFollowTakesVictims(g_enmFollow) && g_enmGhostOn;
+        int j;
+        for (j = 0; j < g_efPend.nKr; ++j) {
+            const EfKrS *kr = &g_efPend.kr[j];
+            const char *why = "";
+            const int ghost = EnmGhostType(*(const short *)(kr->rec + 0x24));
+            if (!(ghost ? victims : monsters)) why = "of a kind Enemies Follow takes no longer";
+            else if (RmKeptBack(kr->rec, kr->type, kr->variant, kr->stockType, kr->stockVariant, &why)) {
+                ++g_efKrBack;
+                continue;
+            }
+            if (LogQuota(&g_efQuotaLoad, 300))
+                LogV("enemies: follow load: the kept record of %08X (made as type %02X v%d) is not put back: %s",
+                     *(const unsigned *)(kr->rec + 0x20), kr->type, kr->variant, why);
+        }
+    }
     g_efPendOn = 1;
     ++g_efLoadsFound;
     if (LogQuota(&g_efQuotaLoad, 300))
@@ -394,12 +434,14 @@ static void EfRestoreAtLoad(int room)
             g_efPendOn = 0;
             Log("enemies: follow restore: the load went on to room %d:%d, not the saved %d:%d: its followers are not restored", stage,
                 room, s->key.stage, s->key.room);
+            Log("enemies: follow restore: followers restored 0 of %d (the load went to another room)", s->nPur + s->nQ);  // v3.59 EN359
         }
         return;
     }
     g_efPendOn = 0;
     if (!EnmFollowLive()) {
         Log("enemies: follow restore: Enemies Follow is off: this save's followers are not restored");
+        Log("enemies: follow restore: followers restored 0 of %d (Enemies Follow is off)", s->nPur + s->nQ);  // v3.59 EN359
         return;
     }
 #define EF_TAKES(copy, ghost) (((ghost) ? victims : monsters) && (!(copy) || copies))
@@ -492,6 +534,17 @@ static void EfRestoreAtLoad(int room)
         "%d ghost(s) let in, %d cop(ies) in the ledger; left out: %d without their record (the save filter, or gone), %d of a "
         "kind Enemies Follow %s takes no longer", stage, room, nPur, here, nPur - here, nQ, nTag, nCw, noRec, kind,
         kGpName[GP_FOLLOW][g_enmFollow >= 0 && g_enmFollow < ENM_FOLLOW_N ? g_enmFollow : 0]);
+    {   // v3.59 EN359: one line a load: the beings (pursuers, and those on their way not pursuing) back of those saved
+        int j, m = s->nPur, back = nPur;
+        for (j = 0; j < s->nQ; ++j) {
+            int d, dup = 0;
+            for (d = 0; d < s->nPur; ++d) dup |= s->pur[d].id == s->q[j].id;
+            if (!dup) ++m, back += EnmPursueFind(&g_enmPursue, s->q[j].id) != NULL;
+        }
+        Log("enemies: follow restore: followers restored %d of %d (%d of %d record(s) of randomized followers put back from the side "
+            "file)", back > m ? m : back, m, g_efKrBack, g_efKrAll);
+        g_efKrSaid = 1;
+    }
 }
 
 // ---------------------------------------------------------------- install (EnemiesInstall, after the core set)

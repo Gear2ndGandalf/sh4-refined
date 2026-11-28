@@ -52,6 +52,13 @@
 // the room's geometry off). A player nearer than 150 is a focus (dof_sim.h DOFF_CLOSE): on her, the far side only
 // (DofPlanFarOnly), no snap between the close and the ordinary focus; the room line counts the close frames, the first
 // close shot of a room is logged; the pause's preview drops the near side when its copy was taken close.
+// v3.59 DF359 (USER_FEEDBACK_v358: "Weaken Depth of Field Medium and High a bit. Add an Ultra parameter."; "Depth of Field
+// affects Spirit Vision."): Strength Low / Medium / High / Ultra, Medium and High a bit gentler, Ultra = v3.58's High
+// (dof_sim.h kDofRamp; the ini words stay, Ultra is new; a v3.45 .. v3.58 Medium / High is kept and the change logged once,
+// the marker DofStrengthV raised to 359). In a frame Spirit Vision draws its edge world, nothing is blurred (DofGateSpirit:
+// its world is built from the frame at 0x4EFBFD, after this hook; the blurred frame gave faded lines and false contours);
+// the Effects preview follows the page's Filter the same way. Hidden [ScreenEffects] DofSpirit=1: v3.58's order.
+// Plan: staging/v359_feedback/w2_dof/PLAN.md.
 #include "dof_sim.h"
 
 typedef HRESULT(STDMETHODCALLTYPE *DofSetRT_t)(void *, void *, void *);
@@ -65,6 +72,8 @@ static volatile LONG g_dofMode = DOF_OFF;   // [ScreenEffects] DepthOfField
 static volatile LONG g_dofStr = DOFS_MEDIUM;  // [ScreenEffects] DofStrength (v3.45 QS345: Medium = v3.44's Low, the default)
 static LONG g_snapDofMode, g_snapDofStr;    // as Options opened
 static int g_dofPrevOn = 1;                 // hidden [ScreenEffects] DofPreview (0: the page has no preview)
+static int g_dofSpiritKeep;                 // v3.59 DF359: hidden [ScreenEffects] DofSpirit=1: blur before Spirit Vision (v3.58)
+static int g_dofSpiritSeen;                 // v3.59 DF359: the first frame kept out of Spirit Vision was logged
 static int g_dofProbeOn = 1;                // hidden [ScreenEffects] DofProbe (0: no depth probe, every room on)
 static int g_dofLogN;                       // hidden [ScreenEffects] DofLog=1: the next 120 drawn frames logged in detail
 static int g_dofOn;                         // the frame hook and the reset chain are ours
@@ -157,8 +166,8 @@ static void DofSetStr(int v, int save)
             if (!WritePrivateProfileStringA("ScreenEffects", "DofStrength", kDofStrName[v], g_iniPath)) fail = "the value";
         } else if (order == DOFW_VALUE_MARK) {
             if (!WritePrivateProfileStringA("ScreenEffects", "DofStrength", kDofStrName[v], g_iniPath)) fail = "the value";
-            else if (WritePrivateProfileStringA("ScreenEffects", "DofStrengthV", DOF_STR_VER_S, g_iniPath)) g_dofStrMarked = 1;
-        } else if (!WritePrivateProfileStringA("ScreenEffects", "DofStrengthV", DOF_STR_VER_S, g_iniPath)) {
+            else if (WritePrivateProfileStringA("ScreenEffects", "DofStrengthV", DOF_STR_MARK_S, g_iniPath)) g_dofStrMarked = 1;  // v3.59 DF359: 359
+        } else if (!WritePrivateProfileStringA("ScreenEffects", "DofStrengthV", DOF_STR_MARK_S, g_iniPath)) {  // v3.59 DF359: 359
             fail = "the marker DofStrengthV (the value not written)";
         } else if (!WritePrivateProfileStringA("ScreenEffects", "DofStrength", kDofStrName[v], g_iniPath)) {
             const BOOL back = WritePrivateProfileStringA("ScreenEffects", "DofStrengthV", NULL, g_iniPath);  // taken back
@@ -1076,6 +1085,12 @@ static int DofDrawFrame(void *dev, int draw, int cap, float F, int strength, int
     if (!ok) return *fail = "a draw failed", 0;
     return 1;
 }
+// v3.59 DF359: Spirit Vision draws its edge world in this frame's scene pass 0x4EFBFD (or, failing that, at 0x55AC29):
+// screenfx.inc's own test (GvNoiseOff's, without its log). Read here, before the light grid, in the same frame.
+static int DofSpiritNow(void)
+{
+    return g_fxOn && g_spInstalled && g_fx[FX_FILTER] == FXF_GHOST && GvEdgesOk() && (FxSceneGate() || FxCaptureGate());
+}
 static void DofFrame(void *dev)
 {
     const int phase = *(volatile int *)0xFD5C20, capture = *(volatile int *)0x12E3E2C == 1, play = FxGameplay();
@@ -1092,7 +1107,13 @@ static void DofFrame(void *dev)
     g_dofLastT = t0.QuadPart;
     if (capture && play) g_dofCapSeen = g_fxFrame;  // the pause picture's frame: our copies are this pause's only if taken in it
     gate = DofGate(mode, play, phase, *(volatile int *)0xFD6C78 != 0, DofIsRoom302(room >> 16));
-    cap = capture && play && (phase == 0 || phase == 1) && g_dofRows && DofPreviewable() && g_dofCapFrame != g_fxFrame;
+    gate = DofGateSpirit(gate, gate == DOFG_ON && DofSpiritNow(), g_dofSpiritKeep);  // v3.59 DF359: Spirit Vision stays sharp
+    if (gate == DOFG_SPIRIT && !g_dofSpiritSeen) {  // v3.59 DF359: once a session (the room line counts the frames)
+        g_dofSpiritSeen = 1;
+        Log("depth of field: Spirit Vision draws: depth of field keeps out of it (its edge world, ghosts, auras and soul fires stay "
+            "sharp; the room line counts these frames as \"%s\"; [ScreenEffects] DofSpirit=1 blurs first, as v3.58)", kDofWhyNot[DOFN_SPIRIT]);
+    }
+    cap =capture && play && (phase == 0 || phase == 1) && g_dofRows && DofPreviewable() && g_dofCapFrame != g_fxFrame;
     if (play) DofRoomTick(room);
     if (gate == DOFG_OFF && !cap) {  // Off: our targets go when the address space runs low (else kept for the next use)
         if ((g_dofFull.tex || g_dofBand.tex) && !FxPageShown() && phase != 2 && DofVaMarginMb() < DOF_KEEP_MARGIN_MB) {
@@ -1242,6 +1263,7 @@ static int DofMode(int *why)
     in.pausedGame = FxGameplay() && *(volatile int *)0xFD5C20 == 2 && g_fxPrevPause;
     in.haveCopy = g_dofCapOk && g_dofCapFrame == g_dofCapSeen && g_dofFull.tex && g_dofUp.tex && g_dofFull.w == (int)FxW() && g_dofFull.h == (int)FxH();
     in.haveDepth = g_dofBandOk && g_dofBand.tex && g_dofBandW == g_dofFull.w && g_dofBandH == g_dofFull.h;
+    in.spirit = !g_dofSpiritKeep && g_fx[FX_FILTER] == FXF_GHOST && GvEdgesOk();  // v3.59 DF359: the page's Filter, as in play
     return DofPreviewMode(&in, why);
 }
 static void DofFxPreview(void)
@@ -1343,7 +1365,7 @@ static void DofInstall(void)
         g_dofStrMarked = marker >= DOF_STR_VER;
         if (g_iniFallback) rewrite = mark = 0;
         if (v < 0) {
-            if (buf[0]) Log("depth of field: [ScreenEffects] DofStrength=%s is not a value (Low, Medium, High): Medium", buf);
+            if (buf[0]) Log("depth of field: [ScreenEffects] DofStrength=%s is not a value (Low, Medium, High, Ultra): Medium", buf);  // v3.59 DF359: + Ultra
             v = DOFS_MEDIUM;
         }
         if (rewrite) {
@@ -1351,17 +1373,35 @@ static void DofInstall(void)
             if (!ok) mark = 0;  // not marked: the next start tries again (a "Medium" written reads as Medium either way)
             Log("depth of field: [ScreenEffects] DofStrength=%s (v3.43 / v3.44) is v3.45's %s (the same look; v3.45 has a new, gentler "
                 "Low): %s%s%s", buf, kDofStrName[v], ok ? "written as " : "could not be written to SH4Refined.ini (used for this start)",
-                ok ? kDofStrName[v] : "", ok ? " (marker DofStrengthV=" DOF_STR_VER_S ")" : "");
+                ok ? kDofStrName[v] : "", ok ? " (marker DofStrengthV=" DOF_STR_MARK_S ")" : "");
         }
         if (mark) {
-            const BOOL ok = WritePrivateProfileStringA("ScreenEffects", "DofStrengthV", DOF_STR_VER_S, g_iniPath);
+            const BOOL ok = WritePrivateProfileStringA("ScreenEffects", "DofStrengthV", DOF_STR_MARK_S, g_iniPath);
             if (ok) g_dofStrMarked = 1;  // v3.45 QS345-03
             if (!ok || !rewrite)
-                Log("depth of field: [ScreenEffects] DofStrength=%s read as %s; the marker DofStrengthV=" DOF_STR_VER_S " %s", buf,
+                Log("depth of field: [ScreenEffects] DofStrength=%s read as %s; the marker DofStrengthV=" DOF_STR_MARK_S " %s", buf,
                     kDofStrName[v], ok ? "was written (once: a later Low stays Low)" : "could not be written");
+        }
+        {   // v3.59 DF359: a value v3.45 .. v3.58 wrote (marker 345 .. 358): kept as it reads (High = the new, gentler High;
+            // Ultra = the old High), the change logged once and the marker raised (a failure: noted again at the next start)
+            // (a v3.43 / v3.44 value, mark: the migration above wrote the marker already; under the fallback nothing is written)
+            int note = 0;
+            const int stale = DofStrNotice(marker, v, buf[0] != 0, &note);
+            const int raise = !g_iniFallback && !mark && stale;
+            if (g_iniFallback) note = 0;
+            if (note)
+                Log("depth of field: [ScreenEffects] DofStrength=%s: kept; v3.59's %s is a bit gentler than before (Ultra is v3.58's "
+                    "High)", buf, kDofStrName[v]);
+            if (raise) {
+                const BOOL ok = WritePrivateProfileStringA("ScreenEffects", "DofStrengthV", DOF_STR_MARK_S, g_iniPath);
+                if (!ok || note)
+                    Log("depth of field: the marker DofStrengthV=%d -> " DOF_STR_MARK_S " %s", marker,
+                        ok ? "written (not noted again)" : "could not be written (tried again at the next start)");
+            }
         }
     }
     g_dofStr = v;
+    g_dofSpiritKeep = GetPrivateProfileIntA("ScreenEffects", "DofSpirit", 0, g_iniPath) != 0;  // v3.59 DF359 (hidden)
     g_dofPrevOn = GetPrivateProfileIntA("ScreenEffects", "DofPreview", 1, g_iniPath) != 0;
     g_dofProbeOn = GetPrivateProfileIntA("ScreenEffects", "DofProbe", 1, g_iniPath) != 0;
     g_dofLogN = GetPrivateProfileIntA("ScreenEffects", "DofLog", 0, g_iniPath) ? 120 : 0;
@@ -1395,7 +1435,11 @@ static void DofInstall(void)
         "DepthOfField %s, Strength %s; probe %s; preview %s", g_dofResetNext, kDofModeName[(int)g_dofMode], kDofStrName[(int)g_dofStr],
         g_dofProbeOn ? "on (once per room)" : "off ([ScreenEffects] DofProbe=0)",
         !g_dofPrevOn ? "off ([ScreenEffects] DofPreview=0)" : g_fxPrevHook ? "on (the Screen Effects page, 0x526A53)" : "off (no page backdrop hook)");
-    LogV("depth of field: the blur eases in: Low %d far + %d near slices, Medium %d + %d, High %d + %d (a quarter level each, the "
-         "ramps centred on v3.46's steps)", DofRampN(DOFS_LOW, DOF_FAR), DofRampN(DOFS_LOW, DOF_NEAR), DofRampN(DOFS_MEDIUM, DOF_FAR),
-         DofRampN(DOFS_MEDIUM, DOF_NEAR), DofRampN(DOFS_HIGH, DOF_FAR), DofRampN(DOFS_HIGH, DOF_NEAR));  // v3.47 DF347
+    LogV("depth of field: the blur eases in: Low %d far + %d near slices, Medium %d + %d, High %d + %d, Ultra %d + %d (a quarter "
+         "level each; Low and Ultra centred on v3.46's steps, Medium and High a bit gentler)", DofRampN(DOFS_LOW, DOF_FAR),
+         DofRampN(DOFS_LOW, DOF_NEAR), DofRampN(DOFS_MEDIUM, DOF_FAR), DofRampN(DOFS_MEDIUM, DOF_NEAR), DofRampN(DOFS_HIGH, DOF_FAR),
+         DofRampN(DOFS_HIGH, DOF_NEAR), DofRampN(DOFS_ULTRA, DOF_FAR), DofRampN(DOFS_ULTRA, DOF_NEAR));  // v3.47 DF347  // v3.59 DF359: + Ultra
+    if (g_dofSpiritKeep)  // v3.59 DF359
+        Log("depth of field: [ScreenEffects] DofSpirit=1: the blur is drawn under Spirit Vision too (v3.58's order: its edge world "
+            "is built from the blurred frame)");
 }

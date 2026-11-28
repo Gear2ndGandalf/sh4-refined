@@ -33,10 +33,27 @@ static void TestParse(void)
           DofParseStrength("0", 0) == DOFS_LOW && DofParseStrength("1", 0) == DOFS_MEDIUM && DofParseStrength("2", 0) == DOFS_HIGH, "strength");
     CHECK(DofParseStrength("Low", 1) == DOFS_MEDIUM && DofParseStrength("0", 1) == DOFS_MEDIUM && DofParseStrength("High", 1) == DOFS_HIGH &&
           DofParseStrength("1", 1) == DOFS_HIGH && DofParseStrength("Medium", 1) == DOFS_MEDIUM, "strength, legacy");
-    CHECK(DofParseStrength("Strong", 0) == -1 && DofParseStrength("", 0) == -1 && DofParseStrength(NULL, 0) == -1 && DofParseStrength("3", 1) == -1,
+    CHECK(DofParseStrength("Strong", 0) == -1 && DofParseStrength("", 0) == -1 && DofParseStrength(NULL, 0) == -1 && DofParseStrength("4", 1) == -1,
           "strength not values");
-    CHECK(DOFS_N == 3 && !strcmp(kDofStrName[DOFS_LOW], "Low") && !strcmp(kDofStrName[DOFS_MEDIUM], "Medium") && !strcmp(kDofStrName[DOFS_HIGH], "High"),
-          "strength names");
+    CHECK(DOFS_N == 4 && !strcmp(kDofStrName[DOFS_LOW], "Low") && !strcmp(kDofStrName[DOFS_MEDIUM], "Medium") && !strcmp(kDofStrName[DOFS_HIGH], "High") &&
+          !strcmp(kDofStrName[DOFS_ULTRA], "Ultra"), "strength names (v3.59 DF359: + Ultra)");
+    // v3.59 DF359: Ultra (or 3) is new and has no legacy meaning; High stays the word for the (new) High
+    CHECK(DofParseStrength("Ultra", 0) == DOFS_ULTRA && DofParseStrength("ULTRA", 1) == DOFS_ULTRA && DofParseStrength("3", 0) == DOFS_ULTRA &&
+          DofParseStrength("3", 1) == DOFS_ULTRA && DofParseStrength("Ultr", 0) == -1 && DofParseStrength("Ultras", 0) == -1, "Ultra");
+    CHECK(DofParseStrength("High", 0) == DOFS_HIGH && DofParseStrength(kDofStrName[DOFS_HIGH], DOF_STR_MARK) == DOFS_HIGH,
+          "v3.59 DF359: a stored High reads as the new High (no migration)");
+    {   // v3.59 DF359: the start's note and the marker raise
+        int note, k;
+        CHECK(DofStrNotice(345, DOFS_HIGH, 1, &note) && note, "a v3.58 High: noted, marker raised");
+        CHECK(DofStrNotice(345, DOFS_MEDIUM, 1, &note) && note, "a v3.58 Medium: noted");
+        CHECK(DofStrNotice(345, DOFS_LOW, 1, &note) && !note, "a v3.58 Low (unchanged): marker raised, no note");
+        CHECK(DofStrNotice(345, DOFS_MEDIUM, 0, &note) && !note, "no value in the ini (the default Medium): no note");
+        CHECK(!DofStrNotice(DOF_STR_MARK, DOFS_HIGH, 1, &note) && !note, "a v3.59 ini: nothing to do");
+        CHECK(!DofStrNotice(400, DOFS_HIGH, 1, &note) && !note, "a later marker: nothing to do");
+        CHECK(DofStrNotice(0, DOFS_HIGH, 1, &note) && note, "no marker (the caller's legacy path writes it): noted");
+        for (k = 0; k < DOFS_N; ++k) CHECK(DofStrWriteOrder(k, 0) == (k == DOFS_LOW ? DOFW_MARK_VALUE : DOFW_VALUE_MARK), "write order %d", k);
+        CHECK(DOF_STR_MARK >= DOF_STR_VER, "the new marker is not legacy (a v3.58 reading it keeps Low as Low)");
+    }
     {   // the one-time migration
         int rw, mk, v;
         v = DofStrMigrate("Low", 0, &rw, &mk);  // the user's v3.44 ini
@@ -67,9 +84,12 @@ static void TestParse(void)
 // v3.46's tables (the steps the ramps are centred on): far ratios, near ratios, the whole level of each code
 static const float kV346FarR[5] = { 1.25f, 1.6f, 2.2f, 3.2f, 5.0f };
 static const float kV346NearR[2] = { 0.7f, 0.5f };
-static const unsigned char kV346Lv[DOFS_N][11] = {
+static const unsigned char kV346Lv[3][11] = {  // v3.59 DF359: v3.46's Low / Medium / High (not indexed by DOFS_*)
     { 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 1 }, { 0, 0, 1, 1, 2, 2, 0, 0, 0, 0, 1 }, { 0, 1, 2, 3, 3, 3, 0, 0, 0, 1, 2 } };
-static int V346Level(int s, float r)  // v3.46's whole level at w / F = r
+// v3.59 DF359: the v3.46 row a strength's ramps are centred on: Low on v3.46's Low, Ultra (v3.58's High) on its High;
+// the gentler Medium and High have none (-1: TestStrength measures them against v3.58's tables instead)
+static int V346Of(int s) { return s == DOFS_LOW ? 0 : s == DOFS_ULTRA ? 2 : -1; }
+static int V346Level(int s, float r)  // v3.46's whole level at w / F = r (s: a kV346Lv row)
 {
     int k, code = 0;
     for (k = 1; k <= 5; ++k)
@@ -78,7 +98,7 @@ static int V346Level(int s, float r)  // v3.46's whole level at w / F = r
         if (r < kV346NearR[k - 1]) code = 8 + k;
     return kV346Lv[s][code];
 }
-static float V346Step(int s, int side, int L)  // the ratio where v3.46 reached level L on a side (0: never)
+static float V346Step(int s, int side, int L)  // the ratio where v3.46 reached level L on a side (0: never; s: a kV346Lv row)
 {
     int k;
     if (side == DOF_FAR) {
@@ -107,20 +127,21 @@ static void TestTables(void)
     for (s = 0; s < DOFS_N; ++s)
         for (sd = 0; sd < DOF_SIDES; ++sd) {
             const DofRampT *r = &kDofRamp[s][sd];
-            CHECK(r->n >= DOF_Q && r->n <= DOF_SIDE_N && r->n % DOF_Q == 0, "%s %s: whole levels of quarter steps (%d)", kDofStrName[s],
+            // v3.59 DF359: a ramp may end between two levels (Medium 6, High 11 / 7); Low and Ultra end on whole levels
+            CHECK(r->n >= DOF_Q && r->n <= DOF_SIDE_N && (V346Of(s) < 0 || r->n % DOF_Q == 0), "%s %s: quarter steps (%d)", kDofStrName[s],
                   kDofSideName[sd], r->n);
-            CHECK(r->n / DOF_Q <= DOF_LEVELS, "%s %s: at most the eighth level", kDofStrName[s], kDofSideName[sd]);
+            CHECK(r->n <= DOF_LEVELS * DOF_Q, "%s %s: at most the eighth level", kDofStrName[s], kDofSideName[sd]);
             for (c = 0; c < r->n; ++c) {
                 CHECK(sd == DOF_FAR ? r->g[c] > 0 : r->g[c] < 0, "%s %s slice %d on its side of the focus", kDofStrName[s], kDofSideName[sd], c + 1);
                 if (c) CHECK(sd == DOF_FAR ? r->g[c] > r->g[c - 1] : r->g[c] < r->g[c - 1], "%s %s: the slices go outwards", kDofStrName[s],
                              kDofSideName[sd]);
                 CHECK(DofCodeQ(s, sd, c + 1) == c + 1, "code c = c quarters");
             }
-            // the same deepest level as v3.46 on both sides
-            {
+            // the same deepest level as v3.46 on both sides (v3.59 DF359: Low and Ultra; Medium / High: TestStrength)
+            if (V346Of(s) >= 0) {
                 int Lmax = 0, L;
                 for (L = 1; L <= DOF_LEVELS; ++L)
-                    if (V346Step(s, sd, L) > 0.0f) Lmax = L;
+                    if (V346Step(V346Of(s), sd, L) > 0.0f) Lmax = L;
                 CHECK(r->n / DOF_Q == Lmax, "%s %s: reaches v3.46's deepest level %d (%d)", kDofStrName[s], kDofSideName[sd], Lmax, r->n / DOF_Q);
             }
         }
@@ -131,16 +152,16 @@ static void TestTables(void)
     CHECK(DofLevelLo(1, 0) == 0 && DofLevelLo(2, 0) == 1 && DofLevelLo(5, 0) == 1 && DofLevelLo(6, 0) == 2 && DofLevelLo(12, 0) == 3 &&
           DofLevelLo(15, 0) == 3, "no blend: the nearest whole level");
     CHECK(fabsf(DofGridR(24) - 2.0f) < 1e-5f && fabsf(DofGridR(-24) - 0.5f) < 1e-6f && DofGridR(0) == 1.0f, "the grid: 24 steps an octave");
-    // the strengths stay ordered: at every distance Low <= Medium <= High
+    // the strengths stay ordered: at every distance Low <= Medium <= High <= Ultra (v3.59 DF359: + Ultra)
     {
         int bad = 0, i;
         for (i = -60; i <= 70; ++i) {
             const float r = DofGridR(i) * 1.0001f;
             int q[DOFS_N];
             for (s = 0; s < DOFS_N; ++s) q[s] = WantCode(s, DOF_FAR, 1000.0f, 1000.0f * r) + WantCode(s, DOF_NEAR, 1000.0f, 1000.0f * r);
-            if (q[0] > q[1] || q[1] > q[2]) ++bad;
+            if (q[0] > q[1] || q[1] > q[2] || q[2] > q[3]) ++bad;
         }
-        CHECK(!bad, "Low <= Medium <= High at every distance (%d misses)", bad);
+        CHECK(!bad, "Low <= Medium <= High <= Ultra at every distance (%d misses)", bad);
     }
 }
 
@@ -188,24 +209,31 @@ static void TestPlan(void)
             CHECK(!bad, "the marking gives the asked code everywhere (F %.0f %s: %d misses)", F, kDofStrName[s], bad);
             CHECK(pl.maxLevel >= 1 && pl.maxLevel <= DOF_LEVELS && (pl.levels & 1u) == 0, "levels");
         }
-    {   // Medium at 1000: far 8 slices from 1414 (2^(12/24)), near 4 from 561 (2^(-20/24)); half and quarter size
+    {   // v3.59 DF359: Medium at 1000: far 6 slices from 1587 (2^(16/24)), near 4 from 561 (2^(-20/24)); half size, the quarter
+        // size blended in up to a half
         DofPlanT pl;
         DofMakePlan(1000.0f, p22, p32, DOFS_MEDIUM, &pl);
-        CHECK(pl.side[DOF_FAR].n == 8 && pl.side[DOF_NEAR].n == 4 && pl.n == 12, "Medium's slices (%d + %d)", pl.side[0].n, pl.side[1].n);
-        CHECK(fabsf(pl.side[DOF_FAR].s[0].w - 1414.21f) < 0.1f && fabsf(pl.side[DOF_NEAR].s[0].w - 561.23f) < 0.1f, "Medium's first depths (%.2f %.2f)",
+        CHECK(pl.side[DOF_FAR].n == 6 && pl.side[DOF_NEAR].n == 4 && pl.n == 10, "Medium's slices (%d + %d)", pl.side[0].n, pl.side[1].n);
+        CHECK(fabsf(pl.side[DOF_FAR].s[0].w - 1587.40f) < 0.1f && fabsf(pl.side[DOF_NEAR].s[0].w - 561.23f) < 0.1f, "Medium's first depths (%.2f %.2f)",
               pl.side[DOF_FAR].s[0].w, pl.side[DOF_NEAR].s[0].w);
-        CHECK(pl.maxLevel == 2 && pl.levels == 6u, "Medium uses the half and quarter levels");
+        CHECK(pl.maxLevel == 2 && pl.levels == 6u && pl.side[DOF_FAR].maxQ == 6, "Medium uses the half and (blended) quarter levels");
         DofMakePlan(1000.0f, p22, p32, DOFS_LOW, &pl);
         CHECK(pl.side[DOF_FAR].n == 4 && pl.side[DOF_NEAR].n == 4 && pl.maxLevel == 1 && pl.levels == 2u, "Low: half size only");
         DofMakePlan(1000.0f, p22, p32, DOFS_HIGH, &pl);
-        CHECK(pl.n == 20 && pl.maxLevel == 3 && pl.levels == 14u, "High: 12 + 8 slices, all three levels");
+        CHECK(pl.n == 18 && pl.maxLevel == 3 && pl.levels == 14u && pl.side[DOF_FAR].maxQ == 11 && pl.side[DOF_NEAR].maxQ == 7,
+              "v3.59 DF359 High: 11 + 7 slices, the eighth blended in at 75 %%");
+        DofMakePlan(1000.0f, p22, p32, DOFS_ULTRA, &pl);
+        CHECK(pl.n == 20 && pl.maxLevel == 3 && pl.levels == 14u, "Ultra (v3.58's High): 12 + 8 slices, all three levels");
     }
     {   // a far focus: slices past the far plane are dropped, near ones remain
         DofPlanT pl;
-        DofMakePlan(20000.0f, p22, p32, DOFS_HIGH, &pl);
+        DofMakePlan(20000.0f, p22, p32, DOFS_ULTRA, &pl);
         for (sd = 0; sd < DOF_SIDES; ++sd)
             for (i = 0; i < pl.side[sd].n; ++i) CHECK(pl.side[sd].s[i].w < kF, "no slice past the far plane");
-        CHECK(pl.side[DOF_FAR].n == 8 && pl.side[DOF_NEAR].n == 8, "F 20000 High: 8 far (up to 2^(20/24)) + 8 near (%d %d)", pl.side[0].n,
+        CHECK(pl.side[DOF_FAR].n == 8 && pl.side[DOF_NEAR].n == 8, "F 20000 Ultra: 8 far (up to 2^(20/24)) + 8 near (%d %d)", pl.side[0].n,
+              pl.side[1].n);
+        DofMakePlan(20000.0f, p22, p32, DOFS_HIGH, &pl);
+        CHECK(pl.side[DOF_FAR].n == 7 && pl.side[DOF_NEAR].n == 7, "F 20000 High: 7 far (up to 2^(22/24)) + 7 near (%d %d)", pl.side[0].n,
               pl.side[1].n);
         DofMakePlan(20000.0f, p22, p32, DOFS_LOW, &pl);
         CHECK(pl.side[DOF_FAR].n == 1 && pl.side[DOF_NEAR].n == 4, "F 20000 Low: 1 far + 4 near");
@@ -253,7 +281,7 @@ static void TestEase(void)
                         if (cross[L] == 0.0f && b >= (float)L / (float)DOF_Q - 1e-6f) cross[L] = r;
                     if (i) {
                         const float dOct = 3.0f / (float)N * (sd == DOF_FAR ? 1.0f : 2.0f / 3.0f);
-                        area += b * dOct, area346 += (float)V346Level(s, r) * dOct;
+                        area += b * dOct, area346 += V346Of(s) >= 0 ? (float)V346Level(V346Of(s), r) * dOct : 0.0f;
                     }
                     prev = b;
                 }
@@ -261,8 +289,8 @@ static void TestEase(void)
                 CHECK(maxStep <= (blend ? 0.25f : 1.0f) + 1e-6f, "%s %s blend %d: no step larger than %s (%.2f)", kDofStrName[s],
                       kDofSideName[sd], blend, blend ? "a quarter level" : "a level", maxStep);
                 CHECK(first > 0, "%s %s: sharp at the focus", kDofStrName[s], kDofSideName[sd]);
-                for (L = 1; L <= DOF_LEVELS; ++L) {  // each level's ramp centred within 0.1 octave of v3.46's step
-                    const float old = V346Step(s, sd, L);
+                for (L = 1; L <= DOF_LEVELS && V346Of(s) >= 0; ++L) {  // each level's ramp centred within 0.1 octave of v3.46's step
+                    const float old = V346Step(V346Of(s), sd, L);
                     float c = 0.0f;
                     int k, have = 1;
                     if (old <= 0.0f) {
@@ -283,12 +311,13 @@ static void TestEase(void)
                           kDofSideName[sd], blend, L, old, have ? powf(2.0f, c) : 0.0f);
                 }
                 // (without the blend shader, a fallback, each whole step sits at the ramp's second quarter: a little more blur)
-                CHECK(fabsf(area - area346) <= (blend ? 0.12f : 0.16f), "%s %s blend %d: about v3.46's blur in all (%.3f vs %.3f level octaves)",
-                      kDofStrName[s], kDofSideName[sd], blend, area, area346);
+                if (V346Of(s) >= 0)  // v3.59 DF359: Low and Ultra (Medium / High: TestStrength)
+                    CHECK(fabsf(area - area346) <= (blend ? 0.12f : 0.16f), "%s %s blend %d: about v3.46's blur in all (%.3f vs %.3f level octaves)",
+                          kDofStrName[s], kDofSideName[sd], blend, area, area346);
             }
         }
     {   // v3.46's hard start, for the record: Medium went from sharp to a whole level at once at F x 1.6
-        CHECK(V346Level(DOFS_MEDIUM, 1.59f) == 0 && V346Level(DOFS_MEDIUM, 1.61f) == 1, "v3.46: Medium's hard start at 1.6");
+        CHECK(V346Level(1, 1.59f) == 0 && V346Level(1, 1.61f) == 1, "v3.46: Medium's hard start at 1.6");
     }
 }
 
@@ -450,7 +479,8 @@ static void TestBand(void)
 // changed, one composite draw a blurred code, two clears)
 static void TestCost(void)
 {
-    static const int kV346[DOFS_N] = { 6, 8, 12 };  // Low: 2 marks + 2 composites + 2 clears; Medium 3 + 3 + 2; High 5 + 5 + 2
+    static const int kV346[DOFS_N] = { 6, -1, -1, 12 };  // Low: 2 marks + 2 composites + 2 clears; Ultra (v3.46's High) 5 + 5 + 2;
+                                                         // v3.59 DF359: Medium / High are new (v3.46's Medium: 8)
     const float p22 = P22(), p32 = P32();
     int s;
     for (s = 0; s < DOFS_N; ++s) {
@@ -463,6 +493,72 @@ static void TestCost(void)
                pl.n, comp, n0, kV346[s]);
         CHECK(n == pl.n + comp + 3 && n <= 45 && n0 < n, "%s: %d draws", kDofStrName[s], n);
     }
+}
+
+// v3.59 DF359 (USER_FEEDBACK_v358: "Weaken Depth of Field Medium and High a bit. Add an Ultra parameter."): Ultra is v3.58's
+// High slice for slice; Medium and High a bit gentler, measured as the blur's width summed over the view (TestStrength's
+// Width: the level's radius half size 1, quarter 2, eighth 4, a quarter step lerps; far F .. 4 F, near F .. F / 2, in 1/96
+// octave steps), against v3.58's own tables
+static const DofRampT kV358[3][DOF_SIDES] = {  // v3.58's Low, Medium, High
+    { { 4, { 22, 25, 28, 31 } }, { 4, { -20, -23, -26, -29 } } },
+    { { 8, { 12, 15, 18, 21, 35, 38, 41, 44 } }, { 4, { -20, -23, -26, -29 } } },
+    { { 12, { 4, 7, 10, 13, 14, 16, 18, 20, 24, 26, 28, 30 } }, { 8, { -8, -11, -14, -17, -20, -23, -26, -29 } } } };
+static float Radius(int q)
+{
+    static const float kR[DOF_LEVELS + 1] = { 0.0f, 1.0f, 2.0f, 4.0f };
+    const int lo = q / DOF_Q;
+    return lo >= DOF_LEVELS ? kR[DOF_LEVELS] : kR[lo] + (kR[lo + 1] - kR[lo]) * (float)(q % DOF_Q) / (float)DOF_Q;
+}
+static float Width(const DofRampT r[DOF_SIDES], float *maxR)
+{
+    int i, c, sd;
+    float sum = 0.0f;
+    *maxR = 0.0f;
+    for (sd = 0; sd < DOF_SIDES; ++sd)
+        for (i = 0; i < (sd == DOF_FAR ? 192 : 96); ++i) {  // far 2 octaves, near 1 octave (grid / 4 steps)
+            const float g = ((float)i + 0.5f) / 4.0f;
+            int q = 0;
+            for (c = 0; c < r[sd].n; ++c) q += sd == DOF_FAR ? (float)r[sd].g[c] < g : (float)-r[sd].g[c] < g;
+            sum += Radius(q);
+        }
+    for (sd = 0; sd < DOF_SIDES; ++sd) if (Radius(r[sd].n) > *maxR) *maxR = Radius(r[sd].n);
+    return sum / 96.0f;
+}
+static void TestStrength(void)
+{
+    int sd, c, s;
+    float m0, m1, wl, wm0, wm1, wh0, wh1, wu;
+    for (sd = 0; sd < DOF_SIDES; ++sd) {
+        CHECK(kDofRamp[DOFS_ULTRA][sd].n == kV358[2][sd].n, "Ultra %s: v3.58's High's slice count", kDofSideName[sd]);
+        for (c = 0; c < kV358[2][sd].n; ++c) CHECK(kDofRamp[DOFS_ULTRA][sd].g[c] == kV358[2][sd].g[c], "Ultra = v3.58's High, slice %d", c);
+        CHECK(kDofRamp[DOFS_LOW][sd].n == kV358[0][sd].n && !memcmp(kDofRamp[DOFS_LOW][sd].g, kV358[0][sd].g, sizeof kV358[0][sd].g),
+              "Low unchanged (%s)", kDofSideName[sd]);
+    }
+    wl = Width(kDofRamp[DOFS_LOW], &m0);
+    wm0 = Width(kV358[1], &m0), wm1 = Width(kDofRamp[DOFS_MEDIUM], &m1);
+    CHECK(wm1 < wm0 && wm1 / wm0 > 0.70f && wm1 / wm0 < 0.80f, "Medium a bit gentler: %.0f %% of v3.58's width (%.3f / %.3f)", 100.0f * wm1 / wm0, wm1, wm0);
+    CHECK(m1 < m0 && m1 >= 1.5f - 1e-6f, "Medium's widest blur %.2f (v3.58 %.2f)", m1, m0);
+    CHECK(wm1 > wl, "Medium still more than Low (%.3f / %.3f)", wm1, wl);
+    wh0 = Width(kV358[2], &m0), wh1 = Width(kDofRamp[DOFS_HIGH], &m1);
+    CHECK(wh1 < wh0 && wh1 / wh0 > 0.75f && wh1 / wh0 < 0.85f, "High a bit gentler: %.0f %% of v3.58's width (%.3f / %.3f)", 100.0f * wh1 / wh0, wh1, wh0);
+    CHECK(m1 < m0 && m1 > 3.0f, "High's widest blur %.2f (v3.58 %.2f)", m1, m0);
+    wu = Width(kDofRamp[DOFS_ULTRA], &m1);
+    CHECK(fabsf(wu - wh0) < 1e-5f && wh1 > wm0, "Ultra = v3.58's High (%.3f); the new High still above v3.58's Medium", wu);
+    printf("  strength widths: Low %.3f, Medium %.3f (v3.58 %.3f, %.0f %%), High %.3f (v3.58 %.3f, %.0f %%), Ultra %.3f\n", wl, wm1, wm0,
+           100.0f * wm1 / wm0, wh1, wh0, 100.0f * wh1 / wh0, wu);
+    {   // no new grid step: the pause's depth map is a subset of v3.58's band grid (30 steps; v3.59: 25, the old Medium's
+        // 12 / 15 / 21 / 35 / 38 are no strength's now)
+        int b[DOF_BAND_MAX], n = DofBandGrid(b), i, k, bad = 0;
+        for (i = 0; i < n; ++i) {
+            int found = 0;
+            for (s = 0; s < 3; ++s)
+                for (sd = 0; sd < DOF_SIDES; ++sd)
+                    for (k = 0; k < kV358[s][sd].n; ++k) found |= kV358[s][sd].g[k] == b[i];
+            bad += !found;
+        }
+        CHECK(n == 25 && !bad, "the band grid: %d steps, every one of v3.58's (%d new)", n, bad);
+    }
+    for (s = 0; s < DOFS_N; ++s) CHECK(DofCodeQ(s, DOF_FAR, DofRampN(s, DOF_FAR)) == DofRampN(s, DOF_FAR), "the last code's blur");
 }
 
 static void TestFocus(void)
@@ -507,6 +603,17 @@ static void TestGate(void)
               "the Subway / Water Prison worlds: on, however near the camera");
     }
     CHECK(DofGate(7, 1, 0, 1, 0) == DOFG_OFF && DofGate(-1, 1, 0, 1, 0) == DOFG_OFF, "bad mode");
+    {   // v3.59 DF359: Spirit Vision drawing this frame: depth of field keeps out (by design), unless DofSpirit=1
+        int g;
+        CHECK(DofGateSpirit(DOFG_ON, 1, 0) == DOFG_SPIRIT && DofGateSpirit(DOFG_ON, 0, 0) == DOFG_ON && DofGateSpirit(DOFG_ON, 1, 1) == DOFG_ON,
+              "Spirit Vision: kept out; another filter or DofSpirit=1: on");
+        for (g = 0; g < DOFG_N; ++g)
+            if (g != DOFG_ON) CHECK(DofGateSpirit(g, 1, 0) == g, "gate %d (not on) keeps its reason", g);
+        CHECK(DofGateWhyNot(DOFG_SPIRIT) == DOFN_SPIRIT && DOFN_SPIRIT <= DOFN_DESIGN_END && DOFN_SPIRIT > DOFN_FP,
+              "counted as a by-design skip");
+        CHECK(strstr(kDofWhyNot[DOFN_SPIRIT], "Spirit Vision") == kDofWhyNot[DOFN_SPIRIT] && strstr(kDofGateWhy[DOFG_SPIRIT], "Spirit Vision"),
+              "the reason's words");
+    }
 }
 
 static void TestPick(void)
@@ -564,7 +671,7 @@ static void TestClose(void)
             code = DofEmulateCode(&pl.side[DOF_FAR], DOF_FAR, DofDepthAt(2000.0f, kP22, kP32));
             CHECK(code == DofRampN(s, DOF_FAR), "strength %d: the far background (2000 u) fully blurred (code %d)", s, code);
             code = DofEmulateCode(&pl.side[DOF_FAR], DOF_FAR, DofDepthAt(180.0f, kP22, kP32));
-            CHECK(s == DOFS_HIGH || code == 0, "strength %d: a companion just behind her (180 u) sharp at Low / Medium (code %d)", s, code);
+            CHECK(s >= DOFS_HIGH || code == 0, "strength %d: a companion just behind her (180 u) sharp at Low / Medium (code %d)", s, code);
         }
         {   // the composite runs on the far side only, the frame's draws fewer than the full plan's
             int compFull = 0, compFar = 0;
@@ -573,8 +680,8 @@ static void TestClose(void)
         }
     }
     // the page's preview of a pause taken close: every code of the far side, none of the near side
-    DofPlanCodes(DOFS_HIGH, &pl);
-    CHECK(DofPlanFarOnly(&pl, DOFS_HIGH) && pl.side[DOF_NEAR].n == 0 && pl.side[DOF_FAR].n == DofRampN(DOFS_HIGH, DOF_FAR), "the preview's plan");
+    DofPlanCodes(DOFS_ULTRA, &pl);
+    CHECK(DofPlanFarOnly(&pl, DOFS_ULTRA) && pl.side[DOF_NEAR].n == 0 && pl.side[DOF_FAR].n == DofRampN(DOFS_ULTRA, DOF_FAR), "the preview's plan");
     // a camera that swings in and out (148 .. 152, the log's edge, at 60 fps): never a snap, never none, the focus steady
     f = 0.0f;
     for (i = 0; i < 600; ++i) {
@@ -634,7 +741,8 @@ static void TestProbe(void)
               "Low / 0 reads Medium, 1 / High reads High");
         CHECK(DofStrWriteOrder(DOFS_LOW, 1) == DOFW_VALUE && DofStrWriteOrder(DOFS_MEDIUM, 1) == DOFW_VALUE &&
               DofStrWriteOrder(DOFS_LOW, 0) == DOFW_MARK_VALUE && DofStrWriteOrder(DOFS_MEDIUM, 0) == DOFW_VALUE_MARK &&
-              DofStrWriteOrder(DOFS_HIGH, 0) == DOFW_VALUE_MARK, "v3.45 QS345-03: marked: the value only; unmarked: Medium / High "
+              DofStrWriteOrder(DOFS_HIGH, 0) == DOFW_VALUE_MARK && DofStrWriteOrder(DOFS_ULTRA, 0) == DOFW_VALUE_MARK &&
+              DofStrWriteOrder(DOFS_ULTRA, 1) == DOFW_VALUE, "v3.45 QS345-03: marked: the value only; unmarked: Medium / High "
               "first (same meaning either way), a new Low after the marker (taken back if the value fails)");
     }
     CHECK(DofProbeRetry(DOFP_NOREAD, 0, 1) && DofProbeRetry(DOFP_NOREAD, 0, 2) && !DofProbeRetry(DOFP_NOREAD, 0, DOF_PROBE_TRIES) &&
@@ -664,6 +772,18 @@ static void TestPreview(void)
     CHECK(DofPreviewMode(&in, &why) == DOFV_NONE && why == DOFW_NOHOOK, "no hook");
     in.previewOn = 0;
     CHECK(DofPreviewMode(&in, &why) == DOFV_NONE && why == DOFW_OFF, "off");
+    {   // v3.59 DF359: the page's Filter is Spirit Vision: no depth of field on the preview, as in play
+        memset(&in, 0, sizeof in);
+        in.previewOn = 1, in.hook = 1, in.pausedGame = 1, in.haveCopy = 1, in.haveDepth = 1, in.spirit = 1;
+        CHECK(DofPreviewMode(&in, &why) == DOFV_NONE && why == DOFW_SPIRIT, "Spirit Vision on the page: none");
+        in.pausedGame = 0;
+        CHECK(DofPreviewMode(&in, &why) == DOFV_NONE && why == DOFW_SPIRIT, "Spirit Vision from the title: none (not the card)");
+        in.spirit = 0;
+        CHECK(DofPreviewMode(&in, &why) == DOFV_CARD && why == DOFW_NOPAUSE, "another filter: the card again");
+        in.spirit = 1, in.failed = 1, why = -1;
+        CHECK(DofPreviewMode(&in, &why) == DOFV_NONE && why == DOFW_FAILED, "failed still says failed");
+        CHECK(strstr(kDofWhy[DOFW_SPIRIT], "Spirit Vision") != NULL, "the reason names Spirit Vision");
+    }
     // (v3.47 DF347: the card's sample depth is tested in TestBand)
     CHECK(DofCodeAlpha(8) == 128u && DofCodeAlpha(0) == 0u && DofCodeAlpha(-3) == 0u, "the probe's code alpha");
 }
@@ -824,6 +944,7 @@ int main(void)
     TestCompose();  // v3.47 DF347
     TestBand();     // v3.47 DF347
     TestCost();     // v3.47 DF347
+    TestStrength(); // v3.59 DF359
     TestFocus();
     TestGate();
     TestPick();

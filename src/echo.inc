@@ -2851,21 +2851,24 @@ static void RfWarmFrameC(void)
                  served ? "" : " (her body not drawn yet: the rest next frame)");
     }
 }
+static int g_rfWarmFaults;  // v3.59 SD359: was RfWarmFrame's s_faults (loghealth.inc's Direct3D stop sets it to 3)
+static int LhFaultSeen(EXCEPTION_POINTERS *e, const char *guard);  // v3.59 SD359: loghealth.inc (the fault watch)
+static const char *LhFaultText(void);                             // v3.59 SD359: "C0000005 at d3d9.dll+0007843A"
 static void RfWarmFrame(void)
 {
-    static int s_faults;
-    if (!g_fxOn || !g_spInstalled || s_faults >= 3 || !DEV) return;
+    if (!g_fxOn || !g_spInstalled || g_rfWarmFaults >= 3 || !DEV) return;  // v3.59 SD359: g_rfWarmFaults
     if (*(volatile int *)0xFD5C20 != 0 || !FxGameplay()) return;
     __try {
         RfWarmFrameC();
-    } __except (EXCEPTION_EXECUTE_HANDLER) {
+    } __except (LhFaultSeen(GetExceptionInformation(), "warm-up")) {  // v3.59 SD359: the code, address and module noted
         g_echoWarm = 0, g_aiWarmNow = 0;
         InterlockedExchangePointer((void *volatile *)&g_fxDipOvr, NULL);
         InterlockedExchange(&g_gvGlow, 0);
         InterlockedExchange(&g_thMode, 0);
         g_aiZ = 0;
         g_rfWarmOn = 7u;  // (nothing more this visit)
-        if (++s_faults == 1 || s_faults == 3)
-            Log("warm-up: faulted (code %08lX)%s", GetExceptionCode(), s_faults >= 3 ? ": off for this session (the effects make their own on first use)" : "");
+        if (++g_rfWarmFaults == 1 || g_rfWarmFaults == 3)  // v3.59 SD359: + where (LhFaultText)
+            Log("warm-up: faulted (code %08lX, %s)%s", GetExceptionCode(), LhFaultText(),
+                g_rfWarmFaults >= 3 ? ": off for this session (the effects make their own on first use)" : "");
     }
 }

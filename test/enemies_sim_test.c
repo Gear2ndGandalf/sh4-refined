@@ -1332,8 +1332,45 @@ static void TestDrawnGhosts(void)
     }
 }
 
+// v3.59 EN359: a pinned ghost stays pinned with its Sword (the gate's room rule), Enemies Return never takes a pin away.
+// The stock rule's answer for stage 2's first visit is modelled from its zone table 0x6179AC (SH4Decomp en_4c1ae0.c) and
+// EnemyGhostMayEnterRoom 0x464880's stage-2 visit-0 switch: rooms 7, 8, 9, 12, 21 have their own cases; every other room
+// gives `to` -1, so only a zone-0 room says yes.
+static int StockRoom2v0(int room)
+{
+    static const signed char kZone[28] = {0, -1, 1, -1, 1, 1, -1, 2, 2, 2, -1, 2, 2, 4, 3, -1, 2, -1, 2, -1, 3, 2, 3, 3, -1, 1, 0, 0};
+    const int from = room >= 0 && room < 28 ? kZone[room] : -1;
+    return from == 0;  /* (to = -1 in the rooms without a case) */
+}
+static void TestPin359(void)
+{
+    const int st = 2;
+    Check(!StockRoom2v0(5) && StockRoom2v0(26), "model: stage 2 visit 0 room 5 (zone 1) says no to a ghost's record; room 26 (zone 0) yes");
+    // the user's case: 02050003 (victim ghost v2 on a Sniffer Dog placement) pinned in room 2:5, its Sword's pin there
+    Check(EnmPinStays(StockRoom2v0(5), 0, 0x0B, 0x0B, st, 5, st, 5, 5, 1), "pinned in a 'no' room with its Sword: let in (made pinned)");
+    Check(!EnmPinStays(StockRoom2v0(5), 0, 0x0B, 0x0B, st, 5, st, 5, 5, 0), "pinned but its Sword is gone: the stock no");
+    Check(!EnmPinStays(StockRoom2v0(5), 0, 0x0A, 0x0B, st, 5, st, 5, 5, 0), "down (0x0A), not pinned: the stock no (the game's own rule)");
+    Check(!EnmPinStays(StockRoom2v0(5), 0, 0, 0x0B, st, 5, st, 5, 5, 1), "standing record: the stock no");
+    Check(!EnmPinStays(0, 1, 0x0B, 0x0B, st, 7, st, 7, 7, 1), "a story flag's refusal (denied) stays no");
+    Check(!EnmPinStays(0, 0, 0x0B, 0x0B, st, 5, st, 5, 4, 1), "its record in another room than this one: no (the gate's 5)");
+    Check(!EnmPinStays(0, 0, 0x0B, 0x0B, 3, 5, st, 5, 5, 1), "a record of another stage: no");
+    Check(!EnmPinStays(0, 0, 0x0B, 0x0A, st, 5, st, 5, 5, 1), "a monster's body (0x0B of a dog): no (not a ghost)");
+    Check(!EnmPinStays(0, 0, 0x0B, 0x11, st, 5, st, 5, 5, 1), "the Patient (0x11) cannot be pinned: no");
+    Check(EnmPinStays(0, 0, 0x0B, 0x0C, st, 12, st, 12, 12, 1) && EnmPinStays(0, 0, 0x0B, 0x0F, st, 3, st, 3, 3, 1),
+          "every ghost type 0B..0F pinned with its Sword");
+    Check(EnmPinStays(1, 0, 0, 0x0B, st, 26, st, 26, 26, 0) && EnmPinStays(1, 1, 0x0A, 0x0C, st, 2, st, 2, 2, 0),
+          "the stock yes is never touched");
+    // Enemies Return's body rule
+    Check(EnmBodyRecord(0x0B, 0x0A, st, st) && EnmBodyRecord(0x0B, 0x08, st, st), "a dead monster's record is a body");
+    Check(!EnmBodyRecord(0x0B, 0x0B, st, st) && !EnmBodyRecord(0x0B, 0x0C, st, st) && !EnmBodyRecord(0x0B, 0x0F, st, st),
+          "a ghost's 0x0B is its pin: never a body (v3.58 took the drawn victim's away By Room)");
+    Check(!EnmBodyRecord(0x0A, 0x0A, st, st) && !EnmBodyRecord(0x0B, 0x0A, 3, st), "alive / down or another stage: no body");
+    Check(EnmBodyRecord(0x0B, 0x11, st, st), "the Patient's 0x0B is its death: a body (as v3.58; never revived by type)");
+}
+
 int main(void)
 {
+    TestPin359();  // v3.59 EN359
     TestFollowValues349();  // v3.49 EF349
     TestGhostCopy341();  // v3.41 EN341
     TestFollow338();  // v3.38 EN338

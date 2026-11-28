@@ -1301,4 +1301,32 @@ static EnmTagSum EnmTagSummary(const unsigned *tag, const unsigned char *seen, i
     }
     return s;
 }
+
+// ---------------------------------------------------------------- v3.59 EN359: a pinned ghost stays pinned with its Sword
+// The user's v3.58 QA: "When using the sword of obedience to down a victim and leaving the room and coming back, that
+// victim despawns and the sword is still there in the ground." The stock game keeps a pinned ghost by its record (state
+// 0x0B, its stage and room; EnemyGhostReconcile 0x482590 never drops a 0x0B record) and its Sword by gPlayerPins (0x10A4A60,
+// made again on room entry by 0x543510). At the room load the ghost's create asks EnemySpawnGate 0x464F20, which for a
+// ghost's record asks EnemyGhostMayEnterRoom 0x464880 (its call at 0x465123) on the record's own room: that rule is about
+// ghosts wandering into rooms, by zone tables (stage 2 first visit: 0x6179AC; room 5 is zone 1, and with `to` -1 only zone
+// 0 rooms say yes). A ghost the game placed never lies in a "no" room, but the Randomizer's victims drawn from monster
+// placements (v3.56 RE356) and the victims Enemies Follow lets into rooms the rule refuses (0x486199) do: the user's log
+// 21:30:35, room 2:5 (zone 1): n3 -> victim ghost v2 "(killed: its body stays)", its record kept, and only 02050002 was
+// made: the gate answered 1 and the create destroyed the pinned 02050003 while its Sword stayed. EnmPinStays: the stock
+// yes stays yes; a story refusal (gEnemyManager.denied) stays no; else a ghost's own pinned record in this room, with its
+// Sword's pin here, is let in (gate 4: the type's restore lays it pinned as it was).
+static int EnmPinStays(int stockYes, int denied, int recState, int recType, int recStage, int recRoom, int stage, int room,
+                       int curRoom, int pinHeld)
+{
+    if (stockYes) return 1;
+    if (denied) return 0;
+    return recState == 0x0B && EnmGhostType(recType) && recStage == stage && recRoom == room && room == curRoom && pinHeld;
+}
+// A body record Enemies Return may take away (state 0x0B of this stage): never a ghost's, whose 0x0B is the Sword's pin
+// (a victim the Randomizer drew on a revivable monster placement: v3.58 took its "body" away, By Room, and it stood again
+// beside its Sword)
+static int EnmBodyRecord(int recState, int recType, int recStage, int stage)
+{
+    return recState == 0x0B && recStage == stage && !EnmGhostType(recType);
+}
 #endif

@@ -295,6 +295,7 @@ static void OlSrcIn(int s, const void **a, const void **b)
     case OLS_RZ_GHOSTS: *a = RzlInGhosts; break;
     case OLS_RZ_OUTFIT: *a = RzlInOutfit; break;
     case OLS_RZ_PERVISIT: *a = RzInPerVisit; break;  // v3.56 RI356: Reroll Visits (OLS_RZ_KEEP = Specials); Seed / New Seed gone
+    case OLS_LOCKWALK: *a = LwIn; break;  // v3.59 CT359: Lock-On Walk (omnilatch.inc)
     }
 }
 static int OlFindSrc(int s, int *op, int *orow)  // the origin record of source s (first match over the origin pages)

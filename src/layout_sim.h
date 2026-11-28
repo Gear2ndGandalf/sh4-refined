@@ -91,6 +91,7 @@ enum {
     OLS_SHINE, OLS_TOOLBELT, OLS_STACKS, OLS_DROPS, OLS_COPIES, OLS_FOLLOW, OLS_PURSUIT, OLS_REVIVE, OLS_FADEIN,
     OLS_DP, OLS_AI, OLS_ECHO, OLS_ECHON, OLS_GT,
     OLS_RZ_ITEMS, OLS_RZ_KEEP, OLS_RZ_R302, OLS_RZ_MON, OLS_RZ_GHOSTS, OLS_RZ_OUTFIT, OLS_RZ_PERVISIT,  // v3.56 RI356: KEEP = Specials, PERVISIT = Reroll Visits; - SEED, NEW (the rows are gone)
+    OLS_LOCKWALK,  // v3.59 CT359: Gameplay > Combat > Lock-On Walk (omnilatch.inc LwIn, on the Player origin page)
     OLS_N };
 
 // one row: its kind, source (OLS_*), argument (a folder's / combo's page; a camera row), a label / line of its own (NULL =
@@ -244,7 +245,9 @@ static const OlRowDef kOlPlayer[] = {
     OLV(OLS_GRAB, "player", "Grab Escape"), OLV(OLS_NOCLIP, "player", "No Clip"), OL_BACK(OLW_BACK_GAMEPLAY), OL_END };
 static const OlRowDef kOlCombat[] = {
     OLV(OLS_OHK, "combat", "One-Hit Kill"), OLV(OLS_PACT, "combat", "Dark Pact"), OLV(OLS_QC, "combat", "Quick Charge"),
-    OLV(OLS_STEAL, "combat", "Life Steal"), OLV(OLS_AMMO, "combat", "Ammo Saver"), OL_BACK(OLW_BACK_GAMEPLAY), OL_END };
+    OLV(OLS_STEAL, "combat", "Life Steal"), OLV(OLS_AMMO, "combat", "Ammo Saver"),
+    OLV(OLS_LOCKWALK, "combat", "Lock-On Walk"),  // v3.59 CT359
+    OL_BACK(OLW_BACK_GAMEPLAY), OL_END };
 static const OlRowDef kOlItems[] = {
     OLV(OLS_SHINE, "items", "Item Shine"), OLV(OLS_TOOLBELT, "items", "Toolbelt"), OLV(OLS_STACKS, "items", "Item Stacks"),
     OLV(OLS_DROPS, "items", "Supply Drops"), OL_BACK(OLW_BACK_GAMEPLAY), OL_END };

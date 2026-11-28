@@ -1,6 +1,6 @@
 # SH4 Refined
 
-**Current version: v3.58.0 (play-tested 2026-11-27: every item passed, a few changes requested for the next version; see Versions below)**
+**Current version: v3.59.0 (new, not yet tested in game; v3.58.0 was play-tested 2026-11-27 and passed; see Versions below)**
 
 SH4 Refined is a fan-made enhancement mod for the PC version of **Silent Hill 4: The Room** sold by GOG. It is a
 single `winmm.dll` that the game loads from its own folder: no loader, no installer and no changes to the game's exe
@@ -127,7 +127,14 @@ Python tools need Python 3 (some previews use NumPy, Pillow and SciPy). Build no
 ## Versions
 
 The current version is named at the top of this page. Every release, newest changes included, is described in the
-history of [docs/FULL_README.md](docs/FULL_README.md#history). v3.58.0 answers the v3.56 / v3.57 play test: an
+history of [docs/FULL_README.md](docs/FULL_README.md#history). v3.59.0 answers the v3.58 play test: the game no
+longer crashes when its sound device goes away (a stock bug), F7 also saves the Thermal and Spirit Vision layers for
+the Effects pages, Depth of Field Ultra (Medium and High weaker; never over Spirit Vision), Thermal Vision with no heat
+through walls and footprints by character, health and revive bars themed for every special filter, bars above tall
+enemies, Walter's bars while he is down, Sword-pinned victims that stay, followers kept through Quick Load, a portal
+that stands on the floor (spirit-blue under Spirit Vision), Ghost Teleport up and down stairs, cut-scenes and Room
+302's window views at the gameplay frame rate, no analog control loss after camera changes, and Lock-On Walk; not
+yet play-tested. v3.58.0 answers the v3.56 / v3.57 play test: an
 Effects > Preview row (Off / Stock / Live; the stock picture is the author's screenshot), Filter Strength Low to Ultra,
 a Depth of Field > folder, value arrows that stay in place, Reveal Method (was Fade In) with a bigger portal and
 clinging tar strands, a clean Ghost Teleport fade (under Thermal and Spirit Vision too), Shadows Off obeyed by the

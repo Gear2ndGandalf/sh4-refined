@@ -727,16 +727,37 @@ typedef struct GtWorld {
     int (*solid)(void *ctx, float x, float y, float z);            // 1 = inside solid, 0 = free, < 0 unknown
 } GtWorld;
 enum { GTM_NONE = 0, GTM_HAS = 1, GTM_NOT = 2, GTM_UNKNOWN = 3 };  // GtMapHas
+// v3.59 GT359: several floors over one cell (the warp across heights; staging/v359_feedback/w7_teleport/PLAN.md). A map
+// with `lv` (teleport.inc's, with [Gameplay] GhostTeleportHeight > 0) keeps every floor a route of the room reaches over a
+// cell: the first one in st / fy as before, each further one in lv's node pool (a list per cell). Without lv (Spawn Site's
+// map, GhostTeleportHeight 0) a cell holds one floor exactly as in v3.58. A node id is a cell's index (its first floor) or
+// GT_MAP_XID + a pool index. Each seed starts a part of the room (lv's parts); a walk step from one part onto a floor
+// another part already holds joins the two (union-find): two floors in one part are walkable from each other.
+#define GT_MAP_XID     (GT_MAP_DIM * GT_MAP_DIM)
+#define GT_MAP_XN      32768    // further floors a room's map holds (all levels over all cells; more: lv->full)
+#define GT_MAP_PARTS   254      // the parts told apart (one a seed); a later seed: GT_PART_UNK (never proven walkable)
+#define GT_PART_UNK    255
+typedef struct { int c; short fy; unsigned short next; } GtMapNode;
+typedef struct GtMapLv {
+    unsigned short head[GT_MAP_DIM * GT_MAP_DIM];  // a cell's first further floor + 1 (0: none)
+    unsigned char partB[GT_MAP_DIM * GT_MAP_DIM];  // the part of a cell's first floor
+    GtMapNode nd[GT_MAP_XN];
+    unsigned char partX[GT_MAP_XN];
+    unsigned char par[256];                        // the parts' union-find (par[k] == k: a root)
+    int n, nParts, full, joins;                    // nodes used; parts made; the pool ran out; joins made
+} GtMapLv;
 typedef struct {
     int on, nx, ny, overflow, unknown;
     float cell, x0, z0, lo[3], hi[3];                 // the grid: cell (i, j) at x0 + i cell, z0 + j cell
     unsigned char st[GT_MAP_DIM * GT_MAP_DIM];        // 1 = reached (queued or done)
     short fy[GT_MAP_DIM * GT_MAP_DIM];                // its floor (rounded)
-    int ring[GT_MAP_RING], head, tail;                // cells to expand (FIFO)
+    int ring[GT_MAP_RING], head, tail;                // cells to expand (FIFO)  (v3.59 GT359: node ids)
     int cells, done, seeds, seedsNoFloor, runs;       // the log: cells reached, expanded; seeds taken, without a floor
     int seedsBlocked;                                 // v3.52 TP352: seeds refused inside collision (GtCellFree)
     GtExit x[GT_EXIT_MAX];
     int nExit;
+    GtMapLv *lv;                                      // v3.59 GT359: several floors a cell (NULL: one, as v3.58)
+    int lvCells;                                      //   the floors held over another floor's cell (the log)
 } GtMap;
 // a new map over the room's box (lo / hi) with its door lines (cells beyond them are not the room's)
 static void GtMapBegin(GtMap *m, const float lo[3], const float hi[3], const GtExit *x, int nx)
@@ -755,6 +776,59 @@ static void GtMapBegin(GtMap *m, const float lo[3], const float hi[3], const GtE
     m->seedsBlocked = 0;  // v3.52 TP352
     m->nExit = nx < 0 ? 0 : nx > GT_EXIT_MAX ? GT_EXIT_MAX : nx;
     if (m->nExit) memcpy(m->x, x, sizeof(GtExit) * (size_t)m->nExit);
+    m->lvCells = 0;  // v3.59 GT359: a new map: its further floors and parts go too (m->lv is the caller's choice)
+    if (m->lv) {
+        memset(m->lv->head, 0, sizeof m->lv->head);
+        m->lv->n = m->lv->nParts = m->lv->full = m->lv->joins = 0;
+        m->lv->par[0] = 0, m->lv->par[GT_PART_UNK] = GT_PART_UNK;
+    }
+}
+// ---------------------------------------------------------------- v3.59 GT359: the floors of a cell, the parts
+static int GtMapIdCell(const GtMap *m, int id) { return id < GT_MAP_XID ? id : m->lv->nd[id - GT_MAP_XID].c; }
+static float GtMapIdFy(const GtMap *m, int id) { return (float)(id < GT_MAP_XID ? m->fy[id] : m->lv->nd[id - GT_MAP_XID].fy); }
+static int GtMapFirst(const GtMap *m, int c) { return c >= 0 && m->st[c] ? c : -1; }  // a cell's first floor (its id), -1 none
+static int GtMapNext(const GtMap *m, int id)  // the cell's next floor after id, -1 none
+{
+    unsigned short h;
+    if (!m->lv || id < 0) return -1;
+    h = id < GT_MAP_XID ? m->lv->head[id] : m->lv->nd[id - GT_MAP_XID].next;
+    return h ? GT_MAP_XID + (int)h - 1 : -1;
+}
+static int GtMapLevelAt(const GtMap *m, int c, float fy, float dy)  // the floor of cell c nearest fy within dy (its id), -1 none
+{
+    int id, best = -1;
+    float bd = dy;
+    for (id = GtMapFirst(m, c); id >= 0; id = GtMapNext(m, id)) {
+        const float d = fabsf(GtMapIdFy(m, id) - fy);
+        if (d <= bd) bd = d, best = id;
+    }
+    return best;
+}
+static int GtMapLevels(const GtMap *m, int c)  // how many floors cell c holds
+{
+    int id, n = 0;
+    for (id = GtMapFirst(m, c); id >= 0 && n < GT_MAP_XN; id = GtMapNext(m, id)) ++n;
+    return n;
+}
+static int GtPartOf(const GtMap *m, int id) { return !m->lv ? GT_PART_UNK : id < GT_MAP_XID ? m->lv->partB[id] : m->lv->partX[id - GT_MAP_XID]; }
+static int GtPartRoot(const GtMapLv *L, int k)
+{
+    int guard = 0;
+    while (k != GT_PART_UNK && L->par[k] != k && ++guard < 256) k = L->par[k];
+    return k;
+}
+static int GtPartSame(const GtMapLv *L, int a, int b)
+{
+    return a != GT_PART_UNK && b != GT_PART_UNK && GtPartRoot(L, a) == GtPartRoot(L, b);
+}
+static void GtPartJoin(GtMapLv *L, int a, int b)  // a walk step between parts a and b: one part
+{
+    if (a == GT_PART_UNK || b == GT_PART_UNK) return;
+    a = GtPartRoot(L, a), b = GtPartRoot(L, b);
+    if (a == b) return;
+    if (a < b) L->par[b] = (unsigned char)a;
+    else L->par[a] = (unsigned char)b;
+    ++L->joins;
 }
 static int GtMapIdx(const GtMap *m, float x, float z)  // the cell nearest (x, z), -1 off the grid
 {
@@ -812,15 +886,33 @@ static int GtWalkStep(const GtWorld *w, const float a[3], float x, float z, floa
     *fy = y;
     return 1;
 }
-static int GtMapTake(GtMap *m, int c, float fy)  // mark a cell reached and queue it; 0 = the queue is full
+// mark a cell's floor reached and queue it; 1 = taken, 0 = the queue is full (overflow)
+// v3.59 GT359: + its part; a cell that holds a floor already takes a further one (m->lv only; -1 = the pool is full: the
+// map goes on with the floors it holds, lv->full)
+static int GtMapTake(GtMap *m, int c, float fy, int part)
 {
     const int next = (m->tail + 1) % GT_MAP_RING;
+    const short f = (short)GtClampF(floorf(fy + 0.5f), -32000.0f, 32000.0f);
+    int id;
     if (next == m->head) {
         m->overflow = 1;
         return 0;
     }
-    m->st[c] = 1, m->fy[c] = (short)GtClampF(floorf(fy + 0.5f), -32000.0f, 32000.0f), ++m->cells;
-    m->ring[m->tail] = c, m->tail = next;
+    if (!m->st[c]) {
+        m->st[c] = 1, m->fy[c] = f, id = c;
+        if (m->lv) m->lv->partB[c] = (unsigned char)part;
+    } else {
+        GtMapLv *L = m->lv;
+        if (!L) return -1;
+        if (L->n >= GT_MAP_XN) return L->full = 1, -1;
+        id = L->n++;
+        L->nd[id].c = c, L->nd[id].fy = f, L->nd[id].next = L->head[c];
+        L->head[c] = (unsigned short)(id + 1);
+        L->partX[id] = (unsigned char)part;
+        id += GT_MAP_XID, ++m->lvCells;
+    }
+    ++m->cells;
+    m->ring[m->tail] = id, m->tail = next;
     return 1;
 }
 // a seed: the floor at (x, z) from dy above y down to dy below it (a door's point, her feet). 1 = taken, 0 = already in
@@ -836,12 +928,24 @@ static int GtMapSeed(GtMap *m, const GtWorld *w, float x, float y, float z, floa
         m->unknown += r < 0;
         return ++m->seedsNoFloor, -1;
     }
-    if (m->st[c] && fabsf((float)m->fy[c] - fy) <= GT_REACH_HIT_DY) return 0;
-    if (m->st[c]) return ++m->seedsNoFloor, -1;  // (another floor holds the cell: one level a cell)
+    if (m->lv) {  // v3.59 GT359: several floors a cell: a floor at this level already = nothing new
+        if (GtMapLevelAt(m, c, fy, GT_REACH_HIT_DY) >= 0) return 0;
+    } else {
+        if (m->st[c] && fabsf((float)m->fy[c] - fy) <= GT_REACH_HIT_DY) return 0;
+        if (m->st[c]) return ++m->seedsNoFloor, -1;  // (another floor holds the cell: one level a cell)
+    }
     p[0] = x, p[1] = fy, p[2] = z;
     if (GtExitBeyond(m->x, m->nExit, p)) return ++m->seedsNoFloor, -1;
     if (!GtCellFree(w, x, fy, z, &unk)) return m->unknown += unk, ++m->seedsBlocked, -1;  // v3.52 TP352
-    if (!GtMapTake(m, c, fy)) return -1;
+    {   // v3.59 GT359: a seed starts a part of the room (GT_PART_UNK past GT_MAP_PARTS)
+        int part = 0;
+        if (m->lv) {
+            part = m->lv->nParts < GT_MAP_PARTS ? m->lv->nParts + 1 : GT_PART_UNK;
+            m->lv->par[part] = (unsigned char)part;
+        }
+        if (GtMapTake(m, c, fy, part) <= 0) return -1;
+        if (m->lv && part != GT_PART_UNK) m->lv->nParts = part;
+    }
     ++m->seeds;
     return 1;
 }
@@ -853,26 +957,36 @@ static int GtMapRun(GtMap *m, const GtWorld *w, int maxCells)
     if (!m->on) return 0;
     ++m->runs;
     while (m->head != m->tail && n < maxCells) {
-        const int c = m->ring[m->head], ci = c % m->nx, cj = c / m->nx;
+        const int id = m->ring[m->head], c = GtMapIdCell(m, id), ci = c % m->nx, cj = c / m->nx;  // v3.59 GT359: a node
+        const int part = GtPartOf(m, id);
         float a[3];
         int d;
         m->head = (m->head + 1) % GT_MAP_RING;
         ++n, ++m->done;
         GtMapXZ(m, c, &a[0], &a[2]);
-        a[1] = (float)m->fy[c];
+        a[1] = GtMapIdFy(m, id);
         for (d = 0; d < 8; ++d) {
             const int ni = ci + kD[d][0], nj = cj + kD[d][1];
             float b[3], fy;
-            int nc;
+            int nc, e;
             if (ni < 0 || ni >= m->nx || nj < 0 || nj >= m->ny) continue;
             nc = nj * m->nx + ni;
-            if (m->st[nc]) continue;
+            if (!m->lv) {
+                if (m->st[nc]) continue;
+            } else {  // v3.59 GT359: a floor of nc within a step of a, of a's part already: nothing new (no walk asked)
+                e = GtMapLevelAt(m, nc, a[1], GT_REACH_STEP);
+                if (e >= 0 && GtPartSame(m->lv, part, GtPartOf(m, e))) continue;
+            }
             GtMapXZ(m, nc, &b[0], &b[2]);
             if (!(b[0] >= m->lo[0] && b[0] <= m->hi[0] && b[2] >= m->lo[2] && b[2] <= m->hi[2])) continue;
             if (!GtWalkStep(w, a, b[0], b[2], &fy, &m->unknown)) continue;
             b[1] = fy;
             if (GtExitBeyond(m->x, m->nExit, b)) continue;
-            if (!GtMapTake(m, nc, fy)) return n;
+            if (m->lv && (e = GtMapLevelAt(m, nc, fy, GT_REACH_HIT_DY)) >= 0) {  // v3.59 GT359: held: the parts join
+                GtPartJoin(m->lv, part, GtPartOf(m, e));
+                continue;
+            }
+            if (!GtMapTake(m, nc, fy, part)) return n;  // (-1: the pool is full: that floor is not held)
         }
     }
     return n;
@@ -880,12 +994,14 @@ static int GtMapRun(GtMap *m, const GtWorld *w, int maxCells)
 // does the map hold the spot's floor (spot = its floor point)? GTM_HAS: its cell or a neighbour cell at its level that
 // she can step to from it; GTM_NOT: no (the map is finished); GTM_UNKNOWN: not yet (the map is not finished); GTM_NONE:
 // no map (off the grid, no room box)
-static int GtMapHas(const GtMap *m, const GtWorld *w, const float spot[3])
+// v3.59 GT359: GtMapHasAt also names the floor that holds it (*idOut: its node, -1 none); every floor of a cell counts
+static int GtMapHasAt(const GtMap *m, const GtWorld *w, const float spot[3], int *idOut)
 {
     const int c = GtMapIdx(m, spot[0], spot[2]);
-    int di, dj, unk = 0;
+    int di, dj, unk = 0, id;
+    *idOut = -1;
     if (c < 0) return GTM_NONE;
-    if (m->st[c] && fabsf((float)m->fy[c] - spot[1]) <= GT_REACH_HIT_DY) return GTM_HAS;
+    if ((id = GtMapLevelAt(m, c, spot[1], GT_REACH_HIT_DY)) >= 0) return *idOut = id, GTM_HAS;
     for (dj = -1; dj <= 1; ++dj)
         for (di = -1; di <= 1; ++di) {
             const int ni = c % m->nx + di, nj = c / m->nx + dj;
@@ -893,11 +1009,19 @@ static int GtMapHas(const GtMap *m, const GtWorld *w, const float spot[3])
             int nc;
             if ((!di && !dj) || ni < 0 || ni >= m->nx || nj < 0 || nj >= m->ny) continue;
             nc = nj * m->nx + ni;
-            if (!m->st[nc] || !(fabsf((float)m->fy[nc] - spot[1]) <= GT_REACH_HIT_DY)) continue;
-            GtMapXZ(m, nc, &b[0], &b[2]);
-            if (GtWalkStep(w, spot, b[0], b[2], &fy, &unk) && fabsf(fy - (float)m->fy[nc]) <= 2.0f) return GTM_HAS;
+            for (id = GtMapFirst(m, nc); id >= 0; id = GtMapNext(m, id)) {
+                const float nf = GtMapIdFy(m, id);
+                if (!(fabsf(nf - spot[1]) <= GT_REACH_HIT_DY)) continue;
+                GtMapXZ(m, nc, &b[0], &b[2]);
+                if (GtWalkStep(w, spot, b[0], b[2], &fy, &unk) && fabsf(fy - nf) <= 2.0f) return *idOut = id, GTM_HAS;
+            }
         }
     return GtMapFinished(m) ? GTM_NOT : GTM_UNKNOWN;
+}
+static int GtMapHas(const GtMap *m, const GtWorld *w, const float spot[3])
+{
+    int id;
+    return GtMapHasAt(m, w, spot, &id);
 }
 
 // ---------------------------------------------------------------- v3.50 TP350: her body and the open floor ahead
@@ -1066,24 +1190,160 @@ static int GtFreeCell(const GtMap *m, const GtWorld *w, const float from[3], flo
         for (dj = -r; dj <= r; ++dj)
             for (di = -r; di <= r; ++di) {
                 const int i = ci + di, j = cj + dj;
-                float x, z, fy, d2, p[3];
-                int c;
+                float x, z, fy, d2, p[3], cf;
+                int c, id;
                 if ((di != -r && di != r && dj != -r && dj != r) || i < 0 || i >= m->nx || j < 0 || j >= m->ny) continue;
                 c = j * m->nx + i;
-                if (!m->st[c] || !(fabsf((float)m->fy[c] - from[1]) <= GT_FREE_DY)) continue;
-                GtMapXZ(m, c, &x, &z);
-                d2 = (x - from[0]) * (x - from[0]) + (z - from[2]) * (z - from[2]);
-                if (d2 > bestD2 || (found && d2 >= bestD2)) continue;
-                ++*tried;
-                if (w->floorAt(w->ctx, x, (float)m->fy[c] - GT_REACH_UP, (float)m->fy[c] + GT_REACH_UP, z, &fy) <= 0 || !_finite(fy) ||
-                    !(fabsf(fy - (float)m->fy[c]) <= 2.0f))
-                    continue;
-                if (!GtBodyFree(w, x, fy, z)) continue;
-                p[0] = x, p[1] = fy, p[2] = z;
-                if (GtStuck(w, p) != 0 || (ok && !ok(ctx, p))) continue;
-                out[0] = x, out[1] = fy, out[2] = z, bestD2 = d2, found = 1;
+                for (id = GtMapFirst(m, c); id >= 0; id = GtMapNext(m, id)) {  // v3.59 GT359: every floor of the cell
+                    cf = GtMapIdFy(m, id);
+                    if (!(fabsf(cf - from[1]) <= GT_FREE_DY)) continue;
+                    GtMapXZ(m, c, &x, &z);
+                    d2 = (x - from[0]) * (x - from[0]) + (z - from[2]) * (z - from[2]);
+                    if (d2 > bestD2 || (found && d2 >= bestD2)) continue;
+                    ++*tried;
+                    if (w->floorAt(w->ctx, x, cf - GT_REACH_UP, cf + GT_REACH_UP, z, &fy) <= 0 || !_finite(fy) ||
+                        !(fabsf(fy - cf) <= 2.0f))
+                        continue;
+                    if (!GtBodyFree(w, x, fy, z)) continue;
+                    p[0] = x, p[1] = fy, p[2] = z;
+                    if (GtStuck(w, p) != 0 || (ok && !ok(ctx, p))) continue;
+                    out[0] = x, out[1] = fy, out[2] = z, bestD2 = d2, found = 1;
+                }
             }
     }
     return found;
+}
+
+// ================================================================ v3.59 GT359: across heights (up or down a storey)
+// The user's v3.58 QA: "Give it the ability to teleport on the Z axis pretty far. Enough to transcend or descend those
+// circular stair cases or the building world stairs." (staging/v359_feedback/w7_teleport/PLAN.md). With no enemy she
+// faces, the floor the way she faces decides (GtAimLevel): it rises at least GT_AIM_RISE within GT_AIM_N steps of
+// GT_AIM_STEP by her own walk rules = she faces up the stairs (+1), it falls as much = down (-1), else flat (0: the
+// v3.58 warp exactly). Up or down, the candidates are the room's floor map's floors (every floor over a cell: GtMap's
+// lv) GT_LV_MIN .. [Gameplay] GhostTeleportHeight above / below her floor, within GhostTeleportForward (xz) of her and
+// inside +-GT_LV_CONE of her facing (any way within GT_LV_NEAR: straight up or down a stairwell), best first
+// (GtLevelCands: the farthest in height, in GT_LV_BAND bands, then the nearest in xz). The caller proves each (its
+// floor ray, room to stand, her body, the room's box, door lines and walk-in zones, on the floor map) and also asks
+// GtMapLinked: the landing walkable from where she stands (one part of the room's floor map). None proven: the flat warp.
+// The stairs measured in the map banks (w7_tools/measure_stairs.py, read-only): the spiral staircase (stage 11, st01 /
+// st05) repeats every 1250 .. 1275 u, the Building World stairwell (5:16 / 5:27, bd16 / bd27) every 1600 u (its flights
+// 1350 / 1525), the Water Prison's outer stairs (4:31, mz31) 1250 and 700 .. 800: GT_HEIGHT_DEF 1700 covers a storey of each.
+#define GT_HEIGHT_DEF  1700.0f  // [Gameplay] GhostTeleportHeight (hidden): the reach in height; 0 = off (v3.58: one level)
+#define GT_HEIGHT_MIN  400.0f
+#define GT_HEIGHT_MAX  4000.0f
+#define GT_AIM_STEP    40.0f
+#define GT_AIM_N       10       // (400 u ahead at most: from a landing's middle onto the flight)
+#define GT_AIM_RISE    60.0f    // (two risers of 40: a single kerb is no stairs)
+#define GT_LV_MIN      150.0f   // a floor this far above / below hers is another level (GT_FLOOR_TOL is her own)
+#define GT_LV_NEAR     120.0f
+#define GT_LV_CONE     30.0f
+#define GT_LV_BAND     100.0f
+#define GT_LV_KEEP     48       // candidates kept (best first)
+#define GT_LV_TESTS    24       // of them proven at most a search (each asks the game's queries)
+static float GtHeightKey(int has, float v)
+{
+    if (!has || !_finite(v)) return GT_HEIGHT_DEF;
+    if (v == 0.0f) return 0.0f;
+    return v < 0.0f ? GT_HEIGHT_DEF : GtClampF(v, GT_HEIGHT_MIN, GT_HEIGHT_MAX);
+}
+// her: her feet (y = her floor). +1 up, -1 down, 0 flat; *rise: the floor's height gained (+ up) over *dist u walked
+static int GtAimLevel(const GtWorld *w, const float her[3], float yaw, float *rise, float *dist)
+{
+    float a[3], fy;
+    int k, unk = 0;
+    *rise = 0.0f, *dist = 0.0f;
+    if (!_finite(yaw) || !_finite(her[0]) || !_finite(her[1]) || !_finite(her[2])) return 0;
+    a[0] = her[0], a[1] = her[1], a[2] = her[2];
+    for (k = 1; k <= GT_AIM_N; ++k) {
+        const float d = GT_AIM_STEP * (float)k, x = her[0] + sinf(yaw) * d, z = her[2] + cosf(yaw) * d;
+        if (!GtWalkStep(w, a, x, z, &fy, &unk)) break;
+        a[0] = x, a[1] = fy, a[2] = z;
+        *dist = d, *rise = her[1] - fy;  // (y grows down)
+    }
+    return *rise >= GT_AIM_RISE ? 1 : *rise <= -GT_AIM_RISE ? -1 : 0;
+}
+typedef struct { int id; float at[3], dy, d, ang; } GtLvCand;  // a floor node, its cell's centre on it, height over hers, xz, angle
+static int GtLvBetter(const GtLvCand *a, const GtLvCand *b)  // a before b
+{
+    const int ba = (int)floorf(fabsf(a->dy) / GT_LV_BAND), bb = (int)floorf(fabsf(b->dy) / GT_LV_BAND);
+    if (ba != bb) return ba > bb;
+    if (a->d != b->d) return a->d < b->d;
+    return a->id < b->id;
+}
+// The candidates (best first, at most max in out); *found: all that qualify. dir: +1 up, -1 down
+static int GtLevelCands(const GtMap *m, const float her[3], float yaw, int dir, float reach, float radius, GtLvCand *out,
+                        int max, int *found)
+{
+    int ci, cj, r, i, j, n = 0;
+    *found = 0;
+    if (!m || !m->on || !dir || !(reach > 0.0f) || !(radius > 0.0f) || max <= 0 || !_finite(yaw) || !_finite(her[0]) ||
+        !_finite(her[1]) || !_finite(her[2]))
+        return 0;
+    ci = (int)floorf((her[0] - m->x0) / m->cell + 0.5f), cj = (int)floorf((her[2] - m->z0) / m->cell + 0.5f);
+    r = (int)ceilf(radius / m->cell);
+    if (r > GT_MAP_DIM) r = GT_MAP_DIM;
+    for (j = cj - r; j <= cj + r; ++j)
+        for (i = ci - r; i <= ci + r; ++i) {
+            float c3[3], d, ang;
+            int c, id;
+            if (i < 0 || i >= m->nx || j < 0 || j >= m->ny) continue;
+            c = j * m->nx + i;
+            if (!m->st[c]) continue;
+            GtMapXZ(m, c, &c3[0], &c3[2]);
+            c3[1] = her[1];
+            d = sqrtf((c3[0] - her[0]) * (c3[0] - her[0]) + (c3[2] - her[2]) * (c3[2] - her[2]));
+            if (!(d <= radius)) continue;
+            ang = GtOffFacing(her, yaw, c3);
+            if (d >= GT_LV_NEAR && ang > GT_LV_CONE * GT_DEG) continue;
+            for (id = GtMapFirst(m, c); id >= 0; id = GtMapNext(m, id)) {
+                const float fy = GtMapIdFy(m, id), dy = her[1] - fy;  // (+ = above her)
+                GtLvCand k;
+                int p;
+                if (!((float)dir * dy >= GT_LV_MIN) || !(fabsf(dy) <= reach)) continue;
+                ++*found;
+                k.id = id, k.at[0] = c3[0], k.at[1] = fy, k.at[2] = c3[2], k.dy = dy, k.d = d, k.ang = ang;
+                if (n == max && !GtLvBetter(&k, &out[max - 1])) continue;
+                p = n < max ? n++ : max - 1;
+                while (p > 0 && GtLvBetter(&k, &out[p - 1])) out[p] = out[p - 1], --p;
+                out[p] = k;
+            }
+        }
+    return n;
+}
+// Is the floor point `to` walkable from `from` (her feet on her floor) on the room's floor map? GTL_LINKED: one part;
+// GTL_APART: two parts and the map is finished; GTL_PENDING: not known yet (the map is not finished); GTL_UNKNOWN: the map
+// cannot tell (one floor a cell, a part past GT_MAP_PARTS, her place or the spot not on it when finished, the pool full)
+enum { GTL_LINKED = 0, GTL_APART, GTL_PENDING, GTL_UNKNOWN, GTL_N };
+static int GtMapLinked(const GtMap *m, const GtWorld *w, const float from[3], const float to[3])
+{
+    int a, b, ha, hb;
+    if (!m || !m->on || !m->lv) return GTL_UNKNOWN;
+    ha = GtMapHasAt(m, w, from, &a), hb = GtMapHasAt(m, w, to, &b);
+    if (ha == GTM_HAS && hb == GTM_HAS && GtPartSame(m->lv, GtPartOf(m, a), GtPartOf(m, b))) return GTL_LINKED;
+    if (!GtMapFinished(m)) return GTL_PENDING;
+    if (ha != GTM_HAS || hb != GTM_HAS || m->lv->full || GtPartOf(m, a) == GT_PART_UNK || GtPartOf(m, b) == GT_PART_UNK)
+        return GTL_UNKNOWN;
+    return GTL_APART;
+}
+// A warp across heights by the room's door lines: GtExitTest at the landing's level, and no door line of her own level
+// crossed on the way (xz; a straight warp up or down crosses none)
+static int GtExitTestLv(const GtExit *x, int n, const float from[3], const float s[3])
+{
+    int i;
+    const int r = GtExitTest(x, n, from, s);
+    if (r != GTX_OK) return r;
+    for (i = 0; i < n; ++i)
+        if (fabsf(x[i].y - from[1]) <= GT_EXIT_DY && GtCrossesExit(&x[i], from, s, GT_EXIT_NEAR)) return GTX_CROSS;
+    return GTX_OK;
+}
+// GtClearOf for a landing on another level: only the enemies at its height (GT_DY_MAX) count
+static int GtClearOfAt(const float spot[3], const float (*others)[3], int n)
+{
+    int i;
+    for (i = 0; i < n; ++i) {
+        const float dx = spot[0] - others[i][0], dz = spot[2] - others[i][2];
+        if (fabsf(others[i][1] - spot[1]) <= GT_DY_MAX && dx * dx + dz * dz < GT_ENEMY_GAP * GT_ENEMY_GAP) return 0;
+    }
+    return 1;
 }
 #endif

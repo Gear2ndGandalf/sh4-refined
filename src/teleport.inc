@@ -124,6 +124,22 @@
 // ThRedraw: GtHeatFade), under Spirit Vision her soul fire (spiritfire.inc SfBuild: GtSoulOp); her real-time shadow is
 // drawn from half opacity on (ThermShadowC: GtShadowC). Night Vision and the other filters work on the finished picture:
 // the clean body is all they need.
+//
+// v3.59 GT359 (the user's v3.58 QA: "Give it the ability to teleport on the Z axis pretty far. Enough to transcend or
+// descend those circular stair cases or the building world stairs."; staging/v359_feedback/w7_teleport/PLAN.md):
+// (a) the room's floor map keeps every floor a route of the room reaches over a cell (teleport_sim.h GtMap's lv: the
+//     spiral staircase's coils, the stairwell's storeys; v3.58 kept the first one only), and which of them are walkable
+//     from each other (its parts);
+// (b) with no enemy she faces, the floor the way she faces decides (GtAimLevel): rising = up the stairs, falling = down,
+//     flat = v3.58's warp exactly. Up or down: the floors of the map GT_LV_MIN .. [Gameplay] GhostTeleportHeight (hidden,
+//     default 1700 u = a storey of the spiral staircase and of the Building World stairwell, measured in the map banks;
+//     0 = off) above / below hers, within GhostTeleportForward of her along her facing (or straight up / down), the
+//     farthest in height first (GtLevelCands); each proven by the through-warp's rules at its level (GtLvLand: the game's
+//     floor ray and room to stand there, her body, the room's box with its height, the door lines of both levels, the
+//     walk-in zones, on the floor map) and walkable from where she stands (GtMapLinked, in place of the sub-area); no line
+//     of sight (a ghost's warp passes the floor between, as TP350's warp through walls). None proven: the flat warp, and
+//     once a room visit a line saying why. One LogV line a warp: the heights, the candidates;
+// (c) no exe patch, no new game function (every query is v3.50's byte-checked kWorld / kFn); her fade is v3.58's (GT358).
 
 #include "teleport_sim.h"
 
@@ -188,11 +204,18 @@ static GtFreeWatch g_gtFreeW;
 static int g_gtFreeWarp, g_gtFreeKind, g_gtFreeSaid;  // the watched warp's number and kind; its gate wait said
 static int g_gtRoomFreed;
 static volatile LONG g_gtQFree;
+// v3.59 GT359: across heights: the reach (hidden [Gameplay] GhostTeleportHeight; 0 = off), the floor map's further floors,
+// this room visit's warps up / down a level, the room key the "flat warp here" line was said for
+static volatile float g_gtHeight = GT_HEIGHT_DEF;
+static GtMapLv g_gtMapLv;
+static int g_gtRoomLv[2];
+static DWORD g_gtLvSaid = 0xFFFFFFFFu;
+static volatile LONG g_gtQLv;
 
 typedef struct { const BYTE *t, *w; float pos[3], rad, floorY; int type; } GtFoe;
 enum { GTS_OK, GTS_ENEMY, GTS_SIGHT, GTS_WALL, GTS_RAY, GTS_FLOOR, GTS_LEDGE, GTS_ROOM, GTS_AREA,
        GTS_BOX, GTS_DOOR_NEAR, GTS_DOOR_BEYOND, GTS_DOOR_CROSS, GTS_FOE_DOOR, GTS_EVENT,
-       GTS_BODY, GTS_ROUTE, GTS_PENDING, GTS_PROOF, GTS_N };  // GT343-001: + the room's edges  // v3.50 TP350: + body, route, pending  // v3.52 TP352: + proof
+       GTS_BODY, GTS_ROUTE, GTS_PENDING, GTS_PROOF, GTS_APART, GTS_N };  // GT343-001: + the room's edges  // v3.50 TP350: + body, route, pending  // v3.52 TP352: + proof  // v3.59 GT359: + apart
 static const char *const kGtWhy[GTS_N] = { "", "near an enemy", "a wall between", "in a wall", "no free floor ray",
                                            "no floor", "another level", "no room to stand", "another area",
                                            "outside the room's box", "at a door line", "beyond a door line (the next room)",
@@ -200,7 +223,8 @@ static const char *const kGtWhy[GTS_N] = { "", "near an enemy", "a wall between"
                                            "an event's trigger zone on the way",  // v3.49 GT349: + GTS_EVENT
                                            "no room for her body", "no route of the room reaches it",  // v3.50 TP350
                                            "not on the room's floor map yet",
-                                           "the landing cannot be proven (no solid map, or its queries are not stock)" };  // v3.52 TP352
+                                           "the landing cannot be proven (no solid map, or its queries are not stock)",  // v3.52 TP352
+                                           "not walkable from where she stands (another part of the room)" };  // v3.59 GT359
 typedef char GtWhyFit[sizeof kGtWhy / sizeof kGtWhy[0] == GTS_N ? 1 : -1];  // v3.52 TP352
 // GT343-001: this room's edges, read once an attempt (GtRoomRead): its door lines and its collision box
 static GtExit g_gtExit[GT_EXIT_MAX];
@@ -214,7 +238,9 @@ typedef struct {
     float dObst, ang;                               //   the obstacle's distance; the faced enemy's angle (degrees)
     int nSkip, skipWhy, skipType;                   // v3.51 TP351: enemies in the cone skipped behind collision (the first's
     float skipD, skipAng;                           //   GTV_* reason, type, distance, angle off her facing in degrees)
-} GtPlan;
+    int lvAim, lvFound, lvTried;                    // v3.59 GT359: kind 4 = up / down a level: +1 up, -1 down; the floor
+    float lvRise, lvRiseD, lvDy;                    //   cells in reach, tested; the floor ahead's rise over its distance; the
+} GtPlan;                                           //   landing's height over hers (+ up)
 
 // ---------------------------------------------------------------- the game's queries
 static int GtHeld(int action) { return ((int(__cdecl *)(int, int))0x4F8440)(0, action) != 0; }
@@ -868,8 +894,10 @@ static void GtMapGrow(int cells);
 static void GtMapEnsure(const float pp[3], float herFloor, int cells)
 {
     const DWORD key = GtRoomKeyNow();
+    const int multi = g_gtHeight > 0.0f;  // v3.59 GT359: several floors a cell (GhostTeleportHeight on)
     int k;
-    if (key != g_gtMapKey) {
+    if (key != g_gtMapKey || (g_gtMap.lv != NULL) != multi) {  // (v3.59 GT359: the key turned on / off: built again)
+        g_gtMap.lv = multi ? &g_gtMapLv : NULL;
         GtMapBegin(&g_gtMap, g_gtBoxLo, g_gtBoxHi, g_gtExit, g_gtExitN);
         for (k = 0; k < g_gtExitN; ++k)  // every door's point on the room's side
             GtMapSeed(&g_gtMap, &g_gtWorld, g_gtExit[k].px, g_gtExit[k].y, g_gtExit[k].pz, GT_MAP_SEED_DY);
@@ -901,10 +929,20 @@ static void GtMapGrow(int cells)  // up to `cells` more of this room's floor map
     } else if (GtMapFinished(&g_gtMap) && g_gtMapSaid < 2) {
         g_gtMapSaid = 2;
         if (LogQuota(&g_gtQMap, 200))
+        {
+            char lv[160];  // v3.59 GT359: the floors over another floor's cell, the parts of the room
+            lv[0] = 0;
+            if (g_gtMap.lv) {
+                int k, roots = 0;
+                for (k = 1; k <= g_gtMap.lv->nParts; ++k) roots += GtPartRoot(g_gtMap.lv, k) == k;
+                sprintf_s(lv, sizeof lv, "; levels: %d cell(s) over another floor's, %d part(s) walkable apart of %d seed(s)%s",
+                          g_gtMap.lvCells, roots, g_gtMap.lv->nParts, g_gtMap.lv->full ? ", the pool FULL (more floors not held)" : "");
+            }
             LogV("ghost teleport: room %d:%d: the floor map is finished: %d cell(s) a route of the room reaches, from %d seed(s) "
-                 "(%d without a floor); %.1f ms over %d run(s)%s; %d seed(s) inside collision refused", *(volatile int *)0xFD5A90,
+                 "(%d without a floor); %.1f ms over %d run(s)%s; %d seed(s) inside collision refused%s", *(volatile int *)0xFD5A90,
                  *(volatile int *)0xFD5A94, g_gtMap.cells, g_gtMap.seeds, g_gtMap.seedsNoFloor, g_gtMapMs, g_gtMap.runs,
-                 g_gtMap.unknown ? " (some queries could not answer: blocked)" : "", g_gtMap.seedsBlocked);  // v3.52 TP352: + the seeds refused
+                 g_gtMap.unknown ? " (some queries could not answer: blocked)" : "", g_gtMap.seedsBlocked, lv);  // v3.52 TP352: + the seeds refused
+        }
     }
 }
 // v3.52 TP352: the landing proof of every kind (teleport_sim.h GtLandProof on this room's floor map): GTS_OK, GTS_BODY,
@@ -977,6 +1015,97 @@ static int GtThruFind(const float pp[3], float herFloor, float yaw, GtPlan *pl, 
                 "cell(s)%s", nObst, GT_FAN_N, g_gtFwd, nObst ? ", past it: " : "", nObst ? (GtWhyList(cnt, list, sizeof list)[0] ?
                 list : "nothing to try") : "", g_gtMap.cells, GtMapFinished(&g_gtMap) ? "" : " (not finished)");
     return 0;
+}
+// ---------------------------------------------------------------- v3.59 GT359: up or down a level (teleport_sim.h)
+// A candidate on another level (its cell's centre on that floor): GTS_OK (out = the floor point) or why not. The
+// through-warp's rules at the candidate's level from her feet g_gtThruFrom (no line of sight: the warp passes the floor
+// between): clear of the enemies at that height, the room's box with its height, the door lines at the landing's level
+// and her own on the way (GtExitTestLv), the walk-in zones on the straight path from her feet, not inside geometry, the
+// game's floor ray at that level and room to stand, the landing proof (her body, on the floor map), and walkable from
+// where she stands (GtMapLinked; it stands in for the sub-area test: a part of the room she walks to is this room)
+static int GtLvLand(const float c[3], float out[3])
+{
+    __declspec(align(16)) float q[4], hp[4], hn[4];
+    const float *from = g_gtThruFrom;
+    int r;
+    if (!GtClearOfAt(c, g_gtOthersP, g_gtNOthers)) return GTS_ENEMY;
+    if (!g_gtBoxOk || !GtInBox(g_gtBoxLo, g_gtBoxHi, c) || !(c[1] >= g_gtBoxLo[1] && c[1] <= g_gtBoxHi[1])) return GTS_BOX;
+    r = GtExitTestLv(g_gtExit, g_gtExitN, from, c);
+    if (r != GTX_OK) return r == GTX_NEAR ? GTS_DOOR_NEAR : r == GTX_BEYOND ? GTS_DOOR_BEYOND : GTS_DOOR_CROSS;
+    if (GtZoneBlocks(c)) return GTS_EVENT;
+    q[0] = c[0], q[1] = c[1] - GT_REACH_LOW, q[2] = c[2], q[3] = 1.0f;
+    if (!((int(__cdecl *)(float *))0x46F700)(q)) return GTS_WALL;
+    if ((r = GtFloorHit(q, hp, hn)) < 0) return GTS_RAY;
+    if (!r) return GTS_FLOOR;
+    if (fabsf(hp[1] - c[1]) > GT_FLOOR_TOL) return GTS_LEDGE;
+    if (((int(__cdecl *)(float *, float *, float, float))0x458F00)(hp, hn, 60.0f, 1.0f) != 2) return GTS_ROOM;
+    if (!GtInBox(g_gtBoxLo, g_gtBoxHi, hp) || !(hp[1] >= g_gtBoxLo[1] && hp[1] <= g_gtBoxHi[1])) return GTS_BOX;
+    r = GtExitTestLv(g_gtExit, g_gtExitN, from, hp);
+    if (r != GTX_OK) return r == GTX_NEAR ? GTS_DOOR_NEAR : r == GTX_BEYOND ? GTS_DOOR_BEYOND : GTS_DOOR_CROSS;
+    if (GtZoneBlocks(hp)) return GTS_EVENT;
+    out[0] = hp[0], out[1] = hp[1], out[2] = hp[2];
+    if ((r = GtProveSpot(hp)) != GTS_OK) return r;
+    r = GtMapLinked(&g_gtMap, &g_gtWorld, from, hp);
+    return r == GTL_LINKED ? GTS_OK : r == GTL_PENDING ? GTS_PENDING : r == GTL_APART ? GTS_APART : GTS_PROOF;
+}
+// The landing on another level along her aim. 1 = *pl holds it (kind 4), 2 = the best one is not known yet (at the press
+// only: the fade starts, the warp decides; nothing worse is taken before it), 0 = none: lw says why when she faces up /
+// down the stairs ("" when the floor ahead is flat or the height is off: the flat warp as v3.58)
+static int GtLevelFind(const float pp[3], float herFloor, float yaw, GtPlan *pl, int atWarp, char *lw, size_t nlw)
+{
+    static GtLvCand cand[GT_LV_KEEP];  // (game thread only)
+    const float from[3] = { pp[0], herFloor, pp[2] };
+    int cnt[GTS_N], aim, n, found, k, tests = 0, r;
+    float rise, dist;
+    char list[200];
+    lw[0] = 0;
+    if (!(g_gtHeight > 0.0f) || !g_gtMap.lv || !g_gtMap.on || !g_gtProofOk || g_gtMapKey != GtRoomKeyNow() || !(g_gtFwd > 0.0f))
+        return 0;
+    aim = GtAimLevel(&g_gtWorld, from, yaw, &rise, &dist);
+    pl->lvRise = rise, pl->lvRiseD = dist;
+    if (!aim) return 0;  // flat ahead: v3.58's warp
+    pl->lvAim = aim;
+    n = GtLevelCands(&g_gtMap, from, yaw, aim, g_gtHeight, g_gtFwd, cand, GT_LV_KEEP, &found);
+    pl->lvFound = found;
+    memcpy(g_gtThruFrom, from, sizeof g_gtThruFrom);
+    memset(cnt, 0, sizeof cnt);
+    for (k = 0; k < n && tests < GT_LV_TESTS; ++k) {
+        float out[3];
+        ++tests;
+        if (!GtRayFree()) {  // (GtFloorHit needs a free mover ray: none now = not known; at the warp: refused)
+            r = GTS_RAY;
+        } else {
+            r = GtLvLand(cand[k].at, out);
+        }
+        if (r == GTS_OK || (r == GTS_PENDING && !atWarp)) {
+            pl->kind = 4, pl->yaw = yaw, pl->pending = r == GTS_PENDING, pl->lvTried = tests, pl->refusedBefore = tests - 1;
+            memcpy(pl->at, out, sizeof pl->at);
+            pl->d = sqrtf((out[0] - pp[0]) * (out[0] - pp[0]) + (out[2] - pp[2]) * (out[2] - pp[2]));
+            pl->lvDy = herFloor - out[1];
+            return r == GTS_OK ? 1 : 2;
+        }
+        if (r > 0 && r < GTS_N) ++cnt[r];
+    }
+    pl->lvTried = tests;
+    _snprintf_s(lw, nlw, _TRUNCATE, "%s a level (the floor the way she faces %s %.0f u in %.0f u): %d floor cell(s) %.0f .. %.0f u "
+                "%s hers within %.0f u on the room's floor map (%d level cell(s) in it)%s%s", aim > 0 ? "up" : "down",
+                aim > 0 ? "rises" : "falls", fabsf(rise), dist, found, GT_LV_MIN, g_gtHeight, aim > 0 ? "above" : "below", g_gtFwd,
+                g_gtMap.lvCells, tests ? ", tested " : "", tests ? GtWhyList(cnt, list, sizeof list) : "");
+    return 0;
+}
+// No landing on another level was proven though she faced up / down the stairs: the flat warp. Said once a room visit
+// (LogV), the rest per tick (the brief's item 3: "keep the flat warp there and log it once")
+static void GtLvSay(const char *lw)
+{
+    const DWORD key = GtRoomKeyNow();
+    if (!lw[0]) return;
+    if (key != g_gtLvSaid && LogQuota(&g_gtQLv, 100)) {
+        g_gtLvSaid = key;
+        LogV("ghost teleport: room %d:%d: no landing on another level is proven here (%s): the flat warp", (int)(key >> 16),
+             (int)(key & 0xFFFF), lw);
+    } else {
+        LogT("ghost teleport: no landing on another level (%s): the flat warp", lw);
+    }
 }
 // ---------------------------------------------------------------- v3.51 TP351: the faced enemy must be in the open
 // The line test's collision (teleport_sim.h GtFoeSight): the through-warp's tree2 queries (0x561CD0 line, 0x561CB0 inside
@@ -1120,7 +1249,7 @@ static int GtFindLanding(const float pp[3], float herFloor, GtPlan *pl, char *wh
     if (faced < 0) {  // v3.44 GT344 (c): no standing enemy she faces: the way she faces (v3.50 TP350: through walls first)
         const float from[3] = { pp[0], herFloor, pp[2] };
         const int n = GtFwdTries(g_gtFwd);
-        char tw[400], sk[224];
+        char tw[400], sk[224], lw[320];  // v3.59 GT359: + lw (up / down a level)
         int r;
         GtSkipSay(pl, sk, sizeof sk);  // v3.51 TP351
         if (!_finite(yaw))
@@ -1131,6 +1260,9 @@ static int GtFindLanding(const float pp[3], float herFloor, GtPlan *pl, char *wh
                                                   cnt[GTS_FOE_DOOR], sk), 0;
         for (k = 0; k < nf; ++k) memcpy(others[k], foe[k].pos, 12);
         g_gtOthersP = (const float (*)[3])others, g_gtNOthers = nf;
+        // v3.59 GT359: facing up / down the stairs: a landing on another level first; none proven: the flat warp below
+        if (GtLevelFind(pp, herFloor, yaw, pl, atWarp, lw, sizeof lw) != 0) return 1;  // (pl->pending = r == 2)
+        GtLvSay(lw);
         if ((r = GtThruFind(pp, herFloor, yaw, pl, atWarp, tw, sizeof tw)) != 0) return 1;  // (pl->pending = r == 2)
         for (k = 0; k < n; ++k) {
             float c[3];
@@ -1148,8 +1280,8 @@ static int GtFindLanding(const float pp[3], float herFloor, GtPlan *pl, char *wh
         }
         *kind = GTN_AHEAD;
         return _snprintf_s(why, nw, _TRUNCATE, "no free floor ahead of her in this room (no standing enemy she faces within %.0f u%s; %d "
-                           "tries from %.0f down to %.0f u, %d door line(s): %s; %s)", g_gtRange, sk, n, g_gtFwd, GtFwdDist(g_gtFwd, n - 1),
-                           g_gtExitN, GtWhyList(cnt, list, sizeof list), tw), 0;  // v3.51 TP351: + sk
+                           "tries from %.0f down to %.0f u, %d door line(s): %s; %s%s%s)", g_gtRange, sk, n, g_gtFwd, GtFwdDist(g_gtFwd, n - 1),
+                           g_gtExitN, GtWhyList(cnt, list, sizeof list), tw, lw[0] ? "; " : "", lw), 0;  // v3.51 TP351: + sk  // v3.59 GT359: + lw
     }
     {   // v3.50 TP350 A2: behind the faced enemy only (v3.43's spot rings; its floor read above)
         GtFoe *f = &foe[faced];
@@ -1249,12 +1381,14 @@ static void GtMove(const float pp[3], const GtPlan *pl)  // the warp itself (the
     memcpy(g_gtHeld.spot, pl->at, sizeof g_gtHeld.spot);
     ++g_gtWarps;
     if (pl->kind == 3) ++g_gtRoomFreed;                        // v3.52 TP352: (not a warp of the three kinds)
+    else if (pl->kind == 4) ++g_gtRoomLv[pl->lvDy > 0.0f ? 0 : 1];  // v3.59 GT359: up / down a level
     else ++g_gtRoomW[pl->kind >= 0 && pl->kind < 3 ? pl->kind : 1];  // v3.50 TP350: the room's counts
     GtFreeWatchStart(&g_gtFreeW);                              // v3.52 TP352 (c): her body is watched now
     g_gtFreeWarp = g_gtWarps, g_gtFreeKind = pl->kind, g_gtFreeSaid = 0;
     g_gtCool = g_gtCoolS;
     if (g_gtHold.on && ++g_gtHold.warps > GT_HOLD_LOGN) {  // v3.49 GT349: a long hold: per tick only (its summary counts)
-        LogT("ghost teleport: held, warp %d in a row: to (%.0f, %.0f)", g_gtHold.warps, pl->at[0], pl->at[2]);
+        LogT("ghost teleport: held, warp %d in a row: to (%.0f, %.0f)%s", g_gtHold.warps, pl->at[0], pl->at[2],
+             pl->kind == 4 ? (pl->lvDy > 0.0f ? ", up a level" : ", down a level") : "");  // v3.59 GT359
         return;
     }
     if (!LogQuota(&g_gtQGo, 300)) return;
@@ -1266,6 +1400,17 @@ static void GtMove(const float pp[3], const GtPlan *pl)  // the warp itself (the
                 Log("ghost teleport: freed from a wall: at the warp she stood inside collision at (%.0f, %.0f) and no other landing "
                     "was proven: to the nearest proven floor cell (%.0f, %.0f), %.0f u away, floor %+.0f u of hers (warp %d)", pp[0],
                     pp[2], pl->at[0], pl->at[2], pl->d, pl->at[1] - pp[1], g_gtWarps);
+            return;
+        }
+        if (pl->kind == 4) {  // v3.59 GT359: up / down a level (one LogV line a warp: the heights, the candidates)
+            LogV("ghost teleport: %s a level: height (y) from %.0f to %.0f (%.0f u %s), %.0f u off her place; candidates: %d floor "
+                 "cell(s) %.0f .. %.0f u %s hers within %.0f u, %d tested (%d refused first); the floor the way she faces %s %.0f u "
+                 "in %.0f u; proven: her body free, on the room's floor map, walkable from where she stood: from (%.0f, %.0f) to "
+                 "(%.0f, %.0f) (the fade began at (%.0f, %.0f)); cooldown %.1f s (warp %d; same room: %d door line(s), box %s)",
+                 pl->lvDy > 0.0f ? "up" : "down", pp[1], pl->at[1], fabsf(pl->lvDy), pl->lvDy > 0.0f ? "up" : "down", pl->d,
+                 pl->lvFound, GT_LV_MIN, g_gtHeight, pl->lvAim > 0 ? "above" : "below", g_gtFwd, pl->lvTried, pl->refusedBefore,
+                 pl->lvAim > 0 ? "rises" : "falls", fabsf(pl->lvRise), pl->lvRiseD, pp[0], pp[2], pl->at[0], pl->at[2],
+                 g_gtFrom[0], g_gtFrom[2], g_gtCoolS, g_gtWarps, g_gtExitN, g_gtBoxOk ? "in" : "unknown");
             return;
         }
         if (pl->kind == 2) {  // v3.50 TP350 A1
@@ -1332,20 +1477,25 @@ static void GtRoomSay(DWORD key)
         if (g_gtRoomNo[k] && o < (int)sizeof list - 40)
             o += sprintf_s(list + o, sizeof list - (size_t)o, "%s%s %d", o ? ", " : "", kGtNoKind[k], g_gtRoomNo[k]);
     }
-    if ((g_gtRoomW[0] + g_gtRoomW[1] + g_gtRoomW[2] + nNo + g_gtRoomBack + g_gtRoomFreed) && LogQuota(&g_gtQRoom, 300)) {  // v3.52 TP352: + freed
-        char map[120];
+    if ((g_gtRoomW[0] + g_gtRoomW[1] + g_gtRoomW[2] + nNo + g_gtRoomBack + g_gtRoomFreed + g_gtRoomLv[0] + g_gtRoomLv[1]) &&
+        LogQuota(&g_gtQRoom, 300)) {  // v3.52 TP352: + freed  // v3.59 GT359: + up / down a level
+        char map[160], lv[64];
         if (g_gtMapKey == key && g_gtMap.on)
             sprintf_s(map, sizeof map, "%d cell(s)%s, %.1f ms over %d run(s)", g_gtMap.cells, GtMapFinished(&g_gtMap) ? ", finished" :
                       g_gtMap.overflow ? ", OVERFLOW" : ", not finished", g_gtMapMs, g_gtMap.runs);
         else
             sprintf_s(map, sizeof map, "not built");
+        lv[0] = 0;  // v3.59 GT359 (only with GhostTeleportHeight on, or a level warp made)
+        if (g_gtHeight > 0.0f || g_gtRoomLv[0] + g_gtRoomLv[1])
+            sprintf_s(lv, sizeof lv, "; %d up a level, %d down a level", g_gtRoomLv[0], g_gtRoomLv[1]);
         LogV("ghost teleport: room %d:%d left: %d warp(s) (%d through walls, %d behind the enemy she faces, %d ahead), %d refused%s%s%s; "
              "%d Action / Check press(es) taken back in fade-outs; %d enemy(ies) in the cone skipped behind collision in %d try(ies); "
-             "%d time(s) freed from a wall; floor map %s", (int)(key >> 16), (int)(key & 0xFFFF),
+             "%d time(s) freed from a wall%s; floor map %s", (int)(key >> 16), (int)(key & 0xFFFF),
              g_gtRoomW[0] + g_gtRoomW[1] + g_gtRoomW[2], g_gtRoomW[2], g_gtRoomW[0], g_gtRoomW[1], nNo, nNo ? " (" : "", list,
-             nNo ? ")" : "", g_gtRoomBack, g_gtRoomSkip, g_gtRoomSkipTries, g_gtRoomFreed, map);  // v3.51 TP351: + the skips  // v3.52 TP352: + freed
+             nNo ? ")" : "", g_gtRoomBack, g_gtRoomSkip, g_gtRoomSkipTries, g_gtRoomFreed, lv, map);  // v3.51 TP351: + the skips  // v3.52 TP352: + freed  // v3.59 GT359: + lv
     }
     memset(g_gtRoomW, 0, sizeof g_gtRoomW), memset(g_gtRoomNo, 0, sizeof g_gtRoomNo), g_gtRoomBack = 0;
+    memset(g_gtRoomLv, 0, sizeof g_gtRoomLv);  // v3.59 GT359
     g_gtRoomSkip = g_gtRoomSkipTries = 0;  // v3.51 TP351
     g_gtRoomFreed = 0;                     // v3.52 TP352
 }
@@ -1420,7 +1570,11 @@ static void GtOnChord(int c, const float pp[3])
         LogT("ghost teleport: Run + Action (held: the next warp, %d so far)", g_gtHold.warps);
     } else if (LogQuota(&g_gtQStart, 300)) {
         static const char kPend[] = " (the room's floor map is not finished: the warp decides)";  // v3.52 TP352: every kind
-        if (pl.kind == 3)  // v3.52 TP352 (d)
+        if (pl.kind == 4)  // v3.59 GT359
+            LogV("ghost teleport: Run + Action (%s; a later call-off keeps it): Richard's fade out (0.5 s), then %s a level: %.0f u "
+                 "%s, %.0f u off her place%s", GtChordWhat(c, back), pl.lvDy > 0.0f ? "up" : "down", fabsf(pl.lvDy),
+                 pl.lvDy > 0.0f ? "up" : "down", pl.d, pl.pending ? kPend : "");
+        else if (pl.kind == 3)  // v3.52 TP352 (d)
             LogV("ghost teleport: Run + Action (%s; a later call-off keeps it): Richard's fade out (0.5 s), then out of the wall she "
                  "stands in: the nearest proven floor cell %.0f u away%s", GtChordWhat(c, back), pl.d, pl.pending ? kPend : "");
         else if (pl.kind == 2)  // v3.50 TP350
@@ -1456,7 +1610,8 @@ static void GtHoldSay(const char *how)
 // cell within GT_FREE_R. 1 = done (moved, or no cell: said), 0 = wait (a gate, no free mover ray, the map being built)
 static int GtFreeNow(const float p[3])
 {
-    static const char *const kKind[4] = { "behind the enemy she faces", "ahead", "through a wall", "out of a wall" };
+    static const char *const kKind[5] = { "behind the enemy she faces", "ahead", "through a wall", "out of a wall",
+                                          "up or down a level" };  // v3.59 GT359: + kind 4
     const BYTE *t = NULL;
     char why[640];
     float fl, at[3], from[3];
@@ -1504,7 +1659,7 @@ static int GtFreeNow(const float p[3])
         if (LogQuota(&g_gtQFree, 60))
             Log("ghost teleport: freed from a wall: after warp %d (%s) her body stood inside collision at (%.0f, %.0f) for %.2f s: "
                 "moved %.0f u to the nearest proven floor cell (%.0f, %.0f), floor %+.0f u of hers (%d cell(s) tried)", g_gtFreeWarp,
-                kKind[g_gtFreeKind >= 0 && g_gtFreeKind < 4 ? g_gtFreeKind : 1], p[0], p[2], g_gtFreeW.stuck, d, at[0], at[2],
+                kKind[g_gtFreeKind >= 0 && g_gtFreeKind < 5 ? g_gtFreeKind : 1], p[0], p[2], g_gtFreeW.stuck, d, at[0], at[2],
                 at[1] - fl, tried);
     }
     return 1;
@@ -1711,7 +1866,7 @@ static void GtTexts(void)
 }
 static int GtParse(const char *s) { return !_stricmp(s, "On") || !strcmp(s, "1"); }
 // the hidden keys GhostTeleportRange / Cooldown / Sound / (v3.44 GT344) Forward / (v3.50 TP350) Cone, ThroughWalls;
-// 1 = something changed
+// 1 = something changed (v3.59 GT359: + Height, said on its own line when it changes)
 static int GtReadKeys(void)
 {
     char buf[32];
@@ -1747,6 +1902,25 @@ static int GtReadKeys(void)
             if (g_gtReady)  // (a change after the start: the clean draw needs the call 0x4EF905, hooked only for Clean at the start)
                 Log("gameplay: [Gameplay] GhostTeleportFadeDraw %d: %s%s", (int)fd, GtFadeDrawName((int)fd),
                     fd == GT_FD_CLEAN && !g_gtLateIn ? " (not hooked at the start: one pass in place until the game is started again)" : "");
+        }
+    }
+    {   // v3.59 GT359: hidden GhostTeleportHeight: the reach in height (u; 0 = off: v3.58's one level; 400 .. 4000; missing,
+        // negative or not a number: 1700, said once a value)
+        static char s_badH[32];
+        char *end = NULL;
+        double v;
+        float h;
+        GetPrivateProfileStringA("Gameplay", "GhostTeleportHeight", "", buf, sizeof buf, g_iniPath);
+        v = buf[0] ? strtod(buf, &end) : 0.0;
+        h = GtHeightKey(buf[0] && end && !*end, (float)v);
+        if (buf[0] && (!end || *end || (float)v != h) && strcmp(s_badH, buf)) {
+            strcpy_s(s_badH, sizeof s_badH, buf);
+            Log("gameplay: [Gameplay] GhostTeleportHeight=%s is not 0 or %.0f .. %.0f: %.0f u%s", buf, GT_HEIGHT_MIN, GT_HEIGHT_MAX,
+                h, h > 0.0f ? "" : " (off)");
+        }
+        if (h != g_gtHeight) {
+            if (g_gtReady) Log("gameplay: [Gameplay] GhostTeleportHeight %.0f u%s", h, h > 0.0f ? "" : " (off: one level, as v3.58)");
+            g_gtHeight = h;
         }
     }
     ch = range != g_gtRange || cool != g_gtCoolS || snd != g_gtSound || fwd != g_gtFwd || cone != g_gtCone || thru != g_gtThruOn ||
@@ -1830,6 +2004,7 @@ static void GtInstall(void)  // GameplayInstall (after the ini read): no exe pat
         { 0x561CB0, { 0xA1, 0x78, 0x6D, 0x2F, 0x01, 0x85, 0xC0, 0x75, 0x01, 0xC3, 0x8B, 0x4C }, 12 },  // inside solid
         { 0x561CA0, { 0x8B, 0x0D, 0x78, 0x6D, 0x2F, 0x01, 0x33, 0xC0, 0x85, 0xC9, 0x0F, 0x95 }, 12 } };  // tree2 present
     int i, ok = 1, fade = 1, world = 1;
+    char hgt[160];  // v3.59 GT359
     for (i = 0; i < (int)(sizeof kWorld / sizeof kWorld[0]); ++i)
         if (!SiteOk(&kWorld[i])) {
             Log("ghost teleport: %08lX is not the game's code (another mod?): no warp through walls", kWorld[i].va);
@@ -1874,9 +2049,14 @@ static void GtInstall(void)  // GameplayInstall (after the ini read): no exe pat
                 g_gtLateIn ? "a depth pre-pass, then the heat x her opacity" : "the heat x her opacity, one pass");
         if (no && (int)g_gtFadeDraw == GT_FD_CLEAN) Log("ghost teleport: the clean fade's draw is not in (%s): one pass in place", no);
     }
+    if (!(g_gtHeight > 0.0f))  // v3.59 GT359: across heights (the floor map keeps every floor of a cell then)
+        strcpy_s(hgt, sizeof hgt, "across heights off ([Gameplay] GhostTeleportHeight 0: one level, as v3.58)");
+    else
+        sprintf_s(hgt, sizeof hgt, "facing up / down the stairs: up / down a level within %.0f u %s", g_gtHeight,
+                  world ? "(onto floor walkable from where she stands)" : "OFF (the tree2 queries are not stock)");
     Log("ghost teleport: %s (%s; %d game functions checked), [Gameplay] GhostTeleport %s; Run + Action together "
         "(within %.0f ms): behind the standing enemy she faces (+-%.0f degrees) within %.0f u%s, else up to %.0f u ahead the way she "
-        "faces, through walls %s (onto floor a route of the room reaches), cooldown %.1f s; "  // v3.50 TP350
+        "faces, through walls %s (onto floor a route of the room reaches), %s, cooldown %.1f s; "  // v3.50 TP350  // v3.59 GT359: + heights
         "every landing proven (her body free, on the room's floor map); inside a wall after a warp: moved to the nearest proven floor; "  // v3.52 TP352
         "held: the next warp once she has faded in; never across or into a walk-in event zone; "  // v3.49 GT349
         "Richard's transition: his warp sound 0xEC86 %s, his see-through fade (%.1f s out, %.1f s in) on her model %s",
@@ -1885,7 +2065,7 @@ static void GtInstall(void)  // GameplayInstall (after the ini read): no exe pat
         kGtName[g_gtSet ? 1 : 0], GT_CHORD_S * 1000.0f, g_gtCone, g_gtRange,
         g_gtBehindColl ? " (also past collision: GhostTeleportBehindCollision 1)" : world ? " in the open (none past collision)" :
         " in the open (none past collision; the mover line: the tree2 queries are not stock)",  // v3.51 TP351
-        g_gtFwd, !g_gtThruOn ? "off" : world ? "on" : "OFF",
+        g_gtFwd, !g_gtThruOn ? "off" : world ? "on" : "OFF", hgt,
         g_gtCoolS, g_gtSound ? "on" : "off", GT_FADE_S, GT_FADE_S, fade ? "in" : "OFF");
     if (!ok && g_gtSet) LogAnomaly("ghost teleport", "[Gameplay] GhostTeleport is On but its game functions are not stock: the option does nothing");
 }

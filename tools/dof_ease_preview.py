@@ -23,7 +23,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SIM = sys.argv[1] if len(sys.argv) > 1 else os.path.join(HERE, '..', 'src', 'dof_sim.h')
 OUT = sys.argv[2] if len(sys.argv) > 2 else os.path.join(HERE, '..', 'renders')
 W, H = 512, 288
-STR = ('Low', 'Medium', 'High')
+STR = ('Low', 'Medium', 'High', 'Ultra')  # v3.59 DF359: + Ultra (= v3.58's High)
+V346_ROW = (0, 1, 2, 2)  # v3.59 DF359: the v3.46 row each strength is drawn against (Ultra = v3.46 .. v3.58's High)
 
 # ---- v3.46's tables (dof_sim.h before v3.47): far ratios, near ratios, a whole level per code
 V346_FAR = (1.25, 1.6, 2.2, 3.2, 5.0)
@@ -38,9 +39,9 @@ def read_ramps(path):
     body = text[text.index('kDofRamp[DOFS_N][DOF_SIDES] = {'):]
     body = body[:body.index('};')]
     sides = re.findall(r'\{\s*(\d+)\s*,\s*\{([-\d,\s]+)\}\s*\}', body)
-    assert len(sides) == 6, sides
+    assert len(sides) == 2 * len(STR), sides  # v3.59 DF359: four strengths (+ Ultra)
     out = []
-    for k in range(3):
+    for k in range(len(STR)):
         pair = []
         for n, g in sides[2 * k:2 * k + 2]:
             vals = [int(v) for v in g.split(',') if v.strip()]
@@ -71,7 +72,7 @@ def blur_old(s, r):
         code = np.where(r > t, k + 1, code)
     for k, t in enumerate(V346_NEAR):
         code = np.where(r < t, 9 + k, code)
-    return np.array(V346_LV[s], np.float32)[code]
+    return np.array(V346_LV[V346_ROW[s]], np.float32)[code]  # v3.59 DF359: by V346_ROW
 
 
 # ---- the test picture: colour and view depth (a camera above and behind the player looking down, as SH4's)
@@ -175,7 +176,7 @@ def main():
     zw, zh = 128, 72
     for s, name in enumerate(STR):
         # the zoom: where v3.46's far blur started (its first blurred code), on the floor left of the middle
-        r0 = next(V346_FAR[k] for k in range(5) if V346_LV[s][k + 1])
+        r0 = next(V346_FAR[k] for k in range(5) if V346_LV[V346_ROW[s]][k + 1])  # v3.59 DF359
         zx, zy = 150, int(max(0, min(H - zh, row_of(r0) - zh / 2)))
         old = compose(lv, blur_old(s, r))
         new = compose(lv, blur_new(s, r))
@@ -202,10 +203,10 @@ def main():
     for o, t in ((-1.0, '0.5 F'), (0.0, 'F (player)'), (1.0, '2 F'), (2.0, '4 F')):
         d.line((gx(o), 26, gx(o), PH - mb), fill=(60, 60, 66))
         d.text((gx(o) - 14, PH - mb + 6), t, fill=(200, 200, 200))
-    cols = ((120, 200, 255), (255, 200, 90), (255, 110, 110))
+    cols = ((120, 200, 255), (255, 200, 90), (255, 110, 110), (210, 120, 255))  # v3.59 DF359: + Ultra
     o = np.linspace(x0, x1, 1600)
     rr = 2.0 ** o
-    for s in range(3):
+    for s in range(len(STR)):  # v3.59 DF359
         for which, fn in ((0, blur_old), (1, blur_new)):
             b = fn(s, rr)
             pts = [(gx(o[i]), gy(b[i]) - (s - 1) * 2) for i in range(len(o))]
@@ -216,7 +217,7 @@ def main():
                     d.line((pts[i], pts[min(i + 4, len(pts) - 1)]), fill=tuple(int(c * 0.7) for c in cols[s]), width=2)
     d.text((ml, 6), 'blur level by distance from the player: v3.46 dashed (hard steps), v3.47 solid (quarter steps)',
            fill=(230, 230, 230))
-    for s in range(3):
+    for s in range(len(STR)):  # v3.59 DF359
         d.rectangle((ml + 80 * s, 20, ml + 8 + 80 * s, 28), fill=cols[s])
         d.text((ml + 12 + 80 * s, 18), STR[s], fill=(230, 230, 230))
     prof.save(os.path.join(OUT, 'dof_ease_profile.png'), optimize=True)

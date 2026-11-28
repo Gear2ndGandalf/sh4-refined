@@ -32,6 +32,14 @@ static int FmtLen(const char *s)  // as tools\gen_ol_words.py fmt_len: %d / %g a
     return n;
 }
 static int Max(char kind) { return kind == 'L' ? 18 : kind == 'V' ? 13 : kind == 'T' ? 28 : 52; }
+// v3.59 TV359: one named value at 14 (Effects > Filter "Thermal Vision": tools\valbox_check.py fits it at every Menu Font);
+// every other value keeps 13 (tools\gen_ol_words.py MAX_EXC, gen_layout.py MAX_VALUE_EXC)
+static int MaxFor(char kind, const char *name, const char *s)
+{
+    if (kind == 'V' && !strcmp(name, "OLW_EFFECTS_FILTER_V_THERMAL_VISION") && !strcmp(s, "Thermal Vision")) return 14;
+    return Max(kind);
+}
+static int ShowMax(const char *show) { return !strcmp(show, "Thermal Vision") ? 14 : 13; }  // v3.59 TV359
 
 typedef struct { char kind; const char *s, *name; } Word;
 #define OL_W(k, s, n) { k, s, n },
@@ -48,7 +56,7 @@ static void TestLimits(void)
         const char *p;
         ++perKind[(unsigned char)w->kind];
         CHECK(strchr("LVDTS", w->kind) != NULL, "%s: kind %c", w->name, w->kind);
-        CHECK(len <= Max(w->kind), "%s (%c): %d > %d: \"%s\"", w->name, w->kind, len, Max(w->kind), w->s);
+        CHECK(len <= MaxFor(w->kind, w->name, w->s), "%s (%c): %d > %d: \"%s\"", w->name, w->kind, len, MaxFor(w->kind, w->name, w->s), w->s);  // v3.59 TV359
         if (!strcmp(w->name, "OLW_RESERVED")) continue;
         CHECK(w->s[0] != 0, "%s is empty", w->name);
         for (p = w->s; *p; ++p) CHECK((unsigned char)*p >= 0x20 && (unsigned char)*p < 0x7F, "%s: byte %02X", w->name, (unsigned char)*p);
@@ -113,7 +121,7 @@ static void TestMaps(void)
         CHECK(!strcmp(OlShow(e->map, e->ini), e->show), "map %d: %s shows %s, not %s", e->map, e->ini, OlShow(e->map, e->ini), e->show);
         CHECK(!strcmp(OlIni(e->map, e->show), e->ini), "map %d: %s stands for %s, not %s", e->map, e->show, OlIni(e->map, e->show), e->ini);
         CHECK(!strcmp(OlIni(e->map, OlShow(e->map, e->ini)), e->ini), "map %d: %s does not round-trip", e->map, e->ini);
-        CHECK((int)strlen(e->show) <= 13, "map %d: the screen word %s is over 13", e->map, e->show);
+        CHECK((int)strlen(e->show) <= ShowMax(e->show), "map %d: the screen word %s is over 13", e->map, e->show);  // v3.59 TV359
         CHECK(strcmp(e->show, e->ini) != 0, "map %d: %s maps to itself", e->map, e->ini);
         for (j = 0; j < OL_MAP_N; ++j) {
             if (j == i || kOlMap[j].map != e->map) continue;
@@ -134,7 +142,7 @@ static void TestMaps(void)
             const char *show = OlShow(mi->map, mi->ini[j]);
             int k;
             CHECK(!strcmp(OlIni(mi->map, show), mi->ini[j]), "%s: %s -> %s -> %s", mi->where, mi->ini[j], show, OlIni(mi->map, show));
-            CHECK((int)strlen(show) <= 13, "%s: %s shows %s (over 13)", mi->where, mi->ini[j], show);
+            CHECK((int)strlen(show) <= ShowMax(show), "%s: %s shows %s (over 13)", mi->where, mi->ini[j], show);  // v3.59 TV359
             for (k = 0; k < mi->n; ++k)
                 if (k != j) CHECK(strcmp(show, OlShow(mi->map, mi->ini[k])) != 0, "%s: %s and %s show alike", mi->where, mi->ini[j], mi->ini[k]);
         }
@@ -201,7 +209,15 @@ static void TestIniWords(void)
               !strcmp(OlIni(OLM_GRAIN_STRENGTH, "ultra"), "Very High") && !strcmp(OlShow(OLM_GRAIN_STRENGTH, "High"), "High"),
               "Film Grain > Strength: Very High stays the ini word (Ultra reads as it)");
     }
-    printf("ini words: Quick Charge, Turn or Strafe, Reroll, Reveal Method, Strength checked\n");
+    {   // v3.59 TV359: Effects > Filter shows Thermal Vision; the ini word stays Thermal (sh4windowmod.c kFxName writes it)
+        CHECK(!strcmp(OLW_EFFECTS_FILTER_V_THERMAL_VISION, "Thermal Vision"), "v3.59: Thermal Vision on screen");
+        CHECK(!strcmp(OlShow(OLM_EFFECTS_FILTER, "Thermal"), "Thermal Vision") && !strcmp(OlIni(OLM_EFFECTS_FILTER, "Thermal Vision"), "Thermal") &&
+              !strcmp(OlShow(OLM_EFFECTS_FILTER, "thermal"), "Thermal Vision") && !strcmp(OlIni(OLM_EFFECTS_FILTER, "thermal vision"), "Thermal"),
+              "Filter: Thermal stays the ini word (Thermal Vision reads as it)");
+        CHECK(!strcmp(kFxFilter[7], "Thermal"), "the code's Filter word 7 is Thermal");
+        CHECK(strstr(OLW_EFFECTS_FILTER_STRENGTH_VD_ULTRA, "Thermal") == NULL, "Filter Strength > Ultra names no filter by its old name");
+    }
+    printf("ini words: Quick Charge, Turn or Strafe, Reroll, Reveal Method, Strength, Thermal Vision checked\n");  // v3.59 TV359
 }
 
 static void TestComposed(void)
@@ -211,7 +227,7 @@ static void TestComposed(void)
                                  OLW_SOUND_SOUND_MODE_VD_SURROUND, OLW_SND_PAN_STOCK, OLW_SND_PAN_NA };
     const char *const kFilter[] = { OLW_EFFECTS_FILTER_D, OLW_EFFECTS_FILTER_VD_NONE, OLW_EFFECTS_FILTER_VD_CRT,
                                     OLW_EFFECTS_FILTER_VD_VIVID, OLW_EFFECTS_FILTER_VD_SEPIA, OLW_EFFECTS_FILTER_VD_OLD_FILM,
-                                    OLW_EFFECTS_FILTER_VD_NIGHT_VISION, OLW_EFFECTS_FILTER_VD_NIGHT_MONO, OLW_EFFECTS_FILTER_VD_THERMAL,
+                                    OLW_EFFECTS_FILTER_VD_NIGHT_VISION, OLW_EFFECTS_FILTER_VD_NIGHT_MONO, OLW_EFFECTS_FILTER_VD_THERMAL_VISION,  /* v3.59 TV359 */
                                     OLW_EFFECTS_FILTER_VD_SPIRIT_VISION, OLW_EFFECTS_FILTER_VD_VIGNETTE };
     const char *const kRend[] = { OLW_DISPLAY_RENDERER_VD_DIRECT3D_11, OLW_REND_16BIT, OLW_DISPLAY_RENDERER_VD_DIRECT3D_12,
                                   OLW_DISPLAY_RENDERER_VD_STOCK, OLW_REND_OTHER, OLW_REND_TEST, OLW_DISPLAY_RENDERER_VD_CUSTOM,

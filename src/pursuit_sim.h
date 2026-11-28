@@ -114,6 +114,7 @@ static float EfTrackSee(EfTrack *t, unsigned id, float now, int sensed, float hp
 #define EF_CW_N 128   // = ENM_CW_N
 #define EF_REC 0x50   // = ENM_REC_SIZE
 #define EF_STORE_N 64 // entries kept (the oldest goes)
+#define EF_KR_N 64    // v3.59 EN359: kept records (= the game's record table)
 enum { EFP_COPY = 1, EFP_GHOST = 2, EFP_HERE = 4, EFP_STANDING = 8 };
 #pragma pack(push, 1)
 typedef struct { unsigned crc, time; int stage, room; } EfKey;
@@ -122,6 +123,9 @@ typedef struct { unsigned id; unsigned char type, variant, flags; signed char fr
                  unsigned char rec[EF_REC]; } EfQS;                                                 // one on its way here
 typedef struct { unsigned key, cid; signed char room; unsigned char type, variant, pad; float age;
                  unsigned char rec[EF_REC]; } EfCwS;                                                // a copy that followed
+// v3.59 EN359: a follower's record the Randomizer's save filter left out of the save (a monster or a victim it made as
+// another type than its placement's), with what Refined made it as (its provenance: rzmon_sim.h RmProvE)
+typedef struct { unsigned char rec[EF_REC]; unsigned char type, variant, stockType, stockVariant; } EfKrS;
 #pragma pack(pop)
 typedef struct {
     EfKey key;
@@ -131,6 +135,8 @@ typedef struct {
     EfQS q[EF_Q_N];
     unsigned tag[EF_TAG_N];
     EfCwS cw[EF_CW_N];
+    int nKr;              // v3.59 EN359: the kept records ("EFS2" blobs; an "EFS1" blob has none)
+    EfKrS kr[EF_KR_N];
 } EfState;
 static int EfStateEmpty(const EfState *s) { return !s->nPur && !s->nQ && !s->nTag && !s->nCw; }
 static int EfKeySame(const EfKey *a, const EfKey *b)
@@ -150,17 +156,23 @@ static unsigned EfCrc32(const void *p, unsigned n, unsigned crc)
     return ~crc;
 }
 // the blob of one entry: "EFS1", the key, the five counts, the door spot, then the arrays (counts entries each)
+// v3.59 EN359: "EFS2" = the same, then the kept records' count and the kept records (written only when there are any:
+// a save without them is the v3.50 - v3.58 blob byte for byte, so an older Refined still reads it)
 #define EF_BLOB_HEAD (4 + (int)sizeof(EfKey) + 5 * 4 + 12)
 #define EF_BLOB_MAX (EF_BLOB_HEAD + EF_PUR_N * (int)sizeof(EfPurS) + EF_Q_N * (int)sizeof(EfQS) + EF_TAG_N * 4 + \
-                     EF_CW_N * (int)sizeof(EfCwS))
-static int EfBlobSize(const EfState *s)
+                     EF_CW_N * (int)sizeof(EfCwS) + 4 + EF_KR_N * (int)sizeof(EfKrS))
+static int EfBlobSize1(const EfState *s)  // v3.59 EN359: the EFS1 part (was EfBlobSize)
 {
     return EF_BLOB_HEAD + s->nPur * (int)sizeof(EfPurS) + s->nQ * (int)sizeof(EfQS) + s->nTag * 4 + s->nCw * (int)sizeof(EfCwS);
+}
+static int EfBlobSize(const EfState *s)
+{
+    return EfBlobSize1(s) + (s->nKr ? 4 + s->nKr * (int)sizeof(EfKrS) : 0);  // v3.59 EN359
 }
 static int EfCountsOk(const EfState *s)
 {
     return s->nPur >= 0 && s->nPur <= EF_PUR_N && s->nQ >= 0 && s->nQ <= EF_Q_N && s->nTag >= 0 && s->nTag <= EF_TAG_N &&
-           s->nCw >= 0 && s->nCw <= EF_CW_N && (s->doorSet == 0 || s->doorSet == 1);
+           s->nCw >= 0 && s->nCw <= EF_CW_N && (s->doorSet == 0 || s->doorSet == 1) && s->nKr >= 0 && s->nKr <= EF_KR_N;  // v3.59 EN359: + nKr
 }
 // returns the bytes written, 0 = it does not fit (or the counts are out of range)
 static int EfPack(const EfState *s, unsigned char *out, int cap)
@@ -169,7 +181,7 @@ static int EfPack(const EfState *s, unsigned char *out, int cap)
     if (!EfCountsOk(s)) return 0;
     n = EfBlobSize(s);
     if (n > cap) return 0;
-    memcpy(out + at, "EFS1", 4), at += 4;
+    memcpy(out + at, s->nKr ? "EFS2" : "EFS1", 4), at += 4;  // v3.59 EN359
     memcpy(out + at, &s->key, sizeof s->key), at += (int)sizeof s->key;
     memcpy(out + at, &s->nPur, 4), at += 4;
     memcpy(out + at, &s->nQ, 4), at += 4;
@@ -181,14 +193,19 @@ static int EfPack(const EfState *s, unsigned char *out, int cap)
     memcpy(out + at, s->q, s->nQ * sizeof(EfQS)), at += s->nQ * (int)sizeof(EfQS);
     memcpy(out + at, s->tag, s->nTag * 4), at += s->nTag * 4;
     memcpy(out + at, s->cw, s->nCw * sizeof(EfCwS)), at += s->nCw * (int)sizeof(EfCwS);
+    if (s->nKr) {  // v3.59 EN359
+        memcpy(out + at, &s->nKr, 4), at += 4;
+        memcpy(out + at, s->kr, s->nKr * sizeof(EfKrS)), at += s->nKr * (int)sizeof(EfKrS);
+    }
     return at == n ? n : 0;
 }
 // 1 = a whole, consistent blob (its counts in range, its size exact); s is left zeroed otherwise
 static int EfUnpack(const unsigned char *in, int n, EfState *s)
 {
-    int at = 0;
+    int at = 0, v2;
     memset(s, 0, sizeof *s);
-    if (!in || n < EF_BLOB_HEAD || n > EF_BLOB_MAX || memcmp(in, "EFS1", 4)) return 0;
+    if (!in || n < EF_BLOB_HEAD || n > EF_BLOB_MAX || (memcmp(in, "EFS1", 4) && memcmp(in, "EFS2", 4))) return 0;
+    v2 = !memcmp(in, "EFS2", 4);  // v3.59 EN359
     at = 4;
     memcpy(&s->key, in + at, sizeof s->key), at += (int)sizeof s->key;
     memcpy(&s->nPur, in + at, 4), at += 4;
@@ -197,6 +214,15 @@ static int EfUnpack(const unsigned char *in, int n, EfState *s)
     memcpy(&s->nCw, in + at, 4), at += 4;
     memcpy(&s->doorSet, in + at, 4), at += 4;
     memcpy(s->door, in + at, 12), at += 12;
+    if (v2) {  // v3.59 EN359: the kept records' count follows the EFS1 part
+        const int b1 = EfCountsOk(s) ? EfBlobSize1(s) : -1;
+        if (b1 < 0 || b1 + 4 > n) {
+            memset(s, 0, sizeof *s);
+            return 0;
+        }
+        memcpy(&s->nKr, in + b1, 4);
+        if (s->nKr <= 0) s->nKr = -1;  // (an EFS2 blob always has some: else damaged)
+    }
     if (!EfCountsOk(s) || EfBlobSize(s) != n) {
         memset(s, 0, sizeof *s);
         return 0;
@@ -204,7 +230,8 @@ static int EfUnpack(const unsigned char *in, int n, EfState *s)
     memcpy(s->pur, in + at, s->nPur * sizeof(EfPurS)), at += s->nPur * (int)sizeof(EfPurS);
     memcpy(s->q, in + at, s->nQ * sizeof(EfQS)), at += s->nQ * (int)sizeof(EfQS);
     memcpy(s->tag, in + at, s->nTag * 4), at += s->nTag * 4;
-    memcpy(s->cw, in + at, s->nCw * sizeof(EfCwS));
+    memcpy(s->cw, in + at, s->nCw * sizeof(EfCwS)), at += s->nCw * (int)sizeof(EfCwS);
+    if (s->nKr) memcpy(s->kr, in + at + 4, s->nKr * sizeof(EfKrS));  // v3.59 EN359 (after its count)
     return 1;
 }
 // the file: "SH4RFOL1", the entry count, then each entry: its size, its stamp (the newest is the largest), the blob's
@@ -263,5 +290,42 @@ static int EfStoreSlot(const EfKey *keys, const unsigned *stamps, const int *use
     for (i = 0; i < n; ++i)
         if (b < 0 || stamps[i] < stamps[b]) b = i;
     return b;
+}
+
+// ---------------------------------------------------------------- v3.59 EN359: followers after a Quick Save + Quick Load
+// The user's v3.58 QA: "persistent enemies who follow me to another room disappear when I use quick save then quick load."
+// The user's log (21:22:07): "a save: 6 record(s) of monsters made as another type are left out of it" (the Randomizer's
+// save filter, RZ349: a save never holds a monster it randomized, the provenance being this session's memory), then
+// "follow restore: ... 0 pursuer(s) back ... left out: 5 without their record". The Load Game list path works only for
+// followers of their placement's own type. Now the side file keeps, for each follower (a pursuer or one on its way, not a
+// copy: copies have their ledger) whose record the filter left out, that record and its provenance; at the load whose
+// image matches (the same key as before) the records go back into free slots of the game's table with their provenance,
+// so the Randomizer rebuilds them as the type they were (RmDescFix) and the restore finds them. A save without the side
+// file's entry loads as in v3.58 (back as placed). EfKrWanted: the record of id (state st) is kept for this snapshot.
+static int EfKrWanted(const EfState *s, unsigned id, int st)
+{
+    int i;
+    if (st == 0 || st == 0x0B) return 0;  // (free; dead or pinned: no follower, and the dead are kill bits: RmSaveKeepDead)
+    for (i = 0; i < s->nPur; ++i)
+        if (s->pur[i].id == id && !(s->pur[i].flags & EFP_COPY)) return 1;
+    for (i = 0; i < s->nQ; ++i)
+        if (s->q[i].id == id && !(s->q[i].flags & EFP_COPY)) return 1;
+    return 0;
+}
+// where a kept record goes in the game's table (n records of EF_REC bytes; +0x20 id, +0x26 state): the first free slot;
+// -1 = a live record of its id is there already (the loaded save holds it: left as is), -2 = no free slot
+static int EfKrSlot(const unsigned char *recs, int n, const unsigned char *rec)
+{
+    unsigned id, v;
+    short st;
+    int i, free_ = -1;
+    memcpy(&id, rec + 0x20, 4);
+    for (i = 0; i < n; ++i) {
+        memcpy(&st, recs + EF_REC * i + 0x26, 2);
+        memcpy(&v, recs + EF_REC * i + 0x20, 4);
+        if (st != 0 && v == id) return -1;
+        if (st == 0 && free_ < 0) free_ = i;
+    }
+    return free_ >= 0 ? free_ : -2;
 }
 #endif

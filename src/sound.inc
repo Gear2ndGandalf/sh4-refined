@@ -69,7 +69,18 @@
 //   already playing. A session muted by the user in Windows' mixer is left alone. The file SH4Refined.muted marks sessions
 //   held muted by Refined; when the game ended behind other windows, the next start unmutes them. Without a session to
 //   mute, Mute is v3.56's (the game's own focus rule for new sounds) and the keep-awake tone stops behind other windows.
+// v3.59 SD359 (staging/v359_feedback/w10_sound/PLAN.md; the user's 22:48 crash "after switching off my headset", LOGCHECK_v358.md
+// section 1):
+// - The lost-device guard (hidden [Sound] LostDeviceGuard=1): the game never tests IDirectSound8::CreateSoundBuffer; on a lost
+//   device it returns DSERR_BUFFERLOST with no buffer and the game reads through NULL (0x40A1E5: PlayMusic restarting the
+//   music layers when a pause ended). At the create sites the call + the load behind it (7 bytes, byte-checked: PlayMusic
+//   0x40A1DE, the streams' CreateBuffer 0x40A797, and Play2D 0x409691 / Play3D 0x409BC5 unless Playable Eileen's own guard holds
+//   them) call a stub that hands the game a silent stand-in buffer (snddummy_sim.h) when no real one comes back. All or nothing,
+//   rolled back, listed in SH4WM_Patches. The first stand-in is logged, then a count each minute while it grows and at the close.
+// - Following the new default device at run time ([Sound] FollowDevice) is still not built (PLAN.md section 2: what it needs);
+//   the device watch's lines say a restart is needed, and that the game runs on silent meanwhile.
 #include "sound_sim.h"
+#include "snddummy_sim.h"  // v3.59 SD359: the lost-device guard's silent stand-in buffers
 static int QlSoundHeld(void);  // v3.52 MERGE: extramenu.inc (QL352): 1 while Quick Load from the pause holds the sound
 
 #define SND_BYTE (CFG[0x0C])                                  // the live Options block's Sound (0 / 1 / 2)
@@ -132,6 +143,7 @@ static int g_sndZero2DOk, g_sndZeroStrOk;   // the code around the 2D / stream h
 static int g_sndStrSetOn;                   // the 0x40B2E7 site is in
 static volatile LONG g_sndStrSet[4] = { SND_STR_UNSET, SND_STR_UNSET, SND_STR_UNSET, SND_STR_UNSET };  // each channel's set level
 static int g_sndSessOn = 1;                 // hidden [Sound] SessionMute
+static int g_sndGuardOn = 1;                // v3.59 SD359: hidden [Sound] LostDeviceGuard
 static volatile LONG g_sndSessOk;           // the watch thread can mute the game's sessions (it found one, SetMute worked)
 static volatile LONG g_sndMuteReq = -1;     // to the watch thread: 1 mute, 0 unmute, -1 nothing
 static volatile LONG g_sdAlive;             // the watch thread runs its loop
@@ -743,8 +755,84 @@ static void SndReadIni(void)
     g_sndDevWatch = GetPrivateProfileIntA("Sound", "DeviceWatch", 1, g_iniPath) != 0;  // hidden
     g_sndZeroOn = GetPrivateProfileIntA("Sound", "ZeroSilent", 1, g_iniPath) != 0;     // v3.58 SD358: hidden
     g_sndSessOn = GetPrivateProfileIntA("Sound", "SessionMute", 1, g_iniPath) != 0;    // v3.58 SD358: hidden
+    g_sndGuardOn = GetPrivateProfileIntA("Sound", "LostDeviceGuard", 1, g_iniPath) != 0;  // v3.59 SD359: hidden
 }
 
+// ---------------------------------------------------------------- v3.59 SD359: the lost-device guard (snddummy_sim.h)
+// The game makes every sound buffer through IDirectSound8::CreateSoundBuffer (vtbl +0x0C) and never tests the result: on a
+// lost device (DSERR_BUFFERLOST, the buffer NULL) it reads through NULL at once (LOGCHECK_v358.md section 1: the 22:48
+// crash at 0x40A1E5, PlayMusic restarting the music layers after a pause, 7 s after the headset went away). At the four
+// create sites the call and the load of the buffer behind it (`FF 51 0C` + `mov reg,[esp+N]`, 7 bytes) become a call to a
+// stub + 2 nops: the stub makes the real call (once more if it failed) and, when there is still no buffer, hands out a
+// silent stand-in (snddummy_sim.h), then does the displaced load and returns to the next instruction. The game plays on
+// without sound instead of going down. Play2D / Play3D: Playable Eileen v1.22.1+ guards the same two sites itself (its
+// SndGuard2D / SndGuard3D skip the sound): its guard is left in place (SdbSiteOwner); PlayMusic and the streams are Refined's.
+static int g_sndGuardIn[SDB_SITE_N];         // the site is Refined's guard
+static int g_sndGuardPe[SDB_SITE_N];         // the site is Playable Eileen's own guard (Play2D / Play3D)
+static int g_sndGuardWait;                   // Play2D / Play3D wait for the first frame (Playable Eileen is loaded)
+static volatile LONG g_sndGone[SDB_SITE_N];  // stand-ins handed out, by site
+static volatile LONG g_sndGoneFirst, g_sndRetryOk;
+static LONG g_sndGoneShown;                  // the count of the last count line
+static const char *const kSndGuardWhere[SDB_SITE_N] = { "Play2D 0x409530", "Play3D 0x409A30", "PlayMusic 0x40A080",
+                                                         "the streams' CreateBuffer 0x40A6D0" };
+static const DWORD kSndCrVa[SDB_SITE_N] = { 0x409691, 0x409BC5, 0x40A1DE, 0x40A797 };
+static const BYTE kSndCr[SDB_SITE_N][7] = {
+    { 0xFF, 0x51, 0x0C, 0x8B, 0x44, 0x24, 0x18 },  // call [ecx+0Ch]; mov eax,[esp+18h]  (then 0x409698 mov edx,[eax])
+    { 0xFF, 0x51, 0x0C, 0x8B, 0x44, 0x24, 0x14 },  // call [ecx+0Ch]; mov eax,[esp+14h]  (then 0x409BCC mov ecx,[eax])
+    { 0xFF, 0x51, 0x0C, 0x8B, 0x4C, 0x24, 0x14 },  // call [ecx+0Ch]; mov ecx,[esp+14h]  (then 0x40A1E5 mov edx,[ecx]: the crash)
+    { 0xFF, 0x51, 0x0C, 0x8B, 0x4C, 0x24, 0x40 },  // call [ecx+0Ch]; mov ecx,[esp+40h]  (the cookie; then 0x40A79E xor ecx,[esp+44h])
+};
+static const BYTE kSndCrNext[SDB_SITE_N][4] = { { 0x8B, 0x10 }, { 0x8B, 0x08 }, { 0x8B, 0x11 }, { 0x33, 0x4C, 0x24, 0x44 } };
+static const int kSndCrNextLen[SDB_SITE_N] = { 2, 2, 2, 4 };
+typedef HRESULT(__stdcall *SndCreateG_t)(void *, const SdbDesc *, void **, void *);
+// the stub's C side (the game thread, or whoever starts a sound): the game's buffer, or a stand-in; returns the hr the game
+// gets in eax (nothing reads it: Play2D / Play3D / PlayMusic overwrite eax, the streams' CreateBuffer returns 0)
+static HRESULT __stdcall SndCreateC(void *ds, const SdbDesc *d, void **pp, void *outer, int site)
+{
+    HRESULT hr = E_UNEXPECTED, hr2 = E_UNEXPECTED;
+    int faulted = 0;
+    if ((unsigned)site >= SDB_SITE_N) site = SDB_SITE_2D;
+    if (!pp) return E_POINTER;  // (never: every site passes its own variable)
+    __try {
+        hr = ((SndCreateG_t)SND_VTC(ds, 3))(ds, d, pp, outer);
+        if (SdbDecide(hr, *pp) == SDB_REAL) return hr;
+        *pp = NULL;  // a failure that left a pointer: not trusted (not used, not released)
+        hr2 = ((SndCreateG_t)SND_VTC(ds, 3))(ds, d, pp, outer);  // once more (a passing state of the device)
+        if (SdbDecide(hr2, *pp) == SDB_REAL) {
+            static LONG s_q;
+            InterlockedIncrement(&g_sndRetryOk);
+            if (LogQuota(&s_q, 5))
+                Log("sound: CreateSoundBuffer failed in %s (hr %08lX): the second try made it", kSndGuardWhere[site], (unsigned long)hr);
+            return hr2;
+        }
+        *pp = NULL;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        faulted = 1;
+    }
+    *pp = SdbMake(d);
+    InterlockedIncrement(&g_sndGone[site]);
+    if (InterlockedExchange(&g_sndGoneFirst, 1) == 0) {
+        DWORD fl = 0, by = 0, rate = 0;
+        WORD ch = 0, bits = 0;
+        __try {
+            if (d) fl = d->flags, by = d->bytes;
+            if (d && d->wfx) ch = d->wfx->ch, rate = d->wfx->rate, bits = d->wfx->bits;
+        } __except (EXCEPTION_EXECUTE_HANDLER) {
+        }
+        Log("sound: the device is gone: CreateSoundBuffer %s in %s (hr %08lX%s, again %08lX; flags %08lX, %lu bytes, %u ch %lu Hz %u-bit): "
+            "a silent stand-in buffer instead of the stock crash; the game plays on without sound (restart the game to hear it again)",
+            faulted ? "faulted" : "failed", kSndGuardWhere[site], (unsigned long)hr, hr == (HRESULT)0x88780096 ? " DSERR_BUFFERLOST" : "",
+            (unsigned long)hr2, (unsigned long)fl, (unsigned long)by, ch, (unsigned long)rate, bits);
+    }
+    return S_OK;
+}
+// the stubs (snddummy_sim.h SDB_STUB; test\snddummy_test.c runs the same text at mock sites): the displaced load at its
+// offset + 14h (the return address and the four arguments still on the stack)
+SDB_STUB(hkSndCr2D, 0, eax, 2Ch, SndCreateC)      // 409691: was call [ecx+0Ch]; mov eax,[esp+18h]
+SDB_STUB(hkSndCr3D, 1, eax, 28h, SndCreateC)      // 409BC5: was call [ecx+0Ch]; mov eax,[esp+14h]
+SDB_STUB(hkSndCrMusic, 2, ecx, 28h, SndCreateC)   // 40A1DE: was call [ecx+0Ch]; mov ecx,[esp+14h]
+SDB_STUB(hkSndCrStream, 3, ecx, 54h, SndCreateC)  // 40A797: was call [ecx+0Ch]; mov ecx,[esp+40h]
+static void *const kSndCrHook[SDB_SITE_N] = { (void *)hkSndCr2D, (void *)hkSndCr3D, (void *)hkSndCrMusic, (void *)hkSndCrStream };
 // ---------------------------------------------------------------- install (DllMain; all or nothing per group, rollback)
 typedef struct { DWORD va; int len; BYTE b[12], stock[12]; } SndPatch;
 static void SndCall(SndPatch *p, DWORD va, BYTE op, const void *to, int len, const BYTE *stock)
@@ -782,6 +870,67 @@ static int SndApplySet(const SndPatch *p, int n, const char *what)
         }
     return 1;
 }
+// 1 = va holds a call into Playable Eileen's dsound.dll (its own sound guard at Play2D / Play3D)
+static int SndCrIntoPe(DWORD va)
+{
+    const BYTE *const p = (const BYTE *)(ULONG_PTR)va;
+    const HMODULE ds = GetModuleHandleA("dsound.dll");
+    DWORD lo = 0, hi = 0, to;
+    if (!ds || p[0] != 0xE8 || !HasExport(ds, "SH4PE_Patches")) return 0;
+    CamModRange(ds, &lo, &hi);
+    to = va + 5 + *(const DWORD *)(p + 1);
+    return to >= lo && to < hi;
+}
+// at the install (first = 0) and, for Play2D / Play3D while Playable Eileen is loaded, again at the first frame (first = 1)
+static void SndGuardInstall(int first)
+{
+    SndPatch p[SDB_SITE_N];
+    int idx[SDB_SITE_N], n = 0, i, ok;
+    const HMODULE ds = GetModuleHandleA("dsound.dll");
+    const int pe = ds && HasExport(ds, "SH4PE_Patches");
+    char what[240], other[96];
+    const char *kinds[2];
+    other[0] = 0;
+    for (i = first ? SDB_SITE_2D : 0; i < (first ? SDB_SITE_MUSIC : SDB_SITE_N); ++i) {
+        const BYTE *const at = (const BYTE *)(ULONG_PTR)kSndCrVa[i];
+        const int stock = !memcmp(at, kSndCr[i], 7) && !memcmp(at + 7, kSndCrNext[i], kSndCrNextLen[i]);
+        const int own = i <= SDB_SITE_3D ? SdbSiteOwner(stock, SndCrIntoPe(kSndCrVa[i]), pe, first) : stock ? SDG_OURS : SDG_OTHER;
+        if (own == SDG_PE) g_sndGuardPe[i] = 1;
+        else if (own == SDG_WAIT) g_sndGuardWait = 1;
+        else if (own == SDG_OTHER) {
+            if (!other[0]) sprintf_s(other, sizeof other, "; %08lX is not the GOG v7 code (%02X %02X %02X ...; another mod?): not guarded",
+                                     kSndCrVa[i], at[0], at[1], at[2]);
+        } else {
+            SndCall(&p[n], kSndCrVa[i], 0xE8, kSndCrHook[i], 7, kSndCr[i]);
+            idx[n++] = i;
+        }
+    }
+    if (first) g_sndGuardWait = 0;
+    ok = n ? SndApplySet(p, n, "lost-device guard (the create sites)") : 0;
+    for (i = 0; i < n; ++i) g_sndGuardIn[idx[i]] = ok;
+    for (i = SDB_SITE_2D; i <= SDB_SITE_3D; ++i)
+        kinds[i] = g_sndGuardIn[i] ? "Refined's" : g_sndGuardPe[i] ? "Playable Eileen's own guard (it skips the sound)"
+                 : g_sndGuardWait ? "at the first frame (Playable Eileen is loaded: its own guard may take it)" : "NOT guarded";
+    if (!strcmp(kinds[0], kinds[1])) sprintf_s(what, sizeof what, "Play2D 00409691 / Play3D 00409BC5 %s", kinds[0]);
+    else sprintf_s(what, sizeof what, "Play2D 00409691 %s, Play3D 00409BC5 %s", kinds[0], kinds[1]);
+    if (first)
+        Log("sound: lost-device guard: at the first frame: %s%s", what, other);
+    else
+        Log("sound: lost-device guard: PlayMusic 0040A1DE %s, the streams 0040A797 %s; %s%s: a CreateSoundBuffer that fails (the sound "
+            "device gone, a headset switched off) gives the game a silent stand-in buffer instead of the stock crash",
+            g_sndGuardIn[SDB_SITE_MUSIC] ? "in" : "NOT IN", g_sndGuardIn[SDB_SITE_STREAM] ? "in" : "NOT IN", what, other);
+}
+// the count (the minute tick while it grows, and at the window's close)
+static void SndGoneLine(const char *when)
+{
+    const LONG a = g_sndGone[0], b = g_sndGone[1], c = g_sndGone[2], s = g_sndGone[3], all = a + b + c + s;
+    static LONG s_q;
+    if (all == g_sndGoneShown || !LogQuota(&s_q, 120)) return;
+    g_sndGoneShown = all;
+    Log("sound: the device is gone: %ld sound(s) made silent (2D %ld, 3D %ld, music %ld, streams %ld; %ld stand-in(s) held now, %ld "
+        "shared; %s)", all, a, b, c, s, g_sdbLive, g_sdbSpareUses, when);
+}
+
 static void SndInstall(void)
 {
     static const BYTE kPan2D[9] = { 0x83, 0xC1, 0xC1, 0x69, 0xC9, 0x9C, 0x00, 0x00, 0x00 };
@@ -809,6 +958,8 @@ static void SndInstall(void)
         Log("sound: [Sound] Enabled=0: the game's own sound and Sound row (no Refined sound site)");
         return;
     }
+    if (g_sndGuardOn) SndGuardInstall(0);  // v3.59 SD359: the lost-device guard (needs nothing else of this file)
+    else Log("sound: lost-device guard: off ([Sound] LostDeviceGuard=0): a sound device that goes away crashes the game, as the stock game does");
     for (i = 0; i < (int)(sizeof kCallee / sizeof kCallee[0]); ++i)
         if (!SiteOk(&kCallee[i])) {
             Log("sound: %08lX is not the GOG v7 code (another mod?)%s", kCallee[i].va,
@@ -1103,7 +1254,7 @@ static int SndBgStale(void)
         __try {
             b = i < 60 ? *(void *volatile *)(SND_PACK + 0x10F8 + 0x40 * i + 4)  // SndPack slot i's buffer
                        : *(void *volatile *)(ULONG_PTR)(0x6E8FE4 + 0x2D80D0 + 0x1AC0C8 * (i - 60));  // SndVoice channel's buffer
-            if (b && SUCCEEDED(((SndCaps_t)SND_VTC(b, 3))(b, caps)) && (caps[1] & SND_DSBCAPS_GLOBALFOCUS) &&
+            if (b && !SdbIs(b) && SUCCEEDED(((SndCaps_t)SND_VTC(b, 3))(b, caps)) && (caps[1] & SND_DSBCAPS_GLOBALFOCUS) &&  // v3.59 SD359: not a stand-in
                 SUCCEEDED(((SndStatus_t)SND_VTC(b, 9))(b, &st)) && (st & 1))
                 ++n;
         } __except (EXCEPTION_EXECUTE_HANDLER) {
@@ -1789,9 +1940,11 @@ static DWORD WINAPI SdThread(LPVOID haveDs)
                 const int nowGone = st != 1;
                 if (nowGone != gone && LogQuota(&s_q, 10))
                     Log(nowGone ? "sound: device: the game's sound device \"%s\" is %s: no game sound until it is back (restart the game "
-                                  "to use another device)"
+                                  "to use another device)%s"  // v3.59 SD359: + the guard
                                 : "sound: device: the game's sound device \"%s\" is %s again (if the game stays silent, restart it)",
-                        game, SndDevStateName((unsigned long)st));
+                        game, SndDevStateName((unsigned long)st),
+                        g_sndGuardIn[SDB_SITE_MUSIC] || g_sndGuardIn[SDB_SITE_STREAM]
+                            ? "; the lost-device guard keeps the game running: its new sounds are silent until a restart" : "");
                 gone = nowGone;
             }
             InterlockedExchange(&g_sndDevNote, pending || gone);
@@ -1865,6 +2018,7 @@ static void SndBgExit(void)
     DWORD r;
     if (!g_sndOn) return;
     g_sndExitAt = GetTickCount() | 1;
+    SndGoneLine("the window closes");  // v3.59 SD359
     if (!g_sndMuteWant || !g_sdAlive || !g_sdDone) return;
     g_sndMuteWant = 0;
     ResetEvent(g_sdDone);
@@ -1879,6 +2033,7 @@ static void SndFirstFrame(void)
     char spk[64] = "unknown", p3[160] = "", p2[160] = "";
     void *ds = SND_HAVE ? SND_DEV : NULL;
     const int saved = SND_BYTE;
+    if (g_sndGuardWait) SndGuardInstall(1);  // v3.59 SD359: every DllMain has run: Playable Eileen's guard is in, or not
     if (g_sndMigrate) {
         const int m = SndModeFromByte(saved, -1);
         if (g_sndMigrate == 2)
@@ -1992,6 +2147,7 @@ static void SndFrameTick(void)
         if (GetTickCount() - g_sndMinuteAt >= 60000) {
             g_sndMinuteAt = GetTickCount();
             SndMinute();
+            SndGoneLine("the minute");  // v3.59 SD359: while it grows
         }
         SndFocusTick();  // v3.56 SD356
         SndBgTick();     // v3.58 SD358: Mute by the sound session, the buffer sites, the keep-awake tone behind other windows

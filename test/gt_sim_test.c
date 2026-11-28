@@ -685,7 +685,7 @@ static void Zones(void)
 // solid boxes (walls, props, raised floors). The queries the flood and the ahead search ask, answered exactly.
 typedef struct { float x0, x1, y0, y1, z0, z1; } TBox;  // solid where x0 <= x <= x1, y0 <= y <= y1 (y0 the top), z0 <= z <= z1
 typedef struct { float x0, x1, z0, z1, top; } TPit;      // the ground's top is `top` inside it
-typedef struct { TBox b[24]; int nb; TPit p[4]; int np; int unknown; } TWorld;
+typedef struct { TBox b[96]; int nb; TPit p[4]; int np; int unknown; } TWorld;  // v3.59 GT359: 96 boxes (was 24: the stairs)
 static float TGround(const TWorld *t, float x, float z)
 {
     int i;
@@ -793,6 +793,7 @@ static void TSceneInit(TScene *s, float half)  // her at the origin facing +z; t
     s->w.ctx = &s->t, s->w.floorAt = TFloor, s->w.sphere = TSphere, s->w.line = TLine, s->w.solid = TSolid;
     s->lo[0] = s->lo[2] = -half, s->hi[0] = s->hi[2] = half, s->lo[1] = -2000.0f, s->hi[1] = 2000.0f;
     s->m = &g_tMap, s->mapCells = 1 << 30;
+    g_tMap.lv = NULL;  // v3.59 GT359: one floor a cell (v3.58's map) unless a test asks for more
 }
 static void TDoor(TScene *s, float x, float z)  // a door line across x - 100 .. x + 100 at z, its room side toward the origin
 {
@@ -1395,6 +1396,249 @@ static void FreeWatch(void)
     }
 }
 
+// ================================================================ v3.59 GT359: across heights (staging/v359_feedback/w7_teleport/PLAN.md)
+// Two box worlds: a straight stairwell (a flight of 25 risers of 40 up to a floor 1000 up that runs back over her head) and
+// a square spiral staircase round a column (4 flights of 8 risers and 4 corner landings a turn: 1280 a turn, two turns: the
+// spiral staircase's 1250 .. 1275 measured in st01 / st05). Steps and floors are plates 40 thick (y0 their top).
+static GtMapLv g_tLv;  // (~480 KB: static)
+static void TPlate(TWorld *t, float x0, float x1, float z0, float z1, float top)
+{
+    TBox *b = &t->b[t->nb++];
+    b->x0 = x0, b->x1 = x1, b->z0 = z0, b->z1 = z1, b->y0 = top, b->y1 = top + 40.0f;
+}
+static void TStairwell(TScene *s)  // her at the origin on the ground (y 0)
+{
+    int k;
+    TSceneInit(s, 3000.0f);
+    for (k = 0; k < 25; ++k) TWall(&s->t, -200.0f, 200.0f, 200.0f + 80.0f * (float)k, 2200.0f, 40.0f * (float)(k + 1));
+    TPlate(&s->t, -2000.0f, 2000.0f, 2200.0f, 2600.0f, -1000.0f);  // the landing at the top
+    TPlate(&s->t, 400.0f, 2000.0f, 200.0f, 2200.0f, -1000.0f);     // a walkway beside the flight
+    TPlate(&s->t, -2000.0f, 2000.0f, -1500.0f, 200.0f, -1000.0f);  // the floor over her head
+}
+static void TSpiral(TScene *s)  // the column |x|, |z| < 450; the ring out to 750; the first turn from the ground (corner C0)
+{
+    int turn, side, k;
+    TSceneInit(s, 1000.0f);
+    s->lo[1] = -3000.0f, s->hi[1] = 100.0f;
+    TWall(&s->t, -450.0f, 450.0f, -450.0f, 450.0f, 5000.0f);
+    for (turn = 0; turn < 2; ++turn) {
+        const float base = -1280.0f * (float)turn;
+        for (side = 0; side < 4; ++side) {
+            const float b0 = base - 320.0f * (float)side;
+            for (k = 0; k < 8; ++k) {
+                const float u0 = -450.0f + 112.5f * (float)k, u1 = u0 + 112.5f, top = b0 - 40.0f * (float)(k + 1);
+                if (side == 0) TPlate(&s->t, u0, u1, 450.0f, 750.0f, top);    // S: +x along z 450 .. 750
+                if (side == 1) TPlate(&s->t, 450.0f, 750.0f, -u1, -u0, top);  // E: -z along x 450 .. 750
+                if (side == 2) TPlate(&s->t, -u1, -u0, -750.0f, -450.0f, top); // N: -x
+                if (side == 3) TPlate(&s->t, -750.0f, -450.0f, u0, u1, top);  // W: +z
+            }
+            if (side == 0) TPlate(&s->t, 450.0f, 750.0f, 450.0f, 750.0f, b0 - 320.0f);    // the corner landings after each flight
+            if (side == 1) TPlate(&s->t, 450.0f, 750.0f, -750.0f, -450.0f, b0 - 320.0f);
+            if (side == 2) TPlate(&s->t, -750.0f, -450.0f, -750.0f, -450.0f, b0 - 320.0f);
+            if (side == 3) TPlate(&s->t, -750.0f, -450.0f, 450.0f, 750.0f, b0 - 320.0f);  // C0 of the next turn
+        }
+    }
+}
+static void TMapLv(TScene *s)  // TMap with several floors a cell
+{
+    s->m->lv = &g_tLv;
+    TMap(s);
+}
+// teleport.inc's GtLvLand on the box world (its order; the game's floor ray is TFloor from 60 above the candidate)
+static int TLvLand(TScene *s, const float c[3], float out[3])
+{
+    float fy, hp[3];
+    int r;
+    if (!GtInBox(s->lo, s->hi, c) || !(c[1] >= s->lo[1] && c[1] <= s->hi[1])) return TL_BOX;
+    if (GtExitTestLv(s->x, s->nx, s->her, c) != GTX_OK) return TL_DOOR;
+    if (GtZonesHit(s->z, s->nz, s->her, c) >= 0) return TL_ZONE;
+    if (TSolidAt(&s->t, c[0], c[1] - 60.0f, c[2])) return TL_WALL;
+    if (!TFloor(&s->t, c[0], c[1] - 60.0f, c[1] + 6000.0f, c[2], &fy)) return TL_FLOOR;
+    if (fabsf(fy - c[1]) > GT_FLOOR_TOL) return TL_LEDGE;
+    if (!GtBodyFree(&s->w, c[0], fy, c[2])) return TL_BODY;
+    hp[0] = c[0], hp[1] = fy, hp[2] = c[2];
+    memcpy(out, hp, sizeof hp);
+    r = GtMapHas(s->m, &s->w, hp);
+    if (r != GTM_HAS) return r == GTM_UNKNOWN ? TL_PENDING : TL_ROUTE;
+    r = GtMapLinked(s->m, &s->w, s->her, hp);
+    return r == GTL_LINKED ? TL_OK : r == GTL_PENDING ? TL_PENDING : TL_ROUTE;
+}
+// teleport.inc's GtLevelFind: 1 = *out (and *dy) the landing; 0 none (*found: the candidates)
+static int TLevel(TScene *s, float yaw, float reach, float radius, float out[3], int *aim, int *found)
+{
+    static GtLvCand c[GT_LV_KEEP];
+    float rise, dist;
+    int n, k;
+    *aim = GtAimLevel(&s->w, s->her, yaw, &rise, &dist);
+    *found = 0;
+    if (!*aim) return 0;
+    n = GtLevelCands(s->m, s->her, yaw, *aim, reach, radius, c, GT_LV_KEEP, found);
+    for (k = 0; k < n && k < GT_LV_TESTS; ++k)
+        if (TLvLand(s, c[k].at, out) == TL_OK) return 1;
+    return 0;
+}
+static void Heights(void)
+{
+    static TScene s;
+    static GtLvCand c[GT_LV_KEEP];
+    float out[3], rise, dist;
+    int aim, found, n, k, ok, sorted;
+    // 1. the stairwell, one floor a cell (v3.58): the floor over her head is not on the map (her ground holds those cells)
+    TStairwell(&s);
+    TMap(&s);
+    Check(GtMapFinished(s.m) && GtMapHas(s.m, &s.w, (const float[3]){ 0.0f, -1000.0f, -600.0f }) == GTM_NOT,
+          "heights: one floor a cell (v3.58's map): the floor over her is not held (her ground holds those cells)");
+    // ... several floors a cell: both held, walkable from her (one part), the further floors counted
+    TStairwell(&s);
+    TMapLv(&s);
+    Check(GtMapFinished(s.m) && GtMapHas(s.m, &s.w, (const float[3]){ 0.0f, -1000.0f, -600.0f }) == GTM_HAS &&
+          GtMapHas(s.m, &s.w, (const float[3]){ 0.0f, -1000.0f, 2400.0f }) == GTM_HAS && s.m->lvCells > 500 && !g_tLv.full,
+          "heights: several floors a cell: the floor over her and the landing are held");
+    Check(GtMapLinked(s.m, &s.w, s.her, (const float[3]){ 0.0f, -1000.0f, -600.0f }) == GTL_LINKED &&
+          GtMapLinked(s.m, &s.w, s.her, (const float[3]){ 1500.0f, 0.0f, -2500.0f }) == GTL_LINKED &&
+          GtMapLevels(s.m, GtMapIdx(s.m, 0.0f, -600.0f)) == 2, "heights: the floor over her is walkable from her (up the flight)");
+    // 2. the aim: facing the flight (+z, its foot 200 ahead): up; away from it or across: flat; on the landing facing down it: down
+    ok = GtAimLevel(&s.w, s.her, 0.0f, &rise, &dist);
+    Check(ok == 1 && rise >= 80.0f && Near(dist, 400.0f, 0.1f), "heights: facing the flight 200 u ahead: up (the floor rises)");
+    Check(GtAimLevel(&s.w, s.her, 3.14159265f, &rise, &dist) == 0 && Near(rise, 0.0f, 0.1f) &&
+          GtAimLevel(&s.w, s.her, 1.5707963f, &rise, &dist) == 0, "heights: facing away from it or across: flat (v3.58's warp)");
+    {
+        const float top[3] = { 0.0f, -1000.0f, 2300.0f };
+        Check(GtAimLevel(&s.w, top, 3.14159265f, &rise, &dist) == -1 && rise <= -60.0f, "heights: on the landing facing down the flight: down");
+        Check(GtAimLevel(&s.w, top, 0.0f, &rise, &dist) == 0, "heights: on the landing facing away: flat");
+    }
+    {   // a single kerb (40) ahead: no stairs
+        static TScene kb;
+        TSceneInit(&kb, 2000.0f);
+        TWall(&kb.t, -2100.0f, 2100.0f, 200.0f, 2100.0f, 40.0f);
+        Check(GtAimLevel(&kb.w, kb.her, 0.0f, &rise, &dist) == 0 && Near(rise, 40.0f, 0.1f), "heights: a single kerb of 40: flat");
+        kb.t.unknown = 1;
+        Check(GtAimLevel(&kb.w, kb.her, 0.0f, &rise, &dist) == 0 && Near(dist, 0.0f, 0.1f), "heights: the collision cannot answer: flat");
+        s.m->lv = &g_tLv;  // (TSceneInit set the shared map to one floor a cell; the stairwell's map is still built)
+    }
+    // 3. the candidates up from her (reach 1700, within 800): the floor over her, farthest in height first, the nearest in xz
+    n = GtLevelCands(s.m, s.her, 0.0f, 1, 1700.0f, 800.0f, c, GT_LV_KEEP, &found);
+    for (k = 1, sorted = 1; k < n; ++k) sorted &= !GtLvBetter(&c[k], &c[k - 1]);
+    for (k = 0, ok = 1; k < n; ++k) ok &= c[k].dy >= GT_LV_MIN && c[k].dy <= 1700.0f && c[k].d <= 800.0f && (c[k].d < GT_LV_NEAR ||
+                                                                                                      c[k].ang <= GT_LV_CONE * GT_DEG + 1e-4f);
+    Check(n == GT_LV_KEEP && found > n && sorted && ok && Near(c[0].dy, 1000.0f, 1.0f) && c[0].d < 1.0f,
+          "heights: the candidates up: best first (the floor straight over her), every one in reach, in the cone or near");
+    Check(TLevel(&s, 0.0f, 1700.0f, 800.0f, out, &aim, &found) == 1 && aim == 1 && Near(out[1], -1000.0f, 0.5f) &&
+          TDistXZ(out, s.her) < 1.0f, "heights: facing the flight: up a storey, straight over her (1000 up)");
+    // ... the reach shorter than the storey (900): the flight's own steps within 800 (at most 320 up there)
+    ok = TLevel(&s, 0.0f, 900.0f, 800.0f, out, &aim, &found);
+    Check(ok == 1 && -out[1] >= GT_LV_MIN && -out[1] <= 400.0f && out[2] > 200.0f, "heights: a reach of 900: up the flight's steps ahead");
+    // ... down: no floor below the ground: none (the flat warp)
+    n = GtLevelCands(s.m, s.her, 0.0f, -1, 1700.0f, 800.0f, c, GT_LV_KEEP, &found);
+    Check(n == 0 && found == 0, "heights: down from the ground floor: no candidate (the flat warp)");
+    // 4. from the landing facing down the flight: down to the ground under the landing (1000 down)
+    s.her[0] = 0.0f, s.her[1] = -1000.0f, s.her[2] = 2300.0f;
+    ok = TLevel(&s, 3.14159265f, 1700.0f, 800.0f, out, &aim, &found);
+    Check(ok == 1 && aim == -1 && Near(out[1], 0.0f, 0.5f) && TDistXZ(out, s.her) < 60.0f, "heights: facing down the flight: down a storey");
+    // 5. a platform 800 up with no way to it (its own door): on the map, another part: never a landing
+    TStairwell(&s);
+    TPlate(&s.t, -2000.0f, -1200.0f, 800.0f, 1800.0f, -800.0f);
+    s.m->lv = &g_tLv;
+    GtMapBegin(s.m, s.lo, s.hi, s.x, s.nx);
+    GtMapSeed(s.m, &s.w, s.her[0], s.her[1], s.her[2], GT_REACH_UP);
+    GtMapSeed(s.m, &s.w, -1600.0f, -800.0f, 1300.0f, GT_MAP_SEED_DY);  // (a door's point on it)
+    GtMapRun(s.m, &s.w, 1 << 30);
+    Check(GtMapFinished(s.m) && g_tLv.nParts == 2 && GtMapHas(s.m, &s.w, (const float[3]){ -1600.0f, -800.0f, 1300.0f }) == GTM_HAS &&
+          GtMapLinked(s.m, &s.w, s.her, (const float[3]){ -1600.0f, -800.0f, 1300.0f }) == GTL_APART &&
+          GtMapLinked(s.m, &s.w, s.her, (const float[3]){ 0.0f, -1000.0f, -600.0f }) == GTL_LINKED,
+          "heights: a platform reached only from its own door: another part (apart), never a landing from her floor");
+    {
+        float yaw = atan2f(-1600.0f, 1300.0f);  // (facing it; no stairs that way: flat anyway)
+        n = GtLevelCands(s.m, s.her, yaw, 1, 1700.0f, 2500.0f, c, GT_LV_KEEP, &found);
+        for (k = 0, ok = 0; k < n; ++k) ok |= Near(c[k].at[1], -800.0f, 1.0f) && TLvLand(&s, c[k].at, out) == TL_OK;
+        Check(n > 0 && !ok, "heights: the platform's cells are candidates but none lands (another part of the room)");
+    }
+    // ... the map not finished: not known yet (pending), then linked once it is
+    TStairwell(&s);
+    s.m->lv = &g_tLv;
+    GtMapBegin(s.m, s.lo, s.hi, s.x, s.nx);
+    GtMapSeed(s.m, &s.w, s.her[0], s.her[1], s.her[2], GT_REACH_UP);
+    GtMapSeed(s.m, &s.w, 0.0f, -1000.0f, -600.0f, GT_REACH_UP);  // (a seed on the floor over her: a second part at first)
+    GtMapRun(s.m, &s.w, 50);
+    Check(!GtMapFinished(s.m) && GtMapLinked(s.m, &s.w, s.her, (const float[3]){ 0.0f, -1000.0f, -600.0f }) == GTL_PENDING,
+          "heights: two parts not joined yet, the map not finished: not known yet");
+    GtMapRun(s.m, &s.w, 1 << 30);
+    Check(GtMapFinished(s.m) && g_tLv.joins >= 1 && GtMapLinked(s.m, &s.w, s.her, (const float[3]){ 0.0f, -1000.0f, -600.0f }) == GTL_LINKED,
+          "heights: the flood joins the two parts (up the flight): walkable");
+    // 6. the node pool full: the further floors are not held, the map still finishes, the ground is unchanged
+    TStairwell(&s);
+    s.m->lv = &g_tLv;
+    GtMapBegin(s.m, s.lo, s.hi, s.x, s.nx);
+    g_tLv.n = GT_MAP_XN;
+    GtMapSeed(s.m, &s.w, s.her[0], s.her[1], s.her[2], GT_REACH_UP);
+    GtMapRun(s.m, &s.w, 1 << 30);
+    Check(GtMapFinished(s.m) && g_tLv.full && GtMapHas(s.m, &s.w, (const float[3]){ 0.0f, -1000.0f, -600.0f }) == GTM_NOT &&
+          GtMapHas(s.m, &s.w, (const float[3]){ 0.0f, 0.0f, -600.0f }) == GTM_HAS &&
+          GtMapLinked(s.m, &s.w, s.her, (const float[3]){ 1500.0f, 0.0f, -2500.0f }) == GTL_LINKED &&
+          GtMapLinked(s.m, &s.w, s.her, (const float[3]){ 0.0f, -1000.0f, -600.0f }) == GTL_UNKNOWN,
+          "heights: the pool full: no further floor held (unknown), the ground as before");
+    // 7. the spiral staircase (1280 a turn): from the ground at its foot facing the first flight
+    TSpiral(&s);
+    s.her[0] = -600.0f, s.her[1] = 0.0f, s.her[2] = 600.0f;
+    TMap(&s);
+    Check(GtMapFinished(s.m) && GtMapHas(s.m, &s.w, (const float[3]){ -600.0f, -1280.0f, 600.0f }) != GTM_HAS,
+          "heights: the spiral, one floor a cell (v3.58): the next turn's landing over her is not held");
+    TSpiral(&s);
+    s.her[0] = -600.0f, s.her[1] = 0.0f, s.her[2] = 600.0f;
+    TMapLv(&s);
+    Check(GtMapFinished(s.m) && GtMapHas(s.m, &s.w, (const float[3]){ -600.0f, -1280.0f, 600.0f }) == GTM_HAS &&
+          GtMapHas(s.m, &s.w, (const float[3]){ -600.0f, -2560.0f, 600.0f }) == GTM_HAS &&
+          GtMapLevels(s.m, GtMapIdx(s.m, -600.0f, 600.0f)) == 3, "heights: the spiral: the ground and both turns' landings over one cell");
+    ok = TLevel(&s, 1.5707963f, 1300.0f, 800.0f, out, &aim, &found);
+    printf("  (spiral up, reach 1300: ok %d aim %d found %d at %.0f %.0f %.0f)\n", ok, aim, found, out[0], out[1], out[2]);
+    Check(ok == 1 && aim == 1 && Near(out[1], -1280.0f, 0.5f) && TDistXZ(out, s.her) < 60.0f,
+          "heights: the spiral, reach 1300: up one turn, straight over her (1280)");
+    ok = TLevel(&s, 1.5707963f, GT_HEIGHT_DEF, 800.0f, out, &aim, &found);
+    printf("  (spiral up, reach %.0f: ok %d at %.0f %.0f %.0f)\n", GT_HEIGHT_DEF, ok, out[0], out[1], out[2]);
+    Check(ok == 1 && -out[1] > 1280.0f && -out[1] <= GT_HEIGHT_DEF && out[0] > s.her[0] && out[2] > 450.0f && out[2] < 750.0f,
+          "heights: the spiral, the default reach: past one turn, up the next turn's first flight ahead");
+    // ... down from the top of the first turn (C0 1280 up, 30 u from the W flight's top) facing down it: to the ground
+    s.her[0] = -600.0f, s.her[1] = -1280.0f, s.her[2] = 480.0f;
+    ok = TLevel(&s, 3.14159265f, GT_HEIGHT_DEF, 800.0f, out, &aim, &found);
+    printf("  (spiral down: ok %d aim %d found %d at %.0f %.0f %.0f)\n", ok, aim, found, out[0], out[1], out[2]);
+    Check(ok == 1 && aim == -1 && Near(out[1], 0.0f, 0.5f), "heights: the spiral, facing down the flight: down a turn to the ground");
+    // 8. the door lines: one at her level crossed on the way is refused, one at the landing's level near it too
+    {
+        GtExit x[1];
+        const float from[3] = { 0.0f, 0.0f, 0.0f }, to[3] = { 0.0f, -1000.0f, 600.0f };
+        x[0].x0 = -300.0f, x[0].x1 = 300.0f, x[0].z0 = x[0].z1 = 300.0f, x[0].y = 0.0f, x[0].px = 0.0f, x[0].pz = 100.0f;
+        Check(GtExitTest(x, 1, from, to) == GTX_OK && GtExitTestLv(x, 1, from, to) == GTX_CROSS,
+              "heights: a door line at her level crossed on the way (xz): refused (v3.50's test sees only the landing's level)");
+        x[0].y = -1000.0f;
+        Check(GtExitTestLv(x, 1, from, to) == GTX_BEYOND && GtExitTestLv(x, 1, from, (const float[3]){ 0.0f, -1000.0f, 100.0f }) == GTX_OK,
+              "heights: a door line at the landing's level: v3.50's test (beyond it / short of it)");
+        Check(GtExitTestLv(x, 1, from, (const float[3]){ 0.0f, -1000.0f, 0.0f }) == GTX_OK, "heights: straight up: no door line crossed");
+    }
+    // 9. the enemies: only those at the landing's height keep her off it
+    {
+        const float foe[2][3] = { { 0.0f, 0.0f, 0.0f }, { 500.0f, -1000.0f, 0.0f } };
+        Check(GtClearOfAt((const float[3]){ 0.0f, -1000.0f, 10.0f }, foe, 2) && !GtClearOfAt((const float[3]){ 480.0f, -1000.0f, 0.0f }, foe, 2) &&
+              !GtClearOf((const float[3]){ 0.0f, -1000.0f, 10.0f }, foe, 2), "heights: an enemy a storey below the landing does not count");
+    }
+    // 10. the key: missing / negative / not a number = 1700, 0 = off, clamped 400 .. 4000
+    Check(GtHeightKey(0, 0.0f) == GT_HEIGHT_DEF && GtHeightKey(1, 0.0f) == 0.0f && GtHeightKey(1, -5.0f) == GT_HEIGHT_DEF &&
+          GtHeightKey(1, 100.0f) == GT_HEIGHT_MIN && GtHeightKey(1, 9000.0f) == GT_HEIGHT_MAX && GtHeightKey(1, 1300.0f) == 1300.0f &&
+          GtHeightKey(1, NAN) == GT_HEIGHT_DEF, "heights: [Gameplay] GhostTeleportHeight");
+    // 11. the flat warps on a map with several floors a cell: v3.50's through-warp answer is the same
+    {
+        GtThru t;
+        int cnt[TL_N], nObst;
+        TSceneInit(&s, 2000.0f);
+        TWall(&s.t, -2100.0f, 2100.0f, 300.0f, 340.0f, 1000.0f);
+        TDoor(&s, 0.0f, 1900.0f);
+        s.m->lv = &g_tLv;
+        ok = TThru(&s, 0.0f, 800.0f, &t, cnt, &nObst);
+        Check(ok == 1 && t.ray == 0 && t.k == 11 && Near(t.at[2], 440.0f, 0.5f) && s.m->lvCells == 0,
+              "heights: one level in the room: the map with several floors a cell gives v3.50's through-warp exactly");
+    }
+    s.m->lv = NULL;
+}
+
 int main(int argc, char **argv)
 {
     static const int kHz[4] = { 30, 60, 120, 144 };
@@ -1418,6 +1662,7 @@ int main(int argc, char **argv)
     Sight();  // v3.51 TP351
     Proof();  // v3.52 TP352
     FreeWatch();
+    Heights();  // v3.59 GT359
     printf("%s: %d of %d checks passed\n", g_fail ? "FAILED" : "PASSED", g_n - g_fail, g_n);
     return g_fail ? 1 : 0;
 }

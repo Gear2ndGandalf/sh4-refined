@@ -2510,6 +2510,33 @@ static int __cdecl EnmGhostRoom(BYTE *rec, int room)
     }
     return r;
 }
+// v3.59 EN359: 0x465123, the `call 464880` (EnemyGhostMayEnterRoom) in EnemySpawnGate 0x464F20: a ghost's own pinned
+// record in this room, with its Sword's pin here, is let in (enemies_sim.h EnmPinStays); every other answer is the
+// stock call's ([Gameplay] PinnedGhostsStay=0, hidden: the site stays stock)
+static int g_enmPinGateOn, g_enmPinGateIni = 1;
+static LONG g_enmPinKept;
+static volatile LONG g_enmQuotaPinGate;
+static int __cdecl EnmGatePin(BYTE *rec, int room)
+{
+    const int r = ((int(__cdecl *)(BYTE *, int))0x464880)(rec, room);
+    const int denied = ENM_DENIED;
+    if (r || !rec) return r;
+    __try {
+        const unsigned id = *(const unsigned *)(rec + 0x20);
+        const int stage = ENM_STAGE, st = *(const short *)(rec + 0x26), type = *(const short *)(rec + 0x24);
+        if (EnmPinStays(r, denied, st, type, *(const signed char *)(rec + 0x36), *(const signed char *)(rec + 0x37), stage, room,
+                        ENM_ROOM, st == 0x0B && EnmPinHeld(id, stage, room))) {
+            InterlockedIncrement(&g_enmPinKept);
+            if (LogQuota(&g_enmQuotaPinGate, 100))
+                Log("enemies: ghost %08X (type %02X v%d) lies pinned by its Sword in room %d:%d: it is made pinned there again (the game's "
+                    "ghost room rule says no to its record in this room: a victim the Randomizer drew or one that followed you here)",
+                    id, type, *(const signed char *)(rec + 0x33), stage, room);
+            return 1;
+        }
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+    }
+    return r;
+}
 
 // ---------------------------------------------------------------- v3.35 GH335: the down countdown never gets shorter from a hit
 // Every gameplay tick each ghost's class and down countdown [[work+0x28]+0x98] (the value hudbars.inc draws) is compared
@@ -2799,7 +2826,8 @@ static int EnmAwakeAwayTake(unsigned id)
 // cleared. One alive, or recorded alive in another room (a wanderer), is left to the game.
 static void EnmReviveDog(int stage, unsigned id, int kill, BYTE *rec, int *recs, int *bits, int *dogs)
 {
-    const int body = rec && *(const short *)(rec + 0x26) == 0x0B && *(const signed char *)(rec + 0x36) == stage;
+    const int body = rec && EnmBodyRecord(*(const short *)(rec + 0x26), *(const short *)(rec + 0x24), *(const signed char *)(rec + 0x36),
+                                          stage);  // v3.59 EN359: not a ghost's pin (was: state 0x0B of this stage)
     const int bit = EnmKillTest(stage, kill), away = EnmAwakeAwayTake(id);
     int w;
     unsigned m;
@@ -2887,8 +2915,8 @@ static void EnmReviveRoom(int room, int dogsOnly)
             EnmReviveDog(stage, id, x.kill[i], rec, &recs, &bits, &dogs);
             continue;
         }
-        if (rec && *(const short *)(rec + 0x26) == 0x0B && *(const signed char *)(rec + 0x36) == stage) {
-            ENM_RECDEL(rec);
+        if (rec && EnmBodyRecord(*(const short *)(rec + 0x26), *(const short *)(rec + 0x24), *(const signed char *)(rec + 0x36), stage)) {
+            ENM_RECDEL(rec);  // v3.59 EN359: a ghost's pin (a victim drawn on this placement) is no body: it stays with its Sword
             ++recs;
             FiNoteRevive(stage, room, id);  // v3.50 FI350
         }
@@ -2969,7 +2997,8 @@ static void ErWorldPass(int entryRoom)
         for (i = 0; i < x.n; ++i) {
             const unsigned id = EnmScriptId(stage, half, room, x.num[i]);
             BYTE *rec = ENM_RECFIND(id);
-            const int body = rec && *(const short *)(rec + 0x26) == 0x0B && *(const signed char *)(rec + 0x36) == stage;
+            const int body = rec && EnmBodyRecord(*(const short *)(rec + 0x26), *(const short *)(rec + 0x24),
+                                                  *(const signed char *)(rec + 0x36), stage);  // v3.59 EN359: not a ghost's pin
             if (rec && !body) {  // recorded alive (a story move without the hole: a wanderer, a downed one): the game's
                 ++alive;
                 continue;
@@ -3429,6 +3458,7 @@ static void EnmReadIni(void)  // the ini-only keys (not written into SH4Refined.
     g_erTremerIni = GetPrivateProfileIntA("Gameplay", "ReturnTremers", 1, g_iniPath) != 0;      // v3.56 ER356 (hidden)
     v = (int)GetPrivateProfileIntA("Gameplay", "CopyRecordGuard", RM_CRG_WORLD, g_iniPath);     // v3.58 RZ358 (hidden): 0 / 1 / 2
     g_enmCopyRecGuard = v >= RM_CRG_OFF && v < RM_CRG_N ? v : RM_CRG_WORLD;
+    g_enmPinGateIni = GetPrivateProfileIntA("Gameplay", "PinnedGhostsStay", 1, g_iniPath) != 0;  // v3.59 EN359 (hidden): 0 = stock gate
 }
 
 // ---------------------------------------------------------------- install (Init, after DeathPresenceInstall)
@@ -3473,6 +3503,22 @@ static void EnemiesInstall(void)
         g_enmGhostOn = GpApplyAll(set, 1, "enemies (victims follow)");
     } else {
         Log("enemies: 00486199 differs from the GOG v7 exe (another mod?): victims do not follow (monsters do)");
+    }
+    {   // v3.59 EN359: EnemySpawnGate: movsx ecx,[esi+37h]; push ecx; push esi; call 464880; add esp,8; test eax,eax
+        static const Site kPinGate = { 0x46511D, { 0x0F, 0xBE, 0x4E, 0x37, 0x51, 0x56, 0xE8, 0x58, 0xF7, 0xFF, 0xFF, 0x83, 0xC4, 0x08,
+                                                   0x85, 0xC0 }, 16 };
+        if (!g_enmPinGateIni) {
+            Log("enemies: pinned ghosts: the gate site is off ([Gameplay] PinnedGhostsStay=0): a ghost pinned in a room the game's ghost "
+                "rule refuses is lost at its next room load (its Sword stays)");
+        } else if (!SiteOk(&kPinGate)) {
+            Log("enemies: 0046511D differs from the GOG v7 exe (another mod?): pinned ghosts keep the game's own gate");
+        } else {
+            GpBranch(&set[0], 0x465123, 0xE8, EnmGatePin, 5);
+            g_enmPinGateOn = GpApplyAll(set, 1, "enemies (pinned ghosts stay)");
+            if (g_enmPinGateOn)
+                Log("enemies: pinned ghosts stay (00465123): a ghost pinned by the Sword in a room the game's ghost rule refuses is "
+                    "made pinned there again at the room load ([Gameplay] PinnedGhostsStay=1)");
+        }
     }
     if (SiteOk(&kBone)) {  // v3.30 EN330 (separate: without it the pool grows at the next world reset only, as in v3.29)
         GpBranch(&set[0], 0x4F0A5A, 0xE8, EnmBoneReset, 5);

@@ -359,6 +359,255 @@ static void LhSessionHeader(void)
     if (g_exe == (HMODULE)0x400000) LhInstallChecks();
 }
 
+// ---------------------------------------------------------------- v3.59 SD359: the fault watch (faultwhere_sim.h)
+// LOGCHECK_v358.md section 2: at 22:34 Refined's warm-up and shadow composite guards swallowed two faults and logged only a
+// code; the crash that followed was in dgVoodoo's d3d9.dll after an AMD driver event. Every one of Refined's ~260 __try
+// guards is covered without touching them: a first-chance vectored handler (hidden [Log] FaultWhere=1) notes each error
+// exception (0xC...: never breakpoints, guard pages or C++ throws) in a ring of 16: code, address, the image it lies in (by
+// VirtualQuery: no loader lock inside the handler), the thread, an access violation's target. It never handles anything
+// (EXCEPTION_CONTINUE_SEARCH). The game thread's frame end logs the ring: "fault watch: ... at d3d9.dll+0007843A ...: inside
+// Direct3D or the graphics driver" (24 lines a session, then counted; the session's end line sums them by module). The
+// warm-up and the shadow composite also name themselves as the guard that caught it and put the place in their own line.
+// The Direct3D stop (hidden [Graphics] D3DFaultStop=1): two faults within a second on the game thread inside Direct3D or the
+// driver (or inside one of Refined's Direct3D guards) turn Refined's own Direct3D work off for the session through each
+// feature's own fail-closed path: the warm-up, Shadow Edge, Depth of Field, the post effects, Echo Doubles, After Shock,
+// Death Presence, Fade In and the model glow. The game draws on as it would without them.
+#include "faultwhere_sim.h"
+#define LH_RING 16
+#define LH_GFX_MAX 24
+typedef struct { volatile LONG seq; DWORD code, tick, tid, rw; const void *at, *base; ULONG_PTR addr; DWORD nparm; char guard[24]; } LhFault;
+static LhFault g_lhRing[LH_RING];
+static volatile LONG g_lhRingW;          // faults noted (the ring's write count)
+static LONG g_lhRingR;                   // logged (the game thread)
+static PVOID g_lhVeh;
+static int g_lhFwOn = 1, g_lhD3dStopOn = 1;
+static volatile DWORD g_lhGameTid;       // the thread of LhFrameEndC
+static ULONG_PTR g_lhGfxLo[LH_GFX_MAX], g_lhGfxHi[LH_GFX_MAX];
+static volatile LONG g_lhGfxN;
+static DWORD g_lhGfxTick;
+static FwD3d g_lhD3d;                    // the game thread only
+static volatile LONG g_lhD3dTrip;        // two Direct3D faults: acted on at the frame end
+static DWORD g_lhD3dCode;
+static const void *g_lhD3dAt;
+static int g_lhD3dStopped;
+static LONG g_lhFwKinds[FW_N], g_lhFwLogged, g_lhFwLost;
+static char g_lhFwMod[6][32];
+static LONG g_lhFwModN[6];
+static DWORD g_lhSeenCode;               // the last fault a named guard caught (the game thread)
+static const void *g_lhSeenAt;
+static char g_lhSeenText[96];
+static int LhIsGfxAddr(ULONG_PTR a)
+{
+    LONG i;
+    const LONG n = g_lhGfxN;
+    for (i = 0; i < n && i < LH_GFX_MAX; ++i)
+        if (a >= g_lhGfxLo[i] && a < g_lhGfxHi[i]) return 1;
+    return 0;
+}
+static const char *LhBaseName(const char *path) { const char *s = strrchr(path, '\\'); return s ? s + 1 : path; }
+static void LhGfxScan(void)  // the game thread: the display chain's and the drivers' images (the first frame, then each minute)
+{
+    typedef BOOL(WINAPI * Enum_t)(HANDLE, HMODULE *, DWORD, DWORD *);
+    static Enum_t s_en;
+    static HMODULE mods[512];
+    DWORD need = 0, i, n;
+    if (!s_en) s_en = (Enum_t)GetProcAddress(GetModuleHandleA("kernel32.dll"), "K32EnumProcessModules");
+    if (!s_en || !s_en(GetCurrentProcess(), mods, sizeof mods, &need)) return;
+    n = need / sizeof(HMODULE);
+    if (n > 512) n = 512;
+    for (i = 0; i < n && g_lhGfxN < LH_GFX_MAX; ++i) {
+        char path[MAX_PATH];
+        DWORD lo = 0, hi = 0;
+        LONG k;
+        int have = 0;
+        if (!GetModuleFileNameA(mods[i], path, MAX_PATH) || !FwGfxModule(LhBaseName(path))) continue;
+        CamModRange(mods[i], &lo, &hi);
+        for (k = 0; k < g_lhGfxN; ++k) have |= g_lhGfxLo[k] == lo;
+        if (have || hi <= lo) continue;
+        k = g_lhGfxN;
+        g_lhGfxLo[k] = lo, g_lhGfxHi[k] = hi;
+        MemoryBarrier();
+        InterlockedIncrement(&g_lhGfxN);  // the handler reads entries below the count only
+    }
+}
+static void LhD3dCount(DWORD code, const void *at)  // the game thread
+{
+    if (FwD3dStep(&g_lhD3d, GetTickCount())) {
+        g_lhD3dCode = code, g_lhD3dAt = at;
+        InterlockedExchange(&g_lhD3dTrip, 1);
+    }
+}
+static LONG CALLBACK LhFaultVeh(EXCEPTION_POINTERS *e)  // any thread, first chance: note, never handle
+{
+    const EXCEPTION_RECORD *const r = e ? e->ExceptionRecord : NULL;
+    MEMORY_BASIC_INFORMATION mb;
+    LhFault *f;
+    LONG w;
+    DWORD tid;
+    if (!r || !FwNoted(r->ExceptionCode)) return EXCEPTION_CONTINUE_SEARCH;
+    w = InterlockedIncrement(&g_lhRingW) - 1;
+    f = &g_lhRing[w % LH_RING];
+    InterlockedExchange(&f->seq, 0);
+    f->code = r->ExceptionCode, f->at = r->ExceptionAddress, f->tick = GetTickCount();
+    f->tid = tid = GetCurrentThreadId();
+    f->base = VirtualQuery(f->at, &mb, sizeof mb) == sizeof mb && mb.Type == MEM_IMAGE ? mb.AllocationBase : NULL;
+    f->nparm = r->NumberParameters;
+    f->rw = f->nparm >= 2 ? (DWORD)r->ExceptionInformation[0] : 0;
+    f->addr = f->nparm >= 2 ? r->ExceptionInformation[1] : 0;
+    f->guard[0] = 0;
+    InterlockedExchange(&f->seq, w + 1);
+    if (g_lhGameTid && tid == g_lhGameTid && LhIsGfxAddr((ULONG_PTR)f->at)) LhD3dCount(f->code, f->at);
+    return EXCEPTION_CONTINUE_SEARCH;
+}
+// "C0000005 at d3d9.dll+0007843A" (outside the handler: the loader is asked for the name)
+static void LhWhereText(DWORD code, const void *at, char *out, size_t n)
+{
+    MEMORY_BASIC_INFORMATION mb;
+    char path[MAX_PATH];
+    const void *base = VirtualQuery(at, &mb, sizeof mb) == sizeof mb && mb.Type == MEM_IMAGE ? mb.AllocationBase : NULL;
+    if (base && GetModuleFileNameA((HMODULE)base, path, MAX_PATH))
+        sprintf_s(out, n, "%08lX at %s+%08lX", code, LhBaseName(path), (DWORD)((const BYTE *)at - (const BYTE *)base));
+    else
+        sprintf_s(out, n, "%08lX at %p", code, at);
+}
+// the __except filter of a named guard (the warm-up, the shadow composite): the fault's place noted, the guard named in the
+// watch's entry; a fault of Refined's own Direct3D work outside the driver counts for the Direct3D stop too
+static int LhFaultSeen(EXCEPTION_POINTERS *e, const char *guard)
+{
+    const EXCEPTION_RECORD *const r = e && e->ExceptionRecord ? e->ExceptionRecord : NULL;
+    const LONG w = g_lhRingW;
+    const DWORD tid = GetCurrentThreadId();
+    LONG k;
+    if (!r) return EXCEPTION_EXECUTE_HANDLER;
+    g_lhSeenCode = r->ExceptionCode, g_lhSeenAt = r->ExceptionAddress, g_lhSeenText[0] = 0;
+    for (k = w - 1; k >= 0 && k >= w - 4; --k) {
+        LhFault *const f = &g_lhRing[k % LH_RING];
+        if (f->seq == k + 1 && f->at == r->ExceptionAddress && f->tid == tid) {
+            strncpy_s(f->guard, sizeof f->guard, guard, _TRUNCATE);
+            break;
+        }
+    }
+    if (g_lhGameTid && tid == g_lhGameTid && !LhIsGfxAddr((ULONG_PTR)r->ExceptionAddress)) LhD3dCount(r->ExceptionCode, r->ExceptionAddress);
+    return EXCEPTION_EXECUTE_HANDLER;
+}
+static const char *LhFaultText(void)  // in the guard's handler body: the fault its filter saw
+{
+    if (!g_lhSeenText[0]) LhWhereText(g_lhSeenCode, g_lhSeenAt, g_lhSeenText, sizeof g_lhSeenText);
+    return g_lhSeenText;
+}
+static void LhFwModAdd(const char *mod)
+{
+    int i;
+    for (i = 0; i < 6 && g_lhFwMod[i][0]; ++i)
+        if (!_stricmp(g_lhFwMod[i], mod)) {
+            ++g_lhFwModN[i];
+            return;
+        }
+    if (i < 6) strncpy_s(g_lhFwMod[i], sizeof g_lhFwMod[i], mod, _TRUNCATE), g_lhFwModN[i] = 1;
+}
+static void LhFaultLog(const LhFault *f)
+{
+    char mod[MAX_PATH] = "?", acc[48] = "", who[40], guard[64] = "";
+    const char *name = "?";
+    int kind;
+    if (f->base && GetModuleFileNameA((HMODULE)f->base, mod, MAX_PATH)) name = LhBaseName(mod);
+    kind = FwKind(f->base != NULL, f->base == (const void *)g_self, f->base == (const void *)0x400000, f->base && FwGfxModule(name));
+    ++g_lhFwKinds[kind];
+    LhFwModAdd(f->base ? name : "(none)");
+    if (++g_lhFwLogged > 24) {
+        if (g_lhFwLogged == 25) Log("fault watch: 24 faults logged this session: the rest are counted (the session's end line)");
+        return;
+    }
+    if (f->code == 0xC0000005ul && f->nparm >= 2)
+        sprintf_s(acc, sizeof acc, " (%s of %08lX)", f->rw == 0 ? "read" : f->rw == 1 ? "write" : f->rw == 8 ? "execute" : "access",
+                  (unsigned long)f->addr);
+    if (f->tid == g_lhGameTid) strcpy_s(who, sizeof who, "the game thread");
+    else sprintf_s(who, sizeof who, "thread %lu", f->tid);
+    if (f->guard[0]) sprintf_s(guard, sizeof guard, "; Refined's %s guard caught it", f->guard);
+    Log("fault watch: %08lX %s%s at %s+%08lX (%p), %s, %lu ms ago: %s%s", f->code, FwCodeName(f->code), acc, f->base ? name : "?",
+        f->base ? (DWORD)((const BYTE *)f->at - (const BYTE *)f->base) : (DWORD)(ULONG_PTR)f->at, f->at, who,
+        GetTickCount() - f->tick, kFwKind[kind], guard);
+}
+static void LhFaultDrain(void)  // the game thread's frame end (and the session's end)
+{
+    const LONG w = g_lhRingW;
+    if (g_lhRingR == w) return;
+    if (w - g_lhRingR > LH_RING) {
+        g_lhFwLost += w - g_lhRingR - LH_RING;
+        g_lhRingR = w - LH_RING;
+    }
+    while (g_lhRingR < w) {
+        const LhFault *const f = &g_lhRing[g_lhRingR % LH_RING];
+        LhFault c;
+        if (f->seq != g_lhRingR + 1) break;  // still being written: the next frame
+        c = *f;
+        if (InterlockedCompareExchange((volatile LONG *)&f->seq, 0, 0) != g_lhRingR + 1) {
+            ++g_lhFwLost;  // written over meanwhile
+            ++g_lhRingR;
+            continue;
+        }
+        ++g_lhRingR;
+        LhFaultLog(&c);
+    }
+}
+static void LhD3dStop(void)  // the frame end after the trip: each feature's own fail-closed path, each in its own guard
+{
+    static const char kWhy[] = "Direct3D faults (two in a second)";
+    char where[128];
+    LhWhereText(g_lhD3dCode, g_lhD3dAt, where, sizeof where);
+    if (!g_lhD3dStopOn) {
+        Log("direct3d: two faults within a second (the last %s): [Graphics] D3DFaultStop=0: Refined's own Direct3D work goes on", where);
+        return;
+    }
+    LogAnomaly("direct3d", "two faults within a second inside Direct3D / the graphics driver or Refined's Direct3D work (the last %s): "
+                           "Refined's own Direct3D work is off for this session (the warm-up, Shadow Edge, Depth of Field, the post effects, "
+                           "Echo Doubles, After Shock, Death Presence, Fade In, the model glow); the game draws on", where);
+    g_rfWarmFaults = 3;
+    g_gvFaults = 3;
+    __try { ShFail(SHF_FAULT, E_FAIL, kWhy); } __except (EXCEPTION_EXECUTE_HANDLER) { }
+    __try { DofFail(kWhy, E_FAIL); } __except (EXCEPTION_EXECUTE_HANDLER) { }
+    __try { PpFail(PPE_BLOOM, kWhy, E_FAIL), PpFail(PPE_GRADE, kWhy, E_FAIL), PpFail(PPE_LENS, kWhy, E_FAIL); } __except (EXCEPTION_EXECUTE_HANDLER) { }
+    __try {
+        g_echoFaultCode = g_lhD3dCode, g_echoFaultAt = (void *)g_lhD3dAt;
+        EchoFailNow(kWhy);
+    } __except (EXCEPTION_EXECUTE_HANDLER) { }
+    __try { AiFailNow(kWhy, g_lhD3dCode, g_lhD3dAt); } __except (EXCEPTION_EXECUTE_HANDLER) { }
+    __try { DpFailNow(kWhy, g_lhD3dCode, g_lhD3dAt); } __except (EXCEPTION_EXECUTE_HANDLER) { }
+    __try {
+        g_fiFaultCode = g_lhD3dCode, g_fiFaultAt = (void *)g_lhD3dAt;
+        FiFailNow(kWhy);
+    } __except (EXCEPTION_EXECUTE_HANDLER) { }
+}
+static void LhFaultWatchStart(void)  // the first frame (the game thread)
+{
+    g_lhFwOn = GetPrivateProfileIntA("Log", "FaultWhere", 1, g_iniPath) != 0;         // hidden
+    g_lhD3dStopOn = GetPrivateProfileIntA("Graphics", "D3DFaultStop", 1, g_iniPath) != 0;  // hidden
+    if (!g_lhFwOn) {
+        Log("session: fault watch off ([Log] FaultWhere=0): a guard's fault is logged by its code only; no Direct3D stop");
+        return;
+    }
+    g_lhGameTid = GetCurrentThreadId();  // (none while off: LhFaultSeen counts nothing then)
+    LhGfxScan();
+    g_lhGfxTick = GetTickCount();
+    g_lhVeh = AddVectoredExceptionHandler(1, LhFaultVeh);  // this dll is pinned (Init): never unloaded under it
+    Log("session: fault watch %s: each fault's code, address and module (%ld Direct3D / driver image(s) known); two Direct3D faults "
+        "within a second %s", g_lhVeh ? "in" : "NOT IN (no vectored handler)", g_lhGfxN,
+        g_lhD3dStopOn ? "stop Refined's own Direct3D work for the session" : "are only logged ([Graphics] D3DFaultStop=0)");
+}
+static void LhFaultEndLine(void)  // the session's end
+{
+    char mods[200];
+    int i, o = 0;
+    const LONG all = g_lhFwKinds[0] + g_lhFwKinds[1] + g_lhFwKinds[2] + g_lhFwKinds[3] + g_lhFwKinds[4];
+    if (!all && !g_lhFwLost) return;
+    mods[0] = 0;
+    for (i = 0; i < 6 && g_lhFwMod[i][0] && o < (int)sizeof mods - 40; ++i)
+        o += sprintf_s(mods + o, sizeof mods - (size_t)o, "%s%s %ld", i ? ", " : "", g_lhFwMod[i], g_lhFwModN[i]);
+    Log("session: faults seen %ld (inside SH4 Refined %ld, the game %ld, Direct3D / the driver %ld, other %ld, none %ld; %ld not read): %s; "
+        "Refined's Direct3D work %s", all + g_lhFwLost, g_lhFwKinds[FW_REFINED], g_lhFwKinds[FW_GAME], g_lhFwKinds[FW_GFX],
+        g_lhFwKinds[FW_OTHER], g_lhFwKinds[FW_UNKNOWN], g_lhFwLost, mods[0] ? mods : "-", g_lhD3dStopped ? "stopped" : "kept");
+}
+
 // ---------------------------------------------------------------- the crash filter (chained)
 static void LhSessionEnd(const char *why);
 static LONG WINAPI LhCrashFilter(EXCEPTION_POINTERS *e)
@@ -420,6 +669,7 @@ static void LhFirstFrame(void)
     // after the game's and Playable Eileen's own filters (PE writes its crash dump: chained)
     g_lhPrevFilter = SetUnhandledExceptionFilter(LhCrashFilter);
     LogV("session: crash line filter in (chained to %p)", g_lhPrevFilter);
+    LhFaultWatchStart();  // v3.59 SD359: the fault watch (each fault's module) and the Direct3D stop
 }
 
 // ---------------------------------------------------------------- features: on / acting (reads their own state)
@@ -808,6 +1058,14 @@ static void LhFrameEndC(void)
         LhFirstFrame();
         LhVaPoll();
     }
+    if (g_lhVeh) {  // v3.59 SD359: the faults noted since the last frame; the Direct3D stop; late driver images
+        LhFaultDrain();
+        if (g_lhD3dTrip && !g_lhD3dStopped) {
+            g_lhD3dStopped = 1;
+            LhD3dStop();
+        }
+        if (tick - g_lhGfxTick >= 60000) g_lhGfxTick = tick, LhGfxScan();
+    }
     LhLoadCheck();
     if (key != g_lhRoomKey) {
         if (g_lhRoomKey != 0xFFFFFFFFu) LhRoomEnd(now);
@@ -915,6 +1173,7 @@ static void LhSessionEndC(const char *why)
     int f, o = 0, faults = 0, i;
     unsigned secs;
     QueryPerformanceCounter(&now);
+    if (g_lhVeh) LhFaultDrain();  // v3.59 SD359: the faults not logged yet (a crash's own comes in the crash line)
     if (g_lhRoomKey != 0xFFFFFFFFu && !g_lhFail) {
         LhRoomEnd(now);
         g_lhRoomKey = 0xFFFFFFFFu;
@@ -941,6 +1200,7 @@ static void LhSessionEndC(const char *why)
                        g_lhFRoomsAct[f], g_lhFRoomsOn[f], g_lhFTotal[f], kLhActUnit[f]);
     }
     Log("session: features: %s", o ? feats : "none on in a room");
+    LhFaultEndLine();  // v3.59 SD359
     RzSessionLine();  // v3.48 RZ348: the Randomizer's session line (randomizer.inc)
 }
 

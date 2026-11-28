@@ -503,6 +503,8 @@ static __declspec(naked) void hkOmCapY(void)  // call from 0x407B28: [esp+4] = l
     }
 }
 
+#include "omnilatch.inc"  // v3.59 CT359: the control-direction latch (0x502794) and Lock-On Walk (0x534C23), after the hook state above
+
 // ---------------------------------------------------------------- the row and [Input] OmniMove
 static void OmSetLocked(int v, const char *from)  // under GpLock
 {
@@ -697,6 +699,7 @@ static void OmReadIni(void)
     g_omDz = OmReadDz(buf);
     IniStr("Input", "OmniLook", buf, sizeof buf);  // v3.49 LK349
     g_omLook = OmReadLook(buf);
+    LtReadIni();  // v3.59 CT359: [Input] OmniLatch, [Gameplay] LockOnWalk
 }
 static void OmIniReread(void)  // under GpLock (GpIniReread, when SH4Refined.ini changed)
 {
@@ -716,6 +719,7 @@ static void OmIniReread(void)  // under GpLock (GpIniReread, when SH4Refined.ini
         Log("omni: [Input] OmniLook read again: %s (was %s)", kOmLookName[v], kOmLookName[(int)g_omLook]);
         InterlockedExchange(&g_omLook, v);
     }
+    LtIniReread();  // v3.59 CT359: [Input] OmniLatch, [Gameplay] LockOnWalk (before OmniMove's early return)
     if (g_omUnsaved) return;  // the menu's value stands until it is saved or set again
     GetPrivateProfileStringA("Input", "OmniMove", kOmModeName[OmGet()], buf, sizeof buf, g_iniPath);
     v = OmParseLogged(buf, 0, NULL);  // v3.48 OM348: an old value reads as On (logged once; written back at the next start)
@@ -729,12 +733,14 @@ static void OmSnapshot(void)
 {
     g_omSnap = g_omMode;
     OmPeProbe();  // v3.47 CT347
+    LwSnapshot();  // v3.59 CT359: Lock-On Walk's row (GpSnapshot calls this under GpLock)
 }
 static int OmChanged(void) { return g_omRow >= 0 && g_omMode != g_omSnap; }  // v3.47 CT347: asked by PadChanged (Option 2's row; was GpChanged)
 static int OmRowChanged(void) { return g_snapOn && g_omMode != g_omSnap; }
 static void OmDiscard(void)  // under GpLock (GpDiscard)
 {
     if (g_omMode != g_omSnap) OmSetLocked((int)g_omSnap, "Options: No at the exit");
+    LwDiscard();  // v3.59 CT359: Lock-On Walk's row
 }
 static void OmInstall(void)
 {
@@ -765,4 +771,5 @@ static void OmInstall(void)
         "the look on a stick: the raw stick into stick[1] 01236C54 / 01236C58, dead zone %.2f); Room 302's X-turns rule for the "
         "left stick's x: on", kOmLookName[(int)g_omLook], g_omLook == OML_OFF ? "the game's own 8-way look" : g_omLook == OML_ALL
         ? "the analog look in every stage" : "the analog look in Room 302's first-person view", OM_LOOK_DZ);
+    LtInstall();  // v3.59 CT359: the latch (0x502794) and Lock-On Walk (0x534C23), each its own set
 }

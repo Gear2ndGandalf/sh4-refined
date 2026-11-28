@@ -21,10 +21,17 @@
 enum { DOF_OFF, DOF_CUT, DOF_ALWAYS, DOF_MODE_N };
 static const char *const kDofModeName[DOF_MODE_N] = { "Off", "Cut-scenes", "Always" };
 // v3.45 QS345: Low is new and gentler; Medium = v3.43 / v3.44's Low (the same levels); High unchanged
-enum { DOFS_LOW, DOFS_MEDIUM, DOFS_HIGH, DOFS_N };
-static const char *const kDofStrName[DOFS_N] = { "Low", "Medium", "High" };
+// v3.59 DF359 (USER_FEEDBACK_v358: "Weaken Depth of Field Medium and High a bit. Add an Ultra parameter."): Medium and High
+// are a bit gentler (kDofRamp below); Ultra is new and exactly v3.45 .. v3.58's High. The ini words stay: "High" is the
+// new High (no migration: the user asked for weaker), "Ultra" (or 3) is the new word.
+enum { DOFS_LOW, DOFS_MEDIUM, DOFS_HIGH, DOFS_ULTRA, DOFS_N };  // v3.59 DF359: + Ultra
+static const char *const kDofStrName[DOFS_N] = { "Low", "Medium", "High", "Ultra" };  // v3.59 DF359
 #define DOF_STR_VER 345  // v3.45 QS345: the hidden [ScreenEffects] DofStrengthV marker (absent / lower: a v3.43 / v3.44 value)
-#define DOF_STR_VER_S "345"
+// v3.59 DF359: the marker written from now on. 345 .. 358 on disk: a value v3.45 .. v3.58 wrote (their Medium / High were
+// stronger): read as it says (no migration), the change logged once, the marker raised to 359. DOF_STR_VER stays the
+// legacy threshold (below 345: v3.43 / v3.44's Low / 1).
+#define DOF_STR_MARK 359
+#define DOF_STR_MARK_S "359"
 
 static int DofEqI(const char *a, const char *b)
 {
@@ -55,7 +62,16 @@ static int DofParseStrength(const char *s, int legacy)
     if (DofEqI(s, "Medium") || DofEqI(s, "Med")) return DOFS_MEDIUM;
     if (DofEqI(s, "1")) return legacy ? DOFS_HIGH : DOFS_MEDIUM;
     if (DofEqI(s, "High") || DofEqI(s, "2")) return DOFS_HIGH;
+    if (DofEqI(s, "Ultra") || DofEqI(s, "3")) return DOFS_ULTRA;  // v3.59 DF359 (no legacy meaning: v3.43 .. v3.58 had none)
     return -1;
+}
+// v3.59 DF359: the start's one-time note. marker = DofStrengthV on disk (0 absent), v = the strength read, had = a value
+// was in the ini. Returns 1 when the marker must be raised to DOF_STR_MARK (anything older on disk; never under the
+// fallback: the caller passes 0 for it); *note = 1 when the user's stored Medium / High now looks a bit gentler (log it).
+static int DofStrNotice(int marker, int v, int had, int *note)
+{
+    *note = had && marker < DOF_STR_MARK && (v == DOFS_MEDIUM || v == DOFS_HIGH);
+    return marker < DOF_STR_MARK;
 }
 // v3.45 QS345: the one-time migration. s = the ini text, marker = [ScreenEffects] DofStrengthV (0 = absent). Returns the
 // strength (-1 = not a value) and *rewrite = 1 when the line must be written as kDofStrName[result] (a legacy value whose
@@ -99,12 +115,22 @@ static int DofStrMigrate(const char *s, int marker, int *rewrite, int *mark)
 enum { DOF_FAR, DOF_NEAR, DOF_SIDES };
 static const char *const kDofSideName[DOF_SIDES] = { "far", "near" };
 typedef struct { int n; signed char g[DOF_SIDE_N]; } DofRampT;  // a side's slices (grid units), from the focus outwards
+// v3.59 DF359: Medium and High a bit gentler, Ultra = v3.58's High slice for slice. Measured as the blur's width (the
+// level's radius: half size 1, quarter 2, eighth 4; a quarter step lerps) summed over the view (far F .. 4 F, near F ..
+// F / 2, test\dof_sim_test.c TestStrength): Medium 76 % of v3.58's (-24 %), High 80 % (-20 %). Medium: the far blur starts
+// a little later (F x 1.59, was 1.41) and tops out at 1.5 levels (was 2), its near side is Low's (as before: Low never
+// blurs more than Medium). High: the far blur starts at F x 1.22 (was 1.12) and tops out at 2.75 levels (was 3), the near
+// side at F x 0.73 (was 0.79) up to 1.75 levels (was 2). Every slice is one of v3.58's grid steps (none new: the pause's
+// depth map has 25 of v3.58's 30 band steps, DOF_BAND_MAX 31). A ramp may end between two levels now (Medium 6 far codes, High
+// 11 / 7): the composite blends its last code over the level below, as every other quarter step.
 static const DofRampT kDofRamp[DOFS_N][DOF_SIDES] = {
     /* Low, half size only (v3.46: at once at F x 2.2 far, 0.5 near) */
     { { 4, { 22, 25, 28, 31 } }, { 4, { -20, -23, -26, -29 } } },
-    /* Medium, half then quarter size (v3.46: 1.6 and 3.2 far, 0.5 near) */
-    { { 8, { 12, 15, 18, 21, 35, 38, 41, 44 } }, { 4, { -20, -23, -26, -29 } } },
-    /* High, up to an eighth (v3.46: 1.25, 1.6, 2.2 far; 0.7, 0.5 near) */
+    /* Medium (v3.59 DF359: was { 12, 15, 18, 21, 35, 38, 41, 44 }: half then quarter size) */
+    { { 6, { 16, 20, 22, 25, 41, 44 } }, { 4, { -20, -23, -26, -29 } } },
+    /* High (v3.59 DF359: was v3.58's High, now Ultra) */
+    { { 11, { 7, 10, 13, 16, 18, 20, 22, 24, 28, 30, 31 } }, { 7, { -11, -14, -17, -20, -23, -26, -29 } } },
+    /* Ultra (v3.59 DF359) = v3.45 .. v3.58's High, up to an eighth (v3.46: 1.25, 1.6, 2.2 far; 0.7, 0.5 near) */
     { { 12, { 4, 7, 10, 13, 14, 16, 18, 20, 24, 26, 28, 30 } }, { 8, { -8, -11, -14, -17, -20, -23, -26, -29 } } },
 };
 static float DofGridR(int g) { return powf(2.0f, (float)g / (float)DOF_GRID); }  // the ratio w / F of grid g
@@ -404,11 +430,22 @@ static float DofFocusStep(float cur, float target, float dt, int snap)
 }
 
 // ---------------------------------------------------------------- the gate
-enum { DOFG_ON, DOFG_OFF, DOFG_NOTPLAY, DOFG_PHASE, DOFG_GAMEPLAY, DOFG_VIEW, DOFG_FP, DOFG_N };
+enum { DOFG_ON, DOFG_OFF, DOFG_NOTPLAY, DOFG_PHASE, DOFG_GAMEPLAY, DOFG_VIEW, DOFG_FP, DOFG_SPIRIT, DOFG_N };  // v3.59 DF359: + SPIRIT
 static const char *const kDofGateWhy[DOFG_N] = {
     "on", "Off", "not in play (menus, FMV, loading)", "paused or an overlay (phase 2+)",
     "in play (DepthOfField = Cut-scenes)", "a view of another place (peephole, window: the room's geometry is off)",
-    "Room 302's first-person view (no focus)" };
+    "Room 302's first-person view (no focus)", "Spirit Vision draws this frame (its spirit world from the sharp scene)" };
+// v3.59 DF359 (USER_FEEDBACK_v358: "Depth of Field affects Spirit Vision."): Spirit Vision builds its whole world from the
+// frame at the scene pass 0x4EFBFD (three edge passes: lift, gradient, grade), after this hook's blur; a blurred frame
+// gave soft, faded lines far away and false contour lines at every blur step. In a frame Spirit Vision draws its edge
+// world (spirit = screenfx.inc's own test, as GvNoiseOff), depth of field keeps out of it: nothing is blurred, so the
+// edge world, the ghosts, auras, veins and soul fires drawn after it are all sharp. keep = the hidden [ScreenEffects]
+// DofSpirit=1 (v3.58's order: the blur first). The capture frame still takes the pause's copies (the page may switch
+// the filter while paused).
+static int DofGateSpirit(int gate, int spirit, int keep)
+{
+    return gate == DOFG_ON && spirit && !keep ? DOFG_SPIRIT : gate;
+}
 // mode, the running game (engine mode 6 / sub-mode 2), the game phase [0xFD5C20] (0 play, 1 cut-scene, 2 paused),
 // the room's geometry drawn ([0xFD6C78]), Room 302 (stages 1 / 0x0A: its play is first person, the player is the camera)
 // v3.52 FX352: these are the game's only first-person states in play: the camera task 0x4FF900 (and the start 0x4FF8D0)
@@ -470,12 +507,13 @@ static int DofPlanFarOnly(DofPlanT *pl, int strength)
 // gets one reason, counted per room (the room line lists them), and the first of each kind in a room is logged. The
 // gate's by-design skips (paused, Cut-scenes in play, a view of another place, Room 302) are counted apart.
 // v3.52 FX352: DOFN_NEAR ("the player is nearer than 150 (a first-person view)") is gone: a close player is a focus now
-enum { DOFN_DRAWN, DOFN_PHASE, DOFN_CUTMODE, DOFN_VIEW, DOFN_FP, DOFN_FAILED, DOFN_NOTBACK, DOFN_NOVP, DOFN_READ, DOFN_BEHIND,
-       DOFN_OFFSCREEN, DOFN_PROBEWAIT, DOFN_PROBEOFF, DOFN_NOPLAN, DOFN_NOSTATE, DOFN_NODS, DOFN_NORT, DOFN_N };
-#define DOFN_DESIGN_END DOFN_FP  // DOFN_PHASE .. DOFN_FP: by design (the gate); after it: a refusal
+enum { DOFN_DRAWN, DOFN_PHASE, DOFN_CUTMODE, DOFN_VIEW, DOFN_FP, DOFN_SPIRIT, DOFN_FAILED, DOFN_NOTBACK, DOFN_NOVP, DOFN_READ,
+       DOFN_BEHIND, DOFN_OFFSCREEN, DOFN_PROBEWAIT, DOFN_PROBEOFF, DOFN_NOPLAN, DOFN_NOSTATE, DOFN_NODS, DOFN_NORT, DOFN_N };
+#define DOFN_DESIGN_END DOFN_SPIRIT  // DOFN_PHASE .. DOFN_SPIRIT: by design (the gate); after it: a refusal (v3.59 DF359: + SPIRIT)
 static const char *const kDofWhyNot[DOFN_N] = {
     "drawn", "paused or an overlay", "in play (DepthOfField = Cut-scenes)", "a view of another place (peephole or window)",
-    "Room 302's first-person view", "off this session", "not drawing to the back buffer", "no viewport",
+    "Room 302's first-person view", "Spirit Vision (its world stays sharp)",  // v3.59 DF359
+    "off this session", "not drawing to the back buffer", "no viewport",
     "the player's position could not be projected", "the player is behind the camera or too far",
     "the player is off screen (a cut-scene without its own focus)",
     "the room's depth probe is pending", "the room's depth probe turned it off", "no slice between the near and far planes",
@@ -489,6 +527,7 @@ static int DofGateWhyNot(int gate)
     case DOFG_GAMEPLAY: return DOFN_CUTMODE;
     case DOFG_VIEW: return DOFN_VIEW;
     case DOFG_FP: return DOFN_FP;
+    case DOFG_SPIRIT: return DOFN_SPIRIT;  // v3.59 DF359
     default: return -1;
     }
 }
@@ -609,24 +648,28 @@ static int DofProbeVerdict(const DofProbeIn *in, float F, float *share)
 // the paused scene and its depth map (taken in the frame whose copy became the pause picture); from the title, or
 // without a depth map: preview.dds with a sample depth (the floor plane: far at the top, near at the bottom).
 enum { DOFV_NONE, DOFV_SCENE, DOFV_CARD };
-enum { DOFW_OFF, DOFW_NOHOOK, DOFW_FAILED, DOFW_SCENE, DOFW_NOPAUSE, DOFW_NOCOPY, DOFW_NODEPTH, DOFW_N };
+enum { DOFW_OFF, DOFW_NOHOOK, DOFW_FAILED, DOFW_SCENE, DOFW_NOPAUSE, DOFW_NOCOPY, DOFW_NODEPTH, DOFW_SPIRIT, DOFW_N };  // v3.59 DF359: + SPIRIT
 static const char *const kDofWhy[DOFW_N] = {
     "the preview is off ([ScreenEffects] DofPreview=0)", "no page backdrop hook", "depth of field is off this session",
     "the paused scene", "not a gameplay pause: preview.dds with a sample depth", "no copy of this pause: preview.dds with a sample depth",
-    "the paused scene had no depth map: preview.dds with a sample depth" };
-typedef struct { int previewOn, hook, failed, pausedGame, haveCopy, haveDepth; } DofPrevIn;
+    "the paused scene had no depth map: preview.dds with a sample depth",
+    "the page's Filter is Spirit Vision: its world stays sharp, as in play" };  // v3.59 DF359
+// v3.59 DF359: spirit = the page's Filter is Spirit Vision and its edge passes can draw (and not [ScreenEffects]
+// DofSpirit=1): no depth of field on the preview either, as in play (DofGateSpirit)
+typedef struct { int previewOn, hook, failed, pausedGame, haveCopy, haveDepth, spirit; } DofPrevIn;
 static int DofPreviewMode(const DofPrevIn *in, int *why)
 {
     int w;
     if (!in->previewOn) w = DOFW_OFF;
     else if (!in->hook) w = DOFW_NOHOOK;
     else if (in->failed) w = DOFW_FAILED;
+    else if (in->spirit) w = DOFW_SPIRIT;  // v3.59 DF359
     else if (!in->pausedGame) w = DOFW_NOPAUSE;
     else if (!in->haveCopy) w = DOFW_NOCOPY;
     else if (!in->haveDepth) w = DOFW_NODEPTH;
     else w = DOFW_SCENE;
     *why = w;
-    return w == DOFW_OFF || w == DOFW_NOHOOK || w == DOFW_FAILED ? DOFV_NONE : w == DOFW_SCENE ? DOFV_SCENE : DOFV_CARD;
+    return w == DOFW_OFF || w == DOFW_NOHOOK || w == DOFW_FAILED || w == DOFW_SPIRIT ? DOFV_NONE : w == DOFW_SCENE ? DOFV_SCENE : DOFV_CARD;
 }
 // a probe code as the probe map's alpha (exact 8-bit steps, point-sampled back; v3.47 DF347: the probe's only)
 static unsigned DofCodeAlpha(int code) { return (unsigned)(code < 0 ? 0 : code) * 16u; }

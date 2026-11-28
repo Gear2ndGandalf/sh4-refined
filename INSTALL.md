@@ -7,7 +7,7 @@ GOG Galaxy installs it to `C:\Program Files (x86)\GOG Galaxy\Games\Silent Hill 4
 
 | File | What it is | Needed? |
 |---|---|---|
-| `winmm.dll` | SH4 Refined v3.58.0 (md5 `FBF82500CB507CFA742792E8FB5AA38A`; not yet play-tested) | yes |
+| `winmm.dll` | SH4 Refined v3.59.0 (md5 `D2CEAEEA49E9448E2C4A6E1E75ED5786`; not yet play-tested) | yes |
 | `fonts\` | the HD menu font sheets (EB Garamond, Cormorant Garamond, Crimson Text) and their OFL licences | for the Menu Font row |
 | `SH4Refined_preview_stock.dds` | the picture behind the Effects pages (Effects > Preview Stock, and on the title menu): the author's own in-game screenshot of Eileen | for the Effects preview |
 | `d3d9.dll` | dgVoodoo2 2.87.6 by Dege, its `MS\x86\D3D9.dll`, unchanged (md5 `CAA75C55D9B3121D17433BD3B38C7BB2`) | optional renderer |

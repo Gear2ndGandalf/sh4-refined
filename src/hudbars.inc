@@ -296,6 +296,12 @@ static void HbInit(void)  // gameplay.inc GameplayInstall (Init, before the Opti
         kHbName[0][g_hb[0]], kHbCmvShown[g_hb[1] == HB_CMV_ON]);  // v3.42 SM342: the menu's name
     Log("hud bars: Curse Meter Off / On (v3.42): On = companion Eileen's ring only; Refined never draws the player's curse ring "
         "(Playable Eileen v1.23.1+ draws it; with an older one or none, nobody does)");  // v3.42 SM342 (once)
+    // v3.59 FT359: [ScreenEffects] FilterThemes (hidden, default 1; any other number than 0 is 1)
+    g_ftOn = g_iniFallback ? 1 : GetPrivateProfileIntA("ScreenEffects", "FilterThemes", 1, g_iniPath) != 0;
+    Log("hud bars: filter themes %s ([ScreenEffects] FilterThemes=%d, hidden): %s", g_ftOn ? "on" : "off", g_ftOn,
+        g_ftOn ? "the enemy bars take the looks of Thermal Vision (heat scale; no bar for the victims), Spirit Vision (pale flame), "
+                 "Night Vision and Night Mono (phosphor, scan lines, grain), by Filter Strength; Ghost Teleport's soul fire turns spirit "
+                 "blue in its fade" : "v3.58's looks: the stock bars under every filter, the victims' bars under Thermal Vision");
 }
 
 // ---------------------------------------------------------------- drawing helpers (pixels of the whole back buffer)
@@ -415,18 +421,23 @@ static void HbFlush(void *dev)  // FxPanel's states: untextured, diffuse colour 
 // pure. v3.30 HB330: a bevelled dark frame, the damage chip hot when it lands, quarter notches; ghosts in ectoplasm with
 // a stagger line, a rise preview and the revive bar (violet; steel and broken when the Sword pins them). Mock-ups:
 // tools/hudbars_mockup.py (it draws with the same primitives), design: staging/v330_feedback/w4_hud/DESIGN.md.
-#define HB_RIM     0x000000u
-#define HB_BACK0   0x17110Fu
-#define HB_BACK1   0x090706u
-#define HB_CHIPHOT 0xFFF0D8u  // the part just lost: hot when it lands ...
-#define HB_TRAIL   0xC2B094u  // ... pale bone while it waits and drains
-#define HB_SHEEN   0xFFFFFFu
-#define HB_GUARD   0xDDF4F0u  // a ghost's stagger line
-#define HB_LOCK    0xE2D8C8u
-static const DWORD kHbFill[3][2] = {  // top, bottom: 0 monster, 1 ghost (any state), 2 boss
-    { 0xB0362Cu, 0x5C0E0Bu }, { 0x9CC0C0u, 0x3A5A60u }, { 0xC0441Eu, 0x5A0C06u } };
-static const DWORD kHbRev[2] = { 0xD2C4FFu, 0x6A54B0u };    // the revive countdown
-static const DWORD kHbSteel[2] = { 0xB4BCC8u, 0x4C5460u };  // sealed by the Sword of Obedience
+// v3.59 FT359: the colours are the current theme's (hbtheme_sim.h): the stock palette (v3.58's values, HBT_STOCK_PAL)
+// everywhere, the special filter's look only while the enemy bars are drawn (HbThemeFrame .. HbThemeEnd in HbFrameC). The
+// names below stay, so the drawing code reads as before; the curse rings always draw with the stock palette.
+#include "hbtheme_sim.h"  // v3.59 FT359
+static HbTheme g_hbTStock = { HBT_STOCK_PAL };   // v3.59 FT359: the stock look (no overlays)
+static const HbTheme *g_hbT = &g_hbTStock;      // v3.59 FT359: the theme the bars draw with now
+#define HB_RIM     (g_hbT->c.rim)      // v3.59 FT359: was 0x000000u
+#define HB_BACK0   (g_hbT->c.back0)    // v3.59 FT359: was 0x17110Fu
+#define HB_BACK1   (g_hbT->c.back1)    // v3.59 FT359: was 0x090706u
+#define HB_CHIPHOT (g_hbT->c.chipHot)  // the part just lost: hot when it lands ...  (v3.59 FT359: was 0xFFF0D8u)
+#define HB_TRAIL   (g_hbT->c.trail)    // ... pale bone while it waits and drains  (v3.59 FT359: was 0xC2B094u)
+#define HB_SHEEN   (g_hbT->c.sheen)    // v3.59 FT359: was 0xFFFFFFu
+#define HB_GUARD   (g_hbT->c.guard)    // a ghost's stagger line  (v3.59 FT359: was 0xDDF4F0u)
+#define HB_LOCK    (g_hbT->c.lock)     // v3.59 FT359: was 0xE2D8C8u
+#define kHbFill    (g_hbT->c.fill)     // top, bottom: 0 monster, 1 ghost (any state), 2 boss (v3.59 FT359: was a const table)
+#define kHbRev     (g_hbT->c.rev)      // the revive countdown (v3.59 FT359: was a const table)
+#define kHbSteel   (g_hbT->c.steel)    // sealed by the Sword of Obedience (v3.59 FT359: was a const table)
 
 // ---------------------------------------------------------------- the clock (real seconds, frozen while hidden)
 static LARGE_INTEGER g_hbQf, g_hbQLast;
@@ -454,22 +465,14 @@ typedef struct {
     int yOk, gstate, downShow, alive;
     unsigned id;      // v3.52 HB352: its spawn id (a new being in a reused task slot has the same work pointer)
     int refSaid;      // v3.52 HB352: the refusal reasons already counted / logged this room visit (bit per HB_RF_*)
+    int wdWhat;       // v3.59 EN359: Walter: what his revive bar shows (HB_WD_*; the log line on a change)
 } HbEnt;
 static HbEnt g_hbE[HB_MAXE];
 static int g_hbEN;
 static DWORD g_hbRoom = 0xFFFFFFFFu;
 static __declspec(align(16)) float g_hbSeg[8], g_hbPlane[4];
 static int HbTypeOk(int type) { return (type >= 0x02 && type <= 0x11 && type != 0x04); }  // never 1, 4 (mm), 0x12+
-static float HbTypeHeight(int type)  // [assumed] above the work position when the bones are not this frame's
-{
-    switch (type) {
-    case 0x0A: return 150.0f;   // Sniffer Dog
-    case 0x03: return 200.0f;   // Hummer (flies; its position is its body)
-    case 0x08: return 380.0f;   // Twin Victim
-    case 0x10: return 380.0f;   // Walter / the Conjoined Bodies
-    default: return 340.0f;     // humanoids and ghosts (Eileen is about 340 tall)
-    }
-}
+// v3.59 EN359: HbTypeHeight is hudbars_sim.h HbFallbackHeight (measured per type and variant)
 // 1 = a wall plane lies between the camera eye and the point (Item Shine's SpBlocked, without its through-walls key)
 static int HbBlocked(const float *eye, const float *p)
 {
@@ -485,6 +488,7 @@ static int HbBlocked(const float *eye, const float *p)
     return a / (a - b) < 0.93f;
 }
 // the top of the body: the highest bone of this frame's skeleton (Y down), or -1 when the bones are not usable
+static int g_hbTopBone, g_hbTopN;  // v3.59 EN359: the last HbTop's bone and bone count (the anchor's log line)
 static int HbTop(const BYTE *work, const float *pos, float *top, int *hidden)
 {
     const BYTE *m = *(const BYTE *const *)(work + 0x30), *skel;
@@ -504,10 +508,10 @@ static int HbTop(const BYTE *work, const float *pos, float *top, int *hidden)
         const float *b = mats + 16 * q + 12;
         if (!_finite(b[0]) || !_finite(b[1]) || !_finite(b[2])) return 0;
         if (fabsf(b[0] - pos[0]) > 400.0f || fabsf(b[2] - pos[2]) > 400.0f) return 0;  // not this frame's (as Death Presence)
-        if (!ok || b[1] < t) t = b[1], ok = 1;
+        if (!ok || b[1] < t) t = b[1], ok = 1, g_hbTopBone = q;  // v3.59 EN359: + the bone
     }
     if (!ok || !(t < pos[1] + 50.0f)) return 0;
-    *top = t;
+    *top = t, g_hbTopN = nb;  // v3.59 EN359: + the count
     return 1;
 }
 static HbEnt *HbFind(const BYTE *task, const BYTE *work, unsigned id)
@@ -566,10 +570,19 @@ static int HbWalterSites(void)
     if (g_hbWalterSite < 0) {
         static const Site kS1 = { 0x4A4A12, { 0xD9, 0x87, 0x94, 0x00, 0x00, 0x00 }, 6 }, kS2 = { 0x4A4A1C, { 0xD9, 0x97, 0x94, 0x00, 0x00, 0x00 }, 6 };
         static const Site kF1 = { 0x4A8760, { 0xD8, 0xAF, 0x80, 0x00, 0x00, 0x00 }, 6 }, kF2 = { 0x4A8801, { 0xD8, 0xAF, 0x80, 0x00, 0x00, 0x00 }, 6 };
+        // v3.59 EN359: the stalker's heal in class 0x0B (func_004A1CD0: cmp edi,9 / cmp edi,0Ah) and the regen getter
+        // 0x468EE0 (EnemyStatGetGaugeRegen, called for the heal-to-full countdown; never patched)
+        static const Site kH = { 0x4A1CD0, { 0x51, 0x57, 0x56, 0xE8, 0xB8, 0x99, 0xFB, 0xFF, 0x56, 0xE8, 0x62, 0x9B, 0xFB, 0xFF, 0x8B, 0xF8,
+                                             0x83, 0xC4, 0x08, 0x83, 0xFF, 0x09 }, 22 };
+        static const Site kR = { 0x468EE0, { 0x51, 0xC7, 0x44, 0x24, 0x00, 0x00, 0x00, 0x00, 0x00, 0xE8, 0xC2, 0x34, 0x00, 0x00 }, 14 };
         g_hbWalterSite = (SiteOk(&kS1) && SiteOk(&kS2) ? 1 : 0) | (SiteOk(&kF1) && SiteOk(&kF2) ? 2 : 0);
+        g_hbWalterSite |= SiteOk(&kH) && SiteOk(&kR) ? 4 : 0;  // v3.59 EN359: bit 2 = the long down's heal is the stock one
         Log("hud bars: Walter downed keeps his bar (boss rules) with a revive bar from the game's own down timer: the stalker's "
             "(004A4A12) %s, the final Walter's (004A8760) %s", g_hbWalterSite & 1 ? "read" : "differs from GOG v7: health bar only",
             g_hbWalterSite & 2 ? "read" : "differs from GOG v7: health bar only");
+        Log("hud bars: Walter's long down (v3.59): a hit at HP 0 lays him down until he heals to full (class 0B): %s",  // v3.59 EN359
+            (g_hbWalterSite & 5) == 5 ? "his bars stay, the revive bar counts the heal (004A1CD0 / 00468EE0 read)" :
+            "the heal's code differs from GOG v7: as v3.58 (his bar fades in that down)");
     }
     return g_hbWalterSite;
 }
@@ -607,6 +620,31 @@ static void HbBossFrame(const BYTE *task, unsigned id, int type, int cls, int ac
             LogV("hud bars: boss %s %08X (type %02X) in room %lu:%lX: active 5 s and no bar yet: %s (state %X, %.0f from you, hp %.0f / "
                  "%.0f)", name, id, type, g_hbRefRoom >> 16, g_hbRefRoom & 0xFFFF, why, cls, dist, hp[0], hp[1]);
     }
+}
+// v3.59 EN359: the anchor's source, once a session per type and variant (verbose; the next QA's proof for tall heads):
+// the top bone (its index of the count) + the lift, or the fallback height; and the first time per type and variant a
+// bar is put at the top edge of the view (its head's top is above it: HbBarPlace's v3.52 rule)
+static unsigned short g_hbAncSaid[0x13], g_hbEdgeSaid[0x13];
+static volatile LONG g_hbAncQ;
+static void HbAnchorNote(int type, int var, int okB, float top, float y)
+{
+    if (type < 0 || type >= 0x13 || var < 0 || var > 15 || (g_hbAncSaid[type] >> var & 1u)) return;
+    g_hbAncSaid[type] |= (unsigned short)(1u << var);
+    if (!LogQuota(&g_hbAncQ, 80)) return;
+    if (okB)
+        LogV("hud bars: bar anchor for type %02X v%d: its top bone (#%d of %d) + %.0f units (the model's head rises %.0f above it, + %.0f; "
+             "v3.58: + 40), %.0f above its feet", type, var, g_hbTopBone, g_hbTopN, HbAnchorLift(type, var), HbCrown(type, var),
+             HB_CROWN_MARGIN, y - top);
+    else
+        LogV("hud bars: bar anchor for type %02X v%d: its bones are not this frame's: %.0f above its position (the model's height + %.0f)",
+             type, var, HbFallbackHeight(type, var), HB_CROWN_MARGIN);
+}
+static void HbEdgeNote(int type, int var)
+{
+    if (type < 0 || type >= 0x13 || var < 0 || var > 15 || (g_hbEdgeSaid[type] >> var & 1u)) return;
+    g_hbEdgeSaid[type] |= (unsigned short)(1u << var);
+    if (LogQuota(&g_hbAncQ, 80))
+        LogV("hud bars: type %02X v%d: its head's top is above the 3D view: its bar is held at the view's top edge", type, var);
 }
 typedef struct {
     float x, y, dist, a, shown, trail, heat;
@@ -652,6 +690,155 @@ static void HbReviveQuads(const HbDraw *d, float x0, float x1, float y1, float H
         HbRect(xc - 2.5f * px, ry0 - 2.0f * px, xc + 2.5f * px, ry0 - px, HbArgb(0xF2F4F8u, 0.95f * k), HbArgb(0xF2F4F8u, 0.95f * k));
     }
 }
+// ---------------------------------------------------------------- v3.59 FT359: the bars' looks under the special filters
+// hbtheme_sim.h has the palettes and rules (PLAN: staging/v359_feedback/w4_themes/PLAN.md). Per frame HbThemeFrame picks
+// the look of the filter this frame's scene pass draws (Thermal Vision, Spirit Vision, Night Vision, Night Mono; any other
+// filter, none, a filter whose shaders failed, or [ScreenEffects] FilterThemes=0: the stock look), mixed by the Filter
+// Strength; HbBarQuads / HbReviveQuads draw with its colours (the names HB_RIM .. kHbSteel), HbThemeFill paints the fill
+// (Thermal Vision's heat scale) and HbThemeOver adds the look's overlays (Spirit Vision's flame tongues, the Night Visions'
+// scan lines, grain and bloom) in the same vertex batch: no extra pass, no texture, no device state. HbThemeHides: under
+// Thermal Vision no bar for an enemy Thermal hides (the victims: their ghosts give no heat; ThermClassify 2), its bar's
+// state still steps (another filter shows it again at once). [ScreenEffects] FilterThemes (hidden, 1; 0 = v3.58: the
+// stock colours under every filter, the victims' bars under Thermal Vision, Ghost Teleport's soul fire only fades).
+static HbTheme g_hbTCur;               // this frame's look (built when the look or the strength changes)
+static int g_hbTLook = -1, g_hbTFs = -1;
+static volatile LONG g_hbTQ, g_hbTHidQ;
+#define HB_TH_HIDN 32
+static const BYTE *g_hbTHid[HB_TH_HIDN];  // the beings Thermal Vision drew no bar for in this room visit
+static int g_hbTHidN, g_hbTHidAll, g_hbTHidFirst;
+static DWORD g_hbTHidRoom = 0xFFFFFFFFu;
+static int HbThemeLookNow(void)  // HBT_*: the look of the filter the scene pass draws this frame
+{
+    int f;
+    if (!g_ftOn || !g_fxOn || !FxSceneGate()) return HBT_STOCK;
+    f = (int)g_fx[FX_FILTER];
+    if (f <= 0 || f >= FX_FILTERS) return HBT_STOCK;
+    switch (f) {
+    case FXF_THERMAL: return g_fxPsFailed[kFxLook[f].tech] ? HBT_STOCK : HBT_THERMAL;
+    case FXF_GHOST: return GvEdgesOk() ? HBT_SPIRIT : HBT_STOCK;
+    case FXF_NV: return g_fxPsFailed[kFxLook[f].tech] ? HBT_STOCK : HBT_NV;
+    case FXF_NVMONO: return g_fxPsFailed[kFxLook[f].tech] ? HBT_STOCK : HBT_MONO;
+    default: return HBT_STOCK;
+    }
+}
+static void HbThemeHidRoom(DWORD room)  // the room visit's count of hidden victims' bars (a verbose line when it ends)
+{
+    if (room == g_hbTHidRoom) return;
+    if (g_hbTHidN && g_hbTHidRoom != 0xFFFFFFFFu && LogQuota(&g_hbTHidQ, 40))
+        LogV("hud bars: room %lu:%lX: Thermal Vision drew no bar for %d victim(s) (ghosts give no heat; %d this session)",
+             g_hbTHidRoom >> 16, g_hbTHidRoom & 0xFFFF, g_hbTHidN, g_hbTHidAll);
+    g_hbTHidN = 0;
+    g_hbTHidRoom = room;
+}
+static void HbThemeFrame(void)  // HbFrameC, before HbEnemies: the bars' look for this frame
+{
+    const int look = HbThemeLookNow(), fs = (unsigned)g_pvFs < PVS_N ? (int)g_pvFs : PVS_DEFAULT;
+    HbThemeHidRoom(*(volatile DWORD *)0xFD5A90 << 16 | (*(volatile DWORD *)0xFD5A94 & 0xFFFF));
+    if (look != g_hbTLook || fs != g_hbTFs) {
+        HbtBuild(look, kPvFsK[fs], &g_hbTCur);
+        if (LogQuota(&g_hbTQ, 40)) {
+            const int f = (unsigned)g_fx[FX_FILTER] < FX_FILTERS ? (int)g_fx[FX_FILTER] : 0;
+            if (look != HBT_STOCK)
+                Log("hud bars: the enemy bars wear the %s look (Filter Strength %s: colours %.0f %%, overlays %.0f %%%s)", kHbtName[look],
+                    kPvFsName[fs], 100.0f * g_hbTCur.k, 100.0f * g_hbTCur.over, look == HBT_THERMAL ? "; no bar for the victims" : "");
+            else
+                Log("hud bars: the enemy bars wear the stock look (Filter %s%s)", kFxName[FX_FILTER][f],
+                    !g_ftOn ? "; FilterThemes=0" : f == FXF_THERMAL || f == FXF_GHOST || f == FXF_NV || f == FXF_NVMONO ?
+                    "; its shaders are not available" : "");
+        }
+        g_hbTLook = look, g_hbTFs = fs;
+    }
+    g_hbT = look != HBT_STOCK ? &g_hbTCur : &g_hbTStock;
+}
+static void HbThemeEnd(void) { g_hbT = &g_hbTStock; }  // after the enemy bars (and on a fault): the rings draw stock
+// HbEnemies: 1 = no bar for this enemy now (Thermal Vision hides its body: a victim / ghost, ThermClassify 2)
+static int HbThemeHides(const BYTE *task, int type)
+{
+    int i;
+    if (!HbtHides(g_ftOn, ThermalLive(), ThermHidesBody(task) ? 2 : 0)) return 0;  // v3.59 MERGE: screenfx.inc's one hide rule
+    for (i = 0; i < g_hbTHidN && g_hbTHid[i] != task; ++i) {}
+    if (i == g_hbTHidN && g_hbTHidN < HB_TH_HIDN) {
+        g_hbTHid[g_hbTHidN++] = task;
+        ++g_hbTHidAll;
+        if (!g_hbTHidFirst++)
+            Log("hud bars: Thermal Vision: no bar for the victims (their ghosts give no heat); the first: type %02X in room %lu:%lX", type,
+                g_hbTHidRoom >> 16, g_hbTHidRoom & 0xFFFF);
+    }
+    return 1;
+}
+// the fill of a bar (HbBarQuads): the stock gradient, or Thermal Vision's heat scale along the full width W in 8 steps
+static void HbThemeFill(float x0, float y0, float x1, float y1, float W, int kind, float a)
+{
+    float xs = x0;
+    int s;
+    if (!g_hbT->heat || !(W > 0.0f)) {
+        HbRect(x0, y0, x1, y1, HbArgb(kHbFill[kind][0], a), HbArgb(kHbFill[kind][1], a));
+        return;
+    }
+    if (!(y1 > y0)) return;
+    for (s = 0; s < 8 && xs < x1; ++s) {
+        float xn = x0 + W * (float)(s + 1) / 8.0f;
+        unsigned t0, b0, t1, b1;
+        if (xn > x1) xn = x1;
+        if (xn > xs) {
+            const float qx[4] = { xs, xn, xs, xn }, qy[4] = { y0, y0, y1, y1 };
+            DWORD qc[4];
+            HbtFillAt(g_hbT, kind, (xs - x0) / W, &t0, &b0);
+            HbtFillAt(g_hbT, kind, (xn - x0) / W, &t1, &b1);
+            qc[0] = HbArgb(t0, a), qc[1] = HbArgb(t1, a), qc[2] = HbArgb(b0, a), qc[3] = HbArgb(b1, a);
+            HbQuad(qx, qy, qc);
+        }
+        xs = xn;
+    }
+}
+// the look's overlays over a drawn bar (HbBarQuads' last call): x0..x1 / y0..y1 the bar, xe the fill's end
+static void HbThemeOver(const HbDraw *d, float x0, float y0, float x1, float y1, float xe, float H, float px)
+{
+    const HbTheme *t = g_hbT;
+    const float a = d->a * (d->locked ? 1.0f : 0.85f), W = x1 - x0;
+    const int kind = d->ghost ? 1 : d->boss ? 2 : 0;
+    float yb = y1 + px;
+    if (t->look == HBT_STOCK || !(a > 0.004f) || !(W > 0.0f)) return;
+    if ((d->ghost || d->boss) && d->revA > 0.004f)  // the revive bar below (HbReviveQuads' place)
+        yb = y1 + 3.0f * px + (H * 0.0030f > 2.0f ? H * 0.0030f : 2.0f) + px;
+    if (t->halo && xe > x0 + 0.5f) {  // Night Vision: the phosphor blooms round the fill (bands outside the bar)
+        const DWORD c = HbArgb(t->haloRgb, t->haloA * t->over * a), c0 = HbArgb(t->haloRgb, 0.0f);
+        HbRect(x0 - 2.0f * px, y0 - 4.0f * px, xe + 2.0f * px, y0 - px, c0, c);
+        HbRect(x0 - 2.0f * px, y1 + px, xe + 2.0f * px, y1 + 3.0f * px, c, c0);
+        HbRect(x0 - 4.0f * px, y0 - px, x0 - px, y1 + px, c, c);
+    }
+    if (t->flames && xe > x0 + 2.0f * px) {  // Spirit Vision: pale flame tongues rise and flicker from the fill's top
+        const float fw = xe - x0, hh = y1 - y0, sd = (float)(((unsigned)(d->shown * 977.0f) ^ (unsigned)kind * 131u) & 1023u) * 0.37f;
+        const float ka = t->flameA * t->over * a;
+        int n = (int)(fw / (5.0f * px)), i;
+        if (n < 1) n = 1;
+        if (n > 14) n = 14;
+        HbRect(x0, y0 - 1.5f * px, xe, y0, HbArgb(kHbFill[kind][0], 0.0f), HbArgb(kHbFill[kind][0], 0.30f * t->over * a));
+        for (i = 0; i < n; ++i) {
+            const float cx = x0 + fw * ((float)i + 0.5f) / (float)n, hw = 0.425f * fw / (float)n;
+            const float nz = FxValueNoise((float)i * 1.7f + sd, g_hbNow * 3.2f, 0x5F1A3Eu);
+            const float ht = hh * (0.35f + 1.05f * nz), lean = hw * 0.8f * (FxValueNoise((float)i * 2.3f + sd, g_hbNow * 2.1f, 0x2C77u) - 0.5f);
+            unsigned top, bot;
+            HbtFillAt(t, kind, ((float)i + 0.5f) / (float)n * fw / W, &top, &bot);
+            HbTri(cx - hw, y0, HbArgb(top, ka), cx + hw, y0, HbArgb(top, ka), cx + lean, y0 - ht, HbArgb(HbLerpRgb(top, 0xFFFFFFu, 0.5f), 0.0f));
+        }
+    }
+    if (t->scan) {  // the Night Visions: the amplifier's scan lines on the screen's rows (they do not crawl with the bar)
+        const float step = floorf(3.0f * px + 0.5f), th = floorf(px + 0.5f), ka = t->scanA * t->over * a;
+        float y = ceilf((y0 - px) / step) * step;
+        int guard = 0;
+        for (; y < yb && guard < 64; y += step, ++guard) HbRect(x0 - px, y, x1 + px, y + th, HbArgb(0x000000u, ka), HbArgb(0x000000u, ka));
+    }
+    if (t->grain) {  // and its grain: three specks a 30 Hz tick
+        const DWORD tick = (DWORD)(g_hbNow * 30.0f), seed = FxHash(tick * 2654435761u ^ (DWORD)(int)floorf(d->x / 16.0f) * 40503u);
+        const float ka = t->grainA * t->over * a, sz = px > 1.0f ? px : 1.0f;
+        int i;
+        for (i = 0; i < 3; ++i) {
+            const float sx = x0 + W * FxRnd(seed + (DWORD)i * 2u), sy = y0 + (yb - px - y0) * FxRnd(seed + (DWORD)i * 2u + 1u);
+            HbRect(sx, sy, sx + sz, sy + sz, HbArgb(t->grainRgb, ka), HbArgb(t->grainRgb, ka));
+        }
+    }
+}
 static void HbBarQuads(const HbDraw *d, float H)
 {
     const float W = HbBarW(H, d->boss), hh = (H * 0.0065f > 4.0f ? H * 0.0065f : 4.0f) * (d->boss ? 1.25f : 1.0f);
@@ -677,7 +864,7 @@ static void HbBarQuads(const HbDraw *d, float H)
         HbRect(xe, y0, x0 + W * d->trail, hy1, HbArgb(ch, 0.85f * a), HbArgb(ch, 0.62f * a));
     }
     // the fill: a gradient, a light top row, a darker bottom row
-    HbRect(x0, y0, xe, hy1, HbArgb(kHbFill[k][0], 0.96f * a), HbArgb(kHbFill[k][1], 0.96f * a));
+    HbThemeFill(x0, y0, xe, hy1, W, k, 0.96f * a);  // v3.59 FT359: Thermal Vision's heat scale (else the stock gradient, as before)
     HbRect(x0, y0, xe, y0 + px, HbArgb(HB_SHEEN, 0.24f * a), HbArgb(HB_SHEEN, 0.24f * a));
     if (hy1 - y0 > 3.0f * px) HbRect(x0, hy1 - px, xe, hy1, HbArgb(0x000000u, 0.25f * a), HbArgb(0x000000u, 0.25f * a));
     for (i = 1; i < nq; ++i) {  // quarter notches (bosses: tenths), the middle one darker
@@ -695,6 +882,7 @@ static void HbBarQuads(const HbDraw *d, float H)
         HbDiamond(x1 + 3.0f * px + sz, my, sz, HbArgb(HB_LOCK, 0.95f * a));
     }
     if ((d->ghost || d->boss) && d->revA > 0.004f) HbReviveQuads(d, x0, x1, y1, H, px);  // v3.58 EN358: + Walter downed (a boss: revA only for him)
+    HbThemeOver(d, x0, y0, x1, y1, xe, H, px);  // v3.59 FT359: the special filter's overlays (none in the stock look)
 }
 static int g_hbGhostLog;  // the first ghost states logged (live check of the RE)
 static void HbEnemies(int mode, const Viewport8 *vp, float dt)
@@ -764,15 +952,23 @@ static void HbEnemies(int mode, const Viewport8 *vp, float dt)
             const BYTE *wb = *(const BYTE *const *)(w + 0x24);
             const int tOk = (ULONG_PTR)wb >= 0x10000 && (sites & (wk == HB_WK_FINAL ? 2 : 1)) != 0;
             const int ai = *(const WORD *)(t + 0x410), step = *(const WORD *)(t + 0x412);
-            gs = HbWalterState(wk, cls, ai, step, hp[0], tOk ? *(const float *)(wb + (wk == HB_WK_FINAL ? 0x80 : 0x94)) : 0.0f, tOk, &cd);
+            const int lOk = (sites & 4) != 0 && wk == HB_WK_STALKER;  // v3.59 EN359: the long down (the heal to full) is the stock one
+            const float regen = lOk ? ((float(__cdecl *)(int, int))0x468EE0)(0x10, 0) : 0.0f;
+            int what = HB_WD_NONE;
+            gs = HbWalterState2(wk, cls, ai, step, hp[0], hp[1], regen, tOk ? *(const float *)(wb + (wk == HB_WK_FINAL ? 0x80 : 0x94)) : 0.0f,
+                                tOk, lOk, &cd, &what);  // v3.59 EN359: was HbWalterState (step 4 / class 0B gone)
             gone = gs == HB_GS_GONE;
             walter = 1;
-            if (gs != e->gstate && (gs == HB_GS_DOWN || gs == HB_GS_STUMBLE || e->gstate == HB_GS_DOWN) && LogQuota(&g_hbWalterQ, 40)) {
+            if ((gs != e->gstate || (gs == HB_GS_DOWN && what != e->wdWhat)) && (gs == HB_GS_DOWN || gs == HB_GS_STUMBLE ||
+                e->gstate == HB_GS_DOWN) && LogQuota(&g_hbWalterQ, 40)) {  // v3.59 EN359: + a change of what the revive bar shows
                 static const char *const kGs[] = { "standing", "rising", "stumble", "down", "pinned", "gone" };
-                LogV("hud bars: %s Walter %08X %s (class %X, AI %X step %d, hp %.0f / %.0f, down timer %.1f s): his bar %s", wk == HB_WK_FINAL ?
+                static const char *const kWd[] = { "", " (the game's down timer)", " (he heals to full, then rises: v3.59)",
+                                                   " (he rises any moment: empty)" };
+                LogV("hud bars: %s Walter %08X %s (class %X, AI %X step %d, hp %.0f / %.0f, down timer %.1f s): his bar %s%s", wk == HB_WK_FINAL ?
                      "the final" : "the stalker", e->id, kGs[gs], cls, ai, step, hp[0], hp[1], cd, gs == HB_GS_DOWN ? "and the revive bar stay up" :
-                     gs == HB_GS_GONE ? "fades out" : "stays up");
+                     gs == HB_GS_GONE ? "fades out" : "stays up", gs == HB_GS_DOWN ? kWd[what & 3] : "");
             }
+            e->wdWhat = what;  // v3.59 EN359
             e->gstate = gs;
             HbReviveStep(&e->rev, gs, cd, dt);
         } else {
@@ -804,8 +1000,14 @@ static void HbEnemies(int mode, const Viewport8 *vp, float dt)
             HbReviveStep(&e->rev, gs, cd, dt);
         }
         // the anchor: over the top bone, smoothed (animation bobbing)
-        if (HbTop(w, pos, &top, &hidden)) top -= 40.0f;
-        else top = pos[1] - HbTypeHeight(type);
+        // v3.59 EN359: above the head's mesh by type and variant (hudbars_sim.h HbAnchorLift; v3.58: the top bone - 40)
+        {
+            const int var = (int)(EnmModeWord(t) >> 8 & 0xF);
+            const int okB = HbTop(w, pos, &top, &hidden);
+            if (okB) top -= HbAnchorLift(type, var);
+            else top = pos[1] - HbFallbackHeight(type, var);
+            HbAnchorNote(type, var, okB, top, pos[1]);
+        }
         if (!e->yOk) e->y = top, e->yOk = 1;
         else e->y += (top - e->y) * (dt >= 0.12f ? 1.0f : dt / 0.12f);
         anc[0] = pos[0], anc[1] = e->y, anc[2] = pos[2];
@@ -817,6 +1019,7 @@ static void HbEnemies(int mode, const Viewport8 *vp, float dt)
             okMid = GvScreen(hm, vp, &mx, &my);
             // v3.52 HB352 (D1): a body whose top is above the 3D view while its middle is in it gets the bar at the top edge
             onScreen = HbBarPlace(okTop, tx, ty, okMid, mx, my, (float)vp->x, (float)vp->y, (float)vp->w, (float)vp->h, &sx, &sy);
+            if (onScreen && !(okTop && ty > (float)vp->y)) HbEdgeNote(type, (int)(EnmModeWord(t) >> 8 & 0xF));  // v3.59 EN359
             want = gone ? 0.0f : HbWantBoss(mode, boss, t == lock, e->bar.sinceHit, dist);  // v3.52 HB352 (D1): a boss's bar at any distance
             if (gs == HB_GS_DOWN && e->downShow && !gone) want = 1.0f;  // a ghost seen going down keeps its timer up
             if (ghost && HbPinShow(&e->rev)) want = 1.0f;  // v3.30 MERGE: the sealed bar 4 s after the pin (the user's choice)
@@ -833,7 +1036,7 @@ static void HbEnemies(int mode, const Viewport8 *vp, float dt)
                         gone ? "down, dead or scripted" : !onScreen ? "its bar's place is outside the 3D view" :
                         hidden ? "its model is not drawn (no-draw bit)" : !seen ? "walled off from the camera" : "fading in",
                         hp, dist);
-        if (onScreen && e->bar.alpha > 0.004f && n < HB_MAXE) {
+        if (onScreen && e->bar.alpha > 0.004f && n < HB_MAXE && !HbThemeHides(t, type)) {  // v3.59 FT359: + no victim's bar under Thermal Vision
             HbDraw *d = &dl[n++];
             d->x = sx, d->y = sy - H * 0.012f, d->dist = dist;
             d->a = HbWithBody(e->bar.alpha, FiBodyShown(t, w, e->id)), d->shown = e->bar.shown, d->trail = e->bar.trail, d->heat = HbChipHeat(&e->bar);  // v3.58 EN358: the bar appears with the body (Fade In's fade)
@@ -1509,7 +1712,8 @@ static void HbFrameC(void)
     g_hbNow += dt > HB_DT_MAX ? HB_DT_MAX : dt;
     g_hbVn = 0;
     __try {
-        if (mode) HbEnemies(mode, &sv.vp, dt);  // (sv.vp: the viewport in force at the HUD call, as Item Shine's)
+        if (mode) HbThemeFrame(), HbEnemies(mode, &sv.vp, dt);  // (sv.vp: the viewport in force at the HUD call, as Item Shine's)  // v3.59 FT359: + the filter's look
+        HbThemeEnd();  // v3.59 FT359: the curse rings draw with the stock colours
         if (cm) HbCurse(cm, dt);
         if (g_hbVn) {
             FxBase(dev);
@@ -1517,6 +1721,7 @@ static void HbFrameC(void)
         }
     } __finally {
         g_hbVn = 0;
+        HbThemeEnd();  // v3.59 FT359 (a fault in the bars)
         FxRestore(dev, &sv);
     }
     if (!s_logged++) Log("hud bars: first frame drawn (viewport %lu,%lu %lux%lu, %d being(s) tracked)", sv.vp.x, sv.vp.y, sv.vp.w, sv.vp.h, g_hbEN);

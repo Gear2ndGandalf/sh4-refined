@@ -25,6 +25,7 @@ static DWORD g_frgRoomKey = 0xFFFFFFFFu;
 static int g_frgPrevBg;                  // the effect budget's level at the last frame end
 static DWORD g_frgShedTick;              // GetTickCount of its last step down (0 = none yet)
 static int g_frgShedSeen;
+static int g_frgScene;                   // v3.59 MERGE: this frame end is in a playing scene (FR359: counted like play)
 static volatile LONG g_frgLogQ, g_frgLogVQ;
 
 // The effect budget stepped down within the last window: it is still shedding, the guard waits for it. w5 PW356's spark
@@ -121,14 +122,28 @@ static void FrgFrameEnd(void)
         const int menu = *(volatile int *)0x1236D50 == 2 && *(volatile int *)0x1236D54 == 2;  // the Governor's overlay test
         static LONG s_pvSeen;  // v3.56 MERGE: preview.inc's pause capture drew since the last frame end: not a play interval
         const int pvCap = PvCapNew(&s_pvSeen);
-        play = mode == 6 && phase == 0 && !menu && !g_qsLoading && rate == g_rateNow && !g_inGate && InFront() && !pvCap;
+        // v3.59 FR359: a phase-1 scene that runs at the gameplay rate (ratephase.inc) counts like play once it plays
+        // (CutsceneUpdate state 3, [0x10774B4]: not while it loads); its first frame and a frame with a held camera cut
+        // (a new shot draws new geometry) are skipped, not counted late
+        static int s_prevPhase = -1;
+        const int phase1 = phase == 1 && rate > 30 && *(volatile int *)0x10774B4 == 3;
+        const int skip = phase != s_prevPhase || InterlockedExchange(&g_crCutFrame, 0);
+        s_prevPhase = phase;
+        g_frgScene = phase != 0;  // v3.59 MERGE
+        play = mode == 6 && (phase == 0 || phase1) && !menu && !g_qsLoading && rate == g_rateNow && !g_inGate && InFront() && !pvCap;
+        if (play && skip) {  // v3.59 FR359: this interval is neither counted nor a break
+            g_frgPrevPlay = 0;
+            return;
+        }
     }
     if (!play || !g_frgPrevPlay) {  // the interval since the last frame end is play only when both ends are
         if (!play) FrgBreak(&g_frg);
         g_frgPrevPlay = play;
         return;
     }
-    ev = FrgFrameEx(&g_frg, ms, rate, FrgShedding(), BgRateQuickNow());  // v3.58 GX358: + the quick window (the budget's go-ahead)
+    // v3.59 MERGE (FR359 x GX358): the budget's quick go-ahead (two powers starting) only in gameplay: in a scene the budget
+    // is not fed (loghealth.inc BgFrame skip), its state is the last play frame's; a scene steps by the guard's own windows
+    ev = FrgFrameEx(&g_frg, ms, rate, FrgShedding(), !g_frgScene && BgRateQuickNow());  // v3.58 GX358: + the quick window (the budget's go-ahead)
     switch (ev) {
     case FRG_EV_DOWN:
         InterlockedExchange(&g_frgCap, g_frg.cap);

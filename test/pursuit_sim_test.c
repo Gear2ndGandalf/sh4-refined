@@ -143,7 +143,8 @@ static void TestBlob(void)
     }
     Fill(&a, EF_PUR_N, EF_Q_N, EF_TAG_N, EF_CW_N);
     n = EfPack(&a, buf, sizeof buf);
-    CHECK(n == EF_BLOB_MAX, "the largest blob %d = EF_BLOB_MAX %d", n, EF_BLOB_MAX);
+    CHECK(n == EF_BLOB_MAX - 4 - EF_KR_N * (int)sizeof(EfKrS), "the largest EFS1 blob %d = EF_BLOB_MAX %d less the kept records",
+          n, EF_BLOB_MAX);  // v3.59 EN359: EF_BLOB_MAX grew by the kept records (EFS2)
     CHECK(EfUnpack(buf, n, &b) && !memcmp(&a, &b, sizeof a), "the largest round trip");
     CHECK(EfPack(&a, buf, n - 1) == 0, "does not fit: 0");
     a.nPur = EF_PUR_N + 1;
@@ -222,6 +223,76 @@ static void TestStoreSlot(void)
     CHECK(EfStoreSlot(keys, stamps, used, 4, &k) == 3, "a free slot's old key does not count");
 }
 
+// v3.59 EN359: the kept records of randomized followers ("EFS2"), the EFS1 blob unchanged without them, the slot rule
+static void TestKept359(void)
+{
+    static EfState a, b;
+    static unsigned char buf[EF_BLOB_MAX + 16], buf1[EF_BLOB_MAX + 16], recs[EF_REC * 64];
+    int n, n1, i, k;
+    unsigned v;
+    short st;
+    Fill(&a, 5, 2, 1, 0);
+    n1 = EfPack(&a, buf1, sizeof buf1);
+    CHECK(n1 > 0 && !memcmp(buf1, "EFS1", 4) && n1 == EfBlobSize1(&a), "no kept record: an EFS1 blob as v3.58 wrote it (%d)", n1);
+    CHECK(EfUnpack(buf1, n1, &b) && b.nKr == 0 && !memcmp(&a, &b, sizeof a), "an EFS1 blob still reads (v3.58's side files)");
+    a.nKr = 3;
+    for (i = 0; i < 3; ++i) {
+        for (k = 0; k < EF_REC; ++k) a.kr[i].rec[k] = (unsigned char)(7 * i + k);
+        v = 0x02050001u + (unsigned)i, memcpy(a.kr[i].rec + 0x20, &v, 4);
+        a.kr[i].type = 0x07, a.kr[i].variant = (unsigned char)i, a.kr[i].stockType = 0x0A, a.kr[i].stockVariant = 0;
+    }
+    n = EfPack(&a, buf, sizeof buf);
+    CHECK(n == n1 + 4 + 3 * (int)sizeof(EfKrS) && !memcmp(buf, "EFS2", 4), "with kept records: EFS2, %d bytes", n);
+    CHECK(!memcmp(buf + 4, buf1 + 4, (size_t)(n1 - 4)), "EFS2 = the EFS1 part, then the kept records");
+    CHECK(EfUnpack(buf, n, &b) && !memcmp(&a, &b, sizeof a), "EFS2 round trip exact");
+    CHECK(!EfUnpack(buf, n - 1, &b) && EfStateEmpty(&b) && b.nKr == 0, "EFS2 one byte short: refused, zeroed");
+    CHECK(!EfUnpack(buf, n + 1, &b), "EFS2 one byte long: refused");
+    {
+        int z = 0;
+        memcpy(buf + n1, &z, 4);
+        CHECK(!EfUnpack(buf, n, &b), "EFS2 with a zero count: refused (damaged)");
+        z = EF_KR_N + 1;
+        memcpy(buf + n1, &z, 4);
+        CHECK(!EfUnpack(buf, n, &b), "EFS2 with a count over EF_KR_N: refused");
+        z = 3;
+        memcpy(buf + n1, &z, 4);
+    }
+    memcpy(buf, "EFS1", 4);
+    CHECK(!EfUnpack(buf, n, &b), "an EFS2 body under the EFS1 magic: refused (its size)");
+    a.nKr = EF_KR_N + 1;
+    CHECK(EfPack(&a, buf, sizeof buf) == 0, "too many kept records: not packed");
+    Fill(&a, EF_PUR_N, EF_Q_N, EF_TAG_N, EF_CW_N);
+    a.nKr = EF_KR_N;
+    n = EfPack(&a, buf, sizeof buf);
+    CHECK(n == EF_BLOB_MAX && EfUnpack(buf, n, &b) && !memcmp(&a, &b, sizeof a), "the largest EFS2 blob = EF_BLOB_MAX (%d)", n);
+    CHECK(sizeof(EfKrS) == 0x54, "a kept record 0x54 bytes");
+    // who is kept: a pursuer or one on its way, not a copy; never a dead / pinned or a free record
+    Fill(&a, 3, 2, 0, 0);
+    a.pur[1].flags = EFP_COPY, a.q[0].id = 0x02050009u, a.q[1].flags = EFP_COPY | EFP_GHOST, a.q[1].id = 0x1E000101u;
+    CHECK(EfKrWanted(&a, 0x02040001u, 1) && EfKrWanted(&a, 0x02040003u, 0x0A), "a pursuer standing / down: kept");
+    CHECK(!EfKrWanted(&a, 0x02040002u, 1), "a copy pursuer: its ledger, not kept");
+    CHECK(EfKrWanted(&a, 0x02050009u, 4), "one on its way: kept");
+    CHECK(!EfKrWanted(&a, 0x1E000101u, 1), "a copy on its way: not kept");
+    CHECK(!EfKrWanted(&a, 0x02040001u, 0x0B) && !EfKrWanted(&a, 0x02040001u, 0), "dead / pinned / free: not kept");
+    CHECK(!EfKrWanted(&a, 0x02060001u, 1), "not a follower: not kept");
+    // the slot: the first free one; a live record of its id: left as is; a full table: none
+    memset(recs, 0, sizeof recs);
+    for (i = 0; i < 64; ++i) {
+        st = (short)(i < 10 || i == 11 ? 1 : 0), memcpy(recs + EF_REC * i + 0x26, &st, 2);
+        v = 0x03000000u + (unsigned)i, memcpy(recs + EF_REC * i + 0x20, &v, 4);
+    }
+    v = 0x02050001u, memcpy(a.kr[0].rec + 0x20, &v, 4);
+    CHECK(EfKrSlot(recs, 64, a.kr[0].rec) == 10, "the first free slot (10)");
+    v = 0x03000005u, memcpy(a.kr[0].rec + 0x20, &v, 4);
+    CHECK(EfKrSlot(recs, 64, a.kr[0].rec) == -1, "its id is live in the table: -1 (the save holds it)");
+    v = 0x0300000Au, memcpy(a.kr[0].rec + 0x20, &v, 4);
+    CHECK(EfKrSlot(recs, 64, a.kr[0].rec) == 10, "a free slot holding an old id is free (state 0)");
+    st = 1;
+    for (i = 0; i < 64; ++i) memcpy(recs + EF_REC * i + 0x26, &st, 2);
+    v = 0x02050001u, memcpy(a.kr[0].rec + 0x20, &v, 4);
+    CHECK(EfKrSlot(recs, 64, a.kr[0].rec) == -2, "a full table: -2");
+}
+
 int main(void)
 {
     TestValues();
@@ -230,6 +301,7 @@ int main(void)
     TestBlob();
     TestFile();
     TestStoreSlot();
+    TestKept359();  // v3.59 EN359
     printf("pursuit_sim_test: %d checks, %d failed\n", g_n, g_fail);
     return g_fail != 0;
 }

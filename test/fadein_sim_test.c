@@ -10,6 +10,9 @@
 // v3.58 FI358: the bigger, stickier portal: the hidden keys, the strands' end and snap window, the body's box from its
 // bones / its type, the whole portal's size, the pieces' layout (never one bigger than the first, all inside, the target
 // spanned), their amounts, the budget's share and weights, the strands' width / sag / drop, the timeline, the close line.
+// v3.59 FI359: the portal on the floor (the fit between the floor and a ceiling: the user's Subway restroom 2:3 and room
+// 2:4 arrivals), the drips / blots kept off it, the victim's own height and lift, the wall-exit wait, the palettes, the
+// arrive line; in the stock exe: the floor ray 0x459490 (kFiTarFns group 3) and the victim's GhostHeightReset(size x -180).
 // Usage: out\fadein_sim_test.exe [path of the stock sh4.exe]
 #define _CRT_SECURE_NO_WARNINGS
 #include <stdio.h>
@@ -812,6 +815,108 @@ static int Dump(void)
     return 0;
 }
 
+// ---------------------------------------------------------------- v3.59 FI359
+static void TestFloor(void)
+{
+    float vc, ty, k, cY, bottom;
+    int r, i, ok;
+    char b[400];
+    FiArrive A;
+    // the user's Subway restroom (room 2:3): a victim first seen with its centre 119 u above the floor (y 0), a body 258 u
+    // tall: v3.58's whole portal (half height 0.62 x 258 = 160) reached 41 u under the floor; now its foot stays above it
+    ty = 0.62f * 258.0f;
+    r = FiFloorFit(0.0f - FI_FLOOR_GAP - (-119.0f), -1e30f, 0.0f, ty, 95.0f, &vc, &ty, &k);
+    cY = -119.0f + vc, bottom = cY + ty;
+    CHECK(r == FI_FIT_RAISED && k == 1.0f && fabsf(bottom - (-FI_FLOOR_GAP)) < 0.01f && fabsf(ty - 0.62f * 258.0f) < 0.01f,
+          "2:3: raised %.0f u, its foot at %.1f (the floor 0, gap %.0f), full size", -vc, bottom, FI_FLOOR_GAP);
+    // room 2:4: six portals started at y +40 (under the floor): the whole portal entirely above it
+    ty = 160.0f;
+    r = FiFloorFit(0.0f - FI_FLOOR_GAP - 40.0f, -1e30f, 0.0f, ty, 150.0f, &vc, &ty, &k);
+    CHECK((r & FI_FIT_RAISED) && 40.0f + vc + ty <= -FI_FLOOR_GAP + 0.01f && 40.0f + vc - ty < -300.0f,
+          "2:4: a portal started in the floor stands on it (foot %.1f)", 40.0f + vc + ty);
+    // high enough already: unchanged
+    r = FiFloorFit(500.0f, -1e30f, -20.0f, 160.0f, 95.0f, &vc, &ty, &k);
+    CHECK(r == 0 && vc == -20.0f && ty == 160.0f && k == 1.0f, "above the floor: as it was (centred on the body)");
+    // no floor, no ceiling
+    r = FiFloorFit(1e30f, -1e30f, 33.0f, 160.0f, 95.0f, &vc, &ty, &k);
+    CHECK(r == 0 && vc == 33.0f && ty == 160.0f, "neither: as laid out");
+    r = FiFloorFit((float)NAN, (float)NAN, 33.0f, 160.0f, 95.0f, &vc, &ty, &k);
+    CHECK(r == 0 && vc == 33.0f, "NaN limits: none");
+    // a low ceiling: as tall as the room, the first smaller only when it must be, never under FI_FIT_MINK, the floor wins
+    r = FiFloorFit(200.0f, -100.0f, 0.0f, 250.0f, 95.0f, &vc, &ty, &k);
+    CHECK((r & FI_FIT_SHRUNK) && fabsf(ty - 150.0f) < 0.01f && k == 1.0f && vc + ty <= 200.01f && vc - ty >= -100.01f,
+          "a low ceiling: 300 u of room, the whole 300 u tall (%.0f), the first full size", 2.0f * ty);
+    r = FiFloorFit(100.0f, 0.0f, 0.0f, 250.0f, 95.0f, &vc, &ty, &k);
+    CHECK((r & FI_FIT_SHRUNK) && fabsf(k - 50.0f / 95.0f) < 1e-4f && fabsf(ty - 50.0f) < 0.01f && fabsf(vc + ty - 100.0f) < 0.01f,
+          "100 u of room: the first at %.2f (both ways), the foot on the floor", k);
+    r = FiFloorFit(40.0f, 0.0f, 0.0f, 250.0f, 95.0f, &vc, &ty, &k);
+    CHECK(k == FI_FIT_MINK && fabsf(ty - FI_FIT_MINK * 95.0f) < 0.01f && fabsf(vc + ty - 40.0f) < 0.01f,
+          "a crawl space: never under %.2f, and the floor wins over the ceiling", FI_FIT_MINK);
+    r = FiFloorFit(1000.0f, -50.0f, -200.0f, 100.0f, 95.0f, &vc, &ty, &k);
+    CHECK(r == FI_FIT_LOWERED && fabsf(vc - ty - (-50.0f)) < 0.01f, "a ceiling over the body: the top under it");
+    // the drips and blots off the floor
+    CHECK(FiDripToFloor(240.0f, -100.0f, 0.0f, 1) == 100.0f - FI_FLOOR_GAP && FiDripToFloor(50.0f, -100.0f, 0.0f, 1) == 50.0f &&
+          FiDripToFloor(240.0f, 10.0f, 0.0f, 1) == 0.0f && FiDripToFloor(240.0f, 10.0f, 0.0f, 0) == 240.0f &&
+          FiDripToFloor(-5.0f, 0.0f, 0.0f, 0) == 0.0f, "a drip runs down to the floor's gap at most");
+    CHECK(FiBlotClear(-100.0f, 1.0f, 0.0f, 1) && !FiBlotClear(-20.0f, 1.0f, 0.0f, 1) && FiBlotClear(50.0f, 1.0f, 0.0f, 0),
+          "a blot near the floor is left out");
+    // the victim's own height and the lift
+    CHECK(FiRestY(0.0f, 1.0f) == -180.0f && fabsf(FiRestY(0.0f, 1.1f) + 198.0f) < 0.01f && FiRestY(0.0f, (float)NAN) == -180.0f &&
+          FiRestY(0.0f, 0.0f) == -180.0f, "size x 180 above the floor (a bad size: 1)");
+    CHECK(fabsf(FiLiftBy(-119.0f, -180.0f) - 61.0f) < 0.01f && FiLiftBy(-170.0f, -180.0f) == 0.0f && FiLiftBy(-250.0f, -180.0f) == 0.0f &&
+          fabsf(FiLiftBy(40.0f, -200.0f) - 240.0f) < 0.01f && FiLiftBy(400.0f, -180.0f) == 0.0f && FiLiftBy((float)NAN, -180.0f) == 0.0f,
+          "lifted when lower by 25 .. 420 u only (the 2:3 victim 61 u, room 2:4's 240 u)");
+    // the wall-exit wait
+    CHECK(FiWallOutWait(0x0B, 9, 3, 0) && FiWallOutWait(0x0B, 9, 5, 0) && !FiWallOutWait(0x0B, 9, 2, 0) && !FiWallOutWait(0x0B, 9, 6, 0) &&
+          !FiWallOutWait(0x0B, 8, 3, 0) && !FiWallOutWait(0x0C, 9, 3, 0) && !FiWallOutWait(0x0B, 9, 3, 1),
+          "a victim (0B) in its wall exit's steps 3 .. 5 with no game portal waits");
+    CHECK(FiSpiritLookParse(1) == 1 && FiSpiritLookParse(0) == 0 && FiSpiritLookParse(7) == 1, "FadeInSpiritLook");
+    // the palettes: the tar darkens (its colours near 1 = black under ZERO / INVSRCCOLOR), the spirit tar glows blue
+    for (i = 0, ok = 1; i < 3; ++i) ok &= kFiPalTar.edge[i] > 0.9f && kFiPalTar.str[i] > 0.85f;
+    CHECK(ok && kFiPalTar.kFirst == 1.0f && kFiPalTar.kAround == 1.0f && kFiPalTar.kStr == 1.0f, "the tar palette is v3.58's");
+    CHECK(kFiPalSpirit.edge[2] > kFiPalSpirit.edge[0] && kFiPalSpirit.edge[2] > kFiPalSpirit.edge[1] && kFiPalSpirit.str[2] >= 0.9f &&
+          kFiPalSpirit.core[2] < 0.25f && kFiPalSpirit.edge[2] > 4.0f * kFiPalSpirit.core[2] && kFiPalSpirit.kAround < kFiPalSpirit.kFirst,
+          "spirit tar: blue, a dark fill and a bright rim, the pieces around dimmer (additive overlaps)");
+    // the arrive line (tools\logcheck.py FI_ARRIVE reads it)
+    memset(&A, 0, sizeof A);
+    A.id = 0x02020003u, A.type = 0x0B, A.floorOk = 1, A.foot = 6.0f, A.raised = 47.0f, A.k = 1.0f, A.above = 119.0f, A.rest = 180.0f;
+    A.lift = 61.0f, A.waited = 1.25f, A.ai = 2, A.step = 1, A.anim = 3;
+    FiArriveText(&A, b, sizeof b);
+    CHECK(!strcmp(b, "02020003 (type 0B) arrives: its tar portal on the floor (foot 6 u above it, raised 47 u, full size: 100 %); it "
+                     "came out 119 u above the floor (its own height 180 u): lifted 61 u; AI state 2 step 1, animation 3; unseen 1.25 s "
+                     "before (it came out of a wall by itself)"), "the arrive line: %s", b);
+    A.lift = 0.0f, A.waited = 0.0f, A.k = 0.6f;
+    FiArriveText(&A, b, sizeof b);
+    CHECK(strstr(b, "a low ceiling: 60 %") && strstr(b, ": left as it was; AI state") && !strstr(b, "unseen"), "%s", b);
+    A.floorOk = 0, A.rest = 0.0f;
+    FiArriveText(&A, b, sizeof b);
+    CHECK(!strcmp(b, "02020003 (type 0B) arrives: its tar portal: no floor found under it (as laid out); AI state 2 step 1, animation 3"),
+          "%s", b);
+    {
+        char s4[16];
+        CHECK(FiArriveText(&A, s4, sizeof s4) == (int)sizeof s4 - 1 && s4[15] == 0, "a short buffer stays terminated");
+    }
+}
+// v3.59 FI359: the stock exe: the victim floats size x 180 over its floor (0x4AD9C0 pushes -180.0f for GhostHeightReset)
+static void TestFloorExe(void)
+{
+    const unsigned char *p = Img(0x4AD9C0u);
+    int i, found = 0;
+    static const unsigned char kM180[4] = { 0x00, 0x00, 0x34, 0xC3 };  // -180.0f
+    for (i = 0; p && i < 0x60; ++i)
+        if (!memcmp(p + i, kM180, 4)) found = 1;
+    if (!found && p) {  // (or a load of it from .rdata: a [disp32] whose float is -180)
+        for (i = 0; i + 6 <= 0x60; ++i)
+            if (p[i] == 0xD8 || p[i] == 0xD9) {
+                unsigned a;
+                const unsigned char *q;
+                memcpy(&a, p + i + 2, 4);
+                q = Img(a);
+                if (q && !memcmp(q, kM180, 4)) found = 1;
+            }
+    }
+    CHECK(found, "0x4AD9C0 (the victim's state 0) uses -180.0 for its height (FI_VICTIM_REST)");
+}
 int main(int argc, char **argv)
 {
     const char *exe = argc > 1 ? argv[1] : "C:\\ClaudeCode\\CModding\\SH4Decomp\\orig\\sh4.exe";
@@ -828,6 +933,8 @@ int main(int argc, char **argv)
     TestTar();      // v3.51 PT351
     TestTarExe();   // v3.51 PT351 (after TestExe: the image is loaded)
     TestBig();      // v3.58 FI358
+    TestFloor();    // v3.59 FI359
+    TestFloorExe(); // v3.59 FI359 (the image is loaded)
     printf("%s: %d checks, %d failed\n", g_fail ? "FAIL" : "ok", g_n, g_fail);
     return g_fail ? 1 : 0;
 }

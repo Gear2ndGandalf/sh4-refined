@@ -138,6 +138,42 @@ static void TestFold(void)
 
 // v3.52 MERGE: the keeper x Quick Load from the pause (QL352): no re-apply while the sound is held, one on the first frame
 // after; Night Mode keeps the held master's silence (a master of 0 gives the game's -10000) at every level
+// v3.59 SD359: SH4Refined.muted as a crash leaves it (the user's game folder after 22:48: the v3.58 header and two "muted"
+// entries kept from the 22:04 / 22:33 sessions on two output devices; Windows' session names made up here): the next start
+// reads both, and does what v3.58 intends with each: found and muted = unmuted, found and not muted = dropped, not found =
+// kept (30 days at most)
+static void TestMarkerAfterCrash(void)
+{
+    static const char kFile[] =
+        "# SH4 Refined muted these sound sessions of the game while another window was in front. If this file is still here, "
+        "the game ended before it could unmute them: the next start unmutes the ones named here as \"muted\" that are still muted "
+        "(a \"pending\" one, a mute not confirmed, is left as it is). Safe to delete.\r\n"
+        "1795838636\tmuted\t{0.0.0.00000000}.{11111111-2222-3333-4444-555555555555}|\\Device\\HarddiskVolume1\\Games\\SILENT HILL 4.exe%b{00000000-0000-0000-0000-000000000000}\r\n"
+        "1795840368\tmuted\t{0.0.0.00000000}.{66666666-7777-8888-9999-000000000000}|\\Device\\HarddiskVolume1\\Games\\SILENT HILL 4.exe%b{00000000-0000-0000-0000-000000000000}\r\n";
+    const char *p = kFile;
+    unsigned long t[4];
+    int st[4], n = 0, k;
+    size_t len[4];
+    const char *id[4];
+    for (;;) {  // the split of SdMarkerRead (sound.inc): a line at a time
+        const char *e = strchr(p, '\n');
+        if (n < 4 && SndMarkParse(p, &t[n], &st[n], &id[n], &len[n])) ++n;
+        if (!e) break;
+        p = e + 1;
+    }
+    CHECK(n == 2 && st[0] == SND_MARK_MUTED && st[1] == SND_MARK_MUTED && t[0] == 1795838636ul && t[1] == 1795840368ul &&
+              len[0] == strlen("{0.0.0.00000000}.{11111111-2222-3333-4444-555555555555}|\\Device\\HarddiskVolume1\\Games\\SILENT HILL "
+                               "4.exe%b{00000000-0000-0000-0000-000000000000}") && id[1][0] == '{',
+          "the crash's marker: two muted entries (%d)", n);
+    for (k = 0; k < n; ++k) {
+        const unsigned long next = t[k] + 3600ul;  // the next start, an hour later
+        CHECK(!SndMarkExpired(next, t[k]) && SndMarkExpired(t[k] + SND_MARK_MAX_AGE + 1ul, t[k]), "entry %d: kept 30 days, not more", k);
+        CHECK(SndSessStartAct(1, SndMarkMayUnmute(st[k])), "entry %d found still muted: unmuted", k);
+        CHECK(!SndSessStartAct(0, SndMarkMayUnmute(st[k])) && !SndMarkKeepAtStart(1, st[k]), "entry %d found unmuted: nothing, dropped", k);
+        CHECK(SndMarkKeepAtStart(0, st[k]), "entry %d not found (its device not active): kept for a later start", k);
+    }
+}
+
 static void TestKeepHold(void)
 {
     int f, lvl, applies = 0, during = 0, firstAfter = -1, engine = 1;
@@ -659,6 +695,7 @@ int main(void)
     TestFold();
     TestModes();
     TestKeepHold();  // v3.52 MERGE
+    TestMarkerAfterCrash();  // v3.59 SD359
     printf("sound_sim_test: %d checks, %d failed\n", g_n, g_fail);
     return g_fail ? 1 : 0;
 }

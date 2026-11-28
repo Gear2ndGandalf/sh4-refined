@@ -344,6 +344,11 @@ static int PvBackPick(void *dev, void **tex, UINT *pw, UINT *ph, int *pause);  /
 static int PvPreviewOff(void);                         // Preview Off: no backdrop on the Effects pages (shadows.inc ShMode too)
 static void PvOffNote(int lp);                         // FxBackdropC: the page opened with Preview Off (logged once an opening)
 static int PvIsStockPath(const char *path);            // FxPrevWrite: F7 / the auto-capture never write the stock picture
+// v3.59 PV359: F7 keeps the look layers with its picture (preview.inc)
+static DWORD PvPicStampNext(void);                     // FxPrevWrite: the picture's stamp (its layers carry it)
+static int PvF7Arm(void);                              // FxPreviewKeyFrame: a press arms the next frame (1) or is taken now (0)
+static int PvF7Due(void);                              // FxPreviewKeyFrame: 1 = the armed frame is now (bodies collected)
+static void PvF7Layers(int due, UINT ow, UINT oh);     // FxPreviewKeyFrame: the .heat / .spirit files beside the picture
 static void PvFsGrab(void *dev, int f);                // FxPass: Filter Strength Low / Medium: the plain frame before the filter
 static void PvFsMix(void *dev);                        // FxPass / GvPass: ... laid back over the filter (before the heat / ghosts)
 static int __cdecl PvFsIn(BYTE *cfg, int count);       // Effects > Filter Strength (look.inc: grey with Filter None)
@@ -2216,6 +2221,7 @@ static int FxPrevWrite(const DWORD *out, UINT ow, UINT oh, UINT w, UINT h)
     hdr[24] = 0x0000FF00u;
     hdr[25] = 0x000000FFu;
     hdr[27] = 0x1000;                // TEXTURE
+    PvlPicTag((unsigned char *)hdr, PvPicStampNext());  // v3.59 PV359: "PV59" + a stamp in dwReserved1[0..1] (its layer files carry it)
     if (PvIsStockPath(g_fxPrevPath)) {  // v3.58 PV358: PreviewImage names the stock picture: F7 / the auto-capture never replace it
         static int s_logged;
         if (!s_logged++) Log("screen effects: preview picture %s is the stock picture: F7 and the first-pause capture do not overwrite it "
@@ -2374,17 +2380,22 @@ static void FxPreviewKeyFrame(void)
 {
     UINT ow = 0, oh = 0, w = 0, h = 0;
     DWORD *pic;
-    int down;
+    int down, due;
     if (!g_fxKeyVk || !g_fxPrevPath[0] || !FxGameplay() || *(volatile int *)0xFD5C20 != 0) return;
-    down = (GetAsyncKeyState(g_fxKeyVk) & 0x8000) != 0 && GetForegroundWindow() == g_hwnd;
-    if (!down || g_fxKeyDown) {
-        g_fxKeyDown = down;
-        return;
+    due = PvF7Due();  // v3.59 PV359: 1 = last frame's press: this frame's bodies were collected for the layers: taken now
+    if (!due) {
+        down = (GetAsyncKeyState(g_fxKeyVk) & 0x8000) != 0 && GetForegroundWindow() == g_hwnd;
+        if (!down || g_fxKeyDown) {
+            g_fxKeyDown = down;
+            return;
+        }
+        g_fxKeyDown = 1;
+        if (PvF7Arm()) return;  // v3.59 PV359: armed: the next frame collects its bodies and takes the picture with its layers
     }
-    g_fxKeyDown = 1;
     if ((pic = FxGrabClean(&ow, &oh, &w, &h)) == NULL) return;
     if (FxPrevWrite(pic, ow, oh, w, h)) {
         FxPrevSaved();
+        PvF7Layers(due, ow, oh);  // v3.59 PV359: <picture>.heat / .spirit beside it (or the older ones removed)
         QsSound(1);  // v3.39 PR339: the stock save sound says the picture was taken (a sound: nothing lands in the next grab)
     }
     free(pic);
@@ -2567,6 +2578,11 @@ static int ThermClassify(const BYTE *t, int note, int *kind, int *type_)
     }
 }
 static int ThermClass(const BYTE *t) { return ThermClassify(t, 1, NULL, NULL); }
+// v3.59 MERGE: the one Thermal Vision hide rule (a ghost / victim / wall ghost / haunting, class 2, while Thermal Vision
+// is live): ThermDrawC hides the body by it (TV359; FI359 notes the hidden ghost from that result), ThermShadowC drops its
+// shadow, hudbars.inc HbThemeHides drops its bar (FT359) and preview.inc keeps it out of the spirit layer
+static int ThermHidesCls(int cls) { return cls == 2 && ThermalLive(); }
+static int ThermHidesBody(const BYTE *t) { return ThermalLive() && ThermHidesCls(ThermClassify(t, 0, NULL, NULL)); }
 static int __cdecl GvLive(void);
 static void GvCollect(const BYTE *task, BYTE *model);
 static void GvFrameBegin(void);  // v3.24.0
@@ -2691,7 +2707,7 @@ static int __cdecl ThermDrawC(const BYTE *task, BYTE *model)  // 0x52AEB5: 0 = n
         ThermPrintsEarly();                                            // drawn after the world palette, ThHeatPass)
     }
     cls = ThermClassify(task, 1, NULL, &type);
-    if (cls == 2) return ThermalLive() ? 0 : 1;  // ghosts: hidden in gameplay only (FXV2-004)
+    if (cls == 2) return ThermHidesCls(cls) ? 0 : 1;  // ghosts: hidden in gameplay only (FXV2-004)  // v3.59 MERGE: the one rule
     if (cls == 0 && type == 0 && model && ThermLiving(task, model)) cls = 1;  // not an enemy actor (ThermalCold stays)
     g_thermHeat = 1.0f;
     if (cls == 1 && type > 0) {  // v3.21.0: an enemy cools after death
@@ -2710,6 +2726,7 @@ static int FiDrawC(const BYTE *task, BYTE *model);  // v3.50 FI350: fadein.inc (
 static int FiShadowC(const BYTE *task);             // v3.50 FI350: fadein.inc (0 = no shadow yet)
 // v3.50 FI350: Fade In: where the stock draw would run, an enemy that has just appeared is drawn see-through by the
 // game's own 0x45C880 (fadein.inc FiDrawC) and the stock call is skipped
+static void FiSeenOnly(const BYTE *task);          // v3.59 FI359: fadein.inc (a ghost Thermal hides: its first sight noted)
 static int __cdecl ThermDrawFi(const BYTE *task, BYTE *model)
 {
     const int r = ThermDrawC(task, model);
@@ -2717,9 +2734,10 @@ static int __cdecl ThermDrawFi(const BYTE *task, BYTE *model)
         InterlockedExchange(&g_thermHot, 0);  // (the stock path clears it after its draw)
         return 0;
     }
+    if (!r && model) FiSeenOnly(task);  // v3.59 FI359: Thermal hid it: Reveal Method still notes its first sight  // v3.59 MERGE: r = 0 only by ThermHidesCls
     return r;
 }
-static int __cdecl ThermShadowC(const BYTE *task) { return (!ThermalLive() || ThermClass(task) != 2) && FiShadowC(task) && GtShadowC(task); }  // v3.50 FI350: + FiShadowC  // v3.58 GT358: + GtShadowC
+static int __cdecl ThermShadowC(const BYTE *task) { return (!ThermalLive() || !ThermHidesCls(ThermClass(task))) && FiShadowC(task) && GtShadowC(task); }  // v3.50 FI350: + FiShadowC  // v3.58 GT358: + GtShadowC
 // v3.21.0 (user item 6): the trapped Cynthia behind the Subway train door is an event actor (record 0x62A6FC, model
 // cynl.bin 29 bones / cybl.bin 30): its late handler 0x4EE360 draws her with its own `call 55C650` at 0x4EE376, in
 // 0x52B380 before the registry model loop, so 0x52AEB5 never saw her (staging/feedback_v321/cynthia_re.md). Only that
@@ -3824,6 +3842,10 @@ static void SvColumn(void *dev, const Viewport8 *vp, const float c[3], float R, 
     }
 }
 // ---- S5 wall blood portals (task pool scan, our own vortex in the wall plane)
+// v3.59 FI359: fadein.inc draws them (and Reveal Method's tar portals) as spirit-blue tar instead (FadeInSpiritLook)
+static int __cdecl FiSpiritWall(void *dev, const Viewport8 *vp, const float c[3], const float nn[3], float a, float b,
+                                float open, unsigned seed);
+static int __cdecl FiSpiritDraw(void *dev, const Viewport8 *vp);
 static int SvPortals(void *dev, const Viewport8 *vp, float now)
 {
     static const float kCore[3] = { 1.0f, 0.18f, 0.10f }, kEdge[3] = { 0.55f, 0.0f, 0.12f };
@@ -3857,6 +3879,10 @@ static int SvPortals(void *dev, const Viewport8 *vp, float now)
         u[0] /= l, u[2] /= l;
         v[0] = nn[1] * u[2] - nn[2] * u[1], v[1] = nn[2] * u[0] - nn[0] * u[2], v[2] = nn[0] * u[1] - nn[1] * u[0];
         c[0] += 8.0f * nn[0], c[1] += 8.0f * nn[1], c[2] += 8.0f * nn[2];
+        if (FiSpiritWall(dev, vp, c, nn, a, b, open, (unsigned)i * 0x9E3779B9u)) {  // v3.59 FI359: the tar's spirit look
+            ++drawn;
+            continue;
+        }
         a *= 0.5f * 1.15f * open;
         b *= 0.5f * 1.15f * open;
         for (r = 0; r <= NR; ++r) {
@@ -4554,11 +4580,75 @@ static int SvChest(BYTE *model, int type, float p[3])
                            // v3.23.0 health size SvPlayerFireK is now every being's, spiritfire_sim.h)
 
 // ---- S9 Thermal footprints (the player and the companions), drawn before Thermal's colour pass
-typedef struct { float p[3], dx, dz, t0, sc; } TpPrint;
-typedef struct { float last[3], prevY, pos[3], step, side_d, sc; int side, have; const BYTE *task; LONG seen; } TpWalker;
+// v3.59 TV359: each print keeps its side (+1 / -1: the right and left prints mirror) and its shape (thermal_sim.h: Henry's
+// boots, Eileen's heels, the old oval for the monsters), chosen when it is made (a model switch leaves the old prints)
+#include "thermal_sim.h"  // v3.59 TV359
+typedef struct { float p[3], dx, dz, t0, sc; int side, shape; } TpPrint;  // v3.59 TV359: + side, shape
+typedef struct { float last[3], prevY, pos[3], step, side_d, sc; int side, have, shape; const BYTE *task; LONG seen; } TpWalker;  // v3.59 TV359: + shape
 static TpPrint g_tp[TP_MAX];
 static int g_tpNext, g_tpLogged;
 static TpWalker g_tpW[3 + TP_ENEMIES];  // 0 player, 1 Eileen, 2 Cynthia (companions), then enemies by task
+// v3.59 TV359: who the player is (the model drawn: its hip bones' spacing; else Playable Eileen's SH4PE_Enabled()), logged
+// at each change (a few lines a session: the start, Playable Eileen's live switch)
+static int g_tpBody = -1;           // the player's print shape (TPS_*; -1 none yet)
+static BYTE *g_tpBodyModel;         // the model it was measured on (re-measured when another model is drawn)
+static const void *g_tpBodySkel;
+static float g_tpBodyHips;
+static volatile LONG g_tpBodyQ;     // LogQuota of the change lines
+typedef int(__cdecl *TpPeOnFn)(void);
+static int TpPeOn(void)  // Playable Eileen's SH4PE_Enabled(): 1 / 0, -1 not loaded / no export (looked up once a second at most)
+{
+    static TpPeOnFn s_fn;
+    static DWORD s_next;
+    static int s_tried;
+    if (!s_fn && (!s_tried || (LONG)(GetTickCount() - s_next) >= 0)) {
+        HMODULE ds = GetModuleHandleA("dsound.dll");
+        s_fn = ds ? (TpPeOnFn)(void *)GetProcAddress(ds, "SH4PE_Enabled") : NULL;
+        s_tried = 1;
+        s_next = GetTickCount() + 1000;
+    }
+    if (!s_fn) return -1;
+    __try {
+        return s_fn() ? 1 : 0;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        return -1;
+    }
+}
+static int TpPlayerShape(void)  // the shape of the player's next print
+{
+    BYTE *m = NULL;
+    const void *sk = NULL;
+    float hips = 0.0f;
+    int ok = 0, was = g_tpBody, peOn = -1;
+    __try {
+        m = *(BYTE *const volatile *)(0x10A0F20 + 0x1B0);
+        sk = m ? *(const void *const *)(m + 0xE0) : NULL;
+        if (m && m == g_tpBodyModel && sk == g_tpBodySkel && g_tpBody >= 0) return g_tpBody;  // measured on this body
+        if (m && sk && *(const int *)((const BYTE *)sk + 0x14) > 5) {
+            const float *mats = *(const float *const *)(m + 0xC0);
+            if (mats) {
+                const float *l = mats + 16 * 5 + 12, *r = mats + 16 * 2 + 12;  // hip bones 5 (L) / 2 (R): rigid
+                const float dx = l[0] - r[0], dy = l[1] - r[1], dz = l[2] - r[2];
+                hips = sqrtf(dx * dx + dy * dy + dz * dz);
+                ok = _finite(hips) && hips > 2.0f && hips < 200.0f;
+            }
+        }
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        m = NULL, sk = NULL, ok = 0;
+    }
+    if (!ok) peOn = TpPeOn();
+    g_tpBody = TpBodyShape(hips, ok, peOn, g_tpBody);
+    if (ok) g_tpBodyModel = m, g_tpBodySkel = sk, g_tpBodyHips = hips;  // a body without bones is measured again next time
+    if (g_tpBody != was && LogQuota(&g_tpBodyQ, 16)) {
+        if (ok)
+            Log("screen effects: Thermal Vision: the player's footprints are %s (her / his hip bones %.1f u apart; model %p)",
+                kTpsName[g_tpBody], hips, (void *)m);
+        else
+            Log("screen effects: Thermal Vision: the player's footprints are %s (no hip bones read; Playable Eileen %s)",
+                kTpsName[g_tpBody], peOn == 1 ? "on" : peOn == 0 ? "off" : "not found");
+    }
+    return g_tpBody;
+}
 // 0x52AEB5 (Thermal): an enemy drawn this frame; walking types get a walker (the model root = its feet)
 static void TpEnemySeen(const BYTE *task, const BYTE *model, int type)
 {
@@ -4587,6 +4677,8 @@ static void TpEnemySeen(const BYTE *task, const BYTE *model, int type)
     g_tpW[i].step = type == 0x0A ? 28.0f : TP_STEP;  // the Sniffer Dog: shorter, smaller paws
     g_tpW[i].side_d = type == 0x0A ? 7.0f : TP_SIDE;
     g_tpW[i].sc = type == 0x0A ? 0.65f : 1.0f;
+    g_tpW[i].shape = type == 0x10 ? TPS_BOOT : TPS_OVAL;  // v3.59 TV359: Walter walks in shoes (Henry's boot shape); monsters: the oval
+    if (type == 0x10) g_tpW[i].side_d = TpShapeSide(TPS_BOOT);  // v3.59 TV359
 }
 static int TpPos(int k, float p[3])
 {
@@ -4616,6 +4708,7 @@ static void TpStep(float now)
             w->step = TP_STEP;
             w->side_d = TP_SIDE;
             w->sc = 1.0f;
+            if (k) w->shape = TPS_HEEL, w->side_d = TpShapeSide(TPS_HEEL);  // v3.59 TV359: Eileen / Cynthia: heeled shoes
         }
         // review SV171-001: TpStep runs at the frame's first character draw, before this frame's TpEnemySeen calls:
         // enemies seen in the previous frame (or this one) count (a one-frame lag)
@@ -4643,6 +4736,7 @@ static void TpStep(float now)
         if (d >= w->step) {
             TpPrint *f = &g_tp[g_tpNext];
             const float ux = dx / d, uz = dz / d;
+            if (k == 0) w->shape = TpPlayerShape(), w->side_d = TpShapeSide(w->shape);  // v3.59 TV359: who walks (Henry / Eileen)
             g_tpNext = (g_tpNext + 1) % TP_MAX;
             f->p[0] = p[0] - uz * w->side_d * (float)w->side;
             f->p[1] = p[1];
@@ -4651,6 +4745,8 @@ static void TpStep(float now)
             f->dz = uz;
             f->t0 = now;
             f->sc = w->sc;
+            f->side = w->side;    // v3.59 TV359: the print mirrors by its side of the line
+            f->shape = w->shape;  // v3.59 TV359
             w->side = -w->side;
             memcpy(w->last, p, 12);
         }
@@ -4676,28 +4772,30 @@ static int TpBlocked(const float *p)
     return a / (a - b) < 0.93f;  // crossed well before the print (not the floor it lies on)
 }
 static int TpDraw(void *dev, const Viewport8 *vp, float now, const float kWhite[3])  // v3.22.0: the print colour
-{
-    enum { NS = 12 };
-    int i, s, drawn = 0;
+{   // v3.59 TV359: each print's shape (thermal_sim.h TpShapeTris: pads fanned from a warm centre to a cooler rim; v3.17.1's
+    // oval is TPS_OVAL: a centre at k and 12 rim points at 0.35 k, as before), mirrored by its side of the walking line
+    TpPt t[3 * TP_TRI_MAX];
+    int i, j, n, drawn = 0;
     for (i = 0; i < TP_MAX; ++i) {
         const TpPrint *f = &g_tp[i];
         const float age = now - f->t0;
-        GvHv c, e[NS + 1];
-        float k, cp[3];
+        float k, y;
         if (f->t0 <= 0.0f || age < 0.0f || age > TP_LIFE_S) continue;
         if (TpBlocked(f->p)) continue;
         k = TP_K * powf(1.0f - age / TP_LIFE_S, 1.5f);
-        cp[0] = f->p[0], cp[1] = f->p[1] - 2.0f, cp[2] = f->p[2];
-        SvPoint(&c, cp, k, kWhite);
-        for (s = 0; s <= NS; ++s) {
-            const float th = 6.2831853f * (float)s / NS, a = 0.5f * TP_L * f->sc * cosf(th), b = 0.5f * TP_W * f->sc * sinf(th);
-            float p[3];
-            p[0] = cp[0] + a * f->dx - b * f->dz;
-            p[1] = cp[1];
-            p[2] = cp[2] + a * f->dz + b * f->dx;
-            SvPoint(&e[s], p, 0.35f * k, kWhite);  // a plateau, not a dot (live: 14 x 26 read as specks)
+        y = f->p[1] - 2.0f;
+        n = TpShapeTris(f->shape, t, TP_TRI_MAX);
+        for (j = 0; j < n; ++j) {
+            GvHv v[3];
+            int q;
+            for (q = 0; q < 3; ++q) {
+                float p[3];
+                TpShapeToWorld(&t[3 * j + q], f->p[0], f->p[2], f->dx, f->dz, f->side ? f->side : 1, f->sc, &p[0], &p[2]);
+                p[1] = y;
+                SvPoint(&v[q], p, t[3 * j + q].k * k, kWhite);  // a plateau, not a dot (live: 14 x 26 read as specks)
+            }
+            GvTri(dev, &v[0], &v[1], &v[2], vp, NULL);
         }
-        for (s = 0; s < NS; ++s) GvTri(dev, &c, &e[s], &e[s + 1], vp, NULL);
         ++drawn;
     }
     return drawn;
@@ -4840,16 +4938,126 @@ static int ThRedraw(void *dev, FxSaved *sv, int *drawn)
     for (i = 0; i < 4; ++i) ((SpSetRS_t)VT(dev, SPV_SETRS))(dev, kRs[i], rs[i]);
     return 1;
 }
+// ---- v3.59 TV359: walls hide heat (thermal_sim.h section 1). 0x4EFBDC `call 433F00` (the light grid) -> `call hkThGrid`:
+// while Thermal Vision's heat is live the grid draws with the game's own "no z write" byte [0x137F978] = 1 (put back to
+// what it was after the call), so the depth buffer at 0x4EFBFD is the scene's and the heat redraw's GREATEREQUAL test
+// hides every body behind a wall, a door or furniture. Every other frame the call runs as stock. One 5-byte site,
+// byte-checked with its neighbours, listed in SH4WM_Patches (Poke); hidden [ScreenEffects] ThermalTrueDepth=0 leaves it out.
+static int g_thDepthKey = 1;         // [ScreenEffects] ThermalTrueDepth (hidden; 0 = v3.58: heat seen through walls in lit rooms)
+static int g_thGridHook;             // 0x4EFBDC is ours
+static DWORD g_thGridFn = TH_GRID_FN_VA;
+static volatile LONG g_thGridRan = -1, g_thGridKept = -1;  // the frame (g_fxFrame) the grid last drew / drew keeping the depth
+static BYTE g_thGridPrev;
+static int g_thGridSet;
+static void __cdecl ThGridPre(void)
+{
+    g_thGridSet = 0;
+    InterlockedExchange(&g_thGridRan, g_fxFrame);
+    if (!ThDepthWanted(g_thDepthKey, g_thGridHook, ThermHeatLive())) return;
+    g_thGridPrev = *(volatile BYTE *)(ULONG_PTR)TH_GRID_FLAG_VA;
+    *(volatile BYTE *)(ULONG_PTR)TH_GRID_FLAG_VA = 1;
+    g_thGridSet = 1;
+}
+static void __cdecl ThGridPost(void)
+{
+    if (!g_thGridSet) return;
+    *(volatile BYTE *)(ULONG_PTR)TH_GRID_FLAG_VA = g_thGridPrev;  // as the game's own effects leave it
+    g_thGridSet = 0;
+    InterlockedExchange(&g_thGridKept, g_fxFrame);
+}
+// v3.59 TV359-001 (Codex): a plain __cdecl function in place of the naked hook, so the byte is put back on EVERY exit from
+// the light grid, an exception unwinding through it included (__finally; the exception itself goes on as before). To the
+// caller at 0x4EFBDC it is what 0x433F00 was: no arguments, eax / ecx / edx free, ebx / esi / edi / ebp kept (the compiler
+// keeps them), direction flag clear.
+static void __cdecl hkThGrid(void)  // 4EFBDC: was `call 433F00` (no arguments, its eax not used by the caller)
+{
+    ThGridPre();
+    __try {
+        ((void(__cdecl *)(void))g_thGridFn)();
+    } __finally {
+        ThGridPost();
+    }
+}
+static void ThGridInstall(void)  // ScreenFxInstall, after the Thermal group (g_thermHooks)
+{
+    // mov eax,[FD5C2C]; test eax,eax; jne +5; call 433F00; mov eax,[FD5C34]
+    static const Site kGridCall = { 0x4EFBD3, { 0xA1, 0x2C, 0x5C, 0xFD, 0x00, 0x85, 0xC0, 0x75, 0x05, 0xE8, 0x1F, 0x43, 0xF4, 0xFF,
+                                                0xA1, 0x34, 0x5C, 0xFD, 0x00 }, 19 };
+    g_thDepthKey = GetPrivateProfileIntA("ScreenEffects", "ThermalTrueDepth", 1, g_iniPath) != 0;
+    if (!g_thDepthKey) {
+        Log("screen effects: Thermal Vision: [ScreenEffects] ThermalTrueDepth=0: the light grid keeps overwriting the depth "
+            "(heat seen through walls in rooms with lights, as v3.58)");
+        return;
+    }
+    if (!SiteOk(&kGridCall)) {
+        Log("screen effects: Thermal Vision: the light grid's call 004EFBDC is not stock (another mod?): heat may show through "
+            "walls in rooms with lights");
+        return;
+    }
+    if (!PokeBranch(TH_GRID_CALL_VA, 0xE8, (const void *)hkThGrid, 5)) {
+        Log("screen effects: Thermal Vision: 004EFBDC could not be written: heat may show through walls in rooms with lights");
+        return;
+    }
+    g_thGridHook = 1;
+    Log("screen effects: Thermal Vision: walls hide heat (the light grid 004EFBDC draws with the game's no-depth-write byte "
+        "0137F978 while Thermal Vision is on; hidden [ScreenEffects] ThermalTrueDepth=0 turns it off)");
+}
+// once per room visit (when the next room's first heat frame comes): how often the grid drew and kept the depth there
+static void ThRoomNote(int printZ)
+{
+    static DWORD s_room = 0xFFFFFFFFu;
+    static LONG s_frames, s_ran, s_kept, s_pz;
+    static volatile LONG s_q;
+    static int s_first;
+    const DWORD room = *(volatile DWORD *)0xFD5A90 << 16 | (*(volatile DWORD *)0xFD5A94 & 0xFFFF);
+    const int ran = g_thGridRan == g_fxFrame, kept = ran && g_thGridKept == g_fxFrame;
+    if (room != s_room) {
+        if (s_frames && LogQuota(&s_q, 80))
+            Log("screen effects: Thermal Vision: stage %lu room %lX left: %ld heat frame(s); the light grid drew in %ld, keeping "
+                "the depth in %ld (%s); footprints depth-tested in %ld", s_room >> 16, s_room & 0xFFFF, s_frames, s_ran, s_kept,
+                !g_thGridHook ? "no hook: heat may show through walls" : !s_ran ? "no light grid: the scene's own depth" :
+                s_kept == s_ran ? "walls hid the heat" : s_kept ? "walls hid the heat in some frames" : "HEAT SEEN THROUGH WALLS",
+                s_pz);
+        s_room = room;
+        s_frames = s_ran = s_kept = s_pz = 0;
+    }
+    ++s_frames;
+    s_ran += ran;
+    s_kept += kept;
+    s_pz += printZ != 0;
+    if (kept && !s_first) {
+        s_first = 1;
+        Log("screen effects: Thermal Vision: first frame with the scene's depth kept under the light grid (stage %lu room %lX): "
+            "walls, doors and furniture hide the heat bodies and the footprints", room >> 16, room & 0xFFFF);
+    }
+}
+#define TP_PULL 10.0f  // v3.59 TV359: depth-tested footprints sit this much nearer along the camera ray (never lost in the floor)
+static void ThCamProj(void)  // v3.59 TV359: the camera's own projection (012E3ED0) for the prints' exact depth, as DpCamProj
+{
+    float P[16];
+    __try {
+        memcpy(P, (const void *)0x12E3ED0, sizeof P);
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        return;
+    }
+    if (_finite(P[10] + P[11] + P[14] + P[15]) && fabsf(P[11]) > 0.5f && P[10] != 0.0f && P[10] != 1.0f) {
+        memcpy(g_svP, P, sizeof g_svP);
+        g_svPOk = 1;
+    }
+}
 static void ThHeatPass(void *dev)
 {
     static int s_logs, s_lastN = -1, s_lastP = -1;
     static const float kPrint[3] = { TP_HEAT_R, TP_HEAT_G, TP_HEAT_B };
     FxSaved sv;
     float now;
-    int prints = 0, bodies = 0, ok = 0;
+    int prints = 0, bodies = 0, ok = 0, printZ, printZUsed = 0;  // v3.59 TV359: + printZ, printZUsed
     if (!ThermHeatLive() || !ThHeatOk()) return;
     if (!FxSave(dev, &sv, 6)) return;
     now = SvSecs();
+    // v3.59 TV359: the scene's depth is intact this frame (the grid kept it, or no grid drew): the prints are depth-tested
+    // too (exact depth, pulled TP_PULL toward the camera), so furniture, doors and walls hide them as they hide the bodies
+    printZ = ThPrintDepth(g_thGridHook, g_thGridRan == g_fxFrame, g_thGridKept == g_fxFrame);
     TpStep(now);  // footprints: the walkers' new prints (they were stepped before the first character in v3.21)
     if (SvEye(g_svEye)) {
         ((Viewport_t)VT(dev, FXV_SETVP))(dev, g_thVpOk && g_thStamp == g_fxFrame ? &g_thVp : &sv.vp);
@@ -4858,11 +5066,21 @@ static void ThHeatPass(void *dev)
         ((void(__cdecl *)(float *))0x55BF50)(g_gvM);
         SvNearFar();
         SvUntextured(dev);
-        SvZ(dev, 0);  // no depth (floor decals, KB 114); walls: TpBlocked; hot bodies are redrawn over them next
+        if (printZ) ThCamProj();  // v3.59 TV359
+        if (printZ && g_svPOk) {  // v3.59 TV359 (no projection: the calibrated depth would not fit: no depth, as v3.58)
+            printZUsed = 1;
+            SvZ(dev, 2);  // GREATEREQUAL, no depth write
+            g_svZScaleNow = 1.0f;  // the exact depth (as Death Presence: re_depth.md)
+            g_svPull = TP_PULL;
+        } else {
+            SvZ(dev, 0);  // no depth (floor decals, KB 114); walls: TpBlocked; hot bodies are redrawn over them next
+            g_svPull = 0.0f;
+        }
         g_svMul = 1.0f;
-        g_svPull = 0.0f;
         prints = TpDraw(dev, g_thVpOk && g_thStamp == g_fxFrame ? &g_thVp : &sv.vp, now, kPrint);
         GvFlush(dev);
+        g_svZScaleNow = SV_ZSCALE;  // v3.59 TV359: Spirit Vision's own scale back
+        g_svPull = 0.0f;
         SvZOff(dev);
     }
     if (g_thStamp == g_fxFrame && g_thN) {
@@ -4890,6 +5108,7 @@ static void ThHeatPass(void *dev)
         }
     }
     FxRestore(dev, &sv);
+    ThRoomNote(printZUsed);  // v3.59 TV359: this room's light-grid / depth counts (logged at the next room)
     if (s_logs < 40 && (bodies != s_lastN || (prints > 0) != s_lastP)) {
         ++s_logs;
         s_lastN = bodies;
@@ -5022,6 +5241,7 @@ static int GvPass(void *dev, int where)  // v3.22.0: 1 = the edge world was draw
                 SvUntextured(dev);
                 SvZ(dev, pass);
                 portals = SvPortals(dev, &sv.vp, now);
+                portals += FiSpiritDraw(dev, &sv.vp);  // v3.59 FI359: Reveal Method's tar portals in Spirit Vision's look
                 rings = g_svHaunts;
                 candles = g_svCandles;
                 if (g_svTest == 4 && pass != 1) {  // v3.17.1 floor probe: 9 squares at the feet, depth scale 1/128 .. 1/64
@@ -5323,6 +5543,7 @@ static void ScreenFxInstall(void)
         return;
     }
     g_thermHooks = 1;
+    ThGridInstall();  // v3.59 TV359: walls hide heat (optional: without it heat may show through walls in lit rooms)
     {   // v3.21.0: the trapped Cynthia's own draw (optional: Thermal works without it)
         static const Site kCyn = { 0x4EE375, { 0x56, 0xE8, 0xD5, 0xE2, 0x06, 0x00, 0x68, 0x00, 0x00, 0x00, 0x40 }, 11 };  // push esi; call; push 40000000h
         const int ok = SiteOk(&kCyn) && PokeBranch(0x4EE376, 0xE8, hkThermCyn, 5);
