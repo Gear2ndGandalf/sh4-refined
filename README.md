@@ -1,6 +1,6 @@
 # SH4 Refined
 
-**Current version: v3.58.0 (new, not yet tested in game; v3.56.0 and v3.57.0 were play-tested 2026-11-27 and passed; see Versions below)**
+**Current version: v3.58.0 (play-tested 2026-11-27: every item passed, a few changes requested for the next version; see Versions below)**
 
 SH4 Refined is a fan-made enhancement mod for the PC version of **Silent Hill 4: The Room** sold by GOG. It is a
 single `winmm.dll` that the game loads from its own folder: no loader, no installer and no changes to the game's exe
@@ -134,7 +134,7 @@ clinging tar strands, a clean Ghost Teleport fade (under Thermal and Spirit Visi
 preview and Echo Doubles, Walter's bar while he is down, no health bars before an enemy appears, randomized victims
 that chase you again, the randomizer's Reroll keeping the dead dead and copies of other kinds with Extra Enemies, Music
 and Effects Volume 0 really silent, and a Background Mute that mutes the whole game in Windows while it is behind;
-not yet play-tested. v3.57.0 rewords the Options menu after a review of
+play-tested 2026-11-27 (passed; the game can crash when its sound device is switched off, being fixed next). v3.57.0 rewords the Options menu after a review of
 every row (clearer descriptions; Turn or Strafe, Reroll, Quick Charge x1.5 / x2 / x3; no setting changes); play-tested
 2026-11-27. v3.56.0 answers the v3.55 play test: folder rows open
 with one click, every value has its own description, the Effects preview shows Thermal and Spirit Vision (and draws its
